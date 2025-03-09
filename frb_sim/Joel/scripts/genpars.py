@@ -1,0 +1,97 @@
+#
+#	Functions for simulating scattering 
+#
+#								AB, May 2024
+#
+#	--------------------------	Import modules	---------------------------
+
+import os, sys
+import matplotlib as mpl
+import numpy as np
+import matplotlib.ticker as ticker
+import matplotlib.pyplot as plt
+import pickle as pkl
+from collections import namedtuple
+
+cfreq		=	1000.0	                        #	Central frequency in MHz
+nchan		=	64		                        #	Number of fequency channels
+dfmhz		=	5.25	                        #	Channel width in MHz
+twinms		=	10.0	                        #	Time window in ms
+tresms		=	0.1		                        #	Time resolution in ms
+scindex		=	-4.0	                        #	Scattering index
+frefmhz		=	1000.0	                        #	Reference frequency for scattering
+
+# universal constants 
+uniG		=	6.67430e-8						#	Universal gravitational constant in CGS
+elecE		=	4.8032047e-10					#	Absolute electronic charge in CGS
+mE			=	9.1093837e-28					#	Electron mass in CGS
+ccC			=	2.99792458e10					#	Speed of light in CGS
+pcincm		=	3.0857e18						#	Persec / cm							
+wbynu		=	2*np.pi							#	Omega / nu 
+mSUN		=	1.98847e33						#	Solar mass in grams
+radtosec	=	180.0*3600/np.pi				#	Radian in arcsecs
+radtopas	=	180.0*3600*1.0e12/np.pi			#	Radian in pico-arcsecs
+radsolar	=	6.957e10						#	Solar radius in cm
+auincm		=	1.496e13						#	1 AU in cm
+intocm		=	2.54
+datadir		=	'../simfrbs/'
+
+# 1 FRB data simulated, (taums as input command line),
+# dspec4 = 4D
+# create another sub directory called SIMFRB
+simfrb		=	namedtuple('simfrb',['frbname','fmhzarr','tmsarr','taums','frefmhz','scindex','gparams','dspec4'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
