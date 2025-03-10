@@ -9,7 +9,7 @@ import os, sys
 import matplotlib as mpl
 import numpy as np
 from genfns import *
-from genpars import *
+from utils import *
 
 def print_instructions():
 	"""
@@ -33,21 +33,21 @@ fname		=	sys.argv[2]				# FRB identifier
 
 #	-------------------------	Execute steps	-------------------------------
 
-f_mhzarr	=	np.arange( cfreq-(nchan*df_mhz)/2.0 , cfreq+(nchan*df_mhz)/2.0, df_mhz, dtype=float)		# Array of frequency channels
-t_msarr		=	np.arange( -time_win_ms, time_win_ms, time_res_ms, dtype=float )										# Array of time bins
+f_mhzarr	=	np.arange( central_frequency_mhz-(num_channels*channel_width_mhz)/2.0 , central_frequency_mhz+(num_channels*channel_width_mhz)/2.0, channel_width_mhz, dtype=float)		# Array of frequency channels
+t_msarr		=	np.arange( -time_window_ms, time_window_ms, time_resolution_ms, dtype=float )										# Array of time bins
 gparams		=	np.loadtxt('gparams.txt')																# Load gaussians from gparams.txt
 
 #	Generate Inital dispersed dynamic spectrum with Gassian components
-dynspec0	=	gauss_dynspec(f_mhzarr, t_msarr, df_mhz, time_res_ms, gparams[:,3], gparams[:,2], gparams[:,1], gparams[:,0], gparams[:,4], \
+dynspec0	=	gauss_dynspec(f_mhzarr, t_msarr, channel_width_mhz, time_resolution_ms, gparams[:,3], gparams[:,2], gparams[:,1], gparams[:,0], gparams[:,4], \
                                  gparams[:, 6], gparams[:, 7], gparams[:,8], gparams[:, 9], gparams[:,5])
 
 #	Scatter the dynamic spectrum 
-sc_dynspec	=	scatter_dynspec(dynspec0, f_mhzarr, t_msarr, df_mhz, time_res_ms, tau_ms, scindex)
+sc_dynspec	=	scatter_dynspec(dynspec0, f_mhzarr, t_msarr, channel_width_mhz, time_resolution_ms, tau_ms, scattering_index)
 
 #	'Pickle' the simulated FRB and save it to the disk
-fakefrb		=	simfrb(fname,f_mhzarr,t_msarr,tau_ms,f_ref_mhz,scindex,gparams,sc_dynspec)      
+fakefrb		=	simulated_frb(fname,f_mhzarr,t_msarr,tau_ms,reference_frequency_mhz,scattering_index,gparams,sc_dynspec)      
 
-frbfile		=	open("{}{}_sc_{:.2f}.pkl".format(datadir,fname,tau_ms),'wb')             # Create the data directory, keep all simulated frbs 
+frbfile		=	open("{}{}_sc_{:.2f}.pkl".format(data_directory,fname,tau_ms),'wb')             # Create the data directory, keep all simulated frbs 
 pkl.dump(fakefrb, frbfile)		
 frbfile.close()
 

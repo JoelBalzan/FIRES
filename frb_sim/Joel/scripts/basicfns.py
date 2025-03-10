@@ -120,7 +120,7 @@ def rm_correct_dynspec(dspec4, fmhzarr, rm0):
     newdspec4[3]=	dspec4[3]
     
     # Calculate the lambda squared array
-    lm2arr		=	(c_cgs*1.0e-8 / fmhzarr)**2
+    lm2arr		=	(speed_of_light_cgs*1.0e-8 / fmhzarr)**2
     lm20		=	np.nanmedian(lm2arr)
         
     # Apply RM correction to Q and U spectra
@@ -187,7 +187,7 @@ def est_profiles(dspec4, fmhzarr, tmsarr, noisespec, startchan, endchan):
     epfrac		=	np.abs(pfrac)*np.sqrt((epts/pts)**2 + (noistks[0]/itsub)**2)
         
     # Return the time profiles as a frbts object
-    return(frbts(iquvt, lts, elts, pts, epts, phits, dphits, psits, dpsits, qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac))
+    return(frb_time_series(iquvt, lts, elts, pts, epts, phits, dphits, psits, dpsits, qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac))
 #	-------------------------------------------------------------------------------
 
 def est_spectra(dspec4, fmhzarr, tmsarr, noisespec, lwms, rwms):
@@ -242,5 +242,5 @@ def est_spectra(dspec4, fmhzarr, tmsarr, noisespec, lwms, rwms):
     dpsispec	=	np.rad2deg(0.5*np.sqrt((vspec*dlspec)**2 + (lspec*noispec0[2])**2) / (vspec**2 + lspec**2))
 
     # Return the spectra as a frbspec object
-    return(frbspec(iquvspec, noispec0, lspec, dlspec, pspec, dpspec, qfracspec, dqfrac, ufracspec, dufrac, vfracspec, dvfrac, lfracspec, dlfrac, pfracspec, dpfrac, phispec, dphispec, psispec, dpsispec))
+    return(frb_spectrum(iquvspec, noispec0, lspec, dlspec, pspec, dpspec, qfracspec, dqfrac, ufracspec, dufrac, vfracspec, dvfrac, lfracspec, dlfrac, pfracspec, dpfrac, phispec, dphispec, psispec, dpsispec))
 #	-------------------------------------------------------------------------------
