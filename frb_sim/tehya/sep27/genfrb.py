@@ -33,19 +33,19 @@ fname		=	sys.argv[2]				# FRB identifier
 
 #	-------------------------	Execute steps	-------------------------------
 
-fmhzarr		=	np.arange( cfreq-(nchan*dfmhz)/2.0 , cfreq+(nchan*dfmhz)/2.0, dfmhz, dtype=float)
-tmsarr		=	np.arange( -twinms, twinms, tresms, dtype=float )
+fmhzarr		=	np.arange( cfreq-(nchan*df_mhz)/2.0 , cfreq+(nchan*df_mhz)/2.0, df_mhz, dtype=float)
+tmsarr		=	np.arange( -time_win_ms, time_win_ms, time_res_ms, dtype=float )
 gparams		=	np.loadtxt('gparams.txt')
 
 #	Generate Inital dispersed dynamic spectrum with Gassian components
-dynspec0	=	gauspuls(fmhzarr, tmsarr, dfmhz, tresms, gparams[:,3], gparams[:,2], gparams[:,1], gparams[:,0], gparams[:,4], \
+dynspec0	=	gauspuls(fmhzarr, tmsarr, df_mhz, time_res_ms, gparams[:,3], gparams[:,2], gparams[:,1], gparams[:,0], gparams[:,4], \
                                  gparams[:, 6], gparams[:, 7], gparams[:,8], gparams[:, 9], gparams[:,5])
 
 #	Scatter the dynamic spectrum 
-scdspec		=	scatter_dynspec(dynspec0, fmhzarr, tmsarr, dfmhz, tresms, taums, scindex)
+scdspec		=	scatter_dynspec(dynspec0, fmhzarr, tmsarr, df_mhz, time_res_ms, taums, scindex)
 
 #	'Pickle' the simulated FRB and save it to the disk
-fakefrb		=	simfrb(fname,fmhzarr,tmsarr,taums,frefmhz,scindex,gparams,scdspec)      
+fakefrb		=	simfrb(fname,fmhzarr,tmsarr,taums,f_ref_mhz,scindex,gparams,scdspec)      
 
 frbfile		=	open("{}{}_sc_{:.2f}.pkl".format(datadir,fname,taums),'wb')             # Create the data directory, keep all simulated frbs 
 pkl.dump(fakefrb, frbfile)		
