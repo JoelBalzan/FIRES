@@ -9,11 +9,11 @@ from collections import namedtuple
 
 #	-------------------		Constants	------------------------------------------------
 
-uniG		=	6.67430e-8						#	Universal gravitational constant in CGS
+G_cgs		=	6.67430e-8						#	Universal gravitational constant in CGS
 elecE		=	4.8032047e-10					#	Absolute electronic charge in CGS
 mE			=	9.1093837e-28					#	Electron mass in CGS
-ccC			=	2.99792458e10					#	Speed of light in CGS
-pcincm		=	3.0857e18						#	Persec / cm							
+c_cgs		=	2.99792458e10					#	Speed of light in CGS
+pc_cm		=	3.0857e18						#	Persec / cm							
 wbynu		=	2*np.pi							#	Omega / nu 
 mSUN		=	1.98847e33						#	Solar mass in grams
 radtosec	=	180.0*3600/np.pi				#	Radian in arcsecs
@@ -27,7 +27,7 @@ datadir		=	'../simfrbs/'
 plotdir		=	'../plots/'
 
 # same as other script 
-simfrb		=	namedtuple('simfrb',['frbname','fmhzarr','tmsarr','taums','frefmhz','scindex','gparams','dspec4'])
+simfrb		=	namedtuple('simfrb',['frbname','fmhzarr','tmsarr','taums','f_ref_mhz','scindex','gparams','dspec4'])
 
 # time variation
 frbts		=	namedtuple('frbts',['iquvt','lts','elts','pts','epts','phits','dphits','psits','dpsits','qfrac','eqfrac','ufrac','eufrac','vfrac','evfrac','lfrac','elfrac','pfrac','epfrac'])

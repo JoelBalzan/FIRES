@@ -6,10 +6,10 @@
 #
 #	Function list
 #
-#	gauspuls(fmhzarr, tmsarr, dfmhz, dtms, specind, peak, wms, locms, dmpccc):
+#	gauspuls(fmhzarr, tmsarr, df_mhz, dtms, specind, peak, wms, locms, dmpccc):
 #		Generate dynamic spectrum for a Gaussian pulse
 #
-#	scatter_dynspec(dspec, fmhzarr, tmsarr, dfmhz, dtms, taums, scindex):
+#	scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex):
 #		Scatter a given dynamic spectrum
 #
 #	--------------------------	Import modules	---------------------------
@@ -31,7 +31,7 @@ mpl.rcParams["ytick.major.size"]= 3
 
 #	--------------------------	Analysis functions	-------------------------------
  
-def gauspuls(fmhzarr, tmsarr, dfmhz, dtms, specind, peak, wms, locms, dmpccc, pa, l, v, dpadt, rm):
+def gauspuls(fmhzarr, tmsarr, df_mhz, dtms, specind, peak, wms, locms, dmpccc, pa, l, v, dpadt, rm):
 	
 	#	Generate dynamic spectrum for Gaussian pulses
 	
@@ -39,7 +39,7 @@ def gauspuls(fmhzarr, tmsarr, dfmhz, dtms, specind, peak, wms, locms, dmpccc, pa
 	ngp		=	len(specind) - 1
 	plsarr	=	np.zeros(len(tmsarr), dtype=float)
 	fmhzref	=	np.nanmedian(fmhzarr)
-	lm2arr	=	(ccC*1.0e-8 / fmhzarr)**2
+	lm2arr	=	(c_cgs*1.0e-8 / fmhzarr)**2
 	lm20 	= 	np.nanmedian(lm2arr)
 
 	for g in range(0,ngp):
@@ -65,7 +65,7 @@ def gauspuls(fmhzarr, tmsarr, dfmhz, dtms, specind, peak, wms, locms, dmpccc, pa
 
 #	--------------------------------------------------------------------------------
 
-def scatter_dynspec(dspec, fmhzarr, tmsarr, dfmhz, dtms, taums, scindex):
+def scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex):
         
     # Scatter a given dynamic spectrum
 	

@@ -106,7 +106,7 @@ def unfarot(dspec4, fmhzarr, rm0):
 	newdspec4[0]=	dspec4[0]
 	newdspec4[3]=	dspec4[3]
 	
-	lm2arr		=	(ccC*1.0e-8 / fmhzarr)**2
+	lm2arr		=	(c_cgs*1.0e-8 / fmhzarr)**2
 	lm20		=	np.nanmedian(lm2arr)
 		
 	for ci in range (0,len(lm2arr)):
