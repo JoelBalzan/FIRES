@@ -14,10 +14,11 @@ import pickle as pkl
 from collections import namedtuple
 
 central_frequency_mhz	=	1000.0	                        #	Central frequency in MHz
-num_channels		    =	64		                        #	Number of frequency channels
-channel_width_mhz		=	5.25	                        #	Channel width in MHz
+num_channels		    =	300		                        #	Number of frequency channels
+channel_width_mhz		=	1		                        #	Channel width in MHz
 time_window_ms		    =	10.0	                        #	Time window in ms
 time_resolution_ms		=	0.1		                        #	Time resolution in ms
+num_time_bins		    =	int(2*time_window_ms/time_resolution_ms)	#	Number of time bins
 scattering_index		=	-4.0	                        #	Scattering index
 reference_frequency_mhz	=	1000.0	                        #	Reference frequency for scattering
 
@@ -35,6 +36,29 @@ solar_radius_cm			    =	6.957e10					#	Solar radius in cm
 astronomical_unit_cm	    =	1.496e13					#	1 AU in cm
 inch_to_cm				    =	2.54
 data_directory			    =	'../simfrbs/'
+
+# constants for scintillation application
+mb2							=	2							#mb2: Max Born parameter for strength of scattering
+rf							=	1							#rf: Fresnel scale
+ds							=	0.01						#ds (or dx,dy): Spatial step sizes with respect to rf
+alpha						=	5/3							#alpha: Structure function exponent (Kolmogorov = 5/3)
+ar							=	1							#ar: Anisotropy axial ratio
+psi							=	0							#psi: Anisotropy orientation
+inner						=	0.001						#inner: Inner scale w.r.t rf - should generally be smaller than ds
+ns							=	256							#ns (or nx,ny): Number of spatial steps
+nf							=	256							#nf: Number of frequency steps.
+dlam						=	0.25						#dlam: Fractional bandwidth relative to centre frequency
+lamsteps					=	False						#lamsteps: Boolean to choose whether steps in lambda or freq
+seed						=	1234 						#seed: Seed number, or use "-1" to shuffle
+nx							=	None
+ny							=	None
+dx							=	None
+dy							=	None
+plot						=	False
+verbose						=	False
+dt							=	30
+
+
 
 # 1 FRB data simulated, (taums as input command line),
 # dspec4 = 4D
