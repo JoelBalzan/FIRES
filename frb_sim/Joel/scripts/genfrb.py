@@ -29,7 +29,7 @@ if(len(sys.argv)<3):
 	sys.exit()
 
 tau_ms		=	float(sys.argv[1])		# Scattering time scale (msec)
-fname		=	sys.argv[2]				# FRB identifier
+fname		=	sys.argv[2]			# FRB identifier
 
 #	-------------------------	Execute steps	-------------------------------
 
@@ -44,8 +44,12 @@ dynspec0	=	gauss_dynspec(f_mhzarr, t_msarr, channel_width_mhz, time_resolution_m
 #	Scatter the dynamic spectrum 
 sc_dynspec	=	scatter_dynspec(dynspec0, f_mhzarr, t_msarr, channel_width_mhz, time_resolution_ms, tau_ms, scattering_index)
 
+scintillated_dynspec = apply_scintillation(sc_dynspec)
+
+
+
 #	'Pickle' the simulated FRB and save it to the disk
-fakefrb		=	simulated_frb(fname,f_mhzarr,t_msarr,tau_ms,reference_frequency_mhz,scattering_index,gparams,sc_dynspec)      
+fakefrb		=	simulated_frb(fname,f_mhzarr,t_msarr,tau_ms,reference_frequency_mhz,scattering_index,gparams,scintillated_dynspec)      
 
 frbfile		=	open("{}{}_sc_{:.2f}.pkl".format(data_directory,fname,tau_ms),'wb')             # Create the data directory, keep all simulated frbs 
 pkl.dump(fakefrb, frbfile)		

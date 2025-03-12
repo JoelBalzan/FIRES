@@ -18,7 +18,9 @@ import os, sys
 import matplotlib as mpl
 import numpy as np
 import matplotlib.ticker as ticker
+from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
+from scintools.scint_sim import Simulation
 from utils import *
 
 mpl.rcParams['pdf.fonttype']	= 42
@@ -149,79 +151,93 @@ def scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex):
 
 #	--------------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def apply_scintillation(dynspec):
+    """
+    Apply scintillation effects to a given dynamic spectrum. 
+    Uses Daniel Reardon's Scintools package for simulating scintillation:
+    https://github.com/danielreardon/scintools
+
+    Parameters:
+    -----------
+    dynspec : numpy.ndarray
+        Input dynamic spectrum with shape (4, time bins, frequency channels).
+        The first dimension represents the four Stokes parameters.
+    mb2 : float, optional
+        Max Born parameter for the strength of scattering. Default is 2.
+    rf : float, optional
+        Fresnel scale. Default is 1.
+    ds : float, optional
+        Spatial step size with respect to rf. Default is 0.01.
+    alpha : float, optional
+        Structure function exponent (Kolmogorov = 5/3). Default is 5/3.
+    ar : float, optional
+        Anisotropy axial ratio. Default is 1.
+    psi : float, optional
+        Anisotropy orientation in degrees. Default is 0.
+    inner : float, optional
+        Inner scale w.r.t rf - should generally be smaller than ds. Default is 0.001.
+    seed : int, optional
+        Seed number for the random number generator, or use "-1" to shuffle. Default is None.
+    verbose : bool, optional
+        Flag to enable verbose output. Default is False.
+
+    Returns:
+    --------
+    scintillated_dynspec : numpy.ndarray
+        The scintillated dynamic spectrum with the same shape as the input.
+    """
+
+    npol, nsub, nchan = dynspec.shape  # Extract dimensions
+    # Set simulation parameters based on dynamic spectrum dimensions
+    scint_sim = Simulation(mb2=mb2, rf=rf, ds=time_resolution_ms, alpha=alpha, ar=ar, psi=psi, inner=inner, 
+                              ns=nsub, nf=nchan, dlam=dlam, 
+                              lamsteps=lamsteps, seed=seed, nx=nsub, ny=nchan, dx=ds, dy=ds)
+    
+    # Generate the intensity pattern
+    xyi = scint_sim.xyi  # Calculate the intensity
+    intensity_pattern = xyi / np.max(xyi)  # Normalize intensity pattern
+
+    scintillated_dynspec = np.zeros_like(dynspec)  # Initialize output
+
+    for pol in range(npol):
+        # Apply the intensity pattern to each Stokes parameter
+        scintillated_dynspec[pol, :, :] = dynspec[pol, :, :] * intensity_pattern
+
+    
+    # Plot the scintillated dynamic spectrum
+    fig, axs = plt.subplots(5, figsize=(10, 6))
+    fig.suptitle('Scintillated Dynamic Spectrum')
+    
+    # Plot the mean across all frequency channels (axis 0)
+    axs[0].plot(np.nanmean(scintillated_dynspec[0,:], axis=0), markersize=2 ,label='I')
+    axs[0].plot(np.nanmean(scintillated_dynspec[1,:], axis=0), markersize=2, label='Q')
+    axs[0].plot(np.nanmean(scintillated_dynspec[2,:], axis=0), markersize=2, label='U')
+    axs[0].plot(np.nanmean(scintillated_dynspec[3,:], axis=0), markersize=2, label='V')
+    axs[0].set_title("Mean Scintillated Signal over Time")
+    axs[0].legend(loc='upper right')
+
+    # Plot the 2D scattered dynamic spectrum
+    axs[1].imshow(scintillated_dynspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+        vmin=-np.nanmax(np.abs(scintillated_dynspec[0])), vmax=np.nanmax(np.abs(scintillated_dynspec[0])))
+    axs[1].set_title("Mean Scintillated Dynamic Spectrum Across Frequency Channels")
+
+    axs[2].imshow(scintillated_dynspec[1], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+        vmin=-np.nanmax(np.abs(scintillated_dynspec[0])), vmax=np.nanmax(np.abs(scintillated_dynspec[0])))
+
+    axs[3].imshow(scintillated_dynspec[2], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+        vmin=-np.nanmax(np.abs(scintillated_dynspec[0])), vmax=np.nanmax(np.abs(scintillated_dynspec[0])))
+
+    axs[4].imshow(scintillated_dynspec[3], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+           vmin=-np.nanmax(np.abs(scintillated_dynspec[0])), vmax=np.nanmax(np.abs(scintillated_dynspec[0])))
+    axs[4].set_xlabel("Time (samples)")
+    axs[4].set_ylabel("Frequency (MHz)")
+
+    plt.tight_layout()
+    plt.show()
+
+
+    plt.imshow(scintillated_dynspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma', vmin=-np.nanmax(np.abs(scintillated_dynspec)), vmax=np.nanmax(np.abs(scintillated_dynspec)))
+    plt.show()
+    
+
+    return scintillated_dynspec
