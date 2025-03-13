@@ -5,11 +5,14 @@
 #                                                               
 #	--------------------------	Import modules	---------------------------
 
-import os, sys
+import os
+import sys
+
 import matplotlib as mpl
 import numpy as np
 from genfns import *
 from utils import *
+
 
 def print_instructions():
     """

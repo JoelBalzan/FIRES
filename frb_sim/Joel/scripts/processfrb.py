@@ -5,11 +5,14 @@
 
 #	--------------------------	Import modules	---------------------------
 
-import os, sys
+import os
+import sys
+
 import numpy as np
-from utils import *
 from basicfns import *
 from plotfns import *
+from utils import *
+
 
 def print_instructions():
 
@@ -43,7 +46,7 @@ rm0			=	float(sys.argv[8])			#	RM for derotation, set to 0.0 otherwise
 
 #	-------------------------	Do steps	-------------------------------
 
-dsfile	=	open("{}{}_sc_{:.2f}.pkl".format(datadir,fname,taums),'rb')
+dsfile	=	open("{}{}_sc_{:.2f}.pkl".format(data_directory,fname,taums),'rb')
 dsdata	=	pkl.load(dsfile)
 dsfile.close()
 
@@ -69,13 +72,13 @@ else:
 	tsdata		=	est_profiles(corrdspec, dsdata.fmhzarr, dsdata.tmsarr, noisespec, startchan, endchan)
 	
 	if(exmode=="iquv"):
-		plot_stokes(plotdir,corrdspec,tsdata.iquvt,dsdata.fmhzarr,dsdata.tmsarr,[0.0,0.0],[5.0,8.0])
+		plot_stokes(plot_directory,corrdspec,tsdata.iquvt,dsdata.fmhzarr,dsdata.tmsarr,[0.0,0.0],[5.0,8.0])
 	
 	if(exmode=="lvpa"):
-		plot_ilv_pa_ds(plotdir,noistks,corrdspec,tsdata,dsdata.fmhzarr,dsdata.tmsarr,[0.0,0.0],[4.0,5.0])
+		plot_ilv_pa_ds(plot_directory,noistks,corrdspec,tsdata,dsdata.fmhzarr,dsdata.tmsarr,[0.0,0.0],[4.0,5.0])
 
 	if(exmode=="dpa"):
-		plot_dpa(plotdir,noistks,tsdata,dsdata.tmsarr,[4.0,4.0],5)
+		plot_dpa(plot_directory,noistks,tsdata,dsdata.tmsarr,[4.0,4.0],5)
         
 
 
