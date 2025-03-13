@@ -55,7 +55,7 @@ time_ms_array = np.arange(
 gaussian_params = np.loadtxt('gparams.txt')
 
 # Generate initial dispersed dynamic spectrum with Gaussian components
-initial_dynspec = gauss_dynspec(
+initial_dynspec,polarisation_angles = gauss_dynspec(
     frequency_mhz_array,
     time_ms_array,
     channel_width_mhz,
@@ -80,7 +80,8 @@ scattered_dynspec = scatter_dynspec(
     channel_width_mhz,
     time_resolution_ms,
     scattering_timescale_ms,
-    scattering_index
+    scattering_index,
+    polangles=polarisation_angles
 )
 
 # Apply scintillation (if needed)
