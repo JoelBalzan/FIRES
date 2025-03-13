@@ -33,7 +33,9 @@ mpl.rcParams["ytick.major.size"]= 3
 
 #	--------------------------	Analysis functions	-------------------------------
  
-def gauss_dynspec(frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spectral_index, peak_amplitude, width_ms, location_ms, dispersion_measure, polarization_angle, linear_polarization_fraction, circular_polarization_fraction, change_in_polarization_angle, rotation_measure):
+def gauss_dynspec(frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spectral_index, peak_amplitude, width_ms, 
+                  location_ms, dispersion_measure, polarization_angle, linear_polarization_fraction, circular_polarization_fraction, 
+                  change_in_polarization_angle, rotation_measure, time_per_bin_ms):
     """
     Generate dynamic spectrum for Gaussian pulses.
     Inputs:
@@ -54,19 +56,29 @@ def gauss_dynspec(frequency_mhz_array, time_ms_array, channel_width_mhz, time_re
     """
     dynamic_spectrum = np.zeros((4, frequency_mhz_array.shape[0], time_ms_array.shape[0]), dtype=float)  # Initialize dynamic spectrum array
     num_gaussians = len(spectral_index) - 1  # Number of Gaussian components
-    pulse_array = np.zeros(len(time_ms_array), dtype=float)  # Initialize pulse array
     reference_frequency_mhz = np.nanmedian(frequency_mhz_array)  # Reference frequency
     lambda_squared_array = (speed_of_light_cgs * 1.0e-8 / frequency_mhz_array) ** 2  # Lambda squared array
     median_lambda_squared = np.nanmedian(lambda_squared_array)  # Median lambda squared
+
+    # Initialize the polarization angle evolution array
+    polarization_angle_evolution = np.zeros((num_gaussians, len(time_ms_array)), dtype=float)
 
     for g in range(0, num_gaussians):
         # Calculate the normalized amplitude for each frequency
         normalized_amplitude = peak_amplitude[g + 1] * (frequency_mhz_array / np.nanmedian(frequency_mhz_array)) ** spectral_index[g + 1]
         # Calculate the Gaussian pulse shape
         pulse_array = np.exp(-(time_ms_array - location_ms[g + 1]) ** 2 / (2 * (width_ms[g + 1] ** 2)))
-        print(np.min(pulse_array), np.max(pulse_array))
         # Calculate the polarization angle array
         polarization_angle_array = polarization_angle[g + 1] + (time_ms_array - location_ms[g + 1]) * change_in_polarization_angle[g + 1]
+        # Shift the polarization angle array
+        polarization_angle_array = np.roll(polarization_angle_array, int(np.round(location_ms[g + 1] - np.abs(width_ms[g + 1] / (2 * time_per_bin_ms)))))
+        print(int(np.round(location_ms[g + 1] - width_ms[g + 1] / (2 * time_per_bin_ms))))
+
+        # Record the polarization angle evolution
+        polarization_angle_evolution[g, :] = polarization_angle_array
+        # Create a mask for values outside the Gaussian bounds
+        gaussian_mask = pulse_array < np.exp(-4.5)  # This is approximately 3 sigma
+        polarization_angle_evolution[g,gaussian_mask] = np.nan
 
         for c in range(0, len(frequency_mhz_array)):
             # Apply Faraday rotation
@@ -82,11 +94,18 @@ def gauss_dynspec(frequency_mhz_array, time_ms_array, channel_width_mhz, time_re
             dynamic_spectrum[2, c] += dynamic_spectrum[0, c] * linear_polarization_fraction[g + 1] * np.sin(2 * faraday_rotation_angle)  # U
             dynamic_spectrum[3, c] += dynamic_spectrum[0, c] * circular_polarization_fraction[g + 1]  # V
 
+    polarization_angle_evolution = np.nansum(polarization_angle_evolution, axis=0)  # Sum the polarization angle evolution
+    # Ensure the polarization angle is between -pi and pi
+    polarization_angle_evolution = (polarization_angle_evolution + np.pi) % (2 * np.pi) - np.pi
+    polarization_angle_evolution[polarization_angle_evolution==0] = np.nan
+    #polarization_angle_evolution = np.ma.masked_invalid(polarization_angle_evolution)
+
     print("\nGenerating dynamic spectrum with %d Gaussian component(s)\n" % (num_gaussians))
-    plt.imshow(dynamic_spectrum[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', vmin=-np.nanmax(np.abs(dynamic_spectrum)), vmax=np.nanmax(np.abs(dynamic_spectrum)))
+    plt.imshow(dynamic_spectrum[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', 
+               vmin=-np.nanmax(np.abs(dynamic_spectrum)), vmax=np.nanmax(np.abs(dynamic_spectrum)))
     plt.show()
 
-    return dynamic_spectrum, polarization_angle_array
+    return dynamic_spectrum, polarization_angle_evolution
 
 #	--------------------------------------------------------------------------------
 
@@ -124,7 +143,8 @@ def scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex, polang
     fig, axs = plt.subplots(6, figsize=(10, 6), constrained_layout=True)
     fig.suptitle('Scattered Dynamic Spectrum')
     # Plot polarisation angle
-    axs[0].scatter(tmsarr, polangles, label='Polarisation Angle', color='Black')
+    axs[0].scatter(tmsarr, np.rad2deg(polangles), label='Polarisation Angle', color='Black', s=1, plotnonfinite=True)
+    axs[0].set_xlim(tmsarr[0], tmsarr[-1])
     axs[0].set_title("Polarisation Angle over Time")
     
     # Plot the mean across all frequency channels (axis 0)
@@ -133,10 +153,15 @@ def scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex, polang
     axs[1].plot(np.nanmean(scdspec[2,:], axis=0), markersize=2, label='U', color='Orange')
     axs[1].plot(np.nanmean(scdspec[3,:], axis=0), markersize=2, label='V', color='Blue')
     axs[1].plot(L, markersize=2, label='L', color='Red')
+    axs[1].set_xlim(0, len(tmsarr))
     axs[1].set_title("Mean Scattered Signal over Time")
     axs[1].legend(loc='upper right')
 
     # Plot the 2D scattered dynamic spectrum
+    #mn = np.mean(S)
+    #std = np.std(S)
+    #vmin = mn - 3*std
+    #vmax = mn + 7*std
     axs[2].imshow(scdspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
         vmin=-np.nanmax(np.abs(dspec[0])), vmax=np.nanmax(np.abs(dspec[0]))*5)
     axs[2].set_title("Mean Scattered Dynamic Spectrum Across Frequency Channels")
@@ -152,7 +177,6 @@ def scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex, polang
     axs[5].set_xlabel("Time (samples)")
     axs[5].set_ylabel("Frequency (MHz)")
 
-    #plt.tight_layout()
     plt.show()
     
     return scdspec
