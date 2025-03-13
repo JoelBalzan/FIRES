@@ -5,19 +5,21 @@
 #
 #	--------------------------	Import modules	---------------------------
 
-import os, sys
-import matplotlib as mpl
-import numpy as np
-import matplotlib.ticker as ticker
-import matplotlib.pyplot as plt
+import os
 import pickle as pkl
+import sys
 from collections import namedtuple
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import numpy as np
 
 central_frequency_mhz	=	1000.0	                        #	Central frequency in MHz
 num_channels		    =	300		                        #	Number of frequency channels
 channel_width_mhz		=	1		                        #	Channel width in MHz
 time_window_ms		    =	10.0	                        #	Time window in ms
-time_resolution_ms		=	0.1		                        #	Time resolution in ms
+time_resolution_ms		=	0.01		                        #	Time resolution in ms
 num_time_bins		    =	int(2*time_window_ms/time_resolution_ms)	#	Number of time bins
 scattering_index		=	-4.0	                        #	Scattering index
 reference_frequency_mhz	=	1000.0	                        #	Reference frequency for scattering
@@ -36,6 +38,7 @@ solar_radius_cm			    =	6.957e10					#	Solar radius in cm
 astronomical_unit_cm	    =	1.496e13					#	1 AU in cm
 inch_to_cm				    =	2.54
 data_directory			    =	'../simfrbs/'
+plot_directory			    =	'../plots/'
 
 # constants for scintillation application
 mb2							=	2							#mb2: Max Born parameter for strength of scattering

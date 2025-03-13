@@ -8,14 +8,15 @@
 
 #	--------------------------	Import modules	---------------------------
 
-import os, sys
-import numpy as np
-import matplotlib.pyplot as plt
+import os
+import sys
+
 import matplotlib as mpl
-from matplotlib.ticker import FormatStrFormatter
-from matplotlib.ticker import FuncFormatter
 import matplotlib.colors as mpc
+import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import numpy as np
+from matplotlib.ticker import FormatStrFormatter, FuncFormatter
 from scipy.optimize import curve_fit
 from utils import *
 

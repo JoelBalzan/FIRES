@@ -115,16 +115,20 @@ def scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex):
     for stk in range(4): 
         scdspec[stk] = scdspec[stk] + np.random.normal(loc=0.0, scale=1.0, size=(fmhzarr.shape[0], tmsarr.shape[0]))
 
+    # Linear polarisation
+    L = np.sqrt(np.nanmean(scdspec[1,:], axis=0)**2 + np.nanmean(scdspec[2,:], axis=0)**2)
+
     print(f"--- Scattering time scale = {taums:.2f} ms, {np.nanmin(taucms):.2f} ms to {np.nanmax(taucms):.2f} ms")
     
     fig, axs = plt.subplots(5, figsize=(10, 6))
     fig.suptitle('Scattered Dynamic Spectrum')
     
     # Plot the mean across all frequency channels (axis 0)
-    axs[0].plot(np.nanmean(scdspec[0,:], axis=0), markersize=2 ,label='I')
+    axs[0].plot(np.nanmean(scdspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
     axs[0].plot(np.nanmean(scdspec[1,:], axis=0), markersize=2, label='Q')
     axs[0].plot(np.nanmean(scdspec[2,:], axis=0), markersize=2, label='U')
-    axs[0].plot(np.nanmean(scdspec[3,:], axis=0), markersize=2, label='V')
+    axs[0].plot(np.nanmean(scdspec[3,:], axis=0), markersize=2, label='V', color='Red')
+    axs[0].plot(L, markersize=2, label='L', color='Blue')
     axs[0].set_title("Mean Scattered Signal over Time")
     axs[0].legend(loc='upper right')
 
@@ -150,7 +154,7 @@ def scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex):
     return scdspec
 
 #	--------------------------------------------------------------------------------
-
+ ### THIS IS WRONG ###
 def apply_scintillation(dynspec):
     """
     Apply scintillation effects to a given dynamic spectrum. 

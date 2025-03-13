@@ -13,10 +13,12 @@
 #
 #	--------------------------	Import modules	---------------------------
 
-import os, sys
+import os
+import sys
+
 import numpy as np
-from RMtools_1D.do_RMsynth_1D import run_rmsynth
 from RMtools_1D.do_RMclean_1D import run_rmclean
+from RMtools_1D.do_RMsynth_1D import run_rmsynth
 from utils import *
 
 #	---------------------------------------------------------------------------------
