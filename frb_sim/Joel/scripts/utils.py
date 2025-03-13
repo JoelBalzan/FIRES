@@ -21,6 +21,7 @@ channel_width_mhz		=	1		                        #	Channel width in MHz
 time_window_ms		    =	10.0	                        #	Time window in ms
 time_resolution_ms		=	0.1		                        #	Time resolution in ms
 num_time_bins		    =	int(2*time_window_ms/time_resolution_ms)	#	Number of time bins
+time_per_bin_ms		    =	time_window_ms / num_time_bins	#	Time per bin in ms
 scattering_index		=	-4.0	                        #	Scattering index
 reference_frequency_mhz	=	1000.0	                        #	Reference frequency for scattering
 

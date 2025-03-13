@@ -69,7 +69,8 @@ initial_dynspec,polarisation_angles = gauss_dynspec(
     gaussian_params[:, 7],
     gaussian_params[:, 8],
     gaussian_params[:, 9],
-    gaussian_params[:, 5]
+    gaussian_params[:, 5],
+    time_per_bin_ms
 )
 
 # Scatter the dynamic spectrum
