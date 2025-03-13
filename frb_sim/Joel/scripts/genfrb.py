@@ -12,48 +12,93 @@ from genfns import *
 from utils import *
 
 def print_instructions():
-	"""
-	Print instructions to terminal
-	"""
-
-	print("\n            You probably need some assistance here!\n")
-	print("Arguments are       --- <scattering time scale> <name>\n")	
-	print("\n            Now let's try again!\n")
-	
-	return(0)
+    """
+    Print instructions to terminal
+    """
+    print("\n            You probably need some assistance here!\n")
+    print("Arguments are       --- <scattering time scale> <name>\n")	
+    print("\n            Now let's try again!\n")
+    
+    return 0
 
 #	--------------------------	Read inputs	-------------------------------
 
-if(len(sys.argv)<3):
-	print_instructions()
-	sys.exit()
+if len(sys.argv) < 3:
+    print_instructions()
+    sys.exit()
 
-tau_ms		=	float(sys.argv[1])		# Scattering time scale (msec)
-fname		=	sys.argv[2]			# FRB identifier
+scattering_timescale_ms = float(sys.argv[1])  # Scattering time scale (msec)
+frb_identifier = sys.argv[2]  # FRB identifier
 
 #	-------------------------	Execute steps	-------------------------------
 
-f_mhzarr	=	np.arange( central_frequency_mhz-(num_channels*channel_width_mhz)/2.0 , central_frequency_mhz+(num_channels*channel_width_mhz)/2.0, channel_width_mhz, dtype=float)		# Array of frequency channels
-t_msarr		=	np.arange( -time_window_ms, time_window_ms, time_resolution_ms, dtype=float )										# Array of time bins
-gparams		=	np.loadtxt('gparams.txt')																# Load gaussians from gparams.txt
+# Array of frequency channels
+frequency_mhz_array = np.arange(
+    central_frequency_mhz - (num_channels * channel_width_mhz) / 2.0,
+    central_frequency_mhz + (num_channels * channel_width_mhz) / 2.0,
+    channel_width_mhz,
+    dtype=float
+)
 
-#	Generate Inital dispersed dynamic spectrum with Gassian components
-dynspec0	=	gauss_dynspec(f_mhzarr, t_msarr, channel_width_mhz, time_resolution_ms, gparams[:,3], gparams[:,2], gparams[:,1], gparams[:,0], gparams[:,4], \
-                                 gparams[:, 6], gparams[:, 7], gparams[:,8], gparams[:, 9], gparams[:,5])
+# Array of time bins
+time_ms_array = np.arange(
+    -time_window_ms,
+    time_window_ms,
+    time_resolution_ms,
+    dtype=float
+)
 
-#	Scatter the dynamic spectrum 
-sc_dynspec	=	scatter_dynspec(dynspec0, f_mhzarr, t_msarr, channel_width_mhz, time_resolution_ms, tau_ms, scattering_index)
+# Load Gaussian parameters from gparams.txt
+gaussian_params = np.loadtxt('gparams.txt')
 
-scintillated_dynspec = apply_scintillation(sc_dynspec)
+# Generate initial dispersed dynamic spectrum with Gaussian components
+initial_dynspec = gauss_dynspec(
+    frequency_mhz_array,
+    time_ms_array,
+    channel_width_mhz,
+    time_resolution_ms,
+    gaussian_params[:, 3],
+    gaussian_params[:, 2],
+    gaussian_params[:, 1],
+    gaussian_params[:, 0],
+    gaussian_params[:, 4],
+    gaussian_params[:, 6],
+    gaussian_params[:, 7],
+    gaussian_params[:, 8],
+    gaussian_params[:, 9],
+    gaussian_params[:, 5]
+)
 
+# Scatter the dynamic spectrum
+scattered_dynspec = scatter_dynspec(
+    initial_dynspec,
+    frequency_mhz_array,
+    time_ms_array,
+    channel_width_mhz,
+    time_resolution_ms,
+    scattering_timescale_ms,
+    scattering_index
+)
 
+# Apply scintillation (if needed)
+# scintillated_dynspec = apply_scintillation(scattered_dynspec)
 
-#	'Pickle' the simulated FRB and save it to the disk
-fakefrb		=	simulated_frb(fname,f_mhzarr,t_msarr,tau_ms,reference_frequency_mhz,scattering_index,gparams,scintillated_dynspec)      
+# 'Pickle' the simulated FRB and save it to the disk
+simulated_frb_data = simulated_frb(
+    frb_identifier,
+    frequency_mhz_array,
+    time_ms_array,
+    scattering_timescale_ms,
+    reference_frequency_mhz,
+    scattering_index,
+    gaussian_params,
+    scattered_dynspec
+)
 
-frbfile		=	open("{}{}_sc_{:.2f}.pkl".format(data_directory,fname,tau_ms),'wb')             # Create the data directory, keep all simulated frbs 
-pkl.dump(fakefrb, frbfile)		
-frbfile.close()
+# Create the data directory, keep all simulated FRBs
+output_filename = "{}{}_sc_{:.2f}.pkl".format(data_directory, frb_identifier, scattering_timescale_ms)
+with open(output_filename, 'wb') as frbfile:
+    pkl.dump(simulated_frb_data, frbfile)
 
 
 
