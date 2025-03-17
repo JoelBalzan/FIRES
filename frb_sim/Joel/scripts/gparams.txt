@@ -16,13 +16,10 @@
 #	(V/I)		  - Circular polarization fraction
 #	dpadt(rad/ms) - Change in polarization angle with time in rad/ms
 #	Other 		  - Placeholder for any additional parameters
-#
-#   THINGS TO ADD:
-#       - scintillation params
-#       - 
+
 
 #t0(ms)	W(ms)	Peak	Spec	DM		RM		PA(rad)	(L/I)	(V/I)	dpadt(rad/ms)	Other 	
 0.0		0.0		0.0		0.0		0.0		0.0		0.0		0.0		0.0		0.0		0.0
--5	    0.5 	0.4		0.0 	0.0		0.0		-0.4 	1.0 	0.0 	1.5	    0.0
--1    	0.6 	0.05 	0.0 	0.0		0.0	    0.87	0.0 	0.0 	0.0		0.0
-#5.0 	0.25	0.4		-10.0	0.0		0.0 	0.0		0.95	0.05	0.0		0.0
+-5	    0.5 	0.3 	0.0 	0.0		0.0		-0.34 	1.0 	0.0 	1.0     0.0
+-3   	0.8 	0.1 	0.0 	0.0		0.0	    0.2 	0.0 	0.0 	-0.5 	0.0
+#0.0		0.1		1.0		0.0		0.0		0.0		0.0		1.0		0.0		0.0		0.0

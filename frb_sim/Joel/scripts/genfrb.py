@@ -33,6 +33,7 @@ if len(sys.argv) < 3:
 scattering_timescale_ms = float(sys.argv[1])  # Scattering time scale (msec)
 frb_identifier = sys.argv[2]  # FRB identifier
 
+
 #	-------------------------	Execute steps	-------------------------------
 
 # Array of frequency channels
@@ -82,11 +83,8 @@ scattered_dynspec = scatter_dynspec(
     time_resolution_ms,
     scattering_timescale_ms,
     scattering_index,
-    polangles=polarisation_angles
+    pol_angles=polarisation_angles
 )
-
-# Apply scintillation (if needed)
-# scintillated_dynspec = apply_scintillation(scattered_dynspec)
 
 # 'Pickle' the simulated FRB and save it to the disk
 simulated_frb_data = simulated_frb(
