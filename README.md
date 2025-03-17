@@ -15,7 +15,7 @@ This project simulates Fast Radio Bursts (FRBs) with scattering and polarization
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/FRB_SIM.git
+    git clone https://github.com/JoelBalzan/FRB_SIM.git
     cd FRB_SIM
     ```
 ## Usage
