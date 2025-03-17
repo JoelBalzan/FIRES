@@ -18,12 +18,6 @@ This project simulates Fast Radio Bursts (FRBs) with scattering and polarization
     git clone https://github.com/yourusername/FRB_SIM.git
     cd FRB_SIM
     ```
-
-2. Install the required Python packages:
-    ```sh
-    pip install -r requirements.txt
-    ```
-
 ## Usage
 
 To run the simulation, use the following command:
