@@ -15,15 +15,37 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-central_frequency_mhz	=	1000.0	                        #	Central frequency in MHz
-num_channels		    =	300		                        #	Number of frequency channels
-channel_width_mhz		=	1		                        #	Channel width in MHz
-time_window_ms		    =	10.0	                        #	Time window in ms
-time_resolution_ms		=	0.1		                        #	Time resolution in ms
-num_time_bins		    =	int(2*time_window_ms/time_resolution_ms)	#	Number of time bins
-time_per_bin_ms		    =	time_window_ms / num_time_bins	#	Time per bin in ms
-scattering_index		=	-4.0	                        #	Scattering index
-reference_frequency_mhz	=	1000.0	                        #	Reference frequency for scattering
+
+#    --------------------------	Define parameters	-------------------------------
+def get_parameters(filename):
+    parameters = {}
+    with open(filename, 'r') as file:
+        for line in file:
+            # Skip empty lines or lines without '='
+            if '=' not in line.strip():
+                continue
+            key, value = line.strip().split('=', 1)  # Use maxsplit=1 to handle extra '=' in values
+            parameters[key.strip()] = value.strip()
+    return parameters
+
+# Usage
+params = get_parameters('obsparams.txt')
+
+start_frequency_mhz = float(params['f0'])
+end_frequency_mhz = float(params['f1'])
+channel_width_mhz = float(params['f_res'])
+start_time_ms = float(params['t0'])
+end_time_ms = float(params['t1'])
+time_resolution_ms = float(params['t_res'])
+scattering_index = float(params['scattering_index'])
+reference_frequency_mhz = float(params['reference_freq'])
+
+central_frequency_mhz = (start_frequency_mhz + end_frequency_mhz) / 2.0  # Central frequency in MHz
+num_channels = int((end_frequency_mhz - start_frequency_mhz) / channel_width_mhz)  # Number of frequency channels
+time_window_ms = (end_time_ms - start_time_ms) / 2.0  # Time window in ms
+num_time_bins = int(2 * time_window_ms / time_resolution_ms)  # Number of time bins
+time_per_bin_ms = time_window_ms / num_time_bins  # Time per bin in ms
+
 
 # Universal constants 
 gravitational_constant_cgs	=	6.67430e-8					#	Universal gravitational constant in CGS
