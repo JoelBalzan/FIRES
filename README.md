@@ -9,7 +9,8 @@ This project simulates Fast Radio Bursts (FRBs) with scattering and polarization
 - `utils.py`: Utility functions used in the project.
 - `gparams.txt`: File containing Gaussian parameters for the simulation.
 - `obsparams.txt`: File containing observation parameters for the simulation.
-- `plotfns.py`: Contains functions for plotting the FRBs
+- `processfrb.py`: Main script to generate plots.
+- `plotfns.py`: Contains functions for plotting the FRBs.
 
 ## Installation
 
