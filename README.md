@@ -27,7 +27,7 @@ python genfrb.py <scattering_time_scale> <frb_identifier>
 ```
 e.g.
 ```sh
-python scripts/genfrb.py 1.0 FRB_123
+python genfrb.py 1.0 FRB_123
 ```
 To Analyse the simulated FRB data, use the following command:
 ```sh
