@@ -176,9 +176,10 @@ def plot_dpa(plotdir, noistks, frbdat, tmsarr, fsize, ntp):
         - ntp: Number of points for slope calculation
     """
     print("Calculating slope from %d points" % (2 * ntp + 1))
-    
+
     phits = frbdat.phits
     dphits = frbdat.dphits
+
         
     dpadt = np.zeros(phits.shape, dtype=float)
     edpadt = np.zeros(phits.shape, dtype=float)	

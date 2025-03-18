@@ -63,7 +63,7 @@ inch_to_cm				    =	2.54
 data_directory			    =	'../simfrbs/'
 plot_directory			    =	'../plots/'
 
-# constants for scintillation application
+# constants for scintillation application (SCINTOOLS)
 mb2							=	2							#mb2: Max Born parameter for strength of scattering
 rf							=	1							#rf: Fresnel scale
 ds							=	0.01						#ds (or dx,dy): Spatial step sizes with respect to rf
@@ -89,7 +89,7 @@ dt							=	30
 # 1 FRB data simulated, (taums as input command line),
 # dspec4 = 4D
 # create another sub directory called SIMFRB
-simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'frequency_mhz_array', 'time_ms_array', 'scattering_time_ms', 'reference_frequency_mhz', 'scattering_index', 'gaussian_params', 'dynamic_spectrum_4d'])
+simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'frequency_mhz_array', 'time_ms_array', 'scattering_time_ms', 'reference_frequency_mhz', 'scattering_index', 'gaussian_params', 'dynamic_spectrum'])
 
 # time variation
 frb_time_series	=	namedtuple('frbts',['iquvt','lts','elts','pts','epts','phits','dphits','psits','dpsits','qfrac','eqfrac','ufrac','eufrac','vfrac','evfrac','lfrac','elfrac','pfrac','epfrac'])
