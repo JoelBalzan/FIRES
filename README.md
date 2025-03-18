@@ -9,21 +9,16 @@ This project simulates Fast Radio Bursts (FRBs) with scattering and polarization
 - `utils.py`: Utility functions used in the project.
 - `gparams.txt`: File containing Gaussian parameters for the simulation.
 - `obsparams.txt`: File containing observation parameters for the simulation.
-- `plotfns.py`: Contains functions for plotting the FRBs
+- `processfrb.py`: Main script to generate plots.
+- `plotfns.py`: Contains functions for plotting the FRBs.
 
 ## Installation
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/FRB_SIM.git
+    git clone https://github.com/JoelBalzan/FRB_SIM.git
     cd FRB_SIM
     ```
-
-2. Install the required Python packages:
-    ```sh
-    pip install -r requirements.txt
-    ```
-
 ## Usage
 
 To run the simulation, use the following command:
@@ -49,4 +44,4 @@ e.g.
 python processfrb.py FRB_123 iquv 1.0 -1.5 2.5 0 0 0.0
 ```
 # Acknowledgements
-Thanks to Tehya for providing the base code.
+This project is based on the work by Tehya and Apurba Bera.
