@@ -1,4 +1,4 @@
-# FRB Simulation
+# FRB_SIM
 
 This project simulates Fast Radio Bursts (FRBs) with scattering and polarization effects. The simulation generates dynamic spectra for Gaussian pulses, applies scattering, and saves the simulated FRB data to disk.
 
