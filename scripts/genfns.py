@@ -24,6 +24,8 @@ import numpy as np
 from scintools.scint_sim import Simulation
 from scipy.interpolate import griddata
 from utils import *
+from basicfns import *
+
 
 mpl.rcParams['pdf.fonttype'] = 42
 mpl.rcParams['ps.fonttype'] = 42
@@ -62,9 +64,6 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
     lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
     median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
-    # Initialize the polarization angle evolution array
-    pol_angle_evol = np.zeros((num_gauss, len(time_ms)), dtype=float)
-
     for g in range(0, num_gauss):
         # Calculate the normalized amplitude for each frequency
         norm_amp = peak_amp[g + 1] * (freq_mhz / np.nanmedian(freq_mhz)) ** spec_idx[g + 1]
@@ -72,12 +71,6 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
         pulse = np.exp(-(time_ms - loc_ms[g + 1]) ** 2 / (2 * (width_ms[g + 1] ** 2)))
         # Calculate the polarization angle array
         pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
-
-        # Record the polarization angle evolution
-        pol_angle_evol[g, :] = pol_angle_arr
-        # Create a mask for values outside the Gaussian bounds
-        gauss_mask = pulse < np.exp(-2)  # This is approximately 3 sigma
-        pol_angle_evol[g, gauss_mask] = np.nan
 
         for c in range(0, len(freq_mhz)):
             # Apply Faraday rotation
@@ -92,21 +85,17 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
             dynspec[1, c] += dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
             dynspec[2, c] += dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
             dynspec[3, c] += dynspec[0, c] * circ_pol_frac[g + 1]  # V
-    pol_angle_evol = np.nansum(pol_angle_evol, axis=0)  # Sum the polarization angle evolution
-    # Ensure the polarization angle is between -pi and pi
-    pol_angle_evol = (pol_angle_evol + np.pi) % (2 * np.pi) - np.pi
-    pol_angle_evol[pol_angle_evol == 0] = np.nan
 
     print("\nGenerating dynamic spectrum with %d Gaussian component(s)\n" % (num_gauss))
     plt.imshow(dynspec[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', 
                vmin=-np.nanmax(np.abs(dynspec)), vmax=np.nanmax(np.abs(dynspec)))
     plt.show()
 
-    return dynspec, pol_angle_evol
+    return dynspec
 
 #	--------------------------------------------------------------------------------
 
-def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, pol_angles):
+def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm=0.0):
     """	
     Scatter a given dynamic spectrum.
     Inputs:
@@ -135,13 +124,55 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     # Linear polarisation
     L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
 
+    ############################################
+    # Polarisation angle
+    ## Estimate Noise spectra
+    noisespec	=	estimate_noise(dspec, time_ms, np.min(time_ms), np.max(time_ms)) # add the arguments here 
+    noistks		=	np.sqrt(np.nansum(noisespec[:,:]**2,axis=1))/len(freq_mhz)
+
+    corrdspec	=	rm_correct_dynspec(dspec, freq_mhz, rm)
+    tsdata		=	est_profiles(corrdspec, freq_mhz, time_ms, noisespec, np.argmin(freq_mhz), np.argmax(freq_mhz))
+    
+    phits = tsdata.phits
+    dphits = tsdata.dphits
+
+    ntp=5
+    dpadt = np.zeros(phits.shape, dtype=float)
+    edpadt = np.zeros(phits.shape, dtype=float)	
+    dpadt[:ntp] = np.nan
+    edpadt[:ntp] = np.nan
+    dpadt[-ntp:] = np.nan
+    edpadt[-ntp:] = np.nan
+    
+    phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+    dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+    
+    for ti in range(ntp, len(phits) - ntp):
+        phi3 = phits[ti - ntp:ti + ntp + 1]
+        dphi3 = dphits[ti - ntp:ti + ntp + 1]
+        tarr3 = time_ms[ti - ntp:ti + ntp + 1]
+        
+        if np.count_nonzero(np.isfinite(phi3)) == (2 * ntp + 1):
+            popt, pcov = np.polyfit(tarr3, phi3, deg=1, w=1.0 / dphi3, cov=True)
+            perr = np.sqrt(np.diag(pcov))
+            dpadt[ti] = popt[0]
+            edpadt[ti] = perr[0]
+        else:
+            dpadt[ti] = np.nan
+            edpadt[ti] = np.nan    
+
+    fig, axs = plt.subplots(1, figsize=(6, 10), constrained_layout=True)
+    axs.errorbar(time_ms, phits, dphits, fmt='b*', markersize=5, lw=0.5, capsize=2)
+    ############################################
+
+
     print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
     
     fig, axs = plt.subplots(6, figsize=(10, 6), constrained_layout=True)
     fig.suptitle('Scattered Dynamic Spectrum')
     # Plot polarisation angle
-    axs[0].scatter(time_ms, np.rad2deg(pol_angles), label='Polarisation Angle', color='Black', s=1, plotnonfinite=True)
-    axs[0].set_xlim(time_ms[0], time_ms[-1])
+    axs[0].errorbar(time_ms, phits, dphits, fmt='b*', markersize=5, lw=0.5, capsize=2)
+    #axs[0].set_xlim(time_ms[0], time_ms[-1])
     axs[0].set_ylabel("PA [deg]")
     
     # Plot the mean across all frequency channels (axis 0)

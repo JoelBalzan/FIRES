@@ -50,7 +50,7 @@ dsfile	=	open("{}{}_sc_{:.2f}.pkl".format(data_directory,fname,taums),'rb')
 dsdata	=	pkl.load(dsfile)
 dsfile.close()
 
-nchan	=	len(dsdata.fmhzarr)
+nchan	=	len(dsdata.frequency_mhz_array)
 
 if(startchan < 0):
 	startchan	=	0 
@@ -59,26 +59,27 @@ if(endchan <= 0):
 	endchan	=	nchan-1 
 
 #	Estimate Noise spectra
-noisespec	=	estimate_noise(dsdata.dspec4, dsdata.tmsarr, startms, stopms) # add the arguments here 
-noistks		=	np.sqrt(np.nansum(noisespec[:,startchan:endchan]**2,axis=1))/len(dsdata.fmhzarr)
+noisespec	=	estimate_noise(dsdata.dynamic_spectrum, dsdata.time_ms_array, startms, stopms) # add the arguments here 
+print(dsdata.dynamic_spectrum.shape)
+noistks		=	np.sqrt(np.nansum(noisespec[:,startchan:endchan]**2,axis=1))/len(dsdata.frequency_mhz_array)
 
 if(exmode=="calcrm"):
 	#	Estimate RM
-	resrmt		=	estimate_rm(dsdata.dspec4, dsdata.fmhzarr, dsdata.tmsarr, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan)
+	resrmt		=	estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan)
 	
 	#	Otherwise correct fot the given RM
 else:
-	corrdspec	=	rm_correct_dynspec(dsdata.dspec4, dsdata.fmhzarr, rm0)
-	tsdata		=	est_profiles(corrdspec, dsdata.fmhzarr, dsdata.tmsarr, noisespec, startchan, endchan)
+	corrdspec	=	rm_correct_dynspec(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, rm0)
+	tsdata		=	est_profiles(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startchan, endchan)
 	
 	if(exmode=="iquv"):
-		plot_stokes(plot_directory,corrdspec,tsdata.iquvt,dsdata.fmhzarr,dsdata.tmsarr,[0.0,0.0],[5.0,8.0])
+		plot_stokes(plot_directory,corrdspec,tsdata.iquvt,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[5.0,8.0])
 	
 	if(exmode=="lvpa"):
-		plot_ilv_pa_ds(plot_directory,noistks,corrdspec,tsdata,dsdata.fmhzarr,dsdata.tmsarr,[0.0,0.0],[4.0,5.0])
+		plot_ilv_pa_ds(plot_directory,noistks,corrdspec,tsdata,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[4.0,5.0])
 
 	if(exmode=="dpa"):
-		plot_dpa(plot_directory,noistks,tsdata,dsdata.tmsarr,[4.0,4.0],5)
+		plot_dpa(plot_directory,noistks,tsdata,dsdata.time_ms_array,[4.0,4.0],5)
         
 
 
