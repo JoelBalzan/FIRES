@@ -54,6 +54,17 @@ time_ms_array = np.arange(
 
 # Load Gaussian parameters from gparams.txt
 gaussian_params = np.loadtxt('gparams.txt')
+t0              = gaussian_params[:, 0]  # Time of the first Gaussian component
+width           = gaussian_params[:, 1]  # Width of the Gaussian component
+peak_amp        = gaussian_params[:, 2]  # Peak amplitude of the Gaussian component
+spec_idx        = gaussian_params[:, 3]  # Spectral index of the Gaussian component
+dm              = gaussian_params[:, 4]  # Dispersion measure of the Gaussian component
+rm              = gaussian_params[:, 5]  # Rotation measure of the Gaussian component
+pol_angle       = gaussian_params[:, 6]  # Polarization angle of the Gaussian component
+lin_pol_frac    = gaussian_params[:, 7]  # Linear polarization fraction of the Gaussian component
+circ_pol_frac   = gaussian_params[:, 8]  # Circular polarization fraction of the Gaussian component
+delta_pol_angle = gaussian_params[:, 9]  # Change in polarization angle with time of the Gaussian component
+
 
 # Generate initial dispersed dynamic spectrum with Gaussian components
 initial_dynspec = gauss_dynspec(
@@ -61,16 +72,16 @@ initial_dynspec = gauss_dynspec(
     time_ms_array,
     channel_width_mhz,
     time_resolution_ms,
-    gaussian_params[:, 3],
-    gaussian_params[:, 2],
-    gaussian_params[:, 1],
-    gaussian_params[:, 0],
-    gaussian_params[:, 4],
-    gaussian_params[:, 6],
-    gaussian_params[:, 7],
-    gaussian_params[:, 8],
-    gaussian_params[:, 9],
-    gaussian_params[:, 5],
+    spec_idx,
+    peak_amp,
+    width,
+    t0,
+    dm,
+    pol_angle,
+    lin_pol_frac,
+    circ_pol_frac,
+    delta_pol_angle,
+    rm,
     time_per_bin_ms
 )
 
@@ -82,7 +93,8 @@ scattered_dynspec = scatter_dynspec(
     channel_width_mhz,
     time_resolution_ms,
     scattering_timescale_ms,
-    scattering_index
+    scattering_index,
+    rm=np.max(rm)
 )
 
 # 'Pickle' the simulated FRB and save it to the disk

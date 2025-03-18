@@ -96,7 +96,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 
 #	--------------------------------------------------------------------------------
 
-def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm=0.0):
+def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm):
     """	
     Scatter a given dynamic spectrum.
     Inputs:
@@ -147,20 +147,6 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     
     phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
     dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
-    
-    for ti in range(ntp, len(phits) - ntp):
-        phi3 = phits[ti - ntp:ti + ntp + 1]
-        dphi3 = dphits[ti - ntp:ti + ntp + 1]
-        tarr3 = time_ms[ti - ntp:ti + ntp + 1]
-        
-        if np.count_nonzero(np.isfinite(phi3)) == (2 * ntp + 1):
-            popt, pcov = np.polyfit(tarr3, phi3, deg=1, w=1.0 / dphi3, cov=True)
-            perr = np.sqrt(np.diag(pcov))
-            dpadt[ti] = popt[0]
-            edpadt[ti] = perr[0]
-        else:
-            dpadt[ti] = np.nan
-            edpadt[ti] = np.nan    
     ############################################
 
 
@@ -184,18 +170,25 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     axs[1].set_ylabel("Flux Density (arb.)")
 
     # Plot the 2D scattered dynamic spectrum
+    ## Calculate the mean and standard deviation of the dynamic spectrum
+    mn = np.mean(sc_dspec[0,:], axis=(0, 1))
+    std = np.std(sc_dspec[0,:], axis=(0, 1))
+    ## Set appropriate minimum and maximum values for imshow (Thanks to Dr. M. Lower)
+    vmin = mn - 3*std
+    vmax = mn + 7*std
+
     axs[2].imshow(sc_dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-        vmin=-np.nanmax(np.abs(dspec[0])), vmax=np.nanmax(np.abs(dspec[0]))*5)
+        vmin=vmin, vmax=vmax)
     axs[2].set_title("Dynamic Spectra: I, Q, U, V")
 
     axs[3].imshow(sc_dspec[1], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-        vmin=-np.nanmax(np.abs(dspec[0])), vmax=np.nanmax(np.abs(dspec[0]))*2.5)
+        vmin=vmin, vmax=vmax)
 
     axs[4].imshow(sc_dspec[2], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-        vmin=-np.nanmax(np.abs(dspec[0])), vmax=np.nanmax(np.abs(dspec[0]))*2.5)
+        vmin=vmin, vmax=vmax)
 
     axs[5].imshow(sc_dspec[3], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-           vmin=-np.nanmax(np.abs(dspec[0])), vmax=np.nanmax(np.abs(dspec[0]))*5)
+           vmin=vmin, vmax=vmax)
     axs[5].set_xlabel("Time (samples)")
     axs[5].set_ylabel("Frequency (MHz)")
 
