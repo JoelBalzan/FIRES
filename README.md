@@ -1,4 +1,4 @@
-# FRB Simulation
+# FRB_SIM
 
 This project simulates Fast Radio Bursts (FRBs) with scattering and polarization effects. The simulation generates dynamic spectra for Gaussian pulses, applies scattering, and saves the simulated FRB data to disk.
 
@@ -27,7 +27,7 @@ python genfrb.py <scattering_time_scale> <frb_identifier>
 ```
 e.g.
 ```sh
-python scripts/genfrb.py 1.0 FRB_123
+python genfrb.py 1.0 FRB_123
 ```
 To Analyse the simulated FRB data, use the following command:
 ```sh
@@ -43,5 +43,7 @@ e.g.
 ```sh
 python processfrb.py FRB_123 iquv 1.0 -1.5 2.5 0 0 0.0
 ```
+For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FRB_SIM/wiki).
+
 # Acknowledgements
 This project is based on the work by Tehya and Apurba Bera.
