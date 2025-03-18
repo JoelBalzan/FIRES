@@ -44,4 +44,4 @@ e.g.
 python processfrb.py FRB_123 iquv 1.0 -1.5 2.5 0 0 0.0
 ```
 # Acknowledgements
-Thanks to Tehya for providing the base code.
+This project is based on the work by Tehya and Apurba Bera.
