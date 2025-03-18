@@ -43,7 +43,7 @@ e.g.
 ```sh
 python processfrb.py FRB_123 iquv 1.0 -1.5 2.5 0 0 0.0
 ```
-For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FRB_SIM/wiki)
+For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FRB_SIM/wiki).
 
 # Acknowledgements
 This project is based on the work by Tehya and Apurba Bera.
