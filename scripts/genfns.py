@@ -25,6 +25,7 @@ from scintools.scint_sim import Simulation
 from scipy.interpolate import griddata
 from utils import *
 from basicfns import *
+from plotfns import *
 
 
 mpl.rcParams['pdf.fonttype'] = 42
@@ -127,10 +128,10 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     ############################################
     # Polarisation angle
     ## Estimate Noise spectra
-    noisespec	=	estimate_noise(dspec, time_ms, np.min(time_ms), np.max(time_ms)) # add the arguments here 
+    noisespec	=	estimate_noise(sc_dspec, time_ms, np.min(time_ms), np.max(time_ms)) # add the arguments here 
     noistks		=	np.sqrt(np.nansum(noisespec[:,:]**2,axis=1))/len(freq_mhz)
 
-    corrdspec	=	rm_correct_dynspec(dspec, freq_mhz, rm)
+    corrdspec	=	rm_correct_dynspec(sc_dspec, freq_mhz, rm)
     tsdata		=	est_profiles(corrdspec, freq_mhz, time_ms, noisespec, np.argmin(freq_mhz), np.argmax(freq_mhz))
     
     phits = tsdata.phits
@@ -160,19 +161,15 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
         else:
             dpadt[ti] = np.nan
             edpadt[ti] = np.nan    
-
-    fig, axs = plt.subplots(1, figsize=(6, 10), constrained_layout=True)
-    axs.errorbar(time_ms, phits, dphits, fmt='b*', markersize=5, lw=0.5, capsize=2)
     ############################################
 
 
     print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
     
     fig, axs = plt.subplots(6, figsize=(10, 6), constrained_layout=True)
-    fig.suptitle('Scattered Dynamic Spectrum')
     # Plot polarisation angle
     axs[0].errorbar(time_ms, phits, dphits, fmt='b*', markersize=5, lw=0.5, capsize=2)
-    #axs[0].set_xlim(time_ms[0], time_ms[-1])
+    axs[0].set_xlim(time_ms[0], time_ms[-1])
     axs[0].set_ylabel("PA [deg]")
     
     # Plot the mean across all frequency channels (axis 0)
@@ -183,7 +180,6 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     axs[1].plot(np.nanmean(sc_dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
     axs[1].plot(L, markersize=2, label='L', color='Red')
     axs[1].set_xlim(0, len(time_ms))
-    axs[1].set_title("Pulse Profile")
     axs[1].legend(loc='upper right')
     axs[1].set_ylabel("Flux Density (arb.)")
 
