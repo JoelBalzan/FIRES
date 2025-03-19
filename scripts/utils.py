@@ -38,13 +38,11 @@ start_time_ms = float(params['t0'])
 end_time_ms = float(params['t1'])
 time_resolution_ms = float(params['t_res'])
 scattering_index = float(params['scattering_index'])
-reference_frequency_mhz = float(params['reference_freq'])
 
 central_frequency_mhz = (start_frequency_mhz + end_frequency_mhz) / 2.0  # Central frequency in MHz
 num_channels = int((end_frequency_mhz - start_frequency_mhz) / channel_width_mhz)  # Number of frequency channels
 time_window_ms = (end_time_ms - start_time_ms) / 2.0  # Time window in ms
 num_time_bins = int(2 * time_window_ms / time_resolution_ms)  # Number of time bins
-time_per_bin_ms = time_window_ms / num_time_bins  # Time per bin in ms
 
 
 # Universal constants 
@@ -64,32 +62,32 @@ data_directory			    =	'../simfrbs/'
 plot_directory			    =	'../plots/'
 
 # constants for scintillation application (SCINTOOLS)
-mb2							=	2							#mb2: Max Born parameter for strength of scattering
-rf							=	1							#rf: Fresnel scale
-ds							=	0.01						#ds (or dx,dy): Spatial step sizes with respect to rf
-alpha						=	5/3							#alpha: Structure function exponent (Kolmogorov = 5/3)
-ar							=	1							#ar: Anisotropy axial ratio
-psi							=	0							#psi: Anisotropy orientation
-inner						=	0.001						#inner: Inner scale w.r.t rf - should generally be smaller than ds
-ns							=	256							#ns (or nx,ny): Number of spatial steps
-nf							=	256							#nf: Number of frequency steps.
-dlam						=	0.25						#dlam: Fractional bandwidth relative to centre frequency
-lamsteps					=	False						#lamsteps: Boolean to choose whether steps in lambda or freq
-seed						=	1234 						#seed: Seed number, or use "-1" to shuffle
-nx							=	None
-ny							=	None
-dx							=	None
-dy							=	None
-plot						=	False
-verbose						=	False
-dt							=	30
+#mb2							=	2							#mb2: Max Born parameter for strength of scattering
+#rf							=	1							#rf: Fresnel scale
+#ds							=	0.01						#ds (or dx,dy): Spatial step sizes with respect to rf
+#alpha						=	5/3							#alpha: Structure function exponent (Kolmogorov = 5/3)
+#ar							=	1							#ar: Anisotropy axial ratio
+#psi							=	0							#psi: Anisotropy orientation
+#inner						=	0.001						#inner: Inner scale w.r.t rf - should generally be smaller than ds
+#ns							=	256							#ns (or nx,ny): Number of spatial steps
+#nf							=	256							#nf: Number of frequency steps.
+#dlam						=	0.25						#dlam: Fractional bandwidth relative to centre frequency
+#lamsteps					=	False						#lamsteps: Boolean to choose whether steps in lambda or freq
+#seed						=	1234 						#seed: Seed number, or use "-1" to shuffle
+#nx							=	None
+#ny							=	None
+#dx							=	None
+#dy							=	None
+#plot						=	False
+#verbose						=	False
+#dt							=	30
 
 
 
 # 1 FRB data simulated, (taums as input command line),
 # dspec4 = 4D
 # create another sub directory called SIMFRB
-simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'frequency_mhz_array', 'time_ms_array', 'scattering_time_ms', 'reference_frequency_mhz', 'scattering_index', 'gaussian_params', 'dynamic_spectrum'])
+simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'frequency_mhz_array', 'time_ms_array', 'scattering_time_ms', 'scattering_index', 'gaussian_params', 'dynamic_spectrum'])
 
 # time variation
 frb_time_series	=	namedtuple('frbts',['iquvt','lts','elts','pts','epts','phits','dphits','psits','dpsits','qfrac','eqfrac','ufrac','eufrac','vfrac','evfrac','lfrac','elfrac','pfrac','epfrac'])
