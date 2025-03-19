@@ -38,8 +38,8 @@ frb_identifier = sys.argv[2]  # FRB identifier
 
 # Array of frequency channels
 frequency_mhz_array = np.arange(
-    central_frequency_mhz - (num_channels * channel_width_mhz) / 2.0,
-    central_frequency_mhz + (num_channels * channel_width_mhz) / 2.0,
+    start_frequency_mhz,
+    end_frequency_mhz,
     channel_width_mhz,
     dtype=float
 )
@@ -81,8 +81,7 @@ initial_dynspec = gauss_dynspec(
     lin_pol_frac,
     circ_pol_frac,
     delta_pol_angle,
-    rm,
-    time_per_bin_ms
+    rm
 )
 
 # Scatter the dynamic spectrum
@@ -103,7 +102,6 @@ simulated_frb_data = simulated_frb(
     frequency_mhz_array,
     time_ms_array,
     scattering_timescale_ms,
-    reference_frequency_mhz,
     scattering_index,
     gaussian_params,
     scattered_dynspec
