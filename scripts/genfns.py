@@ -60,7 +60,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
         - rm: Rotation measure array
     """
     dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
-    num_gauss = len(spec_idx) - 1  # Number of Gaussian components
+    num_gauss = len(spec_idx) - 1  # Number of Gaussian components (-1 for the dummy component)
     ref_freq_mhz = np.nanmedian(freq_mhz)  # Reference frequency
     lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
     median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
@@ -88,9 +88,9 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
             dynspec[3, c] += dynspec[0, c] * circ_pol_frac[g + 1]  # V
 
     print("\nGenerating dynamic spectrum with %d Gaussian component(s)\n" % (num_gauss))
-    plt.imshow(dynspec[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', 
-               vmin=-np.nanmax(np.abs(dynspec)), vmax=np.nanmax(np.abs(dynspec)))
-    plt.show()
+    #plt.imshow(dynspec[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', 
+    #           vmin=-np.nanmax(np.abs(dynspec)), vmax=np.nanmax(np.abs(dynspec)))
+    #plt.show()
 
     return dynspec
 
@@ -122,9 +122,7 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     for stk in range(4): 
         sc_dspec[stk] = sc_dspec[stk] + np.random.normal(loc=0.0, scale=1.0, size=(freq_mhz.shape[0], time_ms.shape[0]))
 
-    # Linear polarisation
-    L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
-
+    
     ############################################
     # Polarisation angle
     ## Estimate Noise spectra
@@ -150,11 +148,14 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     ############################################
 
 
+    # Linear polarisation
+    L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
+
     print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
     
     fig, axs = plt.subplots(6, figsize=(10, 6), constrained_layout=True)
     # Plot polarisation angle
-    axs[0].errorbar(time_ms, phits, dphits, fmt='b*', markersize=5, lw=0.5, capsize=2)
+    axs[0].errorbar(time_ms, phits, dphits, c='black', marker="*", markersize=5, lw=0.5, capsize=2)
     axs[0].set_xlim(time_ms[0], time_ms[-1])
     axs[0].set_ylabel("PA [deg]")
     
