@@ -7,6 +7,7 @@
 
 import os
 import sys
+import warnings
 
 import matplotlib as mpl
 import numpy as np
@@ -39,7 +40,7 @@ frb_identifier = sys.argv[2]  # FRB identifier
 # Array of frequency channels
 frequency_mhz_array = np.arange(
     start_frequency_mhz,
-    end_frequency_mhz,
+    end_frequency_mhz+ channel_width_mhz,
     channel_width_mhz,
     dtype=float
 )
@@ -47,7 +48,7 @@ frequency_mhz_array = np.arange(
 # Array of time bins
 time_ms_array = np.arange(
     -time_window_ms,
-    time_window_ms,
+    time_window_ms+ time_resolution_ms,
     time_resolution_ms,
     dtype=float
 )
@@ -64,6 +65,14 @@ pol_angle       = gaussian_params[:, 6]  # Polarization angle of the Gaussian co
 lin_pol_frac    = gaussian_params[:, 7]  # Linear polarization fraction of the Gaussian component
 circ_pol_frac   = gaussian_params[:, 8]  # Circular polarization fraction of the Gaussian component
 delta_pol_angle = gaussian_params[:, 9]  # Change in polarization angle with time of the Gaussian component
+
+# Check if linear and circular polarization fractions sum to more than 1.0
+if (lin_pol_frac + circ_pol_frac).any() > 1.0:
+    print("WARNING: Linear and circular polarization fractions sum to more than 1.0")
+
+if (t0.any()<(-time_window_ms)) or (t0.any()>time_window_ms):
+    print("WARNING: Gaussian component(s) outside the time window")
+
 
 
 # Generate initial dispersed dynamic spectrum with Gaussian components

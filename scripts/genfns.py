@@ -59,6 +59,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
         - rm: Rotation measure array
     """
     dynspec          = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
+    dspec            = []
     num_gauss        = len(spec_idx) - 1  # Number of Gaussian components (-1 for the dummy component)
     ref_freq_mhz     = np.nanmedian(freq_mhz)  # Reference frequency
     lambda_sq        = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
@@ -76,24 +77,24 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
             # Apply Faraday rotation
             faraday_rot_angle = pol_angle_arr + rm[g + 1] * (lambda_sq[c] - median_lambda_sq)
             # Add the Gaussian pulse to the dynamic spectrum
-            dynspec[0, c]    += norm_amp[c] * pulse
+            dynspec[0, c]     = norm_amp[c] * pulse
             # Calculate the dispersion delay
             disp_delay_ms     = 4.15 * dm[g + 1] * ((1.0e3 / freq_mhz[c]) ** 2 - (1.0e3 / ref_freq_mhz) ** 2)
             # Apply the dispersion delay
             dynspec[0, c]     = np.roll(dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
             # Calculate the Stokes parameters
-            dynspec[1, c]    += dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
-            dynspec[2, c]    += dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
-            dynspec[3, c]    += dynspec[0, c] * circ_pol_frac[g + 1]  # V
+            dynspec[1, c]     = dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
+            dynspec[2, c]     = dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
+            dynspec[3, c]     = dynspec[0, c] * circ_pol_frac[g + 1]  # V
+        dspec.append(dynspec)
+    dspec = np.sum(dspec, axis=0)
 
     print("\nGenerating dynamic spectrum with %d Gaussian component(s)\n" % (num_gauss))
     #plt.imshow(dynspec[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', 
     #           vmin=-np.nanmax(np.abs(dynspec)), vmax=np.nanmax(np.abs(dynspec)))
     #plt.show()
-    L = np.sqrt(np.nanmean(dynspec[1,:], axis=0)**2 + np.nanmean(dynspec[2,:], axis=0)**2)
-    print(np.max(L), np.max(np.nanmean(dynspec[0,:], axis=0)))
-    print(np.max(L) > np.max(np.nanmean(dynspec[0,:], axis=0)))
-    return dynspec
+
+    return dspec
 
 
 #	--------------------------------------------------------------------------------
@@ -125,7 +126,7 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     
     # Add noise to the scattered dynamic spectrum
     for stk in range(4): 
-        sc_dspec[stk] = sc_dspec[stk] + np.random.normal(loc=0.0, scale=1.0, size=(freq_mhz.shape[0], time_ms.shape[0]))
+        sc_dspec[stk] = sc_dspec[stk] + np.random.normal(loc=0.0, scale=3.0, size=(freq_mhz.shape[0], time_ms.shape[0]))
 
     
     ############################################
@@ -169,21 +170,24 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     axs[0].set_ylabel("PA [deg]")
     axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
     axs[0].tick_params(axis='x', direction='in')  # Make x-ticks stick up
-
     
     # Plot the mean across all frequency channels (axis 0)
-    axs[1].plot(np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
-    #axs[1].plot(np.nanmean(dspec[0,:], axis=0), markersize=2, label='I_unsc', color='Gray')
-    #axs[1].plot(np.nanmean(sc_dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
-    #axs[1].plot(np.nanmean(sc_dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
-    axs[1].plot(np.nanmean(sc_dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
-    axs[1].plot(L, markersize=2, label='L', color='Red')
+    axs[1].plot(time_ms, np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
+    #axs[1].plot(time_ms, np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
+    axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
+    #axs[1].plot(time_ms, np.nanmean(dspec[0,:], axis=0), markersize=2, label='I_unsc', color='Gray')
+    #axs[1].plot(time_ms, np.nanmean(sc_dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
+    #axs[1].plot(time_ms, np.nanmean(sc_dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
+    axs[1].plot(time_ms, np.nanmean(sc_dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
+    axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
+    axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
     
-    axs[1].set_xlim(0, len(time_ms))
+    axs[1].set_xlim(time_ms[0], time_ms[-1])
     axs[1].legend(loc='upper right')
     axs[1].set_ylabel("Flux Density (arb.)")
     axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
     axs[1].tick_params(axis='x', direction='in')  # Make x-ticks stick up
+
 
     # Plot the 2D scattered dynamic spectrum
     ## Calculate the mean and standard deviation of the dynamic spectrum
@@ -203,6 +207,8 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     #       vmin=vmin, vmax=vmax)
     axs[2].set_xlabel("Time (ms)")
     axs[2].set_ylabel("Frequency (MHz)")
+    axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
+
 
     plt.show()
     
