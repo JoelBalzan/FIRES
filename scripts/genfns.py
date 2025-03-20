@@ -59,42 +59,46 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
         - rm: Rotation measure array
     """
     dynspec          = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
-    dspec            = []
     num_gauss        = len(spec_idx) - 1  # Number of Gaussian components (-1 for the dummy component)
     ref_freq_mhz     = np.nanmedian(freq_mhz)  # Reference frequency
     lambda_sq        = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
     median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
     for g in range(0, num_gauss):
+        # Initialize a temporary array for the current Gaussian component
+        temp_dynspec  = np.zeros_like(dynspec)
+        
         # Calculate the normalized amplitude for each frequency
         norm_amp      = peak_amp[g + 1] * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
         # Calculate the Gaussian pulse shape
-        pulse         = np.exp( -(time_ms - loc_ms[g + 1]) ** 2 / ( 2 * (width_ms[g + 1] ** 2) ) )
+        pulse         = np.exp(-(time_ms - loc_ms[g + 1]) ** 2 / (2 * (width_ms[g + 1] ** 2)))
         # Calculate the polarization angle array
         pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
 
         for c in range(0, len(freq_mhz)):
             # Apply Faraday rotation
-            faraday_rot_angle = pol_angle_arr + rm[g + 1] * (lambda_sq[c] - median_lambda_sq)
-            # Add the Gaussian pulse to the dynamic spectrum
-            dynspec[0, c]     = norm_amp[c] * pulse
+            faraday_rot_angle  = pol_angle_arr + rm[g + 1] * (lambda_sq[c] - median_lambda_sq)
+            # Add the Gaussian pulse to the temporary dynamic spectrum
+            temp_dynspec[0, c] = norm_amp[c] * pulse
             # Calculate the dispersion delay
-            disp_delay_ms     = 4.15 * dm[g + 1] * ((1.0e3 / freq_mhz[c]) ** 2 - (1.0e3 / ref_freq_mhz) ** 2)
-            # Apply the dispersion delay
-            dynspec[0, c]     = np.roll(dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
+            if dm[g + 1] != 0:
+                disp_delay_ms      = 4.15 * dm[g + 1] * ((1.0e3 / freq_mhz[c]) ** 2 - (1.0e3 / ref_freq_mhz) ** 2)
+                # Apply the dispersion delay
+                temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
             # Calculate the Stokes parameters
-            dynspec[1, c]     = dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
-            dynspec[2, c]     = dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
-            dynspec[3, c]     = dynspec[0, c] * circ_pol_frac[g + 1]  # V
-        dspec.append(dynspec)
-    dspec = np.sum(dspec, axis=0)
+            temp_dynspec[1, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
+            temp_dynspec[2, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
+            temp_dynspec[3, c] = temp_dynspec[0, c] * circ_pol_frac[g + 1]  # V
+        
+        # Accumulate the contributions from the current Gaussian component
+        dynspec += temp_dynspec
 
     print("\nGenerating dynamic spectrum with %d Gaussian component(s)\n" % (num_gauss))
     #plt.imshow(dynspec[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', 
     #           vmin=-np.nanmax(np.abs(dynspec)), vmax=np.nanmax(np.abs(dynspec)))
     #plt.show()
 
-    return dspec
+    return dynspec
 
 
 #	--------------------------------------------------------------------------------
@@ -126,7 +130,7 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     
     # Add noise to the scattered dynamic spectrum
     for stk in range(4): 
-        sc_dspec[stk] = sc_dspec[stk] + np.random.normal(loc=0.0, scale=3.0, size=(freq_mhz.shape[0], time_ms.shape[0]))
+        sc_dspec[stk] = sc_dspec[stk] + np.random.normal(loc=0.0, scale=1.0, size=(freq_mhz.shape[0], time_ms.shape[0]))
 
     
     ############################################
