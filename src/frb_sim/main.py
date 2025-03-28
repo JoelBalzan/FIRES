@@ -1,6 +1,6 @@
 import argparse
 import os
-from sim.genfrb import generate_frb
+from .genfrb import generate_frb
 
 def main():
     """
@@ -23,11 +23,25 @@ def main():
         help="Identifier for the simulated FRB."
     )
     parser.add_argument(
-        "-o", "--output-dir",
+        "-d", "--output-dir",
         type=str,
-        default="simfrbs/",
+        default="../../simfrbs/",
         metavar="",
-        help="Directory to save the simulated FRB data (default: 'data/')."
+        help="Directory to save the simulated FRB data (default: '../../simfrbs/')."
+    )
+    parser.add_argument(
+        "-o", "--obs_params",
+        type=str,
+        default="../utils/obsparams.txt", 
+        metavar="",
+        help="Observation parameters for the simulated FRB."
+    )
+    parser.add_argument(
+        "-g", "--gauss_params",
+        type=str,
+        default="../utils/gparams.txt",  
+        metavar="",
+        help="Gaussian parameters for the simulated FRB."
     )
     parser.add_argument(
         "--no-write",
@@ -47,7 +61,7 @@ def main():
 
     # Call the generate_frb function
     try:
-        result = generate_frb(scattering_timescale_ms=args.scattering_timescale_ms, frb_identifier=args.frb_identifier, write=not args.no_write)
+        result = generate_frb(scattering_timescale_ms=args.scattering_timescale_ms, frb_identifier=args.frb_identifier, data_dir=args.output_dir, write=not args.no_write)
         if args.no_write:
             print("Simulation completed. Data returned instead of being saved.")
             print(result)

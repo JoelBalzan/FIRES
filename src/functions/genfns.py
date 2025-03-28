@@ -23,9 +23,9 @@ import matplotlib.ticker as ticker
 import numpy as np
 from scintools.scint_sim import Simulation
 from scipy.interpolate import griddata
-from utils.utils import *
+from ..utils.utils import *
 from .basicfns import *
-from sim.plotfns import *
+from ..frb_sim.plotfns import *
 
 
 mpl.rcParams['pdf.fonttype'] = 42
