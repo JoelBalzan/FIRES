@@ -37,34 +37,6 @@ frb_identifier = sys.argv[2]  # FRB identifier
 
 #	-------------------------	Execute steps	-------------------------------
 
-# Array of frequency channels
-frequency_mhz_array = np.arange(
-    start_frequency_mhz,
-    end_frequency_mhz+ channel_width_mhz,
-    channel_width_mhz,
-    dtype=float
-)
-
-# Array of time bins
-time_ms_array = np.arange(
-    -time_window_ms,
-    time_window_ms+ time_resolution_ms,
-    time_resolution_ms,
-    dtype=float
-)
-
-# Load Gaussian parameters from gparams.txt
-gaussian_params = np.loadtxt('gparams.txt')
-t0              = gaussian_params[:, 0]  # Time of the first Gaussian component
-width           = gaussian_params[:, 1]  # Width of the Gaussian component
-peak_amp        = gaussian_params[:, 2]  # Peak amplitude of the Gaussian component
-spec_idx        = gaussian_params[:, 3]  # Spectral index of the Gaussian component
-dm              = gaussian_params[:, 4]  # Dispersion measure of the Gaussian component
-rm              = gaussian_params[:, 5]  # Rotation measure of the Gaussian component
-pol_angle       = gaussian_params[:, 6]  # Polarization angle of the Gaussian component
-lin_pol_frac    = gaussian_params[:, 7]  # Linear polarization fraction of the Gaussian component
-circ_pol_frac   = gaussian_params[:, 8]  # Circular polarization fraction of the Gaussian component
-delta_pol_angle = gaussian_params[:, 9]  # Change in polarization angle with time of the Gaussian component
 
 # Check if linear and circular polarization fractions sum to more than 1.0
 if (lin_pol_frac + circ_pol_frac).any() > 1.0:
