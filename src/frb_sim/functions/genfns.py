@@ -25,7 +25,7 @@ from scintools.scint_sim import Simulation
 from scipy.interpolate import griddata
 from ..utils.utils import *
 from .basicfns import *
-from ..plotfns import *
+from .plotfns import *
 
 
 mpl.rcParams['pdf.fonttype'] = 42

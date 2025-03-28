@@ -9,8 +9,8 @@ import os
 import sys
 
 import numpy as np
-from functions.basicfns import *
-from plotfns import *
+from .basicfns import *
+from .plotfns import *
 from ..utils.utils import *
 
 

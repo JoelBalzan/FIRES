@@ -1,6 +1,6 @@
 import argparse
 import os
-from .genfrb import generate_frb, obs_params_path, gauss_params_path
+from .functions.genfrb import generate_frb, obs_params_path, gauss_params_path
 
 def main():
     """
