@@ -11,7 +11,7 @@ import sys
 import numpy as np
 from functions.basicfns import *
 from plotfns import *
-from utils.utils import *
+from ..utils.utils import *
 
 
 def print_instructions():

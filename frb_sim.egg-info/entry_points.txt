@@ -1,0 +1,2 @@
+[console_scripts]
+frb-sim = src.frb_sim.main:main

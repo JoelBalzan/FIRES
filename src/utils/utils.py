@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-
 #    --------------------------	Define parameters	-------------------------------
 def get_parameters(filename):
     parameters = {}
@@ -28,50 +27,6 @@ def get_parameters(filename):
             parameters[key.strip()] = value.strip()
     return parameters
 
-
-obsparams = get_parameters('utils/obsparams.txt')
-
-start_frequency_mhz = float(obsparams['f0'])
-end_frequency_mhz   = float(obsparams['f1'])
-channel_width_mhz   = float(obsparams['f_res'])
-start_time_ms       = float(obsparams['t0'])
-end_time_ms         = float(obsparams['t1'])
-time_resolution_ms  = float(obsparams['t_res'])
-scattering_index    = float(obsparams['scattering_index'])
-
-central_frequency_mhz = (start_frequency_mhz + end_frequency_mhz) / 2.0  # Central frequency in MHz
-num_channels = int((end_frequency_mhz - start_frequency_mhz) / channel_width_mhz)  # Number of frequency channels
-time_window_ms = (end_time_ms - start_time_ms) / 2.0  # Time window in ms
-num_time_bins = int(2 * time_window_ms / time_resolution_ms)  # Number of time bins
-
-# Array of frequency channels
-frequency_mhz_array = np.arange(
-    start_frequency_mhz,
-    end_frequency_mhz+ channel_width_mhz,
-    channel_width_mhz,
-    dtype=float
-)
-
-# Array of time bins
-time_ms_array = np.arange(
-    -time_window_ms,
-    time_window_ms+ time_resolution_ms,
-    time_resolution_ms,
-    dtype=float
-)
-
-# Load Gaussian parameters from gparams.txt
-gaussian_params = np.loadtxt('utils/gparams.txt')
-t0              = gaussian_params[:, 0]  # Time of the first Gaussian component
-width           = gaussian_params[:, 1]  # Width of the Gaussian component
-peak_amp        = gaussian_params[:, 2]  # Peak amplitude of the Gaussian component
-spec_idx        = gaussian_params[:, 3]  # Spectral index of the Gaussian component
-dm              = gaussian_params[:, 4]  # Dispersion measure of the Gaussian component
-rm              = gaussian_params[:, 5]  # Rotation measure of the Gaussian component
-pol_angle       = gaussian_params[:, 6]  # Polarization angle of the Gaussian component
-lin_pol_frac    = gaussian_params[:, 7]  # Linear polarization fraction of the Gaussian component
-circ_pol_frac   = gaussian_params[:, 8]  # Circular polarization fraction of the Gaussian component
-delta_pol_angle = gaussian_params[:, 9]  # Change in polarization angle with time of the Gaussian component
 
 
 
@@ -88,8 +43,8 @@ radian_to_picoarcsec	    =	180.0 * 3600 * 1.0e12 / np.pi	#	Radian in pico-arcsec
 solar_radius_cm			    =	6.957e10					#	Solar radius in cm
 astronomical_unit_cm	    =	1.496e13					#	1 AU in cm
 inch_to_cm				    =	2.54
-data_directory			    =	'simfrbs/'
-plot_directory			    =	'plots/'
+data_directory			    =	'../../simfrbs/'
+plot_directory			    =	'../../plots/'
 
 # constants for scintillation application (SCINTOOLS)
 #mb2							=	2							#mb2: Max Born parameter for strength of scattering

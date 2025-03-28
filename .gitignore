@@ -1,0 +1,15 @@
+# Virtual environment
+venv/
+env/
+*.egg-info/
+*.eggs/
+
+# Distribution/build artifacts
+build/
+dist/
+*.egg
+*.whl
+
+# Data folders
+simfrbs/
+plots/
