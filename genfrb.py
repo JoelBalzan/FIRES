@@ -11,7 +11,7 @@ import warnings
 
 import matplotlib as mpl
 import numpy as np
-from genfns import *
+from functions.genfns import *
 from utils import *
 
 
