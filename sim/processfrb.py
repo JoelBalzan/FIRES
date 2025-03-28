@@ -9,9 +9,9 @@ import os
 import sys
 
 import numpy as np
-from basicfns import *
+from functions.basicfns import *
 from plotfns import *
-from utils import *
+from utils.utils import *
 
 
 def print_instructions():

@@ -29,15 +29,15 @@ def get_parameters(filename):
     return parameters
 
 
-params = get_parameters('obsparams.txt')
+obsparams = get_parameters('utils/obsparams.txt')
 
-start_frequency_mhz = float(params['f0'])
-end_frequency_mhz = float(params['f1'])
-channel_width_mhz = float(params['f_res'])
-start_time_ms = float(params['t0'])
-end_time_ms = float(params['t1'])
-time_resolution_ms = float(params['t_res'])
-scattering_index = float(params['scattering_index'])
+start_frequency_mhz = float(obsparams['f0'])
+end_frequency_mhz   = float(obsparams['f1'])
+channel_width_mhz   = float(obsparams['f_res'])
+start_time_ms       = float(obsparams['t0'])
+end_time_ms         = float(obsparams['t1'])
+time_resolution_ms  = float(obsparams['t_res'])
+scattering_index    = float(obsparams['scattering_index'])
 
 central_frequency_mhz = (start_frequency_mhz + end_frequency_mhz) / 2.0  # Central frequency in MHz
 num_channels = int((end_frequency_mhz - start_frequency_mhz) / channel_width_mhz)  # Number of frequency channels
@@ -61,7 +61,7 @@ time_ms_array = np.arange(
 )
 
 # Load Gaussian parameters from gparams.txt
-gaussian_params = np.loadtxt('gparams.txt')
+gaussian_params = np.loadtxt('utils/gparams.txt')
 t0              = gaussian_params[:, 0]  # Time of the first Gaussian component
 width           = gaussian_params[:, 1]  # Width of the Gaussian component
 peak_amp        = gaussian_params[:, 2]  # Peak amplitude of the Gaussian component
@@ -88,8 +88,8 @@ radian_to_picoarcsec	    =	180.0 * 3600 * 1.0e12 / np.pi	#	Radian in pico-arcsec
 solar_radius_cm			    =	6.957e10					#	Solar radius in cm
 astronomical_unit_cm	    =	1.496e13					#	1 AU in cm
 inch_to_cm				    =	2.54
-data_directory			    =	'../simfrbs/'
-plot_directory			    =	'../plots/'
+data_directory			    =	'simfrbs/'
+plot_directory			    =	'plots/'
 
 # constants for scintillation application (SCINTOOLS)
 #mb2							=	2							#mb2: Max Born parameter for strength of scattering
