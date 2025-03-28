@@ -18,7 +18,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from matplotlib.ticker import FormatStrFormatter, FuncFormatter
 from scipy.optimize import curve_fit
-from ..utils.utils import *
+from .utils.utils import *
 
 mpl.rcParams['pdf.fonttype']	= 42
 mpl.rcParams['ps.fonttype'] 	= 42

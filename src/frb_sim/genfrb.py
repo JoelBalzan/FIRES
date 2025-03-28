@@ -9,8 +9,8 @@ from importlib.resources import files
 import matplotlib as mpl
 import numpy as np
 
-from ..functions.genfns import *
-from ..utils.utils import *
+from .functions.genfns import *
+from .utils.utils import *
 
 import os
 

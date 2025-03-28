@@ -24,4 +24,4 @@ packages.find = {where = ["src"]}  # Note the corrected syntax
 Homepage = "https://github.com/JoelBalzan/FRB_SIM"
 
 [project.scripts]
-frb-sim = "src.frb_sim.main:main"
+frb-sim = "frb_sim.main:main"
