@@ -1,6 +1,6 @@
 import argparse
 import os
-from .genfrb import generate_frb
+from .genfrb import generate_frb, obs_params_path, gauss_params_path
 
 def main():
     """
@@ -25,21 +25,21 @@ def main():
     parser.add_argument(
         "-d", "--output-dir",
         type=str,
-        default="../../simfrbs/",
+        default="simfrbs/",
         metavar="",
-        help="Directory to save the simulated FRB data (default: '../../simfrbs/')."
+        help="Directory to save the simulated FRB data (default: 'simfrbs/')."
     )
     parser.add_argument(
         "-o", "--obs_params",
         type=str,
-        default="../utils/obsparams.txt", 
+        default=obs_params_path, 
         metavar="",
         help="Observation parameters for the simulated FRB."
     )
     parser.add_argument(
         "-g", "--gauss_params",
         type=str,
-        default="../utils/gparams.txt",  
+        default=gauss_params_path,  
         metavar="",
         help="Gaussian parameters for the simulated FRB."
     )
@@ -51,9 +51,10 @@ def main():
 
     args = parser.parse_args()
 
-    # Ensure the output directory exists
-    if not os.path.exists(args.output_dir):
+    # Check if the output directory exists, if not create it
+    if not args.no_write and not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
+        print(f"Output directory '{args.output_dir}' created.")
 
     # Set the global data directory variable
     global data_directory
@@ -64,7 +65,6 @@ def main():
         result = generate_frb(scattering_timescale_ms=args.scattering_timescale_ms, frb_identifier=args.frb_identifier, data_dir=args.output_dir, write=not args.no_write)
         if args.no_write:
             print("Simulation completed. Data returned instead of being saved.")
-            print(result)
         else:
             print(f"Simulation completed. Data saved to {args.output_dir}")
     except Exception as e:

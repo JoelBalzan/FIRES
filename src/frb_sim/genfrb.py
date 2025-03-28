@@ -15,8 +15,8 @@ from .utils.utils import *
 import os
 
 current_dir = os.path.dirname(__file__)
-obs_params_path = os.path.join(current_dir, "../utils/obsparams.txt")
-gauss_params_path = os.path.join(current_dir, "../utils/gparams.txt")
+obs_params_path = os.path.join(current_dir, "utils/obsparams.txt")
+gauss_params_path = os.path.join(current_dir, "utils/gparams.txt")
 
 
 #	-------------------------	Execute steps	-------------------------------
