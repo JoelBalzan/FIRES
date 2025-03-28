@@ -18,7 +18,7 @@ def main():
     parser.add_argument(
         "-f", "--frb_identifier",
         type=str,
-        default="frb",
+        default="FRB",
         metavar="",
         help="Identifier for the simulated FRB."
     )
