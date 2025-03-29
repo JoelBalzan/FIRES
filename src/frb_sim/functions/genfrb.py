@@ -15,8 +15,9 @@ from ..utils.utils import *
 import os
 
 current_dir = os.path.dirname(__file__)
-obs_params_path = os.path.join(current_dir, "utils/obsparams.txt")
-gauss_params_path = os.path.join(current_dir, "utils/gparams.txt")
+parent_dir = os.path.dirname(current_dir)
+obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
+gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
 #	-------------------------	Execute steps	-------------------------------
@@ -79,7 +80,6 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, write=True, 
 
 
 
-
     # Generate initial dispersed dynamic spectrum with Gaussian components
     initial_dynspec = gauss_dynspec(
         frequency_mhz_array,
@@ -126,8 +126,11 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, write=True, 
         output_filename = "{}{}_sc_{:.2f}.pkl".format(data_dir, frb_identifier, scattering_timescale_ms)
         with open(output_filename, 'wb') as frbfile:
             pkl.dump(simulated_frb_data, frbfile)
+
+        return simulated_frb_data, rm
+    
     else:
-        return simulated_frb_data
+        return simulated_frb_data, rm
 
 
 
