@@ -43,8 +43,7 @@ radian_to_picoarcsec	    =	180.0 * 3600 * 1.0e12 / np.pi	#	Radian in pico-arcsec
 solar_radius_cm			    =	6.957e10					#	Solar radius in cm
 astronomical_unit_cm	    =	1.496e13					#	1 AU in cm
 inch_to_cm				    =	2.54
-data_directory			    =	'../../simfrbs/'
-plot_directory			    =	'../../plots/'
+
 
 # constants for scintillation application (SCINTOOLS)
 #mb2							=	2							#mb2: Max Born parameter for strength of scattering

@@ -51,6 +51,7 @@ The `frb-sim` command-line tool provides several options to customize the simula
 | `-g`, `--gauss_params`            | `str`      | `utils/gparams.txt`    | Path to the Gaussian parameters file.                                       |
 | `--no-write`                      | `flag`     | `False`                | If set, the simulation will not be saved to disk and will return the data instead. |
 | `--plot`                          | `str`      | `all`                  | Generate plots. Pass `all` for all plots or specify a plot name (`iquv`, `lvpa`, `dpa`, `rm`). |
+| `--save-plots`                    | `bool`     | `False`                | Save plots to disk. Default is False.                                       |
 | `--tz`                            | `float` x2 | `[0, 0]`               | Time zoom range for plots. Provide two values: start time and end time (ms).|
 | `--fz`                            | `float` x2 | `[0, 0]`               | Frequency zoom range for plots. Provide two values: start frequency and end frequency (MHz). |
 | `--rm`                            | `int`      | `-1`                   | Gaussian component to use for RM correction. Default is `-1` (last component). |
