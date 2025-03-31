@@ -57,6 +57,13 @@ def main():
         help="Generate plots. Pass 'all' to generate all plots, or specify a plot name: 'iquv', 'lvpa', 'dpa', 'rm'."
     )
     parser.add_argument(
+        "--save-plots",
+        type=bool,
+        default=False,
+        metavar="",
+        help="Save plots to disk. Default is False."
+    )
+    parser.add_argument(
         "--tz",
         nargs=2,
         type=float,
@@ -80,18 +87,21 @@ def main():
         help="Gaussian component to use for RM correction. Default is -1 (last component)."
     )
 
+
+
     args = parser.parse_args()
-
-
-    # Check if the output directory exists, if not create it
-    if not args.no_write and not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-        print(f"Output directory '{args.output_dir}' created.")
-
 
     # Set the global data directory variable
     global data_directory
     data_directory = args.output_dir
+
+    # Check if the output directory exists, if not create it
+    if not args.no_write and not os.path.exists(data_directory):
+        os.makedirs(args.output_dir)
+        print(f"Output directory '{data_directory}' created.")
+
+
+
 
     # Call the generate_frb function
     try:
@@ -102,13 +112,15 @@ def main():
             if args.plot:
                 # Call the plotting function with the specified arguments
                 plots(fname=args.frb_identifier, FRB_data=FRB, mode=args.plot, scattering_timescale_ms=args.scattering_timescale_ms, 
-                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm[-1])
+                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm[-1], outdir=data_directory,
+                      save=args.save_plots)
         else:
             print(f"Simulation completed. Data saved to {args.output_dir}")
             if args.plot:
                 # Call the plotting function with the specified arguments
                 plots(fname=args.frb_identifier, FRB_data=FRB, mode=args.plot, scattering_timescale_ms=args.scattering_timescale_ms, 
-                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm[-1])
+                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm[-1], outdir=data_directory,
+                      save=args.save_plots)
 
     except Exception as e:
         print(f"An error occurred during the simulation: {e}")

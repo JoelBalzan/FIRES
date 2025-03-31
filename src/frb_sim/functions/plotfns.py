@@ -28,11 +28,11 @@ mpl.rcParams['font.size']		= 8
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(plotdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, fsize):
+def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, fsize, save):
     """
     Plot Stokes IQUV profiles and dynamic spectra.
     Inputs:
-        - plotdir: Directory to save the plot
+        - fname, outdir: Directory to save the plot
         - dspec4: Dynamic spectrum array
         - iquvt: IQUV time series array
         - fmhzarr: Frequency array in MHz
@@ -96,15 +96,18 @@ def plot_stokes(plotdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, fsize):
     
     plt.show()
 
+    if save==True:
+        fig.savefig(os.path.join(outdir, fname + "_iquv.pdf"), bbox_inches='tight', dpi=600)
+        print("Saved figure to %s" % (os.path.join(outdir, fname + "_iquv.pdf")))
     return 0
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(plotdir, noistks, dspec4, frbdat, fmhzarr, tmsarr, xlim, fsize):
+def plot_ilv_pa_ds(fname, outdir, noistks, dspec4, frbdat, fmhzarr, tmsarr, xlim, fsize, save):
     """
     Plot ILV and PA profiles, and I dynamic spectrum.
     Inputs:
-        - plotdir: Directory to save the plot
+        - fname, outdir: Directory to save the plot
         - noistks: Noise levels for each Stokes parameter
         - dspec4: Dynamic spectrum array
         - frbdat: FRB data object
@@ -160,22 +163,26 @@ def plot_ilv_pa_ds(plotdir, noistks, dspec4, frbdat, fmhzarr, tmsarr, xlim, fsiz
     
     plt.show()
 
+    if save==True:
+        fig.savefig(os.path.join(outdir, fname + "_lvpa.pdf"), bbox_inches='tight', dpi=600)
+        print("Saved figure to %s" % (os.path.join(outdir, fname + "_lvpa.pdf")))
+
     return 0
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_dpa(plotdir, noistks, frbdat, tmsarr, fsize, ntp):
+def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, fsize, ntp, save):
     """
     Plot PA profile and dPA/dt.
     Inputs:
-        - plotdir: Directory to save the plot
+        - fname, outdir: Directory to save the plot
         - noistks: Noise levels for each Stokes parameter
         - frbdat: FRB data object
         - tmsarr: Time array in ms
         - fsize: Figure size
         - ntp: Number of points for slope calculation
     """
-    print("Calculating slope from %d points" % (2 * ntp + 1))
+    print("Calculating dpa slope from %d points" % (2 * ntp + 1))
 
     phits = frbdat.phits
     dphits = frbdat.dphits
@@ -237,6 +244,10 @@ def plot_dpa(plotdir, noistks, frbdat, tmsarr, fsize, ntp):
     ax1.yaxis.set_label_coords(-0.12, 0.5)
     
     plt.show()
+
+    if save==True:
+        fig.savefig(os.path.join(outdir, fname + "_dpa.pdf"), bbox_inches='tight', dpi=600)
+        print("Saved figure to %s" % (os.path.join(outdir, fname + "_dpa.pdf")))
 
     return 0
 

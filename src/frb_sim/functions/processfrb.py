@@ -14,7 +14,7 @@ from .plotfns import *
 from ..utils.utils import *
 
 
-def plots(fname, FRB_data, mode, scattering_timescale_ms, startms, stopms, startchan, endchan, rm):
+def plots(fname, FRB_data, mode, scattering_timescale_ms, startms, stopms, startchan, endchan, rm, outdir, save):
 	#	Plotting function
 	#	Plots the dynamic spectrum and the IQUV profiles
 	#	Plots the L V and PA profiles
@@ -43,23 +43,23 @@ def plots(fname, FRB_data, mode, scattering_timescale_ms, startms, stopms, start
 	corrdspec	=	rm_correct_dynspec(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, rm)
 	tsdata		=	est_profiles(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startchan, endchan)
 	if (mode == "all"):
-		plot_stokes(plot_directory,corrdspec,tsdata.iquvt,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[5.0,8.0])
-		plot_ilv_pa_ds(plot_directory,noistks,corrdspec,tsdata,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[4.0,5.0])
-		plot_dpa(plot_directory,noistks,tsdata,dsdata.time_ms_array,[4.0,4.0],5)
-		estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan)
+		plot_stokes(fname, outdir,corrdspec,tsdata.iquvt,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[5.0,8.0], save)
+		plot_ilv_pa_ds(fname, outdir,noistks,corrdspec,tsdata,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[4.0,5.0], save)
+		plot_dpa(fname, outdir,noistks,tsdata,dsdata.time_ms_array,[4.0,4.0],5, save)
+		estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save)
 
 	else:
 		if(mode=="iquv"):
-			plot_stokes(plot_directory,corrdspec,tsdata.iquvt,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[5.0,8.0])
+			plot_stokes(fname, outdir,corrdspec,tsdata.iquvt,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[5.0,8.0], save)
 
 		if(mode=="lvpa"):
-			plot_ilv_pa_ds(plot_directory,noistks,corrdspec,tsdata,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[4.0,5.0])
+			plot_ilv_pa_ds(fname, outdir,noistks,corrdspec,tsdata,dsdata.frequency_mhz_array,dsdata.time_ms_array,[0.0,0.0],[4.0,5.0], save)
 
 		if(mode=="dpa"):
-			plot_dpa(plot_directory,noistks,tsdata,dsdata.time_ms_array,[4.0,4.0],5)
+			plot_dpa(fname, outdir,noistks,tsdata,dsdata.time_ms_array,[4.0,4.0],5, save)
 		
 		if(mode=="rm"):
-			estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan)
+			estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save)
 
     
 
