@@ -66,4 +66,4 @@ frb-sim -t 0.5
 For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FRB_SIM/wiki).
 
 # Acknowledgements
-This project is based on the work by Tehya and Apurba Bera.
+This project is based on the work by Tehya Conroy and Apurba Bera.
