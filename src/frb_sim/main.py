@@ -1,5 +1,6 @@
 import argparse
 import os
+import traceback
 from .functions.genfrb import generate_frb, obs_params_path, gauss_params_path
 from .functions.processfrb import plots
 
@@ -53,6 +54,7 @@ def main():
         "--plot",
         nargs="?",
         const=all,
+        choices=['all', 'iquv', 'lvpa', 'dpa', 'rm'],
         metavar="PLOT_NAME",
         help="Generate plots. Pass 'all' to generate all plots, or specify a plot name: 'iquv', 'lvpa', 'dpa', 'rm'."
     )
@@ -86,7 +88,35 @@ def main():
         metavar="",
         help="Gaussian component to use for RM correction. Default is -1 (last component)."
     )
-
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default='gauss',
+        choices=['gauss', 'sgauss'],
+        metavar="",
+        help="Mode for generating pulses: 'gauss' or 'sgauss'. Default is 'gauss.' 'sgauss' will generate a gaussian distribution of gaussian sub-pulses."
+    )
+    parser.add_argument(
+        "--n-gauss",
+        type=int,
+        metavar="",
+        help="Number of Gaussians to generate. Required if --mode is 'sgauss'."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        metavar="",
+        help="Set seed for repeatability in sgauss mode."
+    )
+    parser.add_argument(
+        "--sg-width",
+        nargs=2,
+        type=float,
+        default=[0,50],
+        metavar=("MIN_WIDTH", "MAX_WIDTH"),
+        help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'sgauss.'"
+    )
 
 
     args = parser.parse_args()
@@ -106,7 +136,9 @@ def main():
     # Call the generate_frb function
     try:
         FRB, rm = generate_frb(scattering_timescale_ms=args.scattering_timescale_ms, frb_identifier=args.frb_identifier, obs_params=obs_params_path, 
-                     gauss_params=gauss_params_path, data_dir=args.output_dir, write=not args.no_write)
+                     gauss_params=gauss_params_path, data_dir=args.output_dir, write=not args.no_write, mode=args.mode, num_micro_gauss=args.n_gauss, 
+                     seed=args.seed, width_range=args.sg_width
+                     )
         if args.no_write:
             print("Simulation completed. Data returned instead of being saved.")
             if args.plot:
@@ -124,6 +156,7 @@ def main():
 
     except Exception as e:
         print(f"An error occurred during the simulation: {e}")
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()

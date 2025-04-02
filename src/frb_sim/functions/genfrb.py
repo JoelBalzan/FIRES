@@ -21,7 +21,7 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
 #	-------------------------	Execute steps	-------------------------------
-def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, write=True, obs_params=obs_params_path, gauss_params=gauss_params_path):
+def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write, obs_params=obs_params_path, gauss_params=gauss_params_path):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum
     """
@@ -79,24 +79,44 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, write=True, 
         print("WARNING: Gaussian component(s) outside the time window")
 
 
-
-    # Generate initial dispersed dynamic spectrum with Gaussian components
-    initial_dynspec = gauss_dynspec(
-        frequency_mhz_array,
-        time_ms_array,
-        channel_width_mhz,
-        time_resolution_ms,
-        spec_idx,
-        peak_amp,
-        width,
-        t0,
-        dm,
-        pol_angle,
-        lin_pol_frac,
-        circ_pol_frac,
-        delta_pol_angle,
-        rm
-    )
+    if mode=='gauss':
+        # Generate initial dispersed dynamic spectrum with Gaussian components
+        initial_dynspec = gauss_dynspec(
+            frequency_mhz_array,
+            time_ms_array,
+            channel_width_mhz,
+            time_resolution_ms,
+            spec_idx,
+            peak_amp,
+            width,
+            t0,
+            dm,
+            pol_angle,
+            lin_pol_frac,
+            circ_pol_frac,
+            delta_pol_angle,
+            rm
+        )
+    elif mode=='sgauss':
+        initial_dynspec = micro_gauss_dynspec(
+            frequency_mhz_array,
+            time_ms_array,
+            channel_width_mhz,
+            time_resolution_ms,
+            spec_idx,
+            peak_amp,
+            width,
+            t0,
+            dm,
+            pol_angle,
+            lin_pol_frac,
+            circ_pol_frac,
+            delta_pol_angle,
+            rm,
+            num_micro_gauss,
+            seed,
+            width_range
+        )
 
     # Scatter the dynamic spectrum
     scattered_dynspec = scatter_dynspec(
