@@ -5,6 +5,7 @@
 #	Each row represents a Gaussian components
 #   
 #   THE LAST ROW REPRESENTS THE FACTORS TO MODULATE THE GAUSSIAN PARAMETERS BY (ONLY FOR THE MGAUSS MODE)
+#       - CURRENTLY ONLY NEED TO SET PEAK
 #
 #	Columns:
 #	t0(ms)		  - Time offset of the Gaussian pulse in milliseconds
