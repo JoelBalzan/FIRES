@@ -119,6 +119,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         )
 
     # Scatter the dynamic spectrum
+    rm = np.max(rm)
     scattered_dynspec = scatter_dynspec(
         initial_dynspec,
         frequency_mhz_array,
@@ -127,7 +128,8 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         time_resolution_ms,
         scattering_timescale_ms,
         scattering_index,
-        rm=np.max(rm)
+        rm,
+        seed
     )
 
     # 'Pickle' the simulated FRB and save it to the disk

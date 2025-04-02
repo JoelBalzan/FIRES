@@ -103,7 +103,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 
 #	--------------------------------------------------------------------------------
 
-def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm):
+def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm, seed):
     """	
     Scatter a given dynamic spectrum.
     Inputs:
@@ -115,6 +115,9 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
         - tau_ms: Scattering time scale in ms
         - sc_idx: Scattering index
     """
+    # Set the random seed for reproducibility
+    if seed is not None:
+        np.random.seed(seed)
 
     # Initialize scattered dynamic spectrum array
     sc_dspec = np.zeros(dspec.shape, dtype=float)  
@@ -123,18 +126,48 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     
     for c in range(len(freq_mhz)):
         # Calculate the impulse response function
-        irf = np.heaviside(time_ms, 1.0) * np.exp(-time_ms / tau_cms[c]) / tau_cms[c]
+        irf = np.heaviside(time_ms, 1.0) * np.exp(-time_ms / tau_cms[c]) #/ tau_cms[c]
+        irf /= np.sum(irf)  # Normalize the impulse response function to ensure its integral equals 1
+
         for stk in range(4): 
             # Convolve the dynamic spectrum with the impulse response function
             sc_dspec[stk, c] = np.convolve(dspec[stk, c], irf, mode='same')
     
-    # Calculate the standard deviation of the signal for each Stokes parameter
-    signal_std = np.nanstd(dspec, axis=(1, 2))  # Compute standard deviation across frequency and time
-
     # Add noise to the scattered dynamic spectrum
-    for stk in range(4): 
-        noise_scale = signal_std[stk] * 20  # Set noise scale 
-        sc_dspec[stk] += np.random.normal(loc=0.0, scale=noise_scale, size=(freq_mhz.shape[0], time_ms.shape[0]))
+    signal_std = np.nanstd(sc_dspec, axis=(1, 2))  # Compute standard deviation across frequency and time
+    noise_I = np.random.normal(loc=0.0, scale=signal_std[0] * 0.9, size=sc_dspec[0].shape)  # Add noise to I
+    sc_dspec[0] += noise_I  # Add noise to total intensity
+
+    # Add noise to Q, U, V while preserving I^2 = Q^2 + U^2 + V^2
+    for i in range(len(freq_mhz)):  # Loop over frequency channels
+        for j in range(len(time_ms)):  # Loop over time bins
+            I = sc_dspec[0, i, j]
+            Q = sc_dspec[1, i, j]
+            U = sc_dspec[2, i, j]
+            V = sc_dspec[3, i, j]
+
+            # Calculate the current polarization fraction
+            pol_frac = np.sqrt(Q**2 + U**2 + V**2) / I #if I != 0 else 0
+
+            # Add noise to Q, U, V based on the noise added to I
+            noise_scale = np.abs(noise_I[i, j] * pol_frac)
+            noise_Q = np.random.normal(loc=0.0, scale=noise_scale)
+            noise_U = np.random.normal(loc=0.0, scale=noise_scale)
+            noise_V = np.random.normal(loc=0.0, scale=noise_scale)
+
+            # Update Q, U, V while preserving I^2 = Q^2 + U^2 + V^2
+            sc_dspec[1, i, j] = Q + noise_Q
+            sc_dspec[2, i, j] = U + noise_U
+            sc_dspec[3, i, j] = V + noise_V
+
+            # Normalize to ensure I^2 = Q^2 + U^2 + V^2
+            norm_factor = np.sqrt(sc_dspec[1, i, j]**2 + sc_dspec[2, i, j]**2 + sc_dspec[3, i, j]**2)
+            if norm_factor > np.abs(I):  # Ensure the polarization does not exceed total intensity
+                scale = np.abs(I) / norm_factor
+                sc_dspec[1, i, j] *= scale
+                sc_dspec[2, i, j] *= scale
+                sc_dspec[3, i, j] *= scale
+
 
     
     ############################################
@@ -164,6 +197,7 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
 
     # Linear polarisation
     L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
+    L_unsc = np.sqrt(np.nanmean(dspec[1,:], axis=0)**2 + np.nanmean(dspec[2,:], axis=0)**2)
 
     print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
     
@@ -180,9 +214,10 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     
     # Plot the mean across all frequency channels (axis 0)
     axs[1].plot(time_ms, np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
-    #axs[1].plot(time_ms, np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
+    axs[1].plot(time_ms, np.nanmean(np.sqrt(sc_dspec[1,:]**2 + sc_dspec[2,:]**2) + sc_dspec[3,:]**2, axis=0))
     axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
     #axs[1].plot(time_ms, np.nanmean(dspec[0,:], axis=0), markersize=2, label='I_unsc', color='Gray')
+    #axs[1].plot(time_ms, L_unsc, markersize=2, label='L_unsc', color='Red')
     #axs[1].plot(time_ms, np.nanmean(sc_dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
     #axs[1].plot(time_ms, np.nanmean(sc_dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
     axs[1].plot(time_ms, np.nanmean(sc_dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
