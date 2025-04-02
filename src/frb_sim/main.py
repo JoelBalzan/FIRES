@@ -1,8 +1,12 @@
 import argparse
 import os
+import numpy as np
 import traceback
 from .functions.genfrb import generate_frb, obs_params_path, gauss_params_path
 from .functions.processfrb import plots
+
+gaussian_params = np.loadtxt(gauss_params_path)
+nargs = len(gaussian_params[:, 0]) - 2 # -2 for the dummy entry and variation entry in gparams.txt
 
 def main():
     """
@@ -84,9 +88,9 @@ def main():
     parser.add_argument(
         "--rm",
         type=int,
-        default=-1,
+        default=-2,
         metavar="",
-        help="Gaussian component to use for RM correction. Default is -1 (last component)."
+        help="Index RM gaussian component to use for RM correction. Default is -2 (RM of last gaussian in gparams.txt)."
     )
     parser.add_argument(
         "--mode",
@@ -98,9 +102,10 @@ def main():
     )
     parser.add_argument(
         "--n-gauss",
+        nargs=nargs,
         type=int,
         metavar="",
-        help="Number of Gaussians to generate. Required if --mode is 'sgauss'."
+        help="Number of sub gaussians to generate for each main gaussian. Required if --mode is 'sgauss'."
     )
     parser.add_argument(
         "--seed",

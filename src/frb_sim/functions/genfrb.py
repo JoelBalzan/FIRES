@@ -98,7 +98,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             rm
         )
     elif mode=='sgauss':
-        initial_dynspec = micro_gauss_dynspec(
+        initial_dynspec = sub_gauss_dynspec(
             frequency_mhz_array,
             time_ms_array,
             channel_width_mhz,

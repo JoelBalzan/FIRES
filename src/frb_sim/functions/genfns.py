@@ -222,11 +222,11 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
     return sc_dspec
 
 
-def micro_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
+def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                         dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, 
                         num_sub_gauss, seed, width_range):
     """
-    Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-Gaussians.
+    Generate dynamic spectrum for multiple main Gaussians, each with a distribution of sub-Gaussians.
     Inputs:
         - freq_mhz: Frequency array in MHz
         - time_ms: Time array in ms
@@ -242,7 +242,7 @@ def micro_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx
         - circ_pol_frac: Circular polarization fraction array (one value per main Gaussian)
         - delta_pol_angle: Change in polarization angle with time (one value per main Gaussian)
         - rm: Rotation measure array (one value per main Gaussian)
-        - num_micro_gauss: Number of micro-Gaussians to generate per main Gaussian
+        - num_micro_gauss: Number of sub-Gaussians to generate per main Gaussian
     """
     # Set the random seed for reproducibility
     if seed is not None:
@@ -258,25 +258,24 @@ def micro_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx
     for g in range(num_main_gauss):
         # Use the last value in each array as the variation factor
         peak_amp_var        = peak_amp[-1]
-        width_ms_var        = width_ms[-1]
         pol_angle_var       = pol_angle[-1]
         lin_pol_frac_var    = lin_pol_frac[-1]
         circ_pol_frac_var   = circ_pol_frac[-1]
         delta_pol_angle_var = delta_pol_angle[-1]
         rm_var              = rm[-1]
 
-        for _ in range(num_sub_gauss):
+        for _ in range(num_sub_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
             micro_peak_amp        = peak_amp[g + 1] + np.random.normal(0, peak_amp_var * peak_amp[g + 1])
             # Sample the micro width as a percentage of the main width
-            micro_width_ms = width_ms[g + 1] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
+            micro_width_ms        = width_ms[g + 1] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
             # Sample the location of the micro-Gaussians from a Gaussian distribution
             micro_loc_ms          = np.random.normal(loc=loc_ms[g + 1], scale=width_ms[g + 1])
-            micro_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var * np.abs(pol_angle[g + 1]))
-            micro_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
-            micro_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
-            micro_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
-            micro_rm              = rm[g + 1] + np.random.normal(0, rm_var * rm[g + 1])
+            #micro_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var * np.abs(pol_angle[g + 1]))
+            #micro_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
+            #micro_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
+            #micro_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
+            #micro_rm              = rm[g + 1] + np.random.normal(0, rm_var * rm[g + 1])
 
             # Initialize a temporary array for the current micro-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
@@ -286,11 +285,11 @@ def micro_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx
             # Calculate the Gaussian pulse shape
             pulse         = np.exp(-(time_ms - micro_loc_ms) ** 2 / (2 * (micro_width_ms ** 2)))
             # Calculate the polarization angle array
-            pol_angle_arr = micro_pol_angle + (time_ms - micro_loc_ms) * micro_delta_pol_angle
+            pol_angle_arr = pol_angle[g + 1] + (time_ms - micro_loc_ms) * delta_pol_angle[g + 1]
 
             for c in range(len(freq_mhz)):
                 # Apply Faraday rotation
-                faraday_rot_angle  = pol_angle_arr + micro_rm * (lambda_sq[c] - median_lambda_sq)
+                faraday_rot_angle  = pol_angle_arr + rm[g + 1] * (lambda_sq[c] - median_lambda_sq)
                 # Add the Gaussian pulse to the temporary dynamic spectrum
                 temp_dynspec[0, c] = norm_amp[c] * pulse
                 # Calculate the dispersion delay
@@ -299,9 +298,9 @@ def micro_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx
                     # Apply the dispersion delay
                     temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
                 # Calculate the Stokes parameters
-                temp_dynspec[1, c] = temp_dynspec[0, c] * micro_lin_pol_frac * np.cos(2 * faraday_rot_angle)  # Q
-                temp_dynspec[2, c] = temp_dynspec[0, c] * micro_lin_pol_frac * np.sin(2 * faraday_rot_angle)  # U
-                temp_dynspec[3, c] = temp_dynspec[0, c] * micro_circ_pol_frac  # V
+                temp_dynspec[1, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
+                temp_dynspec[2, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
+                temp_dynspec[3, c] = temp_dynspec[0, c] * circ_pol_frac[g + 1]  # V
 
             # Accumulate the contributions from the current micro-Gaussian
             dynspec += temp_dynspec
