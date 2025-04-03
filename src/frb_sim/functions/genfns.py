@@ -210,11 +210,16 @@ def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_m
         - sc_idx: Scattering index
     """
     if scatter==True:
-        dspec, tau_cms = scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx)
+        sc_dspec, tau_cms = scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx)
         print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
 
+    # Add noise to the scattered dynamic spectrum
+    #for stk in range(4): 
+    #    sc_dspec[stk] = sc_dspec[stk] + np.random.normal(loc=0.0, scale=1.0, size=(freq_mhz.shape[0], time_ms.shape[0]))
+
+    
 
     plot_dynspec(dspec, freq_mhz, time_ms, tau_ms, rm) 
     
     
-    return dspec
+    return sc_dspec
