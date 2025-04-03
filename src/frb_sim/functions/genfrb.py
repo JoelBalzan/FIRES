@@ -21,7 +21,9 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
 #	-------------------------	Execute steps	-------------------------------
-def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write, obs_params=obs_params_path, gauss_params=gauss_params_path):
+def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write, 
+                 obs_params, gauss_params, noise, scatter
+                 ):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum
     """
@@ -95,7 +97,12 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             lin_pol_frac,
             circ_pol_frac,
             delta_pol_angle,
-            rm
+            rm,
+            seed,
+            noise,
+            scatter,
+            scattering_timescale_ms,
+            scattering_index
         )
     elif mode=='sgauss':
         initial_dynspec = sub_gauss_dynspec(
@@ -115,11 +122,15 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             rm,
             num_micro_gauss,
             seed,
-            width_range
+            width_range,
+            noise,
+            scatter,
+            scattering_timescale_ms,
+            scattering_index
         )
 
     # Scatter the dynamic spectrum
-    rm = np.max(rm)
+    #rm = np.max(rm)
     scattered_dynspec = scatter_dynspec(
         initial_dynspec,
         frequency_mhz_array,
@@ -129,7 +140,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         scattering_timescale_ms,
         scattering_index,
         rm,
-        seed
+        scatter
     )
 
     # 'Pickle' the simulated FRB and save it to the disk

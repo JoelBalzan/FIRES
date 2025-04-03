@@ -19,6 +19,7 @@ import numpy as np
 from matplotlib.ticker import FormatStrFormatter, FuncFormatter
 from scipy.optimize import curve_fit
 from ..utils.utils import *
+from .basicfns import *
 
 mpl.rcParams['pdf.fonttype']	= 42
 mpl.rcParams['ps.fonttype'] 	= 42
@@ -252,3 +253,86 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, fsize, ntp, save):
     return 0
 
 #	----------------------------------------------------------------------------------------------------------
+
+def plot_dynspec(sc_dspec, freq_mhz, time_ms, tau_ms, rm):
+    ############################################
+    # Polarisation angle
+    ## Estimate Noise spectra
+    noisespec	=	estimate_noise(sc_dspec, time_ms, np.min(time_ms), np.max(time_ms)) # add the arguments here 
+    noistks		=	np.sqrt(np.nansum(noisespec[:,:]**2,axis=1))/len(freq_mhz)
+
+    corrdspec	=	rm_correct_dynspec(sc_dspec, freq_mhz, np.max(rm))
+    tsdata		=	est_profiles(corrdspec, freq_mhz, time_ms, noisespec, np.argmin(freq_mhz), np.argmax(freq_mhz))
+    
+    phits  = tsdata.phits
+    dphits = tsdata.dphits
+
+    ntp=5
+    dpadt  = np.zeros(phits.shape, dtype=float)
+    edpadt = np.zeros(phits.shape, dtype=float)
+
+    dpadt[:ntp]   = np.nan
+    edpadt[:ntp]  = np.nan
+    dpadt[-ntp:]  = np.nan
+    edpadt[-ntp:] = np.nan
+    phits[tsdata.iquvt[0] < 10.0 * noistks[0]]  = np.nan
+    dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+    ############################################
+
+
+    # Linear polarisation
+    L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
+
+    
+    fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(10, 6))
+    fig.subplots_adjust(hspace=0.)
+
+
+    # Plot polarisation angle
+    axs[0].errorbar(time_ms, phits, dphits, c='black', marker="*", markersize=5, lw=0.5, capsize=2)
+    axs[0].set_xlim(time_ms[0], time_ms[-1])
+    axs[0].set_ylabel("PA [deg]")
+    axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
+    axs[0].tick_params(axis='x', direction='in')  # Make x-ticks stick up
+    
+    # Plot the mean across all frequency channels (axis 0)
+    axs[1].plot(time_ms, np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
+    #axs[1].plot(time_ms, np.nanmean(np.sqrt(sc_dspec[1,:]**2 + sc_dspec[2,:]**2) + sc_dspec[3,:]**2, axis=0))
+    axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
+    #axs[1].plot(time_ms, np.nanmean(dspec[0,:], axis=0), markersize=2, label='I_unsc', color='Gray')
+    #axs[1].plot(time_ms, L_unsc, markersize=2, label='L_unsc', color='Red')
+    #axs[1].plot(time_ms, np.nanmean(sc_dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
+    #axs[1].plot(time_ms, np.nanmean(sc_dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
+    axs[1].plot(time_ms, np.nanmean(sc_dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
+    axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
+    axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+    
+    axs[1].set_xlim(time_ms[0], time_ms[-1])
+    axs[1].legend(loc='upper right')
+    axs[1].set_ylabel("Flux Density (arb.)")
+    axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
+    axs[1].tick_params(axis='x', direction='in')  # Make x-ticks stick up
+
+
+    # Plot the 2D scattered dynamic spectrum
+    ## Calculate the mean and standard deviation of the dynamic spectrum
+    mn = np.mean(sc_dspec[0,:], axis=(0, 1))
+    std = np.std(sc_dspec[0,:], axis=(0, 1))
+    ## Set appropriate minimum and maximum values for imshow (Thanks to Dr. M. Lower)
+    vmin = mn - 3*std
+    vmax = mn + 7*std
+
+    axs[2].imshow(sc_dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+        vmin=vmin, vmax=vmax, extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
+    #axs[3].imshow(sc_dspec[1], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+    #    vmin=vmin, vmax=vmax)
+    #axs[4].imshow(sc_dspec[2], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+    #    vmin=vmin, vmax=vmax)
+    #axs[5].imshow(sc_dspec[3], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+    #       vmin=vmin, vmax=vmax)
+    axs[2].set_xlabel("Time (ms)")
+    axs[2].set_ylabel("Frequency (MHz)")
+    axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
+
+
+    plt.show()
