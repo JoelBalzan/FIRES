@@ -39,7 +39,8 @@ mpl.rcParams["ytick.major.size"] = 3
 #	--------------------------	Analysis functions	-------------------------------
 
 def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
-                  dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm):
+                  dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter,
+                  tau_ms, sc_idx):
     """
     Generate dynamic spectrum for Gaussian pulses.
     Inputs:
@@ -58,226 +59,59 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
         - delta_pol_angle: Change in polarization angle with time
         - rm: Rotation measure array
     """
-    dynspec          = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
-    num_gauss        = len(spec_idx) - 2  # Number of Gaussian components (-1 for the dummy component and -1 for the mgauss variation row)
-    ref_freq_mhz     = np.nanmedian(freq_mhz)  # Reference frequency
-    lambda_sq        = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
-    median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
+
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    # Initialize dynamic spectrum for all Stokes parameters
+    dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # [I, Q, U, V]
+    ref_freq_mhz = np.nanmedian(freq_mhz)
+    lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
+    median_lambda_sq = np.nanmedian(lambda_sq)
+    num_gauss = len(spec_idx) - 2
 
     for g in range(num_gauss):
-        # Initialize a temporary array for the current Gaussian component
-        temp_dynspec  = np.zeros_like(dynspec)
-        
-        # Calculate the normalized amplitude for each frequency
-        norm_amp      = peak_amp[g + 1] * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
-        # Calculate the Gaussian pulse shape
-        pulse         = np.exp(-(time_ms - loc_ms[g + 1]) ** 2 / (2 * (width_ms[g + 1] ** 2)))
-        # Calculate the polarization angle array
+        temp_dynspec = np.zeros_like(dynspec)
+        norm_amp = peak_amp[g + 1] * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
+        pulse = np.exp(-(time_ms - loc_ms[g + 1]) ** 2 / (2 * (width_ms[g + 1] ** 2)))
         pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
 
         for c in range(len(freq_mhz)):
-            # Apply Faraday rotation
-            faraday_rot_angle  = pol_angle_arr + rm[g + 1] * (lambda_sq[c] - median_lambda_sq)
-            # Add the Gaussian pulse to the temporary dynamic spectrum
-            temp_dynspec[0, c] = norm_amp[c] * pulse
-            # Calculate the dispersion delay
+            faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, rm[g + 1], lambda_sq[c], median_lambda_sq)
+            temp_dynspec[0, c] = norm_amp[c] * pulse  # Stokes I
             if int(dm[g + 1]) != 0:
-                disp_delay_ms      = 4.15 * dm[g + 1] * ((1.0e3 / freq_mhz[c]) ** 2 - (1.0e3 / ref_freq_mhz) ** 2)
-                # Apply the dispersion delay
+                disp_delay_ms = calculate_dispersion_delay(dm[g + 1], freq_mhz[c], ref_freq_mhz)
                 temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
-            # Calculate the Stokes parameters
-            temp_dynspec[1, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
-            temp_dynspec[2, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
-            temp_dynspec[3, c] = temp_dynspec[0, c] * circ_pol_frac[g + 1]  # V
-        
-        # Accumulate the contributions from the current Gaussian component
+            
+            # Apply scattering if enabled
+            #if scatter:
+            #    temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
+
+            # Add Gaussian noise to Stokes I before calculating Q, U, V
+            noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
+            temp_dynspec[0, c] += noise_I
+
+            temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
+                temp_dynspec[0, c], lin_pol_frac, circ_pol_frac, faraday_rot_angle, g + 1
+            )  # Stokes Q, U, V
+
         dynspec += temp_dynspec
 
-    print("\nGenerating dynamic spectrum with %d Gaussian component(s)\n" % (num_gauss))
-    #plt.imshow(dynspec[0, :], aspect='auto', interpolation='none', origin='lower', cmap='seismic', 
-    #           vmin=-np.nanmax(np.abs(dynspec)), vmax=np.nanmax(np.abs(dynspec)))
-    #plt.show()
-
+    print("\nGenerating all Stokes parameters dynamic spectrum")
     return dynspec
+
+
+
 
 
 #	--------------------------------------------------------------------------------
 
-def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm, seed):
-    """	
-    Scatter a given dynamic spectrum.
-    Inputs:
-        - dspec: Dynamic spectrum array
-        - freq_mhz: Frequency array in MHz
-        - time_ms: Time array in ms
-        - chan_width_mhz: Frequency resolution in MHz
-        - time_res_ms: Time resolution in ms
-        - tau_ms: Scattering time scale in ms
-        - sc_idx: Scattering index
-    """
-    # Set the random seed for reproducibility
-    if seed is not None:
-        np.random.seed(seed)
-
-    # Initialize scattered dynamic spectrum array
-    sc_dspec = np.zeros(dspec.shape, dtype=float)  
-    # Calculate the scattering time scale for each frequency
-    tau_cms = tau_ms * ((freq_mhz / np.nanmedian(freq_mhz)) ** sc_idx)  
-    
-    for c in range(len(freq_mhz)):
-        # Calculate the impulse response function
-        irf = np.heaviside(time_ms, 1.0) * np.exp(-time_ms / tau_cms[c]) #/ tau_cms[c]
-        irf /= np.sum(irf)  # Normalize the impulse response function to ensure its integral equals 1
-
-        for stk in range(4): 
-            # Convolve the dynamic spectrum with the impulse response function
-            sc_dspec[stk, c] = np.convolve(dspec[stk, c], irf, mode='same')
-    
-    # Add noise to the scattered dynamic spectrum
-    signal_std = np.nanstd(sc_dspec, axis=(1, 2))  # Compute standard deviation across frequency and time
-    noise_I = np.random.normal(loc=0.0, scale=signal_std[0] * 0.9, size=sc_dspec[0].shape)  # Add noise to I
-    sc_dspec[0] += noise_I  # Add noise to total intensity
-
-    # Add noise to Q, U, V while preserving I^2 = Q^2 + U^2 + V^2
-    for i in range(len(freq_mhz)):  # Loop over frequency channels
-        for j in range(len(time_ms)):  # Loop over time bins
-            I = sc_dspec[0, i, j]
-            Q = sc_dspec[1, i, j]
-            U = sc_dspec[2, i, j]
-            V = sc_dspec[3, i, j]
-
-            # Calculate the current polarization fraction
-            pol_frac = np.sqrt(Q**2 + U**2 + V**2) / I #if I != 0 else 0
-
-            # Add noise to Q, U, V based on the noise added to I
-            noise_scale = np.abs(noise_I[i, j] * pol_frac)
-            noise_Q = np.random.normal(loc=0.0, scale=noise_scale)
-            noise_U = np.random.normal(loc=0.0, scale=noise_scale)
-            noise_V = np.random.normal(loc=0.0, scale=noise_scale)
-
-            # Update Q, U, V while preserving I^2 = Q^2 + U^2 + V^2
-            sc_dspec[1, i, j] = Q + noise_Q
-            sc_dspec[2, i, j] = U + noise_U
-            sc_dspec[3, i, j] = V + noise_V
-
-            # Normalize to ensure I^2 = Q^2 + U^2 + V^2
-            norm_factor = np.sqrt(sc_dspec[1, i, j]**2 + sc_dspec[2, i, j]**2 + sc_dspec[3, i, j]**2)
-            if norm_factor > np.abs(I):  # Ensure the polarization does not exceed total intensity
-                scale = np.abs(I) / norm_factor
-                sc_dspec[1, i, j] *= scale
-                sc_dspec[2, i, j] *= scale
-                sc_dspec[3, i, j] *= scale
-
-
-    
-    ############################################
-    # Polarisation angle
-    ## Estimate Noise spectra
-    noisespec	=	estimate_noise(sc_dspec, time_ms, np.min(time_ms), np.max(time_ms)) # add the arguments here 
-    noistks		=	np.sqrt(np.nansum(noisespec[:,:]**2,axis=1))/len(freq_mhz)
-
-    corrdspec	=	rm_correct_dynspec(sc_dspec, freq_mhz, rm)
-    tsdata		=	est_profiles(corrdspec, freq_mhz, time_ms, noisespec, np.argmin(freq_mhz), np.argmax(freq_mhz))
-    
-    phits  = tsdata.phits
-    dphits = tsdata.dphits
-
-    ntp=5
-    dpadt  = np.zeros(phits.shape, dtype=float)
-    edpadt = np.zeros(phits.shape, dtype=float)
-
-    dpadt[:ntp]   = np.nan
-    edpadt[:ntp]  = np.nan
-    dpadt[-ntp:]  = np.nan
-    edpadt[-ntp:] = np.nan
-    phits[tsdata.iquvt[0] < 10.0 * noistks[0]]  = np.nan
-    dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
-    ############################################
-
-
-    # Linear polarisation
-    L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
-    L_unsc = np.sqrt(np.nanmean(dspec[1,:], axis=0)**2 + np.nanmean(dspec[2,:], axis=0)**2)
-
-    print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
-    
-    fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(10, 6))
-    fig.subplots_adjust(hspace=0.)
-
-
-    # Plot polarisation angle
-    axs[0].errorbar(time_ms, phits, dphits, c='black', marker="*", markersize=5, lw=0.5, capsize=2)
-    axs[0].set_xlim(time_ms[0], time_ms[-1])
-    axs[0].set_ylabel("PA [deg]")
-    axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
-    axs[0].tick_params(axis='x', direction='in')  # Make x-ticks stick up
-    
-    # Plot the mean across all frequency channels (axis 0)
-    axs[1].plot(time_ms, np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
-    axs[1].plot(time_ms, np.nanmean(np.sqrt(sc_dspec[1,:]**2 + sc_dspec[2,:]**2) + sc_dspec[3,:]**2, axis=0))
-    axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
-    #axs[1].plot(time_ms, np.nanmean(dspec[0,:], axis=0), markersize=2, label='I_unsc', color='Gray')
-    #axs[1].plot(time_ms, L_unsc, markersize=2, label='L_unsc', color='Red')
-    #axs[1].plot(time_ms, np.nanmean(sc_dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
-    #axs[1].plot(time_ms, np.nanmean(sc_dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
-    axs[1].plot(time_ms, np.nanmean(sc_dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
-    axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
-    axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
-    
-    axs[1].set_xlim(time_ms[0], time_ms[-1])
-    axs[1].legend(loc='upper right')
-    axs[1].set_ylabel("Flux Density (arb.)")
-    axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
-    axs[1].tick_params(axis='x', direction='in')  # Make x-ticks stick up
-
-
-    # Plot the 2D scattered dynamic spectrum
-    ## Calculate the mean and standard deviation of the dynamic spectrum
-    mn = np.mean(sc_dspec[0,:], axis=(0, 1))
-    std = np.std(sc_dspec[0,:], axis=(0, 1))
-    ## Set appropriate minimum and maximum values for imshow (Thanks to Dr. M. Lower)
-    vmin = mn - 3*std
-    vmax = mn + 7*std
-
-    axs[2].imshow(sc_dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-        vmin=vmin, vmax=vmax, extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
-    #axs[3].imshow(sc_dspec[1], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-    #    vmin=vmin, vmax=vmax)
-    #axs[4].imshow(sc_dspec[2], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-    #    vmin=vmin, vmax=vmax)
-    #axs[5].imshow(sc_dspec[3], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-    #       vmin=vmin, vmax=vmax)
-    axs[2].set_xlabel("Time (ms)")
-    axs[2].set_ylabel("Frequency (MHz)")
-    axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
-
-
-    plt.show()
-    
-    return sc_dspec
-
-
 def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
-                        dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, 
-                        num_sub_gauss, seed, width_range):
+                      dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, 
+                      num_sub_gauss, seed, width_range, noise, scatter, tau_ms, sc_idx):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of sub-Gaussians.
-    Inputs:
-        - freq_mhz: Frequency array in MHz
-        - time_ms: Time array in ms
-        - chan_width_mhz: Frequency resolution in MHz
-        - time_res_ms: Time resolution in ms
-        - spec_idx: Spectral index array (one value per main Gaussian)
-        - peak_amp: Peak amplitude array (one value per main Gaussian)
-        - width_ms: Width of the Gaussian pulse in ms (one value per main Gaussian)
-        - loc_ms: Location of the Gaussian pulse in ms (one value per main Gaussian)
-        - dm: Dispersion measure in pc/cm^3 (one value per main Gaussian)
-        - pol_angle: Polarization angle array (one value per main Gaussian)
-        - lin_pol_frac: Linear polarization fraction array (one value per main Gaussian)
-        - circ_pol_frac: Circular polarization fraction array (one value per main Gaussian)
-        - delta_pol_angle: Change in polarization angle with time (one value per main Gaussian)
-        - rm: Rotation measure array (one value per main Gaussian)
-        - num_micro_gauss: Number of sub-Gaussians to generate per main Gaussian
     """
     # Set the random seed for reproducibility
     if seed is not None:
@@ -312,33 +146,75 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             #micro_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
             #micro_rm              = rm[g + 1] + np.random.normal(0, rm_var * rm[g + 1])
 
-            # Initialize a temporary array for the current micro-Gaussian
+
+            # Initialize a temporary array for the current sub-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
 
             # Calculate the normalized amplitude for each frequency
-            norm_amp      = micro_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
-            # Calculate the Gaussian pulse shape
-            pulse         = np.exp(-(time_ms - micro_loc_ms) ** 2 / (2 * (micro_width_ms ** 2)))
-            # Calculate the polarization angle array
+            norm_amp = micro_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
+            pulse = np.exp(-(time_ms - micro_loc_ms) ** 2 / (2 * (micro_width_ms ** 2)))
             pol_angle_arr = pol_angle[g + 1] + (time_ms - micro_loc_ms) * delta_pol_angle[g + 1]
 
             for c in range(len(freq_mhz)):
                 # Apply Faraday rotation
-                faraday_rot_angle  = pol_angle_arr + rm[g + 1] * (lambda_sq[c] - median_lambda_sq)
+                faraday_rot_angle = pol_angle_arr + rm[g + 1] * (lambda_sq[c] - median_lambda_sq)
+
                 # Add the Gaussian pulse to the temporary dynamic spectrum
                 temp_dynspec[0, c] = norm_amp[c] * pulse
+
                 # Calculate the dispersion delay
                 if int(dm[g + 1]) != 0:
                     disp_delay_ms = 4.15 * dm[g + 1] * ((1.0e3 / freq_mhz[c]) ** 2 - (1.0e3 / ref_freq_mhz) ** 2)
-                    # Apply the dispersion delay
                     temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
-                # Calculate the Stokes parameters
-                temp_dynspec[1, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.cos(2 * faraday_rot_angle)  # Q
-                temp_dynspec[2, c] = temp_dynspec[0, c] * lin_pol_frac[g + 1] * np.sin(2 * faraday_rot_angle)  # U
-                temp_dynspec[3, c] = temp_dynspec[0, c] * circ_pol_frac[g + 1]  # V
+
+                # Apply scattering if enabled
+                #if scatter:
+                #    temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
+
+                # Add Gaussian noise to Stokes I
+                noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
+                temp_dynspec[0, c] += noise_I
+
+                # Calculate Stokes Q, U, V
+                temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
+                    temp_dynspec[0, c], lin_pol_frac, circ_pol_frac, faraday_rot_angle, g + 1
+                )
 
             # Accumulate the contributions from the current micro-Gaussian
             dynspec += temp_dynspec
 
-    print(f"\nGenerated dynamic spectrum with {num_main_gauss} main Gaussians, each having {num_sub_gauss} micro-Gaussian components\n")
+    print(f"\nGenerated dynamic spectrum with {num_main_gauss} main Gaussians, each having {num_sub_gauss} sub-Gaussian components\n")
     return dynspec
+
+
+
+
+
+
+
+
+
+
+#	--------------------------------------------------------------------------------
+
+def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm, scatter):
+    """	
+    Scatter a given dynamic spectrum.
+    Inputs:
+        - dspec: Dynamic spectrum Stokes I array
+        - freq_mhz: Frequency array in MHz
+        - time_ms: Time array in ms
+        - chan_width_mhz: Frequency resolution in MHz
+        - time_res_ms: Time resolution in ms
+        - tau_ms: Scattering time scale in ms
+        - sc_idx: Scattering index
+    """
+    if scatter==True:
+        dspec, tau_cms = scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx)
+        print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
+
+
+    plot_dynspec(dspec, freq_mhz, time_ms, tau_ms, rm) 
+    
+    
+    return dspec

@@ -5,9 +5,6 @@ import traceback
 from .functions.genfrb import generate_frb, obs_params_path, gauss_params_path
 from .functions.processfrb import plots
 
-gaussian_params = np.loadtxt(gauss_params_path)
-nargs = len(gaussian_params[:, 0]) - 2 # -2 for the dummy entry and variation entry in gparams.txt
-
 def main():
     """
     Main entry point for the FRB simulation package.
@@ -55,7 +52,7 @@ def main():
         help="If set, the simulation will not be saved to disk and will return the data instead."
     )
     parser.add_argument(
-        "--plot",
+        "-p", "--plot",
         nargs="?",
         const=all,
         choices=['all', 'iquv', 'lvpa', 'dpa', 'rm'],
@@ -63,10 +60,8 @@ def main():
         help="Generate plots. Pass 'all' to generate all plots, or specify a plot name: 'iquv', 'lvpa', 'dpa', 'rm'."
     )
     parser.add_argument(
-        "--save-plots",
-        type=bool,
-        default=False,
-        metavar="",
+        "-s", "--save-plots",
+        action="store_true",
         help="Save plots to disk. Default is False."
     )
     parser.add_argument(
@@ -93,7 +88,7 @@ def main():
         help="Index RM gaussian component to use for RM correction. Default is -2 (RM of last gaussian in gparams.txt)."
     )
     parser.add_argument(
-        "--mode",
+        "-m", "--mode",
         type=str,
         default='gauss',
         choices=['gauss', 'sgauss'],
@@ -102,10 +97,10 @@ def main():
     )
     parser.add_argument(
         "--n-gauss",
-        nargs=nargs,
+        nargs="+",  # Expect one or more values
         type=int,
         metavar="",
-        help="Number of sub gaussians to generate for each main gaussian. Required if --mode is 'sgauss'."
+        help="Number of sub-Gaussians to generate for each main Gaussian. Required if --mode is 'sgauss'."
     )
     parser.add_argument(
         "--seed",
@@ -118,14 +113,33 @@ def main():
         "--sg-width",
         nargs=2,
         type=float,
-        default=[0,50],
+        default=[10,50],
         metavar=("MIN_WIDTH", "MAX_WIDTH"),
         help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'sgauss.'"
     )
+    parser.add_argument(
+        "--noise",
+        type=float,
+        default=2,
+        metavar="",
+        help="For setting noise scale in dynamic spectrum. This value is multiplied by the standard deviation of each frequency channel."
+    )
+    parser.add_argument(
+        "--scatter",
+        action="store_true",
+        default=True,
+        help="Enable scattering. Use --no-scatter to disable it."
+    )
+    parser.add_argument(
+        "--no-scatter",
+        action="store_false",
+        dest="scatter",
+        help="Disable scattering. Overrides --scatter if both are provided."
+    )
 
-
+    
     args = parser.parse_args()
-
+    print(args.scatter)
     # Set the global data directory variable
     global data_directory
     data_directory = args.output_dir
@@ -142,7 +156,7 @@ def main():
     try:
         FRB, rm = generate_frb(scattering_timescale_ms=args.scattering_timescale_ms, frb_identifier=args.frb_identifier, obs_params=obs_params_path, 
                      gauss_params=gauss_params_path, data_dir=args.output_dir, write=not args.no_write, mode=args.mode, num_micro_gauss=args.n_gauss, 
-                     seed=args.seed, width_range=args.sg_width
+                     seed=args.seed, width_range=args.sg_width, noise=args.noise, scatter=args.scatter
                      )
         if args.no_write:
             print("Simulation completed. Data returned instead of being saved.")
