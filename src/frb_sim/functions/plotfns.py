@@ -267,14 +267,6 @@ def plot_dynspec(sc_dspec, freq_mhz, time_ms, tau_ms, rm):
     phits  = tsdata.phits
     dphits = tsdata.dphits
 
-    ntp=5
-    dpadt  = np.zeros(phits.shape, dtype=float)
-    edpadt = np.zeros(phits.shape, dtype=float)
-
-    dpadt[:ntp]   = np.nan
-    edpadt[:ntp]  = np.nan
-    dpadt[-ntp:]  = np.nan
-    edpadt[-ntp:] = np.nan
     phits[tsdata.iquvt[0] < 10.0 * noistks[0]]  = np.nan
     dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
     ############################################
