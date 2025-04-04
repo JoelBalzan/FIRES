@@ -80,13 +80,13 @@ def main():
         metavar=("START_FREQ", "END_FREQ"),
         help="Frequency zoom range for plots. Provide two values: start frequency and end frequency (in MHz)."
     )
-    parser.add_argument(
-        "--rm",
-        type=int,
-        default=-2,
-        metavar="",
-        help="Index RM gaussian component to use for RM correction. Default is -2 (RM of last gaussian in gparams.txt)."
-    )
+    #parser.add_argument(
+    #    "--rm",
+    #    type=int,
+    #    default=-2,
+    #    metavar="",
+    #    help="Index RM gaussian component to use for RM correction. Default is -2 (RM of last gaussian in gparams.txt)."
+    #)
     parser.add_argument(
         "-m", "--mode",
         type=str,
@@ -139,7 +139,7 @@ def main():
 
     
     args = parser.parse_args()
-    print(args.scatter)
+
     # Set the global data directory variable
     global data_directory
     data_directory = args.output_dir
@@ -163,14 +163,14 @@ def main():
             if args.plot:
                 # Call the plotting function with the specified arguments
                 plots(fname=args.frb_identifier, FRB_data=FRB, mode=args.plot, scattering_timescale_ms=args.scattering_timescale_ms, 
-                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm[-1], outdir=data_directory,
+                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm, outdir=data_directory,
                       save=args.save_plots)
         else:
             print(f"Simulation completed. Data saved to {args.output_dir}")
             if args.plot:
                 # Call the plotting function with the specified arguments
                 plots(fname=args.frb_identifier, FRB_data=FRB, mode=args.plot, scattering_timescale_ms=args.scattering_timescale_ms, 
-                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm[-1], outdir=data_directory,
+                      startms=args.tz[0], stopms=args.tz[1], startchan=args.fz[0], endchan=args.fz[1], rm=rm, outdir=data_directory,
                       save=args.save_plots)
 
     except Exception as e:

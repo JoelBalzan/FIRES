@@ -85,8 +85,8 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
                 temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
             
             # Apply scattering if enabled
-            #if scatter:
-            #    temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
+            if scatter:
+                temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
 
             # Add Gaussian noise to Stokes I before calculating Q, U, V
             noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
@@ -99,6 +99,9 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
         dynspec += temp_dynspec
 
     print("\nGenerating all Stokes parameters dynamic spectrum")
+
+    plot_dynspec(dynspec, freq_mhz, time_ms, tau_ms, rm) 
+
     return dynspec
 
 
@@ -168,8 +171,8 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
                     temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 
                 # Apply scattering if enabled
-                #if scatter:
-                #    temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
+                if scatter:
+                    temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
 
                 # Add Gaussian noise to Stokes I
                 noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
@@ -184,42 +187,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             dynspec += temp_dynspec
 
     print(f"\nGenerated dynamic spectrum with {num_main_gauss} main Gaussians, each having {num_sub_gauss} sub-Gaussian components\n")
+
+    plot_dynspec(dynspec, freq_mhz, time_ms, tau_ms, rm) 
+
     return dynspec
-
-
-
-
-
-
-
-
-
-
-#	--------------------------------------------------------------------------------
-
-def scatter_dynspec(dspec, freq_mhz, time_ms, chan_width_mhz, time_res_ms, tau_ms, sc_idx, rm, scatter):
-    """	
-    Scatter a given dynamic spectrum.
-    Inputs:
-        - dspec: Dynamic spectrum Stokes I array
-        - freq_mhz: Frequency array in MHz
-        - time_ms: Time array in ms
-        - chan_width_mhz: Frequency resolution in MHz
-        - time_res_ms: Time resolution in ms
-        - tau_ms: Scattering time scale in ms
-        - sc_idx: Scattering index
-    """
-    if scatter==True:
-        sc_dspec, tau_cms = scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx)
-        print(f"--- Scattering time scale = {tau_ms:.2f} ms, {np.nanmin(tau_cms):.2f} ms to {np.nanmax(tau_cms):.2f} ms")
-
-    # Add noise to the scattered dynamic spectrum
-    #for stk in range(4): 
-    #    sc_dspec[stk] = sc_dspec[stk] + np.random.normal(loc=0.0, scale=1.0, size=(freq_mhz.shape[0], time_ms.shape[0]))
-
-    
-
-    plot_dynspec(dspec, freq_mhz, time_ms, tau_ms, rm) 
-    
-    
-    return sc_dspec

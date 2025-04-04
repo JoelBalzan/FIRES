@@ -83,7 +83,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
 
     if mode=='gauss':
         # Generate initial dispersed dynamic spectrum with Gaussian components
-        initial_dynspec = gauss_dynspec(
+        dynspec = gauss_dynspec(
             frequency_mhz_array,
             time_ms_array,
             channel_width_mhz,
@@ -105,7 +105,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             scattering_index
         )
     elif mode=='sgauss':
-        initial_dynspec = sub_gauss_dynspec(
+        dynspec = sub_gauss_dynspec(
             frequency_mhz_array,
             time_ms_array,
             channel_width_mhz,
@@ -129,20 +129,6 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             scattering_index
         )
 
-    # Scatter the dynamic spectrum
-    #rm = np.max(rm)
-    scattered_dynspec = scatter_dynspec(
-        initial_dynspec,
-        frequency_mhz_array,
-        time_ms_array,
-        channel_width_mhz,
-        time_resolution_ms,
-        scattering_timescale_ms,
-        scattering_index,
-        rm,
-        scatter
-    )
-
     # 'Pickle' the simulated FRB and save it to the disk
     simulated_frb_data = simulated_frb(
         frb_identifier,
@@ -151,7 +137,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         scattering_timescale_ms,
         scattering_index,
         gaussian_params,
-        scattered_dynspec
+        dynspec
     )
 
     if write:
