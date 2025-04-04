@@ -137,6 +137,14 @@ def main():
         dest="scatter",
         help="Disable scattering. Overrides --scatter if both are provided."
     )
+    parser.add_argument(
+        "--figsize",
+        type=float,
+        nargs=2,
+        default=[6,10],
+        metavar=("WIDTH", "HEIGHT"),
+        help="Figure size for plots. Provide two values: width and height (in inches)."
+    )
 
     
     args = parser.parse_args()
@@ -164,13 +172,13 @@ def main():
             if args.plot:
                 # Call the plotting function with the specified arguments
                 plots(fname=args.frb_identifier, FRB_data=FRB, mode=args.plot, startms=args.tz[0], stopms=args.tz[1], 
-                      startchan=args.fz[0], endchan=args.fz[1], rm=rm, outdir=data_directory, save=args.save_plots)
+                      startchan=args.fz[0], endchan=args.fz[1], rm=rm, outdir=data_directory, save=args.save_plots, figsize=args.figsize)
         else:
             print(f"Simulation completed. Data saved to {args.output_dir}")
             if args.plot:
                 # Call the plotting function with the specified arguments
                 plots(fname=args.frb_identifier, FRB_data=FRB, mode=args.plot, startms=args.tz[0], stopms=args.tz[1], 
-                      startchan=args.fz[0], endchan=args.fz[1], rm=rm, outdir=data_directory, save=args.save_plots)
+                      startchan=args.fz[0], endchan=args.fz[1], rm=rm, outdir=data_directory, save=args.save_plots, figsize=args.figsize)
 
     except Exception as e:
         print(f"An error occurred during the simulation: {e}")

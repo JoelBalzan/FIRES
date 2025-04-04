@@ -137,29 +137,29 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
 
         for _ in range(num_sub_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
-            micro_peak_amp        = peak_amp[g + 1] + np.random.normal(0, peak_amp_var * peak_amp[g + 1])
+            var_peak_amp        = peak_amp[g + 1] + np.random.normal(0, peak_amp_var * peak_amp[g + 1])
             # Sample the micro width as a percentage of the main width
-            micro_width_ms        = width_ms[g + 1] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
+            var_width_ms        = width_ms[g + 1] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
             # Sample the location of the micro-Gaussians from a Gaussian distribution
-            micro_loc_ms          = np.random.normal(loc=loc_ms[g + 1], scale=width_ms[g + 1])
-            micro_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var * np.abs(pol_angle[g + 1]))
-            #micro_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
-            #micro_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
-            #micro_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
-            micro_rm              = rm[g + 1] + np.random.normal(0, rm_var * rm[g + 1])
+            var_loc_ms          = np.random.normal(loc=loc_ms[g + 1], scale=width_ms[g + 1])
+            var_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var * np.abs(pol_angle[g + 1]))
+            #var_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
+            #var_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
+            #var_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
+            var_rm              = rm[g + 1] + np.random.normal(0, rm_var * rm[g + 1])
 
 
             # Initialize a temporary array for the current sub-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
 
             # Calculate the normalized amplitude for each frequency
-            norm_amp = micro_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
-            pulse = np.exp(-(time_ms - micro_loc_ms) ** 2 / (2 * (micro_width_ms ** 2)))
-            pol_angle_arr = micro_pol_angle + (time_ms - micro_loc_ms) * delta_pol_angle[g + 1]
+            norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
+            pulse = np.exp(-(time_ms - var_loc_ms) ** 2 / (2 * (var_width_ms ** 2)))
+            pol_angle_arr = var_pol_angle + (time_ms - var_loc_ms) * delta_pol_angle[g + 1]
 
             for c in range(len(freq_mhz)):
                 # Apply Faraday rotation
-                faraday_rot_angle = pol_angle_arr + micro_rm * (lambda_sq[c] - median_lambda_sq)
+                faraday_rot_angle = pol_angle_arr + var_rm * (lambda_sq[c] - median_lambda_sq)
 
                 # Add the Gaussian pulse to the temporary dynamic spectrum
                 temp_dynspec[0, c] = norm_amp[c] * pulse
@@ -182,7 +182,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
                     temp_dynspec[0, c], lin_pol_frac, circ_pol_frac, faraday_rot_angle, g + 1
                 )
 
-            # Accumulate the contributions from the current micro-Gaussian
+            # Accumulate the contributions from the current sub-Gaussian
             dynspec += temp_dynspec
 
     print(f"\nGenerated dynamic spectrum with {num_main_gauss} main Gaussians, each having {num_sub_gauss} sub-Gaussian components\n")
