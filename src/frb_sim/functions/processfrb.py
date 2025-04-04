@@ -56,7 +56,7 @@ def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir
 			plot_stokes(fname, outdir, corrdspec, tsdata.iquvt, dsdata.frequency_mhz_array, dsdata.time_ms_array, save)
 
 		if(mode=="lvpa"):
-			plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, max_rm, save, fname, outdir, tsdata, noistks)
+			plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, fname, outdir, tsdata, noistks)
 
 		if(mode=="dpa"):
 			plot_dpa(fname, outdir, noistks, tsdata, dsdata.time_ms_array, 5, save)
