@@ -59,7 +59,7 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save):
     # Run RM clean
     rm_clean_data = run_rmclean(rm_synth_data, rm_synth_ad, 0.1, maxIter=1000, gain=0.1, nBits=32, showPlots=False, verbose=False, log=print)
     
-    print(rm_clean_data[0])
+    #print(rm_clean_data[0])
     
     # Extract results
     res = [rm_clean_data[0]['phiPeakPIfit_rm2'], rm_clean_data[0]['dPhiPeakPIfit_rm2'], rm_clean_data[0]['polAngle0Fit_deg'], rm_clean_data[0]['dPolAngle0Fit_deg']]
