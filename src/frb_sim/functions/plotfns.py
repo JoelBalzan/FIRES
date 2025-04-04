@@ -29,7 +29,7 @@ mpl.rcParams['font.size']		= 8
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save):
+def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save, figsize):
 	"""
 	Plot Stokes IQUV profiles and dynamic spectra.
 	Inputs:
@@ -43,7 +43,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save):
 	"""
 	chan_width_mhz = np.abs(fmhzarr[0] - fmhzarr[1])  # Calculate channel width in MHz
 	
-	fig = plt.figure(figsize=((10, 6)))
+	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.08, 0.70, 0.90, 0.28])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
 	
@@ -104,7 +104,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save):
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save):
+def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize):
 	"""
 	Plot PA profile and dPA/dt.
 	Inputs:
@@ -149,7 +149,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save):
 		
 	print("Max (dPA/dt) = %.2f +/- %.2f deg/ms" % (dpadt[dpamax], edpadt[dpamax]))
 		
-	fig = plt.figure(figsize=(10, 6))
+	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.15, 0.48, 0.83, 0.50])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
 	ax2 = ax.twinx()	
@@ -185,7 +185,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save):
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks):
+def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -215,7 +215,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 	L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
 
 	
-	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(10, 6))
+	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(figsize[0], figsize[1]))
 	fig.subplots_adjust(hspace=0.)
 
 
