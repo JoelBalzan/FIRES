@@ -1,15 +1,11 @@
 import argparse
 import os
-import numpy as np
 import traceback
 from .functions.genfrb import generate_frb, obs_params_path, gauss_params_path
 from .functions.processfrb import plots
 
 def main():
-    """
-    Main entry point for the FRB simulation package.
-    """
-    # Parse command-line arguments
+
     parser = argparse.ArgumentParser(description="Simulate a Fast Radio Burst (FRB) with scattering.")
     parser.add_argument(
         "-t", "--scattering_timescale_ms",
@@ -47,9 +43,9 @@ def main():
         help="Gaussian parameters for the simulated FRB."
     )
     parser.add_argument(
-        "--no-write",
+        "--write",
         action="store_true",
-        help="If set, the simulation will not be saved to disk and will return the data instead."
+        help="If set, the simulation will be saved to disk. Default is False."
     )
     parser.add_argument(
         "-p", "--plot",
@@ -154,20 +150,19 @@ def main():
     data_directory = args.output_dir
 
     # Check if the output directory exists, if not create it
-    if not args.no_write and not os.path.exists(data_directory):
+    if args.write and not os.path.exists(data_directory):
         os.makedirs(args.output_dir)
         print(f"Output directory '{data_directory}' created.")
-
 
 
 
     # Call the generate_frb function
     try:
         FRB, rm = generate_frb(scattering_timescale_ms=args.scattering_timescale_ms, frb_identifier=args.frb_identifier, obs_params=obs_params_path, 
-                     gauss_params=gauss_params_path, data_dir=args.output_dir, write=not args.no_write, mode=args.mode, num_micro_gauss=args.n_gauss, 
+                     gauss_params=gauss_params_path, data_dir=args.output_dir, write=args.write, mode=args.mode, num_micro_gauss=args.n_gauss, 
                      seed=args.seed, width_range=args.sg_width, noise=args.noise, scatter=args.scatter
                      )
-        if args.no_write:
+        if not args.write:
             print("Simulation completed. Data returned instead of being saved.")
             if args.plot:
                 # Call the plotting function with the specified arguments
