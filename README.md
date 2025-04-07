@@ -42,26 +42,37 @@ FRB_SIM is a Python package designed to simulate Fast Radio Bursts (FRBs) with s
 ## Usage
 The `frb-sim` command-line tool provides several options to customize the simulation of Fast Radio Bursts (FRBs). Below is a detailed explanation of each option:
 
-| Flag                          | Type       | Default Value          | Description                                                                 |
-|-------------------------------|------------|------------------------|-----------------------------------------------------------------------------|
-| `-t`, `--scattering_timescale_ms` | `float`    | **Required**           | Scattering time scale in milliseconds.                                      |
-| `-f`, `--frb_identifier`          | `str`      | `FRB`                  | Identifier for the simulated FRB.                                           |
-| `-d`, `--output-dir`              | `str`      | `simfrbs/`             | Directory to save the simulated FRB data.                                   |
-| `-o`, `--obs_params`              | `str`      | `utils/obsparams.txt`  | Path to the observation parameters file.                                    |
-| `-g`, `--gauss_params`            | `str`      | `utils/gparams.txt`    | Path to the Gaussian parameters file.                                       |
-| `--no-write`                      | `flag`     | `False`                | If set, the simulation will not be saved to disk and will return the data instead. |
-| `--plot`                          | `str`      | `all`                  | Generate plots. Pass `all` for all plots or specify a plot name (`iquv`, `lvpa`, `dpa`, `rm`). |
-| `--save-plots`                    | `bool`     | `False`                | Save plots to disk. Default is False.                                       |
-| `--tz`                            | `float` x2 | `[0, 0]`               | Time zoom range for plots. Provide two values: start time and end time (ms).|
-| `--fz`                            | `float` x2 | `[0, 0]`               | Frequency zoom range for plots. Provide two values: start frequency and end frequency (MHz). |
-| `--rm`                            | `int`      | `-1`                   | Gaussian component to use for RM correction. Default is `-1` (last component). |
+| **Flag**                  | **Type**   | **Default**       | **Description**                                                                                     |
+|---------------------------|------------|-------------------|-----------------------------------------------------------------------------------------------------|
+| `-t`, `--scattering_timescale_ms` | `float`   | **Required**    | Scattering time scale in milliseconds.                                                             |
+| `-f`, `--frb_identifier`  | `str`      | `FRB`             | Identifier for the simulated FRB.                                                                  |
+| `-d`, `--output-dir`       | `str`      | `simfrbs/`        | Directory to save the simulated FRB data.                                                          |
+| `-o`, `--obs_params`       | `str`      | `obs_params_path` | Observation parameters for the simulated FRB.                                                      |
+| `-g`, `--gauss_params`     | `str`      | `gauss_params_path` | Gaussian parameters for the simulated FRB.                                                         |
+| `--no-write`               | `flag`     | `False`           | If set, the simulation will not be saved to disk and will return the data instead.                 |
+| `-p`, `--plot`             | `str`      | `lvpa`            | Generate plots. Options: `all`, `None`, `iquv`, `lvpa`, `dpa`, `rm`.                               |
+| `-s`, `--save-plots`       | `flag`     | `False`           | Save plots to disk.                                                                                |
+| `--tz`                    | `float`    | `[0, 0]`          | Time zoom range for plots. Provide two values: start time and end time (in milliseconds).          |
+| `--fz`                    | `float`    | `[0, 0]`          | Frequency zoom range for plots. Provide two values: start frequency and end frequency (in MHz).    |
+| `-m`, `--mode`             | `str`      | `gauss`           | Mode for generating pulses: `gauss` or `sgauss`.                                                   |
+| `--n-gauss`               | `int`      | **Required**      | Number of sub-Gaussians to generate for each main Gaussian (required if `--mode` is `sgauss`).      |
+| `--seed`                  | `int`      | `None`            | Set seed for repeatability in `sgauss` mode.                                                       |
+| `--sg-width`              | `float`    | `[10, 50]`        | Minimum and maximum percentage of the main Gaussian width to generate micro-Gaussians.             |
+| `--noise`                 | `float`    | `2`               | Noise scale in the dynamic spectrum. Multiplied by the standard deviation of each frequency channel.|
+| `--scatter`               | `flag`     | `True`            | Enable scattering.                                                                                 |
+| `--no-scatter`            | `flag`     | `False`           | Disable scattering. Overrides `--scatter` if both are provided.                                    |
+| `--figsize`               | `float`    | `[6, 10]`         | Figure size for plots. Provide two values: width and height (in inches).                           |
 
 ### Examples
 
 #### Basic Simulation
-Simulate an FRB with a scattering timescale of 0.5 ms and save the output to the default directory:
+1. Basic simulation with scattering:
 ```sh
-frb-sim -t 0.5
+frb-sim -t 0.5 --mode gauss --noise 2
+```
+2. Simulation with 2 main gaussians comprised of (30 and 20) sub-gaussians with widths of ~10% and ~40% of their respective main gaussians:
+```sh
+frb-sim -t 0.5 --mode sgauss --n-gauss 30 20 --sg-width 10 40
 ```
 For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FRB_SIM/wiki).
 
