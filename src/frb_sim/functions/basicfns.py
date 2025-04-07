@@ -196,7 +196,10 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec, start_chan, end_chan):
     
     # Calculate the linear polarization intensity
     lts = np.sqrt(utsub ** 2 + qtsub ** 2)
-    lts = noise_stokes[0] * np.sqrt((lts / noise_stokes[0]) ** 2 - 1.0)						
+    # Ensure the argument of sqrt is non-negative
+    arg = (lts / noise_stokes[0]) ** 2 - 1.0
+    arg = np.maximum(arg, 0)  # Ensure no negative values
+    lts = np.where(arg > 0, noise_stokes[0] * np.sqrt(arg), np.nan)					
     # Calculate the error in linear polarization intensity
     elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
     # Calculate the total polarization intensity
@@ -223,8 +226,11 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec, start_chan, end_chan):
     psits[dpsits > 10.0] = np.nan
     dpsits[dpsits > 10.0] = np.nan
 
-    # Calculate the errors in fractional polarizations
-    evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
+    # Avoid division by zero
+    vtsub_safe = np.where(vtsub != 0, vtsub, np.nan)
+    itsub_safe = np.where(itsub != 0, itsub, np.nan)
+
+    evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub_safe) ** 2 + (noise_stokes[0] / itsub_safe) ** 2)
     eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
     eufrac = np.abs(ufrac) * np.sqrt((noise_stokes[2] / utsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
     elfrac = np.abs(lfrac) * np.sqrt((elts / lts) ** 2 + (noise_stokes[0] / itsub) ** 2)
