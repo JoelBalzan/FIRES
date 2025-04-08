@@ -40,7 +40,7 @@ mpl.rcParams["ytick.major.size"] = 3
 
 def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                   dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter,
-                  tau_ms, sc_idx):
+                  tau_ms, sc_idx, ref_freq_mhz):
     """
     Generate dynamic spectrum for Gaussian pulses.
     Inputs:
@@ -66,7 +66,6 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 
     # Initialize dynamic spectrum for all Stokes parameters
     dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # [I, Q, U, V]
-    ref_freq_mhz = np.nanmedian(freq_mhz)
     lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
     median_lambda_sq = np.nanmedian(lambda_sq)
     num_gauss = len(spec_idx) - 2
@@ -86,7 +85,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
             
             # Apply scattering if enabled
             if scatter:
-                temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
+                temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
             # Add Gaussian noise to Stokes I before calculating Q, U, V
             noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
@@ -98,9 +97,6 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 
         dynspec += temp_dynspec
 
-    print("\nGenerating all Stokes parameters dynamic spectrum")
-
-
     return dynspec
 
 
@@ -111,7 +107,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 
 def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                       dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, 
-                      num_sub_gauss, seed, width_range, noise, scatter, tau_ms, sc_idx):
+                      num_sub_gauss, seed, width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of sub-Gaussians.
     """
@@ -120,7 +116,6 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
         np.random.seed(seed)
 
     dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
-    ref_freq_mhz = np.nanmedian(freq_mhz)  # Reference frequency
     lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
     median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
@@ -140,14 +135,12 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             var_peak_amp        = peak_amp[g + 1] + np.random.normal(0, peak_amp_var * peak_amp[g + 1])
             # Sample the micro width as a percentage of the main width
             var_width_ms        = width_ms[g + 1] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
-            # Sample the location of the micro-Gaussians from a Gaussian distribution
             var_loc_ms          = np.random.normal(loc=loc_ms[g + 1], scale=width_ms[g + 1])
             var_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var * np.abs(pol_angle[g + 1]))
-            #var_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
-            #var_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
+            var_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
+            var_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
             #var_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
             var_rm              = rm[g + 1] + np.random.normal(0, rm_var * rm[g + 1])
-
 
             # Initialize a temporary array for the current sub-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
@@ -171,21 +164,19 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
 
                 # Apply scattering if enabled
                 if scatter:
-                    temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx)
+                    temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
                 # Add Gaussian noise to Stokes I
-                noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
-                temp_dynspec[0, c] += noise_I
+                if noise > 0:
+                    noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
+                    temp_dynspec[0, c] += noise_I
 
                 # Calculate Stokes Q, U, V
                 temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
-                    temp_dynspec[0, c], lin_pol_frac, circ_pol_frac, faraday_rot_angle, g + 1
+                    temp_dynspec[0, c], var_lin_pol_frac, var_circ_pol_frac, faraday_rot_angle
                 )
 
             # Accumulate the contributions from the current sub-Gaussian
             dynspec += temp_dynspec
-
-    print(f"\nGenerated dynamic spectrum with {num_main_gauss} main Gaussians, each having {num_sub_gauss} sub-Gaussian components\n")
-
 
     return dynspec

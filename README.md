@@ -49,7 +49,7 @@ The `frb-sim` command-line tool provides several options to customize the simula
 | `-d`, `--output-dir`       | `str`      | `simfrbs/`        | Directory to save the simulated FRB data.                                                          |
 | `-o`, `--obs_params`       | `str`      | `obs_params_path` | Observation parameters for the simulated FRB.                                                      |
 | `-g`, `--gauss_params`     | `str`      | `gauss_params_path` | Gaussian parameters for the simulated FRB.                                                         |
-| `--no-write`               | `flag`     | `False`           | If set, the simulation will not be saved to disk and will return the data instead.                 |
+| `--write`                  | `flag`     | `False`           | If set, the simulation will be saved to disk. Default is False.                                      |
 | `-p`, `--plot`             | `str`      | `lvpa`            | Generate plots. Options: `all`, `None`, `iquv`, `lvpa`, `dpa`, `rm`.                               |
 | `-s`, `--save-plots`       | `flag`     | `False`           | Save plots to disk.                                                                                |
 | `--tz`                    | `float`    | `[0, 0]`          | Time zoom range for plots. Provide two values: start time and end time (in milliseconds).          |
