@@ -185,7 +185,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize):
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize):
+def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -199,6 +199,9 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 			- tsdata: Time series data object
 			- noistks: Noise levels for each Stokes parameter
 	"""
+	
+	tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+	tsdata.dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
 
 	igood = np.where(tsdata.iquvt[0] > 10.0 * noistks[0])[0]
 	
@@ -220,7 +223,16 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 
 	# Plot polarisation angle
-	axs[0].errorbar(time_ms, tsdata.phits, tsdata.dphits, c='black', marker="*", markersize=5, lw=0.5, capsize=2, zorder=8)
+	#axs[0].errorbar(time_ms, tsdata.phits, tsdata.dphits, c='black', marker="*", markersize=1, lw=0.5, capsize=1, zorder=8)
+	axs[0].plot(time_ms, tsdata.phits, c='black', lw=0.5, zorder=8)
+	axs[0].fill_between(
+		time_ms, 
+		tsdata.phits - tsdata.dphits,  # Lower bound of the error
+		tsdata.phits + tsdata.dphits,  # Upper bound of the error
+		color='gray', 
+		alpha=0.3,  # Transparency level
+		label='Error'
+	)
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
 	axs[0].set_ylabel("PA [deg]")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
@@ -261,5 +273,47 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 	plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s" % (os.path.join(outdir, fname + "_dynspec.pdf")))
+		fig.savefig(os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
+		print("Saved figure to %s" % (os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf")))
+
+
+	#	----------------------------------------------------------------------------------------------------------
+
+def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize):
+	"""
+	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
+	
+	Inputs:
+		- scatter_timescales: Array of scattering timescales
+		- pa_values: Array of polarization angle (PA) values
+		- pa_errors: Array of errors associated with the PA values
+		- save: Boolean indicating whether to save the plot
+		- fname: Filename for saving the plot
+		- outdir: Output directory for saving the plot
+		- figsize: Tuple specifying the figure size (width, height)
+	"""
+	# Calculate RMS of PA and its error
+
+
+	fig, ax = plt.subplots(figsize=figsize)
+	print()
+
+	# Plot the RMS of PA with error bars
+	ax.errorbar(scatter_timescales, pa_rms, 
+				yerr=dpa_rms, 
+				fmt='o', capsize=3, color='blue', label='PA RMS')
+
+	# Set plot labels and title
+	ax.set_xlabel("Scattering Timescale (ms)")
+	ax.set_ylabel("PA RMS (deg)")
+	ax.set_title("RMS of Polarization Angle vs Scattering Timescale")
+	ax.grid(True, linestyle='--', alpha=0.6)
+	ax.legend()
+
+	# Show the plot
+	plt.show()
+
+	# Save the plot if required
+	if save:
+		fig.savefig(os.path.join(outdir, fname + "_pa_rms_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
+		print(f"Saved figure to {os.path.join(outdir, fname + '_pa_rms_vs_scatter.pdf')}")

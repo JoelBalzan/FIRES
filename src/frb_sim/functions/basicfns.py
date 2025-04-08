@@ -17,6 +17,7 @@ import os
 import sys
 
 import numpy as np
+from scipy.signal import fftconvolve
 from RMtools_1D.do_RMclean_1D import run_rmclean
 from RMtools_1D.do_RMsynth_1D import run_rmsynth
 from ..utils.utils import *
@@ -182,7 +183,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec, start_chan, end_chan):
     """
     if end_chan <= 0:
         end_chan = len(freq_mhz) - 1
-    
+
     # Average the dynamic spectrum over the specified frequency channels
     iquvt = np.nanmean(dynspec[:, start_chan:end_chan], axis=1)					
     # Calculate the noise for each Stokes parameter
@@ -257,6 +258,7 @@ def est_spectra(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
     # Find the start and end indices for the time range
     istart = np.argmin(np.abs(left_window_ms - time_ms))
     iend = np.argmin(np.abs(right_window_ms - time_ms))
+    print(istart, iend)
     
     # Average the dynamic spectrum over the specified time range
     iquvspec = np.nanmean(dynspec[:, :, istart:iend + 1], axis=2)
@@ -312,17 +314,17 @@ def apply_faraday_rotation(pol_angle_arr, rm, lambda_sq, median_lambda_sq):
     return pol_angle_arr + rm * (lambda_sq - median_lambda_sq)
 
 
-def calculate_stokes(temp_dynspec, lin_pol_frac, circ_pol_frac, faraday_rot_angle, g):
-    stokes_q = temp_dynspec * lin_pol_frac[g] * np.cos(2 * faraday_rot_angle)
-    stokes_u = temp_dynspec * lin_pol_frac[g] * np.sin(2 * faraday_rot_angle)
-    stokes_v = temp_dynspec * circ_pol_frac[g]
+def calculate_stokes(temp_dynspec, lin_pol_frac, circ_pol_frac, faraday_rot_angle):
+    stokes_q = temp_dynspec * lin_pol_frac * np.cos(2 * faraday_rot_angle)
+    stokes_u = temp_dynspec * lin_pol_frac * np.sin(2 * faraday_rot_angle)
+    stokes_v = temp_dynspec * circ_pol_frac
     return stokes_q, stokes_u, stokes_v
 
 
-def scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx):
+def scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
     sc_dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float) 
     # Calculate the scattering time scale for each frequency
-    tau_cms = tau_ms * ((freq_mhz / np.nanmedian(freq_mhz)) ** sc_idx)  
+    tau_cms = tau_ms * ((freq_mhz / ref_freq_mhz) ** sc_idx)  
     for c in range(len(freq_mhz)):
         # Calculate the impulse response function
         irf = np.heaviside(time_ms, 1.0) * np.exp(-time_ms / tau_cms[c]) #/ tau_cms[c]
@@ -330,28 +332,45 @@ def scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx):
         
         for stk in range(4):
             sc_dspec[stk, c] = np.convolve(dspec[stk, c], irf, mode='same')
-    return sc_dspec, tau_cms
+    return sc_dspec
 
-def scatter_stokes_chan(stokes_channel, freq_mhz, time_ms, tau_ms, sc_idx):
+
+
+
+def scatter_stokes_chan(stokes_I, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
     """
-    Apply scattering to a single frequency channel for all Stokes parameters.
+    Apply scattering to Stokes I using a causal exponential IRF,
+    with padding to prevent boundary artifacts.
+
     Inputs:
-        - stokes_channel: Array of shape (4, len(time_ms)) representing [I, Q, U, V] for a single frequency channel
-        - freq_mhz: Frequency in MHz for the current channel
-        - time_ms: Time array in ms
-        - tau_ms: Scattering time scale in ms
-        - sc_idx: Scattering index
+        - stokes_I: 1D array of Stokes I (len(time_ms))
+        - freq_mhz: Channel frequency in MHz
+        - time_ms: 1D array of time values in ms (uniformly spaced)
+        - tau_ms: Reference scattering timescale (ms) at ref_freq_mhz
+        - sc_idx: Scattering index (e.g. -4)
+        - ref_freq_mhz: Reference frequency in MHz
+
     Returns:
-        - sc_stokes_channel: Scattered Stokes array for the single frequency channel
-        - tau_cms: Scattering time scale for the current frequency
+        - sc_stokes_I: Scattered Stokes I (same shape as input)
+        - tau_cms: Scattering timescale at freq_mhz
     """
-    # Calculate the scattering time scale for the current frequency
-    tau_cms = tau_ms * ((freq_mhz / np.nanmedian(freq_mhz)) ** sc_idx)
+    # Calculate frequency-dependent scattering timescale
+    tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
 
-    # Calculate the impulse response function
-    irf = np.heaviside(time_ms, 1.0) * np.exp(-time_ms / tau_cms)
-    irf /= np.sum(irf)  # Normalize the impulse response function to ensure its integral equals 1
+    # Time resolution
+    dt = time_ms[1] - time_ms[0]
 
-    sc_stokes_channel = np.convolve(stokes_channel, irf, mode='same')
+    # Pad to cover tail (~5 tau)
+    n_pad = int(np.ceil(5 * tau_cms / dt))
+    padded_I = np.pad(stokes_I, (0, n_pad), mode='constant')  # Pad only at end
 
-    return sc_stokes_channel
+    # Create IRF time axis
+    irf_t = np.arange(0, (n_pad + 1)) * dt
+    irf = np.exp(-irf_t / tau_cms)
+    irf /= np.sum(irf)  # Normalize
+
+    # Convolve and trim back to original size
+    convolved = fftconvolve(padded_I, irf, mode='full')
+    sc_stokes_I = convolved[:len(stokes_I)]
+
+    return sc_stokes_I
