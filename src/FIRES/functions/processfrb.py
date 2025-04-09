@@ -41,10 +41,10 @@ def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir
     max_rm = rm[np.argmax(np.abs(rm))]
 
     if mode == "all":
-        plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, max_rm, save, fname, outdir, tsdata, noistks, figsize, show_plots)
+        plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, fname, outdir, tsdata, noistks, figsize, scattering_timescale, show_plots)
         plot_stokes(fname, outdir, corrdspec, tsdata.iquvt, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, figsize, show_plots)
         plot_dpa(fname, outdir, noistks, tsdata, dsdata.time_ms_array, 5, save, figsize, show_plots)
-        estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, figsize, show_plots)
+        estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, show_plots)
     elif mode == "iquv":
         plot_stokes(fname, outdir, corrdspec, tsdata.iquvt, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, figsize, show_plots)
     elif mode == "lvpa":
@@ -52,6 +52,6 @@ def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir
     elif mode == "dpa":
         plot_dpa(fname, outdir, noistks, tsdata, dsdata.time_ms_array, 5, save, figsize, show_plots)
     elif mode == "rm":
-        estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, figsize, show_plots)
+        estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, show_plots)
     else:
         print(f"Invalid mode: {mode}")

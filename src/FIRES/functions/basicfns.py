@@ -39,7 +39,7 @@ def pol_angle_diff(angle, ref_angle):
     return dpang
 
 
-def rm_synth(freq_ghz, iquv, diquv, outdir, save):
+def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
     """
     Determine RM using RM synthesis with RMtool.
     Inputs:
@@ -55,10 +55,10 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save):
     
     # Run RM synthesis
     rm_synth_data, rm_synth_ad = run_rmsynth(rm_data, polyOrd=3, phiMax_radm2=1.0e3, dPhi_radm2=1.0, nSamples=100.0, weightType='variance', fitRMSF=False, noStokesI=False, phiNoise_radm2=1000000.0, \
-                        nBits=32, showPlots=True, debug=False, verbose=False, log=print, units='Jy/beam', prefixOut=os.path.join(outdir,"rm"), saveFigures=save, fit_function='log')
+                        nBits=32, showPlots=show_plots, debug=False, verbose=False, log=print, units='Jy/beam', prefixOut=os.path.join(outdir,"rm"), saveFigures=save, fit_function='log')
     
     # Run RM clean
-    rm_clean_data = run_rmclean(rm_synth_data, rm_synth_ad, 0.1, maxIter=1000, gain=0.1, nBits=32, showPlots=False, verbose=False, log=print)
+    rm_clean_data = run_rmclean(rm_synth_data, rm_synth_ad, 0.1, maxIter=1000, gain=0.1, nBits=32, showPlots=show_plots, verbose=False, log=print)
     
     #print(rm_clean_data[0])
     
@@ -90,7 +90,7 @@ def estimate_noise(dynspec, time_ms, left_window_ms, right_window_ms):
     return noisespec
 
 
-def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_window_ms, phi_range, dphi, start_chan, end_chan, outdir, save):
+def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_window_ms, phi_range, dphi, start_chan, end_chan, outdir, save, show_plots):
     """
     Estimate rotation measure.
     Inputs:
@@ -131,7 +131,7 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
     eiquv = (noispec[0], noispec[1], noispec[2], noispec[3])
         
     # Run RM synthesis
-    res_rmtool = rm_synth(freq_mhz / 1.0e3, iquv, eiquv, outdir, save)
+    res_rmtool = rm_synth(freq_mhz / 1.0e3, iquv, eiquv, outdir, save, show_plots)
         
     print("\nResults from RMtool (RM synthesis) \n")
     print("RM = %.2f +/- %.2f rad/m2   PolAng0 = %.2f +/- %.2f deg\n" % (res_rmtool[0], res_rmtool[1], res_rmtool[2], res_rmtool[3]))
