@@ -8,6 +8,8 @@ from .functions.processfrb import plots
 def main():
 
 	parser = argparse.ArgumentParser(description="Simulate a Fast Radio Burst (FRB) with scattering.")
+
+	# Input Parameters
 	parser.add_argument(
 		"-t", "--scattering_timescale_ms",
 		type=str,
@@ -24,13 +26,6 @@ def main():
 		help="Identifier for the simulated FRB."
 	)
 	parser.add_argument(
-		"-d", "--output-dir",
-		type=str,
-		default="simfrbs/",
-		metavar="",
-		help="Directory to save the simulated FRB data (default: 'simfrbs/')."
-	)
-	parser.add_argument(
 		"-o", "--obs_params",
 		type=str,
 		default=obs_params_path, 
@@ -44,18 +39,29 @@ def main():
 		metavar="",
 		help="Gaussian parameters for the simulated FRB."
 	)
+
+	# Output Options
+	parser.add_argument(
+		"-d", "--output-dir",
+		type=str,
+		default="simfrbs/",
+		metavar="",
+		help="Directory to save the simulated FRB data (default: 'simfrbs/')."
+	)
 	parser.add_argument(
 		"--write",
 		action="store_true",
 		help="If set, the simulation will be saved to disk. Default is False."
 	)
+
+	# Plotting Options
 	parser.add_argument(
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
 		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'],
 		metavar="PLOT_NAME",
-		help="Generate plots. Pass 'all' to generate all plots, or specify one or more plot names: 'ds', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'."
+		help="Generate plots. Pass 'all' to generate all plots, or specify one or more plot names: 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'."
 	)
 	parser.add_argument(
 		"-s", "--save-plots",
@@ -63,11 +69,11 @@ def main():
 		help="Save plots to disk. Default is False."
 	)
 	parser.add_argument(
-        "--show-plots",
-        type=bool,
-        default=True,
-        help="Display plots. Default is True. Set to False to disable plot display."
-    )
+		"--show-plots",
+		type=bool,
+		default=True,
+		help="Display plots. Default is True. Set to False to disable plot display."
+	)
 	parser.add_argument(
 		"--tz",
 		nargs=2,
@@ -84,6 +90,16 @@ def main():
 		metavar=("START_FREQ", "END_FREQ"),
 		help="Frequency zoom range for plots. Provide two values: start frequency and end frequency (in MHz)."
 	)
+	parser.add_argument(
+		"--figsize",
+		type=float,
+		nargs=2,
+		default=[6, 10],
+		metavar=("WIDTH", "HEIGHT"),
+		help="Figure size for plots. Provide two values: width and height (in inches)."
+	)
+
+	# Simulation Options
 	parser.add_argument(
 		"-m", "--mode",
 		type=str,
@@ -110,7 +126,7 @@ def main():
 		"--sg-width",
 		nargs=2,
 		type=float,
-		default=[10,50],
+		default=[10, 50],
 		metavar=("MIN_WIDTH", "MAX_WIDTH"),
 		help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'sgauss.'"
 	)
@@ -132,14 +148,6 @@ def main():
 		action="store_false",
 		dest="scatter",
 		help="Disable scattering. Overrides --scatter if both are provided."
-	)
-	parser.add_argument(
-		"--figsize",
-		type=float,
-		nargs=2,
-		default=[6,10],
-		metavar=("WIDTH", "HEIGHT"),
-		help="Figure size for plots. Provide two values: width and height (in inches)."
 	)
 
 	args = parser.parse_args()
@@ -167,6 +175,7 @@ def main():
 	else:
 		args.scattering_timescale_ms = False
 	print(f"Scattering timescales: {args.scattering_timescale_ms}")
+
 
 	# Check if multiple scattering timescales are provided
 	if type(args.scattering_timescale_ms) == np.ndarray and args.plot != 'pa_rms':
