@@ -51,18 +51,23 @@ def main():
 	)
 	parser.add_argument(
 		"-p", "--plot",
-		nargs="?",
-		const=all,
-		default='lvpa',
+		nargs="+",
+		default=['lvpa'],
 		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'],
 		metavar="PLOT_NAME",
-		help="Generate plots. Pass 'all' to generate all plots, or specify a plot name: 'ds', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'."
+		help="Generate plots. Pass 'all' to generate all plots, or specify one or more plot names: 'ds', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'."
 	)
 	parser.add_argument(
 		"-s", "--save-plots",
 		action="store_true",
 		help="Save plots to disk. Default is False."
 	)
+	parser.add_argument(
+        "--show-plots",
+        type=bool,
+        default=True,
+        help="Display plots. Default is True. Set to False to disable plot display."
+    )
 	parser.add_argument(
 		"--tz",
 		nargs=2,
@@ -229,40 +234,41 @@ def main():
 
 		# Call the plotting function if required
 		if args.plot != 'None':
-			if args.plot == 'pa_rms':
-				plots(
-					fname=args.frb_identifier,
-					FRB_data=None,
-					pa_rms=pa_rms_values,
-					dpa_rms=pa_rms_errors,
-					mode=args.plot,
-					startms=args.tz[0],
-					stopms=args.tz[1],
-					startchan=args.fz[0],
-					endchan=args.fz[1],
-					rm=None,  # RM is not needed for pa_rms
-					outdir=data_directory,
-					save=args.save_plots,
-					figsize=args.figsize,
-					scattering_timescale=args.scattering_timescale_ms
-				)
-			else:
-				plots(
-					fname=args.frb_identifier,
-					FRB_data=FRB,
-					pa_rms=None,
-					dpa_rms=None,
-					mode=args.plot,
-					startms=args.tz[0],
-					stopms=args.tz[1],
-					startchan=args.fz[0],
-					endchan=args.fz[1],
-					rm=rm,
-					outdir=data_directory,
-					save=args.save_plots,
-					figsize=args.figsize,
-					scattering_timescale=args.scattering_timescale_ms
-				)
+			for plot_mode in args.plot:
+				if args.plot == 'pa_rms':
+					plots(
+						fname=args.frb_identifier,
+						FRB_data=None,
+						pa_rms=pa_rms_values,
+						dpa_rms=pa_rms_errors,
+						mode=plot_mode,
+						startms=args.tz[0],
+						stopms=args.tz[1],
+						startchan=args.fz[0],
+						endchan=args.fz[1],
+						rm=None,  # RM is not needed for pa_rms
+						outdir=data_directory,
+						save=args.save_plots,
+						figsize=args.figsize,
+						scattering_timescale=args.scattering_timescale_ms
+					)
+				else:
+					plots(
+						fname=args.frb_identifier,
+						FRB_data=FRB,
+						pa_rms=None,
+						dpa_rms=None,
+						mode=plot_mode,
+						startms=args.tz[0],
+						stopms=args.tz[1],
+						startchan=args.fz[0],
+						endchan=args.fz[1],
+						rm=rm,
+						outdir=data_directory,
+						save=args.save_plots,
+						figsize=args.figsize,
+						scattering_timescale=args.scattering_timescale_ms
+					)
 	
 	except Exception as e:
 		print(f"An error occurred during the simulation: {e}")
