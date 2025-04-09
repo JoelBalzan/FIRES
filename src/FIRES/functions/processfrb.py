@@ -34,11 +34,9 @@ def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir
     startms = startms or dsdata.time_ms_array[0]
     stopms = stopms or dsdata.time_ms_array[-1]
 
-    tsdata, corrdspec, noisespec = process_dynspec(
+    tsdata, corrdspec, noisespec, noistks = process_dynspec(
         dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, startms, stopms, startchan, endchan, rm
     )
-    noistks = np.sqrt(np.nansum(noisespec[:, startchan:endchan]**2, axis=1)) / nchan
-    max_rm = rm[np.argmax(np.abs(rm))]
 
     if mode == "all":
         plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, fname, outdir, tsdata, noistks, figsize, scattering_timescale, show_plots)
