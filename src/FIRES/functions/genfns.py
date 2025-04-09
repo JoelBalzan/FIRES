@@ -128,7 +128,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
     delta_pol_angle_var = delta_pol_angle[-1]
     rm_var              = rm[-1]
 
-    if var_lin_pol_frac > 0.0 and var_circ_pol_frac > 0.0:
+    if lin_pol_frac_var > 0.0 and circ_pol_frac_var > 0.0:
         input("Linear and circular polarisation variations are both > 0.0. Choose one to vary (l/c).")
         if input("l/c: ") == 'l':
             circ_pol_frac_var = 0.0
