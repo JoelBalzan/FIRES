@@ -15,97 +15,39 @@ from ..utils.utils import *
 
 
 def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir, save, figsize, scattering_timescale, pa_rms, dpa_rms):
-	#	Plotting function
-	#	Plots the dynamic spectrum and the IQUV profiles
-	#	Plots the L V and PA profiles
-	#	Plots the DPA
+    """
+    Plotting function for FRB data.
+    Handles dynamic spectrum, IQUV profiles, L V PA profiles, and DPA.
+    """
+    if mode == "pa_rms":
+        plot_pa_rms_vs_scatter(scattering_timescale, pa_rms, dpa_rms, save, fname, outdir, figsize)
+        sys.exit(0)
 
-	#	-------------------------	Do steps	-------------------------------
-	if (mode=="pa_rms"):
-			plot_pa_rms_vs_scatter(scattering_timescale, pa_rms, dpa_rms, save, fname, outdir, figsize)
-			sys.exit(0)
+    dsdata = FRB_data
+    nchan = len(dsdata.frequency_mhz_array)
+    startchan = max(0, startchan)
+    endchan = nchan - 1 if endchan <= 0 else endchan
+    startms = startms or dsdata.time_ms_array[0]
+    stopms = stopms or dsdata.time_ms_array[-1]
 
-	dsdata	=	FRB_data
-	nchan	=	len(dsdata.frequency_mhz_array)
+    tsdata, corrdspec, noisespec = process_dynspec(
+        dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, startms, stopms, startchan, endchan, rm
+    )
+    noistks = np.sqrt(np.nansum(noisespec[:, startchan:endchan]**2, axis=1)) / nchan
+    max_rm = rm[np.argmax(np.abs(rm))]
 
-	if(startchan < 0):
-		startchan	=	0 
-
-	if(endchan <= 0):
-		endchan	=	nchan-1 
-
-	if(startms == 0):
-		startms	=	dsdata.time_ms_array[0]
-
-	if(stopms == 0):
-		stopms	=	dsdata.time_ms_array[-1]
-
-	#	Estimate Noise spectra
-	noisespec	=	estimate_noise(dsdata.dynamic_spectrum, dsdata.time_ms_array, startms, stopms) # add the arguments here 
-	noistks		=	np.sqrt(np.nansum(noisespec[:,startchan:endchan]**2,axis=1))/len(dsdata.frequency_mhz_array)
-	
-	# Use the RM with the largest magnitude
-	max_rm = rm[np.argmax(np.abs(rm))]
-	corrdspec	=	rm_correct_dynspec(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, max_rm)
-	tsdata		=	est_profiles(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startchan, endchan)
-	if (mode == "all"):
-		plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, max_rm, save, fname, outdir, tsdata, noistks, figsize)
-		plot_stokes(fname, outdir, corrdspec, tsdata.iquvt, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, figsize)
-		plot_dpa(fname, outdir, noistks, tsdata, dsdata.time_ms_array, 5, save)
-		estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, figsize)
-
-	else:
-		if(mode=="iquv"):
-			plot_stokes(fname, outdir, corrdspec, tsdata.iquvt, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, figsize)
-
-		if(mode=="lvpa"):
-			plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, fname, outdir, tsdata, noistks, figsize, scattering_timescale)
-
-		if(mode=="dpa"):
-			plot_dpa(fname, outdir, noistks, tsdata, dsdata.time_ms_array, 5, save, figsize)
-		
-		if(mode=="rm"):
-			estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, figsize)
-		
-		
-
-
-
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    if mode == "all":
+        plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, max_rm, save, fname, outdir, tsdata, noistks, figsize)
+        plot_stokes(fname, outdir, corrdspec, tsdata.iquvt, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, figsize)
+        plot_dpa(fname, outdir, noistks, tsdata, dsdata.time_ms_array, 5, save, figsize)
+        estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, figsize)
+    elif mode == "iquv":
+        plot_stokes(fname, outdir, corrdspec, tsdata.iquvt, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, figsize)
+    elif mode == "lvpa":
+        plot_ilv_pa_ds(corrdspec, dsdata.frequency_mhz_array, dsdata.time_ms_array, save, fname, outdir, tsdata, noistks, figsize, scattering_timescale)
+    elif mode == "dpa":
+        plot_dpa(fname, outdir, noistks, tsdata, dsdata.time_ms_array, 5, save, figsize)
+    elif mode == "rm":
+        estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, figsize)
+    else:
+        print(f"Invalid mode: {mode}")

@@ -374,3 +374,14 @@ def scatter_stokes_chan(stokes_I, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
     sc_stokes_I = convolved[:len(stokes_I)]
 
     return sc_stokes_I
+
+
+def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm):
+    """
+    Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
+    """
+    max_rm = rm[np.argmax(np.abs(rm))]
+    corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
+    noisespec = estimate_noise(dynspec, time_ms_array, startms, stopms)
+    tsdata = est_profiles(corrdspec, frequency_mhz_array, time_ms_array, noisespec, startchan, endchan)
+    return tsdata, corrdspec, noisespec
