@@ -91,7 +91,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
             temp_dynspec[0, c] += noise_I
 
             temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
-                temp_dynspec[0, c], lin_pol_frac, circ_pol_frac, faraday_rot_angle, g + 1
+                temp_dynspec[0, c], lin_pol_frac[g + 1], circ_pol_frac[g + 1], faraday_rot_angle
             )  # Stokes Q, U, V
 
         dynspec += temp_dynspec
