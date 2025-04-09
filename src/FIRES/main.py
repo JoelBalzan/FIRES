@@ -176,11 +176,10 @@ def main():
 		args.scattering_timescale_ms = False
 	print(f"Scattering timescales: {args.scattering_timescale_ms}")
 
-
 	# Check if multiple scattering timescales are provided
-	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != 'pa_rms':
+	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != ['pa_rms']:
 		print("Multiple scattering timescales detected. Setting plot mode to 'pa_rms'")
-		args.plot = 'pa_rms'
+		args.plot = ['pa_rms']
 
 
 	# Set the global data directory variable
@@ -196,7 +195,7 @@ def main():
 	# Call the generate_frb function 
 	try:
 		# Generate the FRB or PA RMS data
-		if args.plot == 'pa_rms':
+		if args.plot == ['pa_rms']:
 			pa_rms_values, pa_rms_errors = generate_frb(
 				scattering_timescale_ms=args.scattering_timescale_ms,
 				frb_identifier=args.frb_identifier,
@@ -244,23 +243,49 @@ def main():
 		# Call the plotting function if required
 		if args.plot != 'None':
 			for plot_mode in args.plot:
-				plots(
-					fname=args.frb_identifier,
-					FRB_data=(None if plot_mode == 'pa_rms' else FRB),
-					pa_rms=(pa_rms_values if plot_mode == 'pa_rms' else None),
-					dpa_rms=(pa_rms_errors if plot_mode == 'pa_rms' else None),
-					mode=plot_mode,
-					startms=args.tz[0],
-					stopms=args.tz[1],
-					startchan=args.fz[0],
-					endchan=args.fz[1],
-					rm=(None if plot_mode == 'pa_rms' else rm), 
-					outdir=data_directory,
-					save=args.save_plots,
-					figsize=args.figsize,
-					scattering_timescale=args.scattering_timescale_ms,
-					show_plots=args.show_plots
-				)
+				if plot_mode == 'pa_rms':
+					# Call the plotting function specifically for 'pa_rms'
+					plots(
+						fname=args.frb_identifier,
+						FRB_data=None,  # No FRB data for 'pa_rms'
+						pa_rms=pa_rms_values,
+						dpa_rms=pa_rms_errors,
+						mode=plot_mode,
+						startms=args.tz[0],
+						stopms=args.tz[1],
+						startchan=args.fz[0],
+						endchan=args.fz[1],
+						rm=None,  # No RM for 'pa_rms'
+						outdir=data_directory,
+						save=args.save_plots,
+						figsize=args.figsize,
+						scattering_timescale=args.scattering_timescale_ms,
+						show_plots=args.show_plots
+					)
+				else:
+					# Ensure FRB_data is not None for other plot modes
+					if FRB is None:
+						print("Error: FRB data is not available for the selected plot mode.")
+						continue
+					
+					# Call the plotting function for other modes
+					plots(
+						fname=args.frb_identifier,
+						FRB_data=FRB,
+						pa_rms=None,
+						dpa_rms=None,
+						mode=plot_mode,
+						startms=args.tz[0],
+						stopms=args.tz[1],
+						startchan=args.fz[0],
+						endchan=args.fz[1],
+						rm=rm,
+						outdir=data_directory,
+						save=args.save_plots,
+						figsize=args.figsize,
+						scattering_timescale=args.scattering_timescale_ms,
+						show_plots=args.show_plots
+					)
 
 	
 	except Exception as e:
