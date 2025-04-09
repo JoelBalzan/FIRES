@@ -52,12 +52,18 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         return pa_rms, pa_rms_error
 
     def generate_dynspec(mode, s=None):
-        dynspec_func = gauss_dynspec if mode == 'gauss' else sub_gauss_dynspec
-        return dynspec_func(
-            frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
-            dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, width_range, noise,
-            scatter, s if plot == ['pa_rms'] else scattering_timescale_ms, scattering_index, reference_frequency_mhz
-        )
+        if mode == 'gauss':
+            return gauss_dynspec(
+                frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
+                dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise,
+                scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz
+            )
+        else:  # mode == 'sgauss'
+            return sub_gauss_dynspec(
+                frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
+                dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, width_range, noise,
+                scatter, s if plot == ['pa_rms'] else scattering_timescale_ms, scattering_index, reference_frequency_mhz
+            )
 
     if plot != ['pa_rms']:
         dynspec = generate_dynspec(mode)
