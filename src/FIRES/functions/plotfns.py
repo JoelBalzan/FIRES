@@ -29,7 +29,7 @@ mpl.rcParams['font.size']		= 8
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save, figsize, show_plots):
+def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, show_plots):
 	"""
 	Plot Stokes IQUV profiles and dynamic spectra.
 	Inputs:
