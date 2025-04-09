@@ -178,7 +178,7 @@ def main():
 
 
 	# Check if multiple scattering timescales are provided
-	if type(args.scattering_timescale_ms) == np.ndarray and args.plot != 'pa_rms':
+	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != 'pa_rms':
 		print("Multiple scattering timescales detected. Setting plot mode to 'pa_rms'")
 		args.plot = 'pa_rms'
 
@@ -244,40 +244,24 @@ def main():
 		# Call the plotting function if required
 		if args.plot != 'None':
 			for plot_mode in args.plot:
-				if args.plot == 'pa_rms':
-					plots(
-						fname=args.frb_identifier,
-						FRB_data=None,
-						pa_rms=pa_rms_values,
-						dpa_rms=pa_rms_errors,
-						mode=plot_mode,
-						startms=args.tz[0],
-						stopms=args.tz[1],
-						startchan=args.fz[0],
-						endchan=args.fz[1],
-						rm=None,  # RM is not needed for pa_rms
-						outdir=data_directory,
-						save=args.save_plots,
-						figsize=args.figsize,
-						scattering_timescale=args.scattering_timescale_ms
-					)
-				else:
-					plots(
-						fname=args.frb_identifier,
-						FRB_data=FRB,
-						pa_rms=None,
-						dpa_rms=None,
-						mode=plot_mode,
-						startms=args.tz[0],
-						stopms=args.tz[1],
-						startchan=args.fz[0],
-						endchan=args.fz[1],
-						rm=rm,
-						outdir=data_directory,
-						save=args.save_plots,
-						figsize=args.figsize,
-						scattering_timescale=args.scattering_timescale_ms
-					)
+				plots(
+					fname=args.frb_identifier,
+					FRB_data=(None if plot_mode == 'pa_rms' else FRB),
+					pa_rms=(pa_rms_values if plot_mode == 'pa_rms' else None),
+					dpa_rms=(pa_rms_errors if plot_mode == 'pa_rms' else None),
+					mode=plot_mode,
+					startms=args.tz[0],
+					stopms=args.tz[1],
+					startchan=args.fz[0],
+					endchan=args.fz[1],
+					rm=(None if plot_mode == 'pa_rms' else rm), 
+					outdir=data_directory,
+					save=args.save_plots,
+					figsize=args.figsize,
+					scattering_timescale=args.scattering_timescale_ms,
+					show_plots=args.show_plots
+				)
+
 	
 	except Exception as e:
 		print(f"An error occurred during the simulation: {e}")
