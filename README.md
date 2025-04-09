@@ -34,7 +34,12 @@ FIRES is a Python package designed to simulate Fast Radio Bursts (FRBs) with sca
   - `src/FIRES/utils/gparams.txt`: Gaussian parameters for pulse generation.
 
 ## Installation
+### From PyPi
+```bash
+pip install FIRES
+```
 
+### From GitHub
 1. Clone the repository:
     ```bash
     git clone https://github.com/JoelBalzan/FIRES.git
