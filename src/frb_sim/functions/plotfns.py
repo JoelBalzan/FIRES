@@ -29,7 +29,7 @@ mpl.rcParams['font.size']		= 8
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save, figsize):
+def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save, figsize, show_plots):
 	"""
 	Plot Stokes IQUV profiles and dynamic spectra.
 	Inputs:
@@ -95,7 +95,8 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save, figsi
 	ax3.set_ylabel(r'$\nu$ (GHz)')
 	ax3.yaxis.set_label_coords(-0.05, 0.5)
 	
-	plt.show()
+	if show_plots:
+		plt.show()
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + "_iquv.pdf"), bbox_inches='tight', dpi=600)
@@ -104,7 +105,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, xlim, save, figsi
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize):
+def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_plots):
 	"""
 	Plot PA profile and dPA/dt.
 	Inputs:
@@ -176,7 +177,8 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize):
 	ax1.set_ylabel(r'Rate (deg / ms)')
 	ax1.yaxis.set_label_coords(-0.12, 0.5)
 	
-	plt.show()
+	if show_plots:
+		plt.show()
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + "_dpa.pdf"), bbox_inches='tight', dpi=600)
@@ -185,7 +187,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize):
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter):
+def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -270,7 +272,8 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
 
 
-	plt.show()
+	if show_plots:
+		plt.show()
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
@@ -279,7 +282,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 	#	----------------------------------------------------------------------------------------------------------
 
-def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize):
+def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots):
 	"""
 	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
 	
@@ -311,7 +314,8 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	ax.legend()
 
 	# Show the plot
-	plt.show()
+	if show_plots:
+		plt.show()
 
 	# Save the plot if required
 	if save:
