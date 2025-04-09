@@ -19,10 +19,14 @@ def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir
     Plotting function for FRB data.
     Handles dynamic spectrum, IQUV profiles, L V PA profiles, and DPA.
     """
-    if mode == "pa_rms":
+    if mode == 'pa_rms':
         plot_pa_rms_vs_scatter(scattering_timescale, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots)
         sys.exit(0)
-
+    
+    if FRB_data is None:
+        print("Error: FRB data is not available for the selected plot mode.")
+        return
+    
     dsdata = FRB_data
     nchan = len(dsdata.frequency_mhz_array)
     startchan = max(0, startchan)
