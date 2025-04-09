@@ -3,7 +3,7 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "frb-sim"
+name = "FIRES"
 version = "0.1.0"
 description = "A package to simulate Fast Radio Bursts (FRBs) with scattering."
 authors = [
@@ -18,10 +18,10 @@ keywords = ["FRB", "scattering", "simulations"]
 packages.find = {where = ["src"]}  # Note the corrected syntax
 
 [tool.setuptools.package-data]
-"frb_sim.utils" = ["obsparams.txt", "gparams.txt"]
+"FIRES.utils" = ["obsparams.txt", "gparams.txt"]
 
 [project.urls]
-Homepage = "https://github.com/JoelBalzan/FRB_SIM"
+Homepage = "https://github.com/JoelBalzan/FIRES"
 
 [project.scripts]
-frb-sim = "frb_sim.main:main"
+FIRES = "FIRES.main:main"

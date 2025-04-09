@@ -1,6 +1,6 @@
-# FRB_SIM
+# FIRES: The Fast, Intense Radio Emission Simulator
 
-FRB_SIM is a Python package designed to simulate Fast Radio Bursts (FRBs) with scattering and polarization effects. The simulation generates dynamic spectra for Gaussian pulses, applies scattering, and provides tools for visualization and analysis.
+FIRES is a Python package designed to simulate Fast Radio Bursts (FRBs) with scattering and polarization effects. The simulation generates dynamic spectra for Gaussian pulses, applies scattering, and provides tools for visualization and analysis.
 
 ## Features
 
@@ -24,21 +24,21 @@ FRB_SIM is a Python package designed to simulate Fast Radio Bursts (FRBs) with s
 ## Project Structure
 
 - **Core Scripts**:
-  - `src/frb_sim/main.py`: Entry point for the FRB simulation package.
-  - `src/frb_sim/functions/genfrb.py`: Main script for generating and saving simulated FRB data.
-  - `src/frb_sim/functions/processfrb.py`: Functions for analyzing and visualizing FRB data.
-  - `src/frb_sim/functions/plotfns.py`: Plotting functions for FRB data.
+  - `src/FIRES/main.py`: Entry point for the FRB simulation package.
+  - `src/FIRES/functions/genfrb.py`: Main script for generating and saving simulated FRB data.
+  - `src/FIRES/functions/processfrb.py`: Functions for analyzing and visualizing FRB data.
+  - `src/FIRES/functions/plotfns.py`: Plotting functions for FRB data.
 
 - **Utilities**:
-  - `src/frb_sim/utils/obsparams.txt`: Observation parameters for simulations.
-  - `src/frb_sim/utils/gparams.txt`: Gaussian parameters for pulse generation.
+  - `src/FIRES/utils/obsparams.txt`: Observation parameters for simulations.
+  - `src/FIRES/utils/gparams.txt`: Gaussian parameters for pulse generation.
 
 ## Installation
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/JoelBalzan/FRB_SIM.git
-    cd FRB_SIM
+    git clone https://github.com/JoelBalzan/FIRES.git
+    cd FIRES
     ```
 
 2. Install the required dependencies:
@@ -53,7 +53,7 @@ FRB_SIM is a Python package designed to simulate Fast Radio Bursts (FRBs) with s
 
 ## Usage
 
-The `frb-sim` command-line tool provides several options to customize the simulation of Fast Radio Bursts (FRBs). Below is a summary of the available options:
+The `FIRES` command-line tool provides several options to customize the simulation of Fast Radio Bursts (FRBs). Below is a summary of the available options:
 
 ### Command-Line Options
 
@@ -83,20 +83,20 @@ The `frb-sim` command-line tool provides several options to customize the simula
 #### Basic Simulation
 1. Simulate an FRB with a scattering timescale of 0.5 ms:
     ```bash
-    frb-sim -t 0.5 --mode gauss --noise 2
+    FIRES -t 0.5 --mode gauss --noise 2
     ```
 
 2. Simulate an FRB with sub-Gaussians:
     ```bash
-    frb-sim -t 0.5 --mode sgauss --n-gauss 30 20 --sg-width 10 40
+    FIRES -t 0.5 --mode sgauss --n-gauss 30 20 --sg-width 10 40
     ```
 
 3. Generate plots for the simulated FRB:
     ```bash
-    frb-sim -t 0.5 --plot all --save-plots
+    FIRES -t 0.5 --plot all --save-plots
     ```
 
-For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FRB_SIM/wiki).
+For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FIRES/wiki).
 
 ## Acknowledgements
 
