@@ -199,7 +199,8 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec, start_chan, end_chan):
     lts = np.sqrt(utsub ** 2 + qtsub ** 2)
     # Ensure the argument of sqrt is non-negative
     arg = (lts / noise_stokes[0]) ** 2 - 1.0
-    arg = np.maximum(arg, 0)  # Ensure no negative values
+    arg = np.maximum(arg, 0)  
+    # Ensure no negative values
     lts = np.where(arg > 0, noise_stokes[0] * np.sqrt(arg), np.nan)					
     # Calculate the error in linear polarization intensity
     elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
@@ -380,8 +381,11 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, startms, stopms
     """
     Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
     """
+    nchan = len(frequency_mhz_array)
     max_rm = rm[np.argmax(np.abs(rm))]
+    
     corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
     noisespec = estimate_noise(dynspec, time_ms_array, startms, stopms)
     tsdata = est_profiles(corrdspec, frequency_mhz_array, time_ms_array, noisespec, startchan, endchan)
-    return tsdata, corrdspec, noisespec
+    noistks = np.sqrt(np.nansum(noisespec[:, startchan:endchan]**2, axis=1)) / nchan
+    return tsdata, corrdspec, noisespec, noistks

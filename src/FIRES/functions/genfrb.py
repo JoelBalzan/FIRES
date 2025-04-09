@@ -44,11 +44,15 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0")
 
     def process_dynspec_with_pa_rms(dynspec):
-        tsdata, corrdspec, noisespec = process_dynspec(
+        tsdata, corrdspec, noisespec, noistks = process_dynspec(
             dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm
         )
+        tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+        tsdata.dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+
         pa_rms = np.sqrt(np.nanmean(tsdata.phits**2))
         pa_rms_error = np.sqrt(np.nansum((2 * tsdata.phits * tsdata.dphits)**2)) / (2 * len(tsdata.phits))
+        
         return pa_rms, pa_rms_error
 
     def generate_dynspec(mode, s=None):
