@@ -21,7 +21,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
-from scintools.scint_sim import Simulation
 from scipy.interpolate import griddata
 from ..utils.utils import *
 from .basicfns import *
@@ -120,27 +119,36 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
     median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
     num_main_gauss = len(spec_idx) - 2  # Number of main Gaussian components (-1 for the dummy component and -1 for the variation row)
-  
-    for g in range(num_main_gauss):
-        # Use the last value in each array as the variation factor
-        peak_amp_var        = peak_amp[-1]
-        pol_angle_var       = pol_angle[-1]
-        lin_pol_frac_var    = lin_pol_frac[-1]
-        circ_pol_frac_var   = circ_pol_frac[-1]
-        delta_pol_angle_var = delta_pol_angle[-1]
-        rm_var              = rm[-1]
 
+    # Use the last value in each array as the variation factor
+    peak_amp_var        = peak_amp[-1]
+    pol_angle_var       = pol_angle[-1]
+    lin_pol_frac_var    = lin_pol_frac[-1]
+    circ_pol_frac_var   = circ_pol_frac[-1]
+    delta_pol_angle_var = delta_pol_angle[-1]
+    rm_var              = rm[-1]
+
+    if var_lin_pol_frac > 0.0 and var_circ_pol_frac > 0.0:
+        input("Linear and circular polarisation variations are both > 0.0. Choose one to vary (l/c).")
+        if input("l/c: ") == 'l':
+            circ_pol_frac_var = 0.0
+        else:
+            lin_pol_frac_var = 0.0
+
+    for g in range(num_main_gauss):
         for _ in range(num_sub_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
             var_peak_amp        = peak_amp[g + 1] + np.random.normal(0, peak_amp_var * peak_amp[g + 1])
             # Sample the micro width as a percentage of the main width
             var_width_ms        = width_ms[g + 1] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
             var_loc_ms          = np.random.normal(loc=loc_ms[g + 1], scale=width_ms[g + 1])
-            var_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var * np.abs(pol_angle[g + 1]))
+            var_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var)
             var_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
             var_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
-            #var_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
-            var_rm              = rm[g + 1] + np.random.normal(0, rm_var * rm[g + 1])
+            var_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
+            var_rm              = rm[g + 1] + np.random.normal(0, rm_var)
+            
+            
 
             # Initialize a temporary array for the current sub-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
