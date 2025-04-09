@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "FIRES"
-version = "0.1.1"
+version = "0.1.0"
 description = "A package to simulate Fast Radio Bursts (FRBs) with scattering."
 authors = [
     { name = "Joel Balzan", email = "jbalzan.astro@gmail.com" }
