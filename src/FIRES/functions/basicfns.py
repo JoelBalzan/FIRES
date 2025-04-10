@@ -20,7 +20,7 @@ import numpy as np
 from scipy.signal import fftconvolve
 from RMtools_1D.do_RMclean_1D import run_rmclean
 from RMtools_1D.do_RMsynth_1D import run_rmsynth
-from ..utils.utils import *
+from FIRES.utils.utils import *
 
 #	---------------------------------------------------------------------------------
 

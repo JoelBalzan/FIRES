@@ -9,9 +9,9 @@ import os
 import sys
 
 import numpy as np
-from .basicfns import *
-from .plotfns import *
-from ..utils.utils import *
+from FIRES.functions.basicfns import *
+from FIRES.functions.plotfns import *
+from FIRES.utils.utils import *
 
 
 def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir, save, figsize, scattering_timescale, pa_rms, dpa_rms, show_plots):
