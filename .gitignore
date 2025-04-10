@@ -23,3 +23,5 @@ plots/
 
 # other
 .aider*
+*.lprof
+*.mprof

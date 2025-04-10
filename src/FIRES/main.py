@@ -2,8 +2,8 @@ import numpy as np
 import argparse
 import os
 import traceback
-from .functions.genfrb import generate_frb, obs_params_path, gauss_params_path
-from .functions.processfrb import plots
+from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
+from FIRES.functions.processfrb import plots
 
 def main():
 

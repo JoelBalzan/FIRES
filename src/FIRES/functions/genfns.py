@@ -22,9 +22,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 from scipy.interpolate import griddata
-from ..utils.utils import *
-from .basicfns import *
-from .plotfns import *
+from FIRES.utils.utils import *
+from FIRES.functions.basicfns import *
+from FIRES.functions.plotfns import *
 
 
 mpl.rcParams['pdf.fonttype'] = 42
