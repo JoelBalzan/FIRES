@@ -304,6 +304,19 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	ax.errorbar(scatter_timescales, pa_rms, 
 				yerr=dpa_rms, 
 				fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=1)
+	
+	# Fit a curve to the data
+	def model_func(x, a, b, c):
+		return a * np.exp(-b * x) + c
+
+	# Perform curve fitting
+	popt, pcov = curve_fit(model_func, scatter_timescales, pa_rms, sigma=dpa_rms, absolute_sigma=True)
+	perr = np.sqrt(np.diag(pcov))
+
+	# Plot the fitted curve
+	x_fit = np.linspace(min(scatter_timescales), max(scatter_timescales), 500)
+	y_fit = model_func(x_fit, *popt)
+	ax.plot(x_fit, y_fit, 'r-', label=f'Fit: a={popt[0]:.2f}, b={popt[1]:.2f}, c={popt[2]:.2f}')
 
 	# Set plot labels and title
 	ax.set_xlabel("Scattering Timescale (ms)")

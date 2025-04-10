@@ -1,3 +1,0 @@
-Scattering timescales: [0. 1. 2.]
-Multiple scattering timescales detected. Setting plot mode to 'pa_rms'
-Simulation completed for scattering timescale [0. 1. 2.] ms. Data not saved.
