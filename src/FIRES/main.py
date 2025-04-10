@@ -196,7 +196,7 @@ def main():
 	try:
 		# Generate the FRB or PA RMS data
 		if args.plot == ['pa_rms']:
-			pa_rms_values, pa_rms_errors = generate_frb(
+			pa_rms_values, pa_rms_errors, width_ms = generate_frb(
 				scattering_timescale_ms=args.scattering_timescale_ms,
 				frb_identifier=args.frb_identifier,
 				obs_params=obs_params_path,
@@ -260,7 +260,8 @@ def main():
 						save=args.save_plots,
 						figsize=args.figsize,
 						scattering_timescale=args.scattering_timescale_ms,
-						show_plots=args.show_plots
+						show_plots=args.show_plots,
+						width_ms=width_ms
 					)
 				else:
 					# Ensure FRB_data is not None for other plot modes
@@ -284,7 +285,8 @@ def main():
 						save=args.save_plots,
 						figsize=args.figsize,
 						scattering_timescale=args.scattering_timescale_ms,
-						show_plots=args.show_plots
+						show_plots=args.show_plots,
+						width_ms=None
 					)
 
 	
