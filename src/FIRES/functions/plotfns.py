@@ -299,12 +299,11 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 
 
 	fig, ax = plt.subplots(figsize=figsize)
-	print()
 
 	# Plot the RMS of PA with error bars
 	ax.errorbar(scatter_timescales, pa_rms, 
 				yerr=dpa_rms, 
-				fmt='o', capsize=3, color='blue', label='PA RMS')
+				fmt='o', capsize=3, color='black', label=r'PA$_{RMS}$', markersize=1)
 
 	# Set plot labels and title
 	ax.set_xlabel("Scattering Timescale (ms)")
