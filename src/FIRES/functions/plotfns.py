@@ -20,6 +20,7 @@ from matplotlib.ticker import FormatStrFormatter, FuncFormatter
 from scipy.optimize import curve_fit
 from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
+from scipy.stats import iqr
 
 mpl.rcParams['pdf.fonttype']	= 42
 mpl.rcParams['ps.fonttype'] 	= 42
@@ -303,30 +304,33 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	# normalize the scattering timescale by initial gaussian width
 	tau_norm = scatter_timescales / width_ms
 
-	# Plot the RMS of PA with error bars
-	#ax.errorbar(tau_norm, pa_rms, 
-	#			yerr=dpa_rms, 
-	#			fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
+	if len(tau_norm) < 15:
+		# Plot the RMS of PA with error bars
+		ax.errorbar(tau_norm, pa_rms, 
+					yerr=dpa_rms, 
+					fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
 	
+	else:
+		# Bin the scattering timescales
+		# Determine the bin width using Freedman-Diaconis rule
+		bin_width = 2 * iqr(tau_norm) / (len(tau_norm) ** (1 / 3))
+		bin_edges = np.arange(min(tau_norm), max(tau_norm) + bin_width, bin_width)
+		bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+		medians = []
+		mads = []
 
-	# Bin the scattering timescales
-	bin_edges = np.linspace(min(tau_norm), max(tau_norm), num=10)
-	bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-	medians = []
-	mads = []
+		# Calculate median and MAD for each bin
+		for i in range(len(bin_edges) - 1):
+			in_bin = (tau_norm >= bin_edges[i]) & (tau_norm < bin_edges[i + 1])
+			if np.any(in_bin):
+				medians.append(np.median(pa_rms[in_bin]))
+				mads.append(np.median(np.abs(pa_rms[in_bin] - np.median(pa_rms[in_bin]))))
+			else:
+				medians.append(np.nan)
+				mads.append(np.nan)
 
-	# Calculate median and MAD for each bin
-	for i in range(len(bin_edges) - 1):
-		in_bin = (tau_norm >= bin_edges[i]) & (tau_norm < bin_edges[i + 1])
-		if np.any(in_bin):
-			medians.append(np.median(pa_rms[in_bin]))
-			mads.append(np.median(np.abs(pa_rms[in_bin] - np.median(pa_rms[in_bin]))))
-		else:
-			medians.append(np.nan)
-			mads.append(np.nan)
-
-	# Plot the medians with MADs as error bars
-	ax.errorbar(bin_centers, medians, yerr=mads, fmt='s', capsize=2, color='blue', label='Median with MAD', markersize=4)
+		# Plot the medians with MADs as error bars
+		ax.errorbar(bin_centers, medians, yerr=mads, fmt='s', capsize=2, color='blue', label='Median with MAD', markersize=4)
 
 
 	# Fit a curve to the data
@@ -343,7 +347,7 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	#ax.plot(x_fit, y_fit, 'r-', label=f'Fit: a={popt[0]:.2f}, b={popt[1]:.2f}, c={popt[2]:.2f}')
 
 	# Set plot labels and title
-	ax.set_xlabel("Scattering Timescale (ms)")
+	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
 	ax.set_ylabel(r"PA$_{RMS}$ (deg)")
 	ax.set_title("RMS of Polarization Angle vs Scattering Timescale")
 	ax.grid(True, linestyle='--', alpha=0.6)
