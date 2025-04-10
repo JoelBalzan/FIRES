@@ -101,7 +101,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + "_iquv.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s" % (os.path.join(outdir, fname + "_iquv.pdf")))
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_iquv.pdf")))
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 		- fsize: Figure size
 		- ntp: Number of points for slope calculation
 	"""
-	print("Calculating dpa slope from %d points" % (2 * ntp + 1))
+	print("Calculating dpa slope from %d points \n" % (2 * ntp + 1))
 
 	phits = frbdat.phits
 	dphits = frbdat.dphits
@@ -149,7 +149,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 	
 	dpamax = np.nanargmax(dpadt)
 		
-	print("Max (dPA/dt) = %.2f +/- %.2f deg/ms" % (dpadt[dpamax], edpadt[dpamax]))
+	print("Max (dPA/dt) = %.2f +/- %.2f deg/ms \n" % (dpadt[dpamax], edpadt[dpamax]))
 		
 	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.15, 0.48, 0.83, 0.50])
@@ -183,7 +183,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + "_dpa.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s" % (os.path.join(outdir, fname + "_dpa.pdf")))
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_dpa.pdf")))
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -214,7 +214,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 		
 	print("Max (L/I) = %.2f +/- %.2f" % (tsdata.lfrac[igood[lmax]], tsdata.elfrac[igood[lmax]]))
 	print("Max (V/I) = %.2f +/- %.2f" % (tsdata.vfrac[igood[vmax]], tsdata.evfrac[igood[vmax]]))
-	print("Max (P/I) = %.2f +/- %.2f" % (tsdata.pfrac[igood[pmax]], tsdata.epfrac[igood[pmax]]))
+	print("Max (P/I) = %.2f +/- %.2f \n" % (tsdata.pfrac[igood[pmax]], tsdata.epfrac[igood[pmax]]))
 
 
 	# Linear polarisation
@@ -278,7 +278,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s" % (os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf")))
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf")))
 
 
 	#	----------------------------------------------------------------------------------------------------------
@@ -349,7 +349,6 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	# Set plot labels and title
 	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
 	ax.set_ylabel(r"PA$_{RMS}$ (deg)")
-	ax.set_title("RMS of Polarization Angle vs Scattering Timescale")
 	ax.grid(True, linestyle='--', alpha=0.6)
 	ax.legend()
 
@@ -360,4 +359,4 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	# Save the plot if required
 	if save:
 		fig.savefig(os.path.join(outdir, fname + "_pa_rms_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
-		print(f"Saved figure to {os.path.join(outdir, fname + '_pa_rms_vs_scatter.pdf')}")
+		print(f"Saved figure to {os.path.join(outdir, fname + '_pa_rms_vs_scatter.pdf')}  \n")

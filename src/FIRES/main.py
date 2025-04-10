@@ -181,11 +181,11 @@ def main():
 		args.scattering_timescale_ms = scattering_timescales
 	else:
 		args.scattering_timescale_ms = False
-	print(f"Scattering timescales: {args.scattering_timescale_ms}")
+	print(f"Scattering timescales: {args.scattering_timescale_ms} \n")
 
 	# Check if multiple scattering timescales are provided
 	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != ['pa_rms']:
-		print("Multiple scattering timescales detected. Setting plot mode to 'pa_rms'")
+		print("Multiple scattering timescales detected. Setting plot mode to 'pa_rms' \n")
 		args.plot = ['pa_rms']
 
 
@@ -196,7 +196,7 @@ def main():
 	# Check if the output directory exists, if not create it
 	if args.write or args.save_plots and not os.path.exists(data_directory):
 		os.makedirs(args.output_dir)
-		print(f"Output directory '{data_directory}' created.")
+		print(f"Output directory '{data_directory}' created. \n")
 
 	
 	# Call the generate_frb function 
@@ -205,7 +205,7 @@ def main():
 		if args.plot == ['pa_rms']:
 			# Check if parallel processing is enabled
 			if args.parallel:
-				print("Using parallel processing for pa_rms generation.")
+				print("Using parallel processing for pa_rms generation. \n")
 				pa_rms_values, pa_rms_errors, width_ms = generate_frb_parallel(
 					scattering_timescale_ms=args.scattering_timescale_ms,
 					frb_identifier=args.frb_identifier,
@@ -226,7 +226,7 @@ def main():
 					endchan=args.fz[1]
 				)
 			else:
-				print("Using single-threaded processing for pa_rms generation.")
+				print("Using single-threaded processing for pa_rms generation. \n")
 				pa_rms_values, pa_rms_errors, width_ms = generate_frb(
 					scattering_timescale_ms=args.scattering_timescale_ms,
 					frb_identifier=args.frb_identifier,
@@ -269,7 +269,7 @@ def main():
 
 		# Print simulation status
 		save_status = "Data saved to" if args.write else "Data not saved."
-		print(f"Simulation completed for scattering timescale {args.scattering_timescale_ms} ms. {save_status}")
+		print(f"Simulation completed for scattering timescale {args.scattering_timescale_ms} ms. {save_status} \n")
 
 		# Call the plotting function if required
 		if args.plot != 'None':
@@ -297,7 +297,7 @@ def main():
 				else:
 					# Ensure FRB_data is not None for other plot modes
 					if FRB is None:
-						print("Error: FRB data is not available for the selected plot mode.")
+						print("Error: FRB data is not available for the selected plot mode. \n")
 						continue
 					
 					# Call the plotting function for other modes
@@ -322,7 +322,7 @@ def main():
 
 	
 	except Exception as e:
-		print(f"An error occurred during the simulation: {e}")
+		print(f"An error occurred during the simulation: {e} \n")
 		traceback.print_exc()
 
 if __name__ == "__main__":

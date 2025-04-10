@@ -261,7 +261,6 @@ def est_spectra(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
     # Find the start and end indices for the time range
     istart = np.argmin(np.abs(left_window_ms - time_ms))
     iend = np.argmin(np.abs(right_window_ms - time_ms))
-    print(istart, iend)
     
     # Average the dynamic spectrum over the specified time range
     iquvspec = np.nanmean(dynspec[:, :, istart:iend + 1], axis=2)

@@ -82,15 +82,15 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
     lin_pol_frac, circ_pol_frac, delta_pol_angle = gaussian_params[:, 7], gaussian_params[:, 8], gaussian_params[:, 9]
 
     if (lin_pol_frac + circ_pol_frac).any() > 1.0:
-        print("WARNING: Linear and circular polarization fractions sum to more than 1.0")
+        print("WARNING: Linear and circular polarization fractions sum to more than 1.0. \n")
 
     # Check if running on OzSTAR
     if 'SLURM_JOB_ID' in os.environ:  # Example: Check for SLURM environment variable
         num_processes = int(os.environ.get("SLURM_NTASKS_PER_NODE", 1))  # Get from environment, default to 1
-        print(f"Running on OzSTAR, setting max_workers to {num_processes}")
+        print(f"Running on OzSTAR, setting max_workers to {num_processes}. \n")
     else:
         num_processes = None  # Use default ProcessPoolExecutor behavior
-        print("Not running on OzSTAR, using default max_workers")
+        print("Not running on OzSTAR, using default max_workers. \n")
 
     if plot != ['pa_rms']:
         dynspec = generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
@@ -154,4 +154,4 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
 
         return np.array(pa_rms_values), np.array(pa_rms_errors), width[1]
     else:
-        print("Invalid mode specified. Please use 'gauss' or 'sgauss'.")
+        print("Invalid mode specified. Please use 'gauss' or 'sgauss'. \n")
