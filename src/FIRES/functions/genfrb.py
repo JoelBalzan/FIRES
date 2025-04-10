@@ -41,7 +41,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
     lin_pol_frac, circ_pol_frac, delta_pol_angle = gaussian_params[:, 7], gaussian_params[:, 8], gaussian_params[:, 9]
 
     if (lin_pol_frac + circ_pol_frac).any() > 1.0:
-        print("WARNING: Linear and circular polarization fractions sum to more than 1.0")
+        print("WARNING: Linear and circular polarization fractions sum to more than 1.0 \n")
 
     def process_dynspec_with_pa_rms(dynspec):
         tsdata, corrdspec, noisespec, noistks = process_dynspec(
@@ -93,7 +93,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         return np.array(pa_rms_values), np.array(pa_rms_errors), width[1]
 
     else:
-        print("Invalid mode specified. Please use 'gauss' or 'sgauss'.")
+        print("Invalid mode specified. Please use 'gauss' or 'sgauss'. \n")
 
 
 

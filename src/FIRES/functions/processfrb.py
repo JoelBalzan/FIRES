@@ -24,7 +24,7 @@ def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir
         sys.exit(0)
     
     if FRB_data is None:
-        print("Error: FRB data is not available for the selected plot mode.")
+        print("Error: FRB data is not available for the selected plot mode. \n")
         return
     
     dsdata = FRB_data
@@ -52,4 +52,4 @@ def plots(fname, FRB_data, mode, startms, stopms, startchan, endchan, rm, outdir
     elif mode == "rm":
         estimate_rm(dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, noisespec, startms, stopms, 1.0e3, 1.0, startchan, endchan, outdir, save, show_plots)
     else:
-        print(f"Invalid mode: {mode}")
+        print(f"Invalid mode: {mode} \n")
