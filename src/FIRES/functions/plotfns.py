@@ -303,11 +303,11 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	# Plot the RMS of PA with error bars
 	ax.errorbar(scatter_timescales, pa_rms, 
 				yerr=dpa_rms, 
-				fmt='o', capsize=3, color='black', label=r'PA$_{RMS}$', markersize=1)
+				fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=1)
 
 	# Set plot labels and title
 	ax.set_xlabel("Scattering Timescale (ms)")
-	ax.set_ylabel("PA RMS (deg)")
+	ax.set_ylabel(r"PA$_{RMS}$ (deg)")
 	ax.set_title("RMS of Polarization Angle vs Scattering Timescale")
 	ax.grid(True, linestyle='--', alpha=0.6)
 	ax.legend()

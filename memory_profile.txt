@@ -1,0 +1,79 @@
+Scattering timescales: [0. 1. 2.]
+Multiple scattering timescales detected. Setting plot mode to 'pa_rms'
+Filename: /home/joel/Documents/GitHub/FIRES/src/FIRES/functions/genfrb.py
+
+Line #    Mem usage    Increment  Occurrences   Line Contents
+=============================================================
+    25    151.8 MiB    151.8 MiB           1   @profile
+    26                                         def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write, 
+    27                                                          obs_params, gauss_params, noise, scatter, plot, startms, stopms, startchan, endchan):
+    28                                             """
+    29                                             Generate a simulated FRB with a dispersed and scattered dynamic spectrum
+    30                                             """
+    31    151.8 MiB      0.0 MiB           1       obsparams = get_parameters(obs_params)
+    32    151.8 MiB      0.0 MiB           1       start_frequency_mhz, end_frequency_mhz = float(obsparams['f0']), float(obsparams['f1'])
+    33    151.8 MiB      0.0 MiB           1       channel_width_mhz, time_resolution_ms = float(obsparams['f_res']), float(obsparams['t_res'])
+    34    151.8 MiB      0.0 MiB           1       start_time_ms, end_time_ms = float(obsparams['t0']), float(obsparams['t1'])
+    35    151.8 MiB      0.0 MiB           1       scattering_index, reference_frequency_mhz = float(obsparams['scattering_index']), float(obsparams['reference_freq'])
+    36                                         
+    37    151.8 MiB      0.0 MiB           1       frequency_mhz_array = np.arange(start_frequency_mhz, end_frequency_mhz + channel_width_mhz, channel_width_mhz, dtype=float)
+    38    151.8 MiB      0.0 MiB           1       time_ms_array = np.arange(start_time_ms, end_time_ms + time_resolution_ms, time_resolution_ms, dtype=float)
+    39                                         
+    40    151.9 MiB      0.1 MiB           1       gaussian_params = np.loadtxt(gauss_params)
+    41    151.9 MiB      0.0 MiB           1       t0, width, peak_amp, spec_idx = gaussian_params[:, 0], gaussian_params[:, 1], gaussian_params[:, 2], gaussian_params[:, 3]
+    42    151.9 MiB      0.0 MiB           1       dm, rm, pol_angle = gaussian_params[:, 4], gaussian_params[:, 5], gaussian_params[:, 6]
+    43    151.9 MiB      0.0 MiB           1       lin_pol_frac, circ_pol_frac, delta_pol_angle = gaussian_params[:, 7], gaussian_params[:, 8], gaussian_params[:, 9]
+    44                                         
+    45    151.9 MiB      0.0 MiB           1       if (lin_pol_frac + circ_pol_frac).any() > 1.0:
+    46                                                 print("WARNING: Linear and circular polarization fractions sum to more than 1.0")
+    47                                         
+    48    198.4 MiB      0.0 MiB           4       def process_dynspec_with_pa_rms(dynspec):
+    49    213.1 MiB     78.4 MiB           6           tsdata, corrdspec, noisespec, noistks = process_dynspec(
+    50    198.4 MiB    -32.8 MiB           3               dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm
+    51                                                 )
+    52    213.1 MiB     -0.0 MiB           3           tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+    53    213.1 MiB     -0.0 MiB           3           tsdata.dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+    54                                         
+    55    213.1 MiB     -0.0 MiB           3           pa_rms = np.sqrt(np.nanmean(tsdata.phits**2))
+    56    213.1 MiB     -0.0 MiB           3           pa_rms_error = np.sqrt(np.nansum((2 * tsdata.phits * tsdata.dphits)**2)) / (2 * len(tsdata.phits))
+    57                                                 
+    58    213.1 MiB     -0.0 MiB           3           return pa_rms, pa_rms_error
+    59                                         
+    60    183.3 MiB      0.0 MiB           4       def generate_dynspec(mode, s=None):
+    61    183.3 MiB      0.0 MiB           3           if mode == 'gauss':
+    62                                                     return gauss_dynspec(
+    63                                                         frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
+    64                                                         dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise,
+    65                                                         scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz
+    66                                                     )
+    67                                                 else:  # mode == 'sgauss'
+    68    198.4 MiB     61.4 MiB           6               return sub_gauss_dynspec(
+    69    183.3 MiB    -15.0 MiB           3                   frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
+    70    183.3 MiB      0.0 MiB           3                   dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, width_range, noise,
+    71    183.3 MiB      0.0 MiB           3                   scatter, s if plot == ['pa_rms'] else scattering_timescale_ms, scattering_index, reference_frequency_mhz
+    72                                                     )
+    73                                         
+    74    151.9 MiB      0.0 MiB           1       if plot != ['pa_rms']:
+    75                                                 dynspec = generate_dynspec(mode)
+    76                                                 simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,
+    77                                                                                    scattering_index, gaussian_params, dynspec)
+    78                                                 if write:
+    79                                                     output_filename = f"{data_dir}{frb_identifier}_sc_{scattering_timescale_ms:.2f}.pkl"
+    80                                                     with open(output_filename, 'wb') as frbfile:
+    81                                                         pkl.dump(simulated_frb_data, frbfile)
+    82                                                 return simulated_frb_data, rm
+    83                                         
+    84    151.9 MiB      0.0 MiB           1       elif plot == ['pa_rms']:
+    85    151.9 MiB      0.0 MiB           1           pa_rms_values, pa_rms_errors = [], []
+    86    213.1 MiB      0.0 MiB           4           for s in scattering_timescale_ms:
+    87    198.4 MiB    -15.1 MiB           3               dynspec = generate_dynspec(mode, s)
+    88    213.1 MiB    -63.5 MiB           3               pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec)
+    89    213.1 MiB      0.0 MiB           3               pa_rms_values.append(pa_rms)
+    90    213.1 MiB      0.0 MiB           3               pa_rms_errors.append(pa_rms_error)
+    91    213.1 MiB      0.0 MiB           1           return np.array(pa_rms_values), np.array(pa_rms_errors)
+    92                                         
+    93                                             else:
+    94                                                 print("Invalid mode specified. Please use 'gauss' or 'sgauss'.")
+
+
+Simulation completed for scattering timescale [0. 1. 2.] ms. Data not saved.
