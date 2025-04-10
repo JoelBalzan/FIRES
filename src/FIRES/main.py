@@ -3,6 +3,7 @@ import argparse
 import os
 import traceback
 from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
+from FIRES.functions.genfrb_parallel import generate_frb_parallel
 from FIRES.functions.processfrb import plots
 
 def main():
@@ -149,6 +150,12 @@ def main():
 		dest="scatter",
 		help="Disable scattering. Overrides --scatter if both are provided."
 	)
+	parser.add_argument(
+		"--parallel",
+		action="store_true",
+		default=False,
+		help="Enable parallel processing. Default is False. Currently only works with pa_rms mode."
+	)
 
 	args = parser.parse_args()
 
@@ -196,25 +203,49 @@ def main():
 	try:
 		# Generate the FRB or PA RMS data
 		if args.plot == ['pa_rms']:
-			pa_rms_values, pa_rms_errors, width_ms = generate_frb(
-				scattering_timescale_ms=args.scattering_timescale_ms,
-				frb_identifier=args.frb_identifier,
-				obs_params=obs_params_path,
-				gauss_params=gauss_params_path,
-				data_dir=args.output_dir,
-				write=args.write,
-				mode=args.mode,
-				num_micro_gauss=args.n_gauss,
-				seed=args.seed,
-				width_range=args.sg_width,
-				noise=args.noise,
-				scatter=args.scatter,
-				plot=args.plot,
-				startms=args.tz[0],
-				stopms=args.tz[1],
-				startchan=args.fz[0],
-				endchan=args.fz[1]
-			)
+			# Check if parallel processing is enabled
+			if args.parallel:
+				print("Using parallel processing for pa_rms generation.")
+				pa_rms_values, pa_rms_errors, width_ms = generate_frb_parallel(
+					scattering_timescale_ms=args.scattering_timescale_ms,
+					frb_identifier=args.frb_identifier,
+					obs_params=obs_params_path,
+					gauss_params=gauss_params_path,
+					data_dir=args.output_dir,
+					write=args.write,
+					mode=args.mode,
+					num_micro_gauss=args.n_gauss,
+					seed=args.seed,
+					width_range=args.sg_width,
+					noise=args.noise,
+					scatter=args.scatter,
+					plot=args.plot,
+					startms=args.tz[0],
+					stopms=args.tz[1],
+					startchan=args.fz[0],
+					endchan=args.fz[1]
+				)
+			else:
+				print("Using single-threaded processing for pa_rms generation.")
+				pa_rms_values, pa_rms_errors, width_ms = generate_frb(
+					scattering_timescale_ms=args.scattering_timescale_ms,
+					frb_identifier=args.frb_identifier,
+					obs_params=obs_params_path,
+					gauss_params=gauss_params_path,
+					data_dir=args.output_dir,
+					write=args.write,
+					mode=args.mode,
+					num_micro_gauss=args.n_gauss,
+					seed=args.seed,
+					width_range=args.sg_width,
+					noise=args.noise,
+					scatter=args.scatter,
+					plot=args.plot,
+					startms=args.tz[0],
+					stopms=args.tz[1],
+					startchan=args.fz[0],
+					endchan=args.fz[1]
+				)
 		else:
 			FRB, rm = generate_frb(
 				scattering_timescale_ms=args.scattering_timescale_ms,
