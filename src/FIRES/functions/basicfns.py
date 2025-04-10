@@ -181,64 +181,66 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec, start_chan, end_chan):
     Returns:
         - frb_time_series: Object containing time profiles
     """
-    if end_chan <= 0:
-        end_chan = len(freq_mhz) - 1
+    with np.errstate(invalid='ignore', divide='ignore'):
 
-    # Average the dynamic spectrum over the specified frequency channels
-    iquvt = np.nanmean(dynspec[:, start_chan:end_chan], axis=1)					
-    # Calculate the noise for each Stokes parameter
-    noise_stokes = np.sqrt(np.nansum(noisespec[:, start_chan:end_chan] ** 2, axis=1)) / len(freq_mhz)
+        if end_chan <= 0:
+            end_chan = len(freq_mhz) - 1
     
-    # Extract the Stokes parameters
-    itsub = iquvt[0]
-    qtsub = iquvt[1]
-    utsub = iquvt[2]
-    vtsub = iquvt[3]
-    
-    # Calculate the linear polarization intensity
-    lts = np.sqrt(utsub ** 2 + qtsub ** 2)
-    # Ensure the argument of sqrt is non-negative
-    arg = (lts / noise_stokes[0]) ** 2 - 1.0
-    arg = np.maximum(arg, 0)  
-    # Ensure no negative values
-    lts = np.where(arg > 0, noise_stokes[0] * np.sqrt(arg), np.nan)					
-    # Calculate the error in linear polarization intensity
-    elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
-    # Calculate the total polarization intensity
-    pts = np.sqrt(lts ** 2 + vtsub ** 2)
-    # Calculate the error in total polarization intensity
-    epts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2 + (vtsub * noise_stokes[3]) ** 2) / pts
-
-    # Calculate the polarization angles
-    phits = np.rad2deg(0.5 * np.arctan2(utsub, qtsub))		
-    dphits = np.rad2deg(0.5 * np.sqrt((utsub * noise_stokes[1]) ** 2 + (qtsub * noise_stokes[2]) ** 2) / (utsub ** 2 + qtsub ** 2))						
-    psits = np.rad2deg(0.5 * np.arctan2(vtsub, lts))		
-    dpsits = np.rad2deg(0.5 * np.sqrt((vtsub * elts) ** 2 + (lts * noise_stokes[3]) ** 2) / (vtsub ** 2 + lts ** 2))
-    
-    # Calculate the fractional polarizations
-    vfrac = vtsub / itsub
-    lfrac = lts / itsub
-    pfrac = pts / itsub		
-    qfrac = qtsub / itsub
-    ufrac = utsub / itsub
-    
-    # Set large errors to NaN
-    phits[dphits > 10.0] = np.nan
-    dphits[dphits > 10.0] = np.nan
-    psits[dpsits > 10.0] = np.nan
-    dpsits[dpsits > 10.0] = np.nan
-
-    # Avoid division by zero
-    vtsub_safe = np.where(vtsub != 0, vtsub, np.nan)
-    itsub_safe = np.where(itsub != 0, itsub, np.nan)
-
-    evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub_safe) ** 2 + (noise_stokes[0] / itsub_safe) ** 2)
-    eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-    eufrac = np.abs(ufrac) * np.sqrt((noise_stokes[2] / utsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-    elfrac = np.abs(lfrac) * np.sqrt((elts / lts) ** 2 + (noise_stokes[0] / itsub) ** 2)
-    epfrac = np.abs(pfrac) * np.sqrt((epts / pts) ** 2 + (noise_stokes[0] / itsub) ** 2)
+        # Average the dynamic spectrum over the specified frequency channels
+        iquvt = np.nanmean(dynspec[:, start_chan:end_chan], axis=1)					
+        # Calculate the noise for each Stokes parameter
+        noise_stokes = np.sqrt(np.nansum(noisespec[:, start_chan:end_chan] ** 2, axis=1)) / len(freq_mhz)
         
-    # Return the time profiles as a frb_time_series object
+        # Extract the Stokes parameters
+        itsub = iquvt[0]
+        qtsub = iquvt[1]
+        utsub = iquvt[2]
+        vtsub = iquvt[3]
+        
+        # Calculate the linear polarization intensity
+        lts = np.sqrt(utsub ** 2 + qtsub ** 2)
+        # Ensure the argument of sqrt is non-negative
+        arg = (lts / noise_stokes[0]) ** 2 - 1.0
+        arg = np.maximum(arg, 0)  
+        # Ensure no negative values
+        lts = np.where(arg > 0, noise_stokes[0] * np.sqrt(arg), np.nan)					
+        # Calculate the error in linear polarization intensity
+        elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
+        # Calculate the total polarization intensity
+        pts = np.sqrt(lts ** 2 + vtsub ** 2)
+        # Calculate the error in total polarization intensity
+        epts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2 + (vtsub * noise_stokes[3]) ** 2) / pts
+    
+        # Calculate the polarization angles
+        phits = np.rad2deg(0.5 * np.arctan2(utsub, qtsub))		
+        dphits = np.rad2deg(0.5 * np.sqrt((utsub * noise_stokes[1]) ** 2 + (qtsub * noise_stokes[2]) ** 2) / (utsub ** 2 + qtsub ** 2))						
+        psits = np.rad2deg(0.5 * np.arctan2(vtsub, lts))		
+        dpsits = np.rad2deg(0.5 * np.sqrt((vtsub * elts) ** 2 + (lts * noise_stokes[3]) ** 2) / (vtsub ** 2 + lts ** 2))
+        
+        # Calculate the fractional polarizations
+        vfrac = vtsub / itsub
+        lfrac = lts / itsub
+        pfrac = pts / itsub		
+        qfrac = qtsub / itsub
+        ufrac = utsub / itsub
+        
+        # Set large errors to NaN
+        phits[dphits > 10.0] = np.nan
+        dphits[dphits > 10.0] = np.nan
+        psits[dpsits > 10.0] = np.nan
+        dpsits[dpsits > 10.0] = np.nan
+    
+        # Avoid division by zero
+        vtsub_safe = np.where(vtsub != 0, vtsub, np.nan)
+        itsub_safe = np.where(itsub != 0, itsub, np.nan)
+    
+        evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub_safe) ** 2 + (noise_stokes[0] / itsub_safe) ** 2)
+        eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
+        eufrac = np.abs(ufrac) * np.sqrt((noise_stokes[2] / utsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
+        elfrac = np.abs(lfrac) * np.sqrt((elts / lts) ** 2 + (noise_stokes[0] / itsub) ** 2)
+        epfrac = np.abs(pfrac) * np.sqrt((epts / pts) ** 2 + (noise_stokes[0] / itsub) ** 2)
+            
+        # Return the time profiles as a frb_time_series object
     return frb_time_series(iquvt, lts, elts, pts, epts, phits, dphits, psits, dpsits, qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac)
 
 

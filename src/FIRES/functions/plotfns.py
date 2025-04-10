@@ -334,13 +334,13 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 		return a * np.exp(-b * x) + c
 
 	# Perform curve fitting
-	popt, pcov = curve_fit(model_func, bin_centers, medians, sigma=mads, absolute_sigma=True)
-	perr = np.sqrt(np.diag(pcov))
+	#popt, pcov = curve_fit(model_func, bin_centers, medians, sigma=mads, absolute_sigma=True)
+	#perr = np.sqrt(np.diag(pcov))
 
 	# Plot the fitted curve
-	x_fit = np.linspace(min(tau_norm), max(tau_norm), 500)
-	y_fit = model_func(x_fit, *popt)
-	ax.plot(x_fit, y_fit, 'r-', label=f'Fit: a={popt[0]:.2f}, b={popt[1]:.2f}, c={popt[2]:.2f}')
+	#x_fit = np.linspace(min(tau_norm), max(tau_norm), 500)
+	#y_fit = model_func(x_fit, *popt)
+	#ax.plot(x_fit, y_fit, 'r-', label=f'Fit: a={popt[0]:.2f}, b={popt[1]:.2f}, c={popt[2]:.2f}')
 
 	# Set plot labels and title
 	ax.set_xlabel("Scattering Timescale (ms)")
