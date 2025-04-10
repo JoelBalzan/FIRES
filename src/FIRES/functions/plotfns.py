@@ -347,7 +347,7 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 	#ax.plot(x_fit, y_fit, 'r-', label=f'Fit: a={popt[0]:.2f}, b={popt[1]:.2f}, c={popt[2]:.2f}')
 
 	# Set plot labels and title
-	ax.set_xlabel("Scattering Timescale (ms)")
+	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
 	ax.set_ylabel(r"PA$_{RMS}$ (deg)")
 	ax.set_title("RMS of Polarization Angle vs Scattering Timescale")
 	ax.grid(True, linestyle='--', alpha=0.6)
