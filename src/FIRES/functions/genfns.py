@@ -147,8 +147,15 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             var_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
             var_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
             var_rm              = rm[g + 1] + np.random.normal(0, rm_var)
-            
-            
+
+            if circ_pol_frac_var > 0.0:
+                var_circ_pol_frac = np.clip(var_circ_pol_frac, 0.0, 1.0)
+                var_lin_pol_frac = np.clip(1.0 - var_circ_pol_frac, 0.0, 1.0)
+
+            elif lin_pol_frac_var > 0.0:
+                var_lin_pol_frac = np.clip(var_lin_pol_frac, 0.0, 1.0)
+                var_circ_pol_frac = np.clip(1.0 - var_lin_pol_frac, 0.0, 1.0)
+
 
             # Initialize a temporary array for the current sub-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
