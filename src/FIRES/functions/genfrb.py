@@ -90,7 +90,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             output_filename = f"{data_dir}{frb_identifier}_pa_rms.pkl"
             with open(output_filename, 'wb') as frbfile:
                 pkl.dump((pa_rms_values, pa_rms_errors), frbfile)
-        return np.array(pa_rms_values), np.array(pa_rms_errors)
+        return np.array(pa_rms_values), np.array(pa_rms_errors), width[1]
 
     else:
         print("Invalid mode specified. Please use 'gauss' or 'sgauss'.")

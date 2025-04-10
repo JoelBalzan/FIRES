@@ -282,7 +282,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 	#	----------------------------------------------------------------------------------------------------------
 
-def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots):
+def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots, width_ms):
 	"""
 	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
 	
@@ -300,21 +300,45 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 
 	fig, ax = plt.subplots(figsize=figsize)
 
+	# normalize the scattering timescale by initial gaussian width
+	tau_norm = scatter_timescales / width_ms
+
 	# Plot the RMS of PA with error bars
-	ax.errorbar(scatter_timescales, pa_rms, 
-				yerr=dpa_rms, 
-				fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=1)
+	#ax.errorbar(tau_norm, pa_rms, 
+	#			yerr=dpa_rms, 
+	#			fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
 	
+
+	# Bin the scattering timescales
+	bin_edges = np.linspace(min(tau_norm), max(tau_norm), num=10)
+	bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+	medians = []
+	mads = []
+
+	# Calculate median and MAD for each bin
+	for i in range(len(bin_edges) - 1):
+		in_bin = (tau_norm >= bin_edges[i]) & (tau_norm < bin_edges[i + 1])
+		if np.any(in_bin):
+			medians.append(np.median(pa_rms[in_bin]))
+			mads.append(np.median(np.abs(pa_rms[in_bin] - np.median(pa_rms[in_bin]))))
+		else:
+			medians.append(np.nan)
+			mads.append(np.nan)
+
+	# Plot the medians with MADs as error bars
+	ax.errorbar(bin_centers, medians, yerr=mads, fmt='s', capsize=2, color='blue', label='Median with MAD', markersize=4)
+
+
 	# Fit a curve to the data
 	def model_func(x, a, b, c):
 		return a * np.exp(-b * x) + c
 
 	# Perform curve fitting
-	popt, pcov = curve_fit(model_func, scatter_timescales, pa_rms, sigma=dpa_rms, absolute_sigma=True)
+	popt, pcov = curve_fit(model_func, bin_centers, medians, sigma=mads, absolute_sigma=True)
 	perr = np.sqrt(np.diag(pcov))
 
 	# Plot the fitted curve
-	x_fit = np.linspace(min(scatter_timescales), max(scatter_timescales), 500)
+	x_fit = np.linspace(min(tau_norm), max(tau_norm), 500)
 	y_fit = model_func(x_fit, *popt)
 	ax.plot(x_fit, y_fit, 'r-', label=f'Fit: a={popt[0]:.2f}, b={popt[1]:.2f}, c={popt[2]:.2f}')
 
