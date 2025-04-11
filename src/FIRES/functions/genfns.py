@@ -169,8 +169,8 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
             
             # Apply Gaussian spectral profile if band_center_mhz and band_width_mhz are provided
-            if band_center_mhz != 0. and band_width_mhz != 0.:
-                spectral_profile = np.exp(-((freq_mhz - band_center_mhz) ** 2) / (2 * (band_width_mhz / 2.355) ** 2)) #2.355 is the FWHM factor
+            if band_center_mhz[g + 1] != 0. and band_width_mhz[g + 1] != 0.:
+                spectral_profile = np.exp(-((freq_mhz - band_center_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
                 norm_amp *= spectral_profile
 
             pulse = np.exp(-(time_ms - var_loc_ms) ** 2 / (2 * (var_width_ms ** 2)))
