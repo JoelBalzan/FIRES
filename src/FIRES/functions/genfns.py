@@ -39,7 +39,7 @@ mpl.rcParams["ytick.major.size"] = 3
 
 def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                   dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter,
-                  tau_ms, sc_idx, ref_freq_mhz):
+                  tau_ms, sc_idx, ref_freq_mhz, band_center_mhz, band_width_mhz):
     """
     Generate dynamic spectrum for Gaussian pulses.
     Inputs:
@@ -75,6 +75,11 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
         pulse = np.exp(-(time_ms - loc_ms[g + 1]) ** 2 / (2 * (width_ms[g + 1] ** 2)))
         pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
 
+        # Apply Gaussian spectral profile if band_center_mhz and band_width_mhz are provided
+        if band_center_mhz != 0. and band_width_mhz != 0.:
+            spectral_profile = np.exp(-((freq_mhz - band_center_mhz) ** 2) / (2 * (band_width_mhz / 2.355) ** 2)) #2.355 is the FWHM factor
+            norm_amp *= spectral_profile
+
         for c in range(len(freq_mhz)):
             faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, rm[g + 1], lambda_sq[c], median_lambda_sq)
             temp_dynspec[0, c] = norm_amp[c] * pulse  # Stokes I
@@ -105,10 +110,11 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 #	--------------------------------------------------------------------------------
 
 def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
-                      dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, 
-                      num_sub_gauss, seed, width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz):
+                      dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_sub_gauss, seed, 
+                      width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz, band_center_mhz, band_width_mhz):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of sub-Gaussians.
+    Optionally apply a Gaussian spectral profile to create band-limited pulses.
     """
     # Set the random seed for reproducibility
     if seed is not None:
@@ -156,12 +162,17 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
                 var_lin_pol_frac = np.clip(var_lin_pol_frac, 0.0, 1.0)
                 var_circ_pol_frac = np.clip(1.0 - var_lin_pol_frac, 0.0, 1.0)
 
-
             # Initialize a temporary array for the current sub-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
 
             # Calculate the normalized amplitude for each frequency
             norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
+            
+            # Apply Gaussian spectral profile if band_center_mhz and band_width_mhz are provided
+            if band_center_mhz != 0. and band_width_mhz != 0.:
+                spectral_profile = np.exp(-((freq_mhz - band_center_mhz) ** 2) / (2 * (band_width_mhz / 2.355) ** 2)) #2.355 is the FWHM factor
+                norm_amp *= spectral_profile
+
             pulse = np.exp(-(time_ms - var_loc_ms) ** 2 / (2 * (var_width_ms ** 2)))
             pol_angle_arr = var_pol_angle + (time_ms - var_loc_ms) * delta_pol_angle[g + 1]
 
