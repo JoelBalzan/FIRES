@@ -5,6 +5,8 @@ import traceback
 from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
 from FIRES.functions.genfrb_parallel import generate_frb_parallel
 from FIRES.functions.processfrb import plots
+from FIRES.utils.utils import chi2_fit, gaussian_model
+from FIRES.functions.basicfns import process_dynspec
 
 def main():
 
@@ -156,6 +158,11 @@ def main():
 		default=False,
 		help="Enable parallel processing. Default is False. Currently only works with pa_rms mode."
 	)
+	parser.add_argument(
+		"--chi2-fit",
+		action="store_true",
+		help="Enable chi-squared fitting on the final profiles (plot!=pa_rms)."
+	)
 
 	args = parser.parse_args()
 
@@ -247,7 +254,7 @@ def main():
 					endchan=args.fz[1]
 				)
 		else:
-			FRB, rm = generate_frb(
+			FRB, noisespec, rm = generate_frb(
 				scattering_timescale_ms=args.scattering_timescale_ms,
 				frb_identifier=args.frb_identifier,
 				obs_params=obs_params_path,
@@ -266,6 +273,25 @@ def main():
 				startchan=args.fz[0],
 				endchan=args.fz[1]
 			)
+			if args.chi2_fit:
+				if args.noise == 0:
+					print("No noise added to the dynamic spectrum. Skipping chi-squared fitting. \n")
+				else:
+					print("Performing chi-squared fitting on the final profiles... \n")
+
+					# Fit a Gaussian to the Stokes I profile
+					x_data = FRB.time_ms_array  # Replace with the appropriate x-axis data
+					y_data = FRB.dynamic_spectrum[0].mean(axis=0)  # Mean Stokes I profile
+					y_err = noisespec[0].mean(axis=0)  
+
+					initial_guess = [np.max(y_data), np.mean(x_data), np.std(x_data)]  # Initial guess for Gaussian parameters
+					popt, chi2 = chi2_fit(x_data, y_data, y_err, gaussian_model, initial_guess)
+
+					if popt is not None:
+						print(f"Best-fit parameters: {popt}")
+						print(f"Chi-squared value: {chi2} \n")
+					else:
+						print("Chi-squared fitting failed. \n")
 
 		# Print simulation status
 		save_status = "Data saved to" if args.write else "Data not saved."
@@ -320,10 +346,11 @@ def main():
 						width_ms=None
 					)
 
-	
 	except Exception as e:
 		print(f"An error occurred during the simulation: {e} \n")
 		traceback.print_exc()
+
+
 
 if __name__ == "__main__":
 	main()
