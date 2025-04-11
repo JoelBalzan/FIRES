@@ -30,7 +30,7 @@ mpl.rcParams['font.size']		= 8
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, show_plots):
+def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, show_plots, startms, stopms, startchan, endchan):
 	"""
 	Plot Stokes IQUV profiles and dynamic spectra.
 	Inputs:
@@ -63,7 +63,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 	ax0 = fig.add_axes([0.08, 0.54, 0.90, 0.16])
 	ax0.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
 	ax0.imshow(dspec4[0], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[0])), vmax=np.nanmax(np.abs(dspec4[0])), \
-		extent=([np.amin(tmsarr), np.amax(tmsarr), (fmhzarr[-1] - chan_width_mhz) / 1.0e3, (fmhzarr[0] + chan_width_mhz) / 1.0e3]))
+		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax0.text(0.95, 0.1, 'I', fontsize=10, fontweight='bold', transform=ax0.transAxes)
 	ax0.set_xticklabels([])
 	ax0.set_ylabel(r'$\nu$ (GHz)')
@@ -72,7 +72,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 	ax1 = fig.add_axes([0.08, 0.38, 0.90, 0.16])
 	ax1.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
 	ax1.imshow(dspec4[1], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[1])), vmax=np.nanmax(np.abs(dspec4[1])), \
-		extent=([np.amin(tmsarr), np.amax(tmsarr), (fmhzarr[-1] - chan_width_mhz) / 1.0e3, (fmhzarr[0] + chan_width_mhz) / 1.0e3]))
+		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax1.text(0.95, 0.1, 'Q', fontsize=10, fontweight='bold', transform=ax1.transAxes)
 	ax1.set_xticklabels([])
 	ax1.set_ylabel(r'$\nu$ (GHz)')
@@ -81,7 +81,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 	ax2 = fig.add_axes([0.08, 0.22, 0.90, 0.16])
 	ax2.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
 	ax2.imshow(dspec4[2], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[2])), vmax=np.nanmax(np.abs(dspec4[2])), \
-		extent=([np.amin(tmsarr), np.amax(tmsarr), (fmhzarr[-1] - chan_width_mhz) / 1.0e3, (fmhzarr[0] + chan_width_mhz) / 1.0e3]))
+		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax2.text(0.95, 0.1, 'U', fontsize=10, fontweight='bold', transform=ax2.transAxes)
 	ax2.set_xticklabels([])
 	ax2.set_ylabel(r'$\nu$ (GHz)')
@@ -90,7 +90,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 	ax3 = fig.add_axes([0.08, 0.06, 0.90, 0.16])
 	ax3.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
 	ax3.imshow(dspec4[3], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[3])), vmax=np.nanmax(np.abs(dspec4[3])), \
-		extent=([np.amin(tmsarr), np.amax(tmsarr), (fmhzarr[-1] - chan_width_mhz) / 1.0e3, (fmhzarr[0] + chan_width_mhz) / 1.0e3]))
+		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax3.text(0.95, 0.1, 'V', fontsize=10, fontweight='bold', transform=ax3.transAxes)
 	ax3.set_xlabel(r'Time (ms)')
 	ax3.set_ylabel(r'$\nu$ (GHz)')
@@ -188,7 +188,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots):
+def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots, startms, stopms, startchan, endchan):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:

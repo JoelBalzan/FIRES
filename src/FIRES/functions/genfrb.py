@@ -26,6 +26,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum
     """
+    
     obsparams = get_parameters(obs_params)
     # Extract frequency and time parameters from observation parameters
     start_frequency_mhz = float(obsparams['f0'])
@@ -102,13 +103,16 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
 
     if plot != ['pa_rms']:
         dynspec = generate_dynspec(mode)
+        tsdata, corrdspec, noisespec, noistks = process_dynspec(
+            dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm
+        )
         simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,
                                            scattering_index, gaussian_params, dynspec)
         if write:
             output_filename = f"{data_dir}{frb_identifier}_sc_{scattering_timescale_ms:.2f}.pkl"
             with open(output_filename, 'wb') as frbfile:
                 pkl.dump(simulated_frb_data, frbfile)
-        return simulated_frb_data, rm
+        return simulated_frb_data, noisespec, rm
 
     elif plot == ['pa_rms']:
         pa_rms_values, pa_rms_errors = [], []

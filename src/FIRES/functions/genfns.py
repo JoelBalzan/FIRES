@@ -72,7 +72,7 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
     for g in range(num_gauss):
         temp_dynspec = np.zeros_like(dynspec)
         norm_amp = peak_amp[g + 1] * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
-        pulse = np.exp(-(time_ms - loc_ms[g + 1]) ** 2 / (2 * (width_ms[g + 1] ** 2)))
+        pulse = gaussian_model(time_ms, 1, loc_ms[g + 1], width_ms[g + 1])
         pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
 
         # Apply Gaussian spectral profile if band_center_mhz and band_width_mhz are provided
@@ -177,7 +177,8 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
                 spectral_profile = np.exp(-((freq_mhz - band_center_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
                 norm_amp *= spectral_profile
 
-            pulse = np.exp(-(time_ms - var_loc_ms) ** 2 / (2 * (var_width_ms ** 2)))
+            pulse = gaussian_model(time_ms, 1, var_loc_ms, var_width_ms)
+
             pol_angle_arr = var_pol_angle + (time_ms - var_loc_ms) * delta_pol_angle[g + 1]
 
             for c in range(len(freq_mhz)):

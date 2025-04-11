@@ -34,20 +34,21 @@ def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, sta
 
 def generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
                      width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-                     scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, plot_pa_rms):
+                     scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, plot_pa_rms,
+                     band_centre_mhz, band_width_mhz):
     """Generate dynamic spectrum based on mode."""
     if mode == 'gauss':
         return gauss_dynspec(
             frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
             dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise,
-            scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz
+            scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz, band_centre_mhz, band_width_mhz
         )
     else:  # mode == 'sgauss'
         s_value = s if plot_pa_rms else scattering_timescale_ms
         return sub_gauss_dynspec(
             frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
             dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, width_range, noise,
-            scatter, s_value, scattering_index, reference_frequency_mhz
+            scatter, s_value, scattering_index, reference_frequency_mhz, band_centre_mhz, band_width_mhz
         )
 
 def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, 
@@ -70,16 +71,58 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum
     """
     obsparams = get_parameters(obs_params)
-    start_frequency_mhz, end_frequency_mhz = float(obsparams['f0']), float(obsparams['f1'])
-    channel_width_mhz, time_resolution_ms = float(obsparams['f_res']), float(obsparams['t_res'])
-    start_time_ms, end_time_ms = float(obsparams['t0']), float(obsparams['t1'])
-    scattering_index, reference_frequency_mhz = float(obsparams['scattering_index']), float(obsparams['reference_freq'])
-    frequency_mhz_array = np.arange(start_frequency_mhz, end_frequency_mhz + channel_width_mhz, channel_width_mhz, dtype=float)
-    time_ms_array = np.arange(start_time_ms, end_time_ms + time_resolution_ms, time_resolution_ms, dtype=float)
+    # Extract frequency and time parameters from observation parameters
+    if startchan ==0. and endchan == 0.:
+        start_frequency_mhz = float(obsparams['f0'])
+        end_frequency_mhz   = float(obsparams['f1'])
+    else:
+        start_frequency_mhz = startchan
+        end_frequency_mhz   = endchan
+    
+    if startms == 0. and stopms == 0.:
+        start_time_ms       = float(obsparams['t0'])
+        end_time_ms         = float(obsparams['t1'])
+    else:
+        start_time_ms       = startms
+        end_time_ms         = stopms
+
+    channel_width_mhz   = float(obsparams['f_res'])
+    time_resolution_ms  = float(obsparams['t_res'])
+
+    # Extract scattering and reference frequency parameters
+    scattering_index = float(obsparams['scattering_index'])
+    reference_frequency_mhz = float(obsparams['reference_freq'])
+
+    # Generate frequency and time arrays
+    frequency_mhz_array = np.arange(
+        start=start_frequency_mhz,
+        stop=end_frequency_mhz + channel_width_mhz,
+        step=channel_width_mhz,
+        dtype=float
+    )
+    time_ms_array = np.arange(
+        start=start_time_ms,
+        stop=end_time_ms + time_resolution_ms,
+        step=time_resolution_ms,
+        dtype=float
+    )
+
+    # Load Gaussian parameters from file
     gaussian_params = np.loadtxt(gauss_params)
-    t0, width, peak_amp, spec_idx = gaussian_params[:, 0], gaussian_params[:, 1], gaussian_params[:, 2], gaussian_params[:, 3]
-    dm, rm, pol_angle = gaussian_params[:, 4], gaussian_params[:, 5], gaussian_params[:, 6]
-    lin_pol_frac, circ_pol_frac, delta_pol_angle = gaussian_params[:, 7], gaussian_params[:, 8], gaussian_params[:, 9]
+
+    # Extract individual Gaussian parameters
+    t0              = gaussian_params[:, 0]  # Time of peak
+    width           = gaussian_params[:, 1]  # Width of the Gaussian
+    peak_amp        = gaussian_params[:, 2]  # Peak amplitude
+    spec_idx        = gaussian_params[:, 3]  # Spectral index
+    dm              = gaussian_params[:, 4]  # Dispersion measure
+    rm              = gaussian_params[:, 5]  # Rotation measure
+    pol_angle       = gaussian_params[:, 6]  # Polarization angle
+    lin_pol_frac    = gaussian_params[:, 7]  # Linear polarization fraction
+    circ_pol_frac   = gaussian_params[:, 8]  # Circular polarization fraction
+    delta_pol_angle = gaussian_params[:, 9]  # Change in polarization angle
+    band_centre_mhz = gaussian_params[:, 10]  # Band centre frequency
+    band_width_mhz  = gaussian_params[:, 11]  # Band width
 
     if (lin_pol_frac + circ_pol_frac).any() > 1.0:
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0. \n")
