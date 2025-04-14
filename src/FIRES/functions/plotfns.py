@@ -294,7 +294,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 	#	----------------------------------------------------------------------------------------------------------
 
-def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots, width_ms):
+def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots, width_ms, rms_pol_angles):
 	"""
 	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
 	
@@ -307,17 +307,18 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 		- outdir: Output directory for saving the plot
 		- figsize: Tuple specifying the figure size (width, height)
 	"""
-	# Calculate RMS of PA and its error
+
 
 
 	fig, ax = plt.subplots(figsize=figsize)
 
 	# normalize the scattering timescale by initial gaussian width
 	tau_norm = scatter_timescales / width_ms
+	pa_rms_norm = pa_rms / rms_pol_angles
 
 	if len(tau_norm) < 15:
 		# Plot the RMS of PA with error bars
-		ax.errorbar(tau_norm, pa_rms, 
+		ax.errorbar(tau_norm, pa_rms_norm, 
 					yerr=dpa_rms, 
 					fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
 	
@@ -334,8 +335,8 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 		for i in range(len(bin_edges) - 1):
 			in_bin = (tau_norm >= bin_edges[i]) & (tau_norm < bin_edges[i + 1])
 			if np.any(in_bin):
-				medians.append(np.median(pa_rms[in_bin]))
-				mads.append(np.median(np.abs(pa_rms[in_bin] - np.median(pa_rms[in_bin]))))
+				medians.append(np.median(pa_rms_norm[in_bin]))
+				mads.append(np.median(np.abs(pa_rms_norm[in_bin] - np.median(pa_rms_norm[in_bin]))))
 			else:
 				medians.append(np.nan)
 				mads.append(np.nan)
@@ -359,9 +360,9 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 
 	# Set plot labels and title
 	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-	ax.set_ylabel(r"PA$_{RMS}$ (deg)")
+	ax.set_ylabel(r"PA$_{RMS}$ / PA$_{RMS, microshots}$")
 	ax.grid(True, linestyle='--', alpha=0.6)
-	ax.legend()
+	#ax.legend()
 
 	# Show the plot
 	if show_plots:

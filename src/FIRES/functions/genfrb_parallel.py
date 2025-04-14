@@ -21,7 +21,7 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm):
     """Process dynamic spectrum to calculate PA RMS."""
-    tsdata, corrdspec, noisespec, noistks = process_dynspec(
+    tsdata, _, _, noistks = process_dynspec(
         dynspec, frequency_mhz_array, time_ms_array, rm)
     
     tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
@@ -56,7 +56,7 @@ def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, ch
                                  rm, seed, noise, scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz, 
                                  num_micro_gauss, width_range, band_centre_mhz, band_width_mhz, plot):
     """Process a single scattering timescale."""
-    dynspec = generate_dynspec(
+    dynspec, rms_pol_angles = generate_dynspec(
         mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
         width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
         scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
@@ -64,7 +64,7 @@ def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, ch
         band_centre_mhz=band_centre_mhz, band_width_mhz=band_width_mhz, plot=plot  # Pass plot here
     )
     pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
-    return pa_rms, pa_rms_error
+    return pa_rms, pa_rms_error, rms_pol_angles
 
 # ------------------------- Main function -------------------------------
 
@@ -180,7 +180,7 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
             results = list(executor.map(partial_process, scattering_timescale_ms))
 
 
-        pa_rms_values, pa_rms_errors = zip(*results)
+        pa_rms_values, pa_rms_errors, rms_pol_angles = zip(*results)
         pa_rms_values = list(pa_rms_values)
         pa_rms_errors = list(pa_rms_errors)
 
@@ -189,6 +189,6 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
             with open(output_filename, 'wb') as frbfile:
                 pkl.dump((pa_rms_values, pa_rms_errors), frbfile)
 
-        return np.array(pa_rms_values), np.array(pa_rms_errors), width[1]
+        return np.array(pa_rms_values), np.array(pa_rms_errors), width[1], rms_pol_angles
     else:
         print("Invalid mode specified. Please use 'gauss' or 'sgauss'. \n")

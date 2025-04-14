@@ -213,7 +213,7 @@ def main():
 			# Check if parallel processing is enabled
 			if args.parallel:
 				print("Using parallel processing for pa_rms generation. \n")
-				pa_rms_values, pa_rms_errors, width_ms = generate_frb_parallel(
+				pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb_parallel(
 					scattering_timescale_ms=args.scattering_timescale_ms,
 					frb_identifier=args.frb_identifier,
 					obs_params=obs_params_path,
@@ -234,7 +234,7 @@ def main():
 				)
 			else:
 				print("Using single-threaded processing for pa_rms generation. \n")
-				pa_rms_values, pa_rms_errors, width_ms = generate_frb(
+				pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb(
 					scattering_timescale_ms=args.scattering_timescale_ms,
 					frb_identifier=args.frb_identifier,
 					obs_params=obs_params_path,
@@ -318,7 +318,8 @@ def main():
 						figsize=args.figsize,
 						scattering_timescale=args.scattering_timescale_ms,
 						show_plots=args.show_plots,
-						width_ms=width_ms
+						width_ms=width_ms,
+						rms_pol_angle=rms_pol_angles
 					)
 				else:
 					# Ensure FRB_data is not None for other plot modes
