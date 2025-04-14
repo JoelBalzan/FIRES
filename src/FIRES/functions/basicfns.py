@@ -68,7 +68,7 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 	return res
 
 
-def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_window_ms, phi_range, dphi, outdir, save, show_plots):
+def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, save, show_plots):
 	"""
 	Estimate rotation measure.
 	Inputs:
@@ -86,15 +86,15 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
 		- res_rmtool: List containing RM, RM error, polarization angle, and polarization angle error
 	"""
 	
-	res_rmtool = [0.0, 0.0, 0.0, 0.0]
+	left_window, right_window = estimate_windows(np.nanmean(dynspec[0], axis=0), time_ms, threshold=0.1)
 		
    
 	# Calculate the mean spectra for each Stokes parameter
-	ispec  = np.nanmean(dynspec[0, :, left_window_ms:right_window_ms], axis=1)
-	vspec  = np.nanmean(dynspec[3, :, left_window_ms:right_window_ms], axis=1)
-	qspec0 = np.nanmean(dynspec[1, :, left_window_ms:right_window_ms], axis=1)
-	uspec0 = np.nanmean(dynspec[2, :, left_window_ms:right_window_ms], axis=1)
-	noispec = noisespec / np.sqrt(float(right_window_ms + 1 - left_window_ms))	
+	ispec  = np.nanmean(dynspec[0, :, left_window:right_window], axis=1)
+	vspec  = np.nanmean(dynspec[3, :, left_window:right_window], axis=1)
+	qspec0 = np.nanmean(dynspec[1, :, left_window:right_window], axis=1)
+	uspec0 = np.nanmean(dynspec[2, :, left_window:right_window], axis=1)
+	noispec = noisespec / np.sqrt(float(right_window + 1 - left_window))	
 		
 
 	iquv = (ispec, qspec0, uspec0, vspec)
@@ -372,3 +372,36 @@ def find_zoom_indices(array, start, end):
 		iend = np.searchsorted(array, end, side="right") - 1
 
 	return istart, iend
+
+
+def estimate_windows(itsub, time_ms, threshold=0.1):
+    """
+    Estimate left_window and right_window based on the total intensity profile.
+
+    Args:
+        itsub (array): Total intensity profile (1D array).
+        time_ms (array): Time array in milliseconds (1D array).
+        threshold (float): Fraction of the peak intensity to define the window.
+
+    Returns:
+        tuple: (left_window, right_window) indices.
+    """
+    # Normalize the intensity profile
+    normalized_intensity = itsub / np.nanmax(itsub)
+
+    # Find indices where intensity exceeds the threshold
+    significant_indices = np.where(normalized_intensity > threshold)[0]
+
+    if len(significant_indices) == 0:
+        raise ValueError("No significant intensity found above the threshold.")
+
+    # Determine the left and right window indices
+    left_window = significant_indices[0]
+    right_window = significant_indices[-1]
+
+    # Convert indices to time values if needed
+    left_time = time_ms[left_window]
+    right_time = time_ms[right_window]
+
+    print(f"RM: Estimated left_window: {left_time} ms, right_window: {right_time} ms")
+    return left_window, right_window

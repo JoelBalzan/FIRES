@@ -77,22 +77,22 @@ def main():
 		default=True,
 		help="Display plots. Default is True. Set to False to disable plot display."
 	)
-	parser.add_argument(
-		"--tz",
-		nargs=2,
-		type=float,
-		default=[0, 0],
-		metavar=("START_TIME", "END_TIME"),
-		help="Time zoom range for plots. Provide two values: start time and end time (in milliseconds)."
-	)
-	parser.add_argument(
-		"--fz",
-		nargs=2,
-		type=float,
-		default=[0, 0],
-		metavar=("START_FREQ", "END_FREQ"),
-		help="Frequency zoom range for plots. Provide two values: start frequency and end frequency (in MHz)."
-	)
+	#parser.add_argument(
+	#	"--tz",
+	#	nargs=2,
+	#	type=float,
+	#	default=[0, 0],
+	#	metavar=("START_TIME", "END_TIME"),
+	#	help="Time zoom range for plots. Provide two values: start time and end time (in milliseconds)."
+	#)
+	#parser.add_argument(
+	#	"--fz",
+	#	nargs=2,
+	#	type=float,
+	#	default=[0, 0],
+	#	metavar=("START_FREQ", "END_FREQ"),
+	#	help="Frequency zoom range for plots. Provide two values: start frequency and end frequency (in MHz)."
+	#)
 	parser.add_argument(
 		"--figsize",
 		type=float,
@@ -226,11 +226,7 @@ def main():
 					width_range=args.sg_width,
 					noise=args.noise,
 					scatter=args.scatter,
-					plot=args.plot,
-					startms=args.tz[0],
-					stopms=args.tz[1],
-					start_chan=args.fz[0],
-					end_chan=args.fz[1]
+					plot=args.plot
 				)
 			else:
 				print("Using single-threaded processing for pa_rms generation. \n")
@@ -247,11 +243,7 @@ def main():
 					width_range=args.sg_width,
 					noise=args.noise,
 					scatter=args.scatter,
-					plot=args.plot,
-					startms=args.tz[0],
-					stopms=args.tz[1],
-					startchan=args.fz[0],
-					endchan=args.fz[1]
+					plot=args.plot
 				)
 		else:
 			FRB, noisespec, rm = generate_frb(
@@ -267,11 +259,7 @@ def main():
 				width_range=args.sg_width,
 				noise=args.noise,
 				scatter=args.scatter,
-				plot=args.plot,
-				startms=args.tz[0],
-				stopms=args.tz[1],
-				startchan=args.fz[0],
-				endchan=args.fz[1]
+				plot=args.plot
 			)
 			if args.chi2_fit:
 				if args.noise == 0:
@@ -308,10 +296,6 @@ def main():
 						pa_rms=pa_rms_values,
 						dpa_rms=pa_rms_errors,
 						mode=plot_mode,
-						startms=args.tz[0],
-						stopms=args.tz[1],
-						start_chan=args.fz[0],
-						end_chan=args.fz[1],
 						rm=None,  # No RM for 'pa_rms'
 						outdir=data_directory,
 						save=args.save_plots,
@@ -334,17 +318,14 @@ def main():
 						pa_rms=None,
 						dpa_rms=None,
 						mode=plot_mode,
-						startms=args.tz[0],
-						stopms=args.tz[1],
-						start_chan=args.fz[0],
-						end_chan=args.fz[1],
 						rm=rm,
 						outdir=data_directory,
 						save=args.save_plots,
 						figsize=args.figsize,
 						scattering_timescale=args.scattering_timescale_ms,
 						show_plots=args.show_plots,
-						width_ms=None
+						width_ms=None,
+						rms_pol_angle=None
 					)
 
 	except Exception as e:

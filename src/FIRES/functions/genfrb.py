@@ -22,7 +22,7 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 #	-------------------------	Execute steps	-------------------------------
 def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write, 
-                 obs_params, gauss_params, noise, scatter, plot, startms, stopms, startchan, endchan):
+                 obs_params, gauss_params, noise, scatter, plot):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum
     """
@@ -75,7 +75,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0 \n")
 
     def process_dynspec_with_pa_rms(dynspec):
-        tsdata, corrdspec, noisespec, noistks = process_dynspec(
+        tsdata, _, _, noistks = process_dynspec(
             dynspec, frequency_mhz_array, time_ms_array, rm
         )
         tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
@@ -103,9 +103,8 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
 
     if plot != ['pa_rms']:
         dynspec, _ = generate_dynspec(mode)
-        tsdata, corrdspec, noisespec, noistks = process_dynspec(
-            dynspec, frequency_mhz_array, time_ms_array, rm
-        )
+        noisespec = np.nanstd(dynspec, axis=2)
+
         simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,
                                            scattering_index, gaussian_params, dynspec)
         if write:
