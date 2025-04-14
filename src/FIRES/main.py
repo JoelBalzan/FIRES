@@ -201,9 +201,9 @@ def main():
 	data_directory = args.output_dir
 
 	# Check if the output directory exists, if not create it
-	if args.write or args.save_plots and not os.path.exists(data_directory):
-		os.makedirs(args.output_dir)
-		print(f"Output directory '{data_directory}' created. \n")
+	if args.write or args.save_plots:
+		os.makedirs(args.output_dir, exist_ok=True)
+		print(f"Output directory '{data_directory}' created or already exists. \n")
 
 	
 	# Call the generate_frb function 
