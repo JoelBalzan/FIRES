@@ -104,7 +104,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
     if plot != ['pa_rms']:
         dynspec = generate_dynspec(mode)
         tsdata, corrdspec, noisespec, noistks = process_dynspec(
-            dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm
+            dynspec, frequency_mhz_array, time_ms_array, rm
         )
         simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,
                                            scattering_index, gaussian_params, dynspec)

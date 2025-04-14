@@ -19,10 +19,10 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 # ------------------------- Helper functions -------------------------------
 
-def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm):
+def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm):
     """Process dynamic spectrum to calculate PA RMS."""
     tsdata, corrdspec, noisespec, noistks = process_dynspec(
-        dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm)
+        dynspec, frequency_mhz_array, time_ms_array, rm)
     
     tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
     tsdata.dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
@@ -54,13 +54,13 @@ def generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz
 def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, 
                                  spec_idx, peak_amp, width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, 
                                  rm, seed, noise, scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz, 
-                                 num_micro_gauss, width_range, startms, stopms, startchan, endchan):
+                                 num_micro_gauss, width_range):
     """Process a single scattering timescale."""
     dynspec = generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
                                width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
                                scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
                                plot_pa_rms=True)
-    pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm)
+    pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
     return pa_rms, pa_rms_error
 
 # ------------------------- Main function -------------------------------

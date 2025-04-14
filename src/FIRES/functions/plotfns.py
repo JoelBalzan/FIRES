@@ -106,7 +106,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_plots):
+def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_plots, startms, stopms):
 	"""
 	Plot PA profile and dPA/dt.
 	Inputs:
@@ -119,8 +119,9 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 	"""
 	print("Calculating dpa slope from %d points \n" % (2 * ntp + 1))
 
-	phits = frbdat.phits
-	dphits = frbdat.dphits
+	phits = frbdat.phits[startms:stopms]
+	dphits = frbdat.dphits[startms:stopms]
+	iquvt = frbdat.iquvt[:, startms:stopms]
 
 		
 	dpadt = np.zeros(phits.shape, dtype=float)
@@ -130,8 +131,8 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 	dpadt[-ntp:] = np.nan
 	edpadt[-ntp:] = np.nan
 	
-	phits[frbdat.iquvt[0] < 10.0 * noistks[0]] = np.nan
-	dphits[frbdat.iquvt[0] < 10.0 * noistks[0]] = np.nan
+	phits[iquvt[0] < 10.0 * noistks[0]] = np.nan
+	dphits[iquvt[0] < 10.0 * noistks[0]] = np.nan
 	
 	for ti in range(ntp, len(phits) - ntp):
 		phi3 = phits[ti - ntp:ti + ntp + 1]
@@ -188,7 +189,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots, startms, stopms, startchan, endchan):
+def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots, startms, stopms):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -202,19 +203,29 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 			- tsdata: Time series data object
 			- noistks: Noise levels for each Stokes parameter
 	"""
+	# Apply zooming
+	iquvt  = tsdata.iquvt[:, startms:stopms]
+	phits  = tsdata.phits[startms:stopms]
+	dphits = tsdata.dphits[startms:stopms]
+	lfrac  = tsdata.lfrac[startms:stopms]
+	elfrac = tsdata.elfrac[startms:stopms]
+	vfrac  = tsdata.vfrac[startms:stopms]
+	evfrac = tsdata.evfrac[startms:stopms]
+	pfrac  = tsdata.pfrac[startms:stopms]
+	epfrac = tsdata.epfrac[startms:stopms]
 	
-	tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
-	tsdata.dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
+	phits[iquvt[0] < 10.0 * noistks[0]] = np.nan
+	dphits[iquvt[0] < 10.0 * noistks[0]] = np.nan
 
-	igood = np.where(tsdata.iquvt[0] > 10.0 * noistks[0])[0]
+	igood = np.where(iquvt[0] > 10.0 * noistks[0])[0]
 	
-	lmax = np.argmax(tsdata.lfrac[igood])
-	vmax = np.argmax(tsdata.vfrac[igood])
-	pmax = np.argmax(tsdata.pfrac[igood])
+	lmax = np.argmax(lfrac[igood])
+	vmax = np.argmax(vfrac[igood])
+	pmax = np.argmax(pfrac[igood])
 		
-	print("Max (L/I) = %.2f +/- %.2f" % (tsdata.lfrac[igood[lmax]], tsdata.elfrac[igood[lmax]]))
-	print("Max (V/I) = %.2f +/- %.2f" % (tsdata.vfrac[igood[vmax]], tsdata.evfrac[igood[vmax]]))
-	print("Max (P/I) = %.2f +/- %.2f \n" % (tsdata.pfrac[igood[pmax]], tsdata.epfrac[igood[pmax]]))
+	print("Max (L/I) = %.2f +/- %.2f" % (lfrac[igood[lmax]], elfrac[igood[lmax]]))
+	print("Max (V/I) = %.2f +/- %.2f" % (vfrac[igood[vmax]], evfrac[igood[vmax]]))
+	print("Max (P/I) = %.2f +/- %.2f \n" % (pfrac[igood[pmax]], epfrac[igood[pmax]]))
 
 
 	# Linear polarisation
@@ -227,11 +238,11 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 	# Plot polarisation angle
 	#axs[0].errorbar(time_ms, tsdata.phits, tsdata.dphits, c='black', marker="*", markersize=1, lw=0.5, capsize=1, zorder=8)
-	axs[0].plot(time_ms, tsdata.phits, c='black', lw=0.5, zorder=8)
+	axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
 	axs[0].fill_between(
 		time_ms, 
-		tsdata.phits - tsdata.dphits,  # Lower bound of the error
-		tsdata.phits + tsdata.dphits,  # Upper bound of the error
+		phits - dphits,  # Lower bound of the error
+		phits + dphits,  # Upper bound of the error
 		color='gray', 
 		alpha=0.3,  # Transparency level
 		label='Error'

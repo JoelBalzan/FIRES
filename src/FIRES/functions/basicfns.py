@@ -339,30 +339,11 @@ def scatter_stokes_chan(stokes_I, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 	return sc_stokes_I
 
 
-def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, startms, stopms, start_chan, end_chan, rm):
+def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
 	"""
 	Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
 	"""
-	if start_chan == 0 and end_chan == 0:
-		start_chan = 0
-		end_chan = len(frequency_mhz_array)
-	else:
-		start_chan, end_chan = find_zoom_indices(
-			frequency_mhz_array, start_chan, end_chan
-		)
-	if startms == 0 and stopms == 0:
-		startms = 0
-		stopms = len(time_ms_array)
-	else:
-		startms, stopms = find_zoom_indices(
-			time_ms_array, startms, stopms
-		)
 
-	print(start_chan, end_chan, startms, stopms)
-	
-	dynspec = dynspec[:, start_chan:end_chan, startms:stopms]
-	frequency_mhz_array = frequency_mhz_array[start_chan:end_chan]
-	time_ms_array = time_ms_array[startms:stopms]
 	 
 	nchan = len(frequency_mhz_array)
 	max_rm = rm[np.argmax(np.abs(rm))]
@@ -371,7 +352,7 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, startms, stopms
 	noisespec = np.nanstd(dynspec, axis=2)
 	tsdata = est_profiles(corrdspec, frequency_mhz_array, time_ms_array, noisespec)
 	
-	noistks = np.sqrt(np.nansum(noisespec[:, start_chan:end_chan]**2, axis=1)) / nchan
+	noistks = np.sqrt(np.nansum(noisespec**2, axis=1)) / nchan
 	return tsdata, corrdspec, noisespec, noistks
 
 
