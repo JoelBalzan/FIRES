@@ -69,7 +69,7 @@ def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, ch
 # ------------------------- Main function -------------------------------
 
 def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write,
-                 obs_params, gauss_params, noise, scatter, plot, startms, stopms, start_chan, end_chan):
+                 obs_params, gauss_params, noise, scatter, plot):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum
     """

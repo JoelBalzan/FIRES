@@ -30,7 +30,7 @@ mpl.rcParams['font.size']		= 8
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, show_plots, startms, stopms, startchan, endchan):
+def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, show_plots):
 	"""
 	Plot Stokes IQUV profiles and dynamic spectra.
 	Inputs:
@@ -106,7 +106,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_plots, startms, stopms):
+def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_plots):
 	"""
 	Plot PA profile and dPA/dt.
 	Inputs:
@@ -119,9 +119,9 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 	"""
 	print("Calculating dpa slope from %d points \n" % (2 * ntp + 1))
 
-	phits = frbdat.phits[startms:stopms]
-	dphits = frbdat.dphits[startms:stopms]
-	iquvt = frbdat.iquvt[:, startms:stopms]
+	phits = frbdat.phits
+	dphits = frbdat.dphits
+	iquvt = frbdat.iquvt
 
 		
 	dpadt = np.zeros(phits.shape, dtype=float)
@@ -189,7 +189,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots, startms, stopms):
+def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -204,15 +204,15 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 			- noistks: Noise levels for each Stokes parameter
 	"""
 	# Apply zooming
-	iquvt  = tsdata.iquvt[:, startms:stopms]
-	phits  = tsdata.phits[startms:stopms]
-	dphits = tsdata.dphits[startms:stopms]
-	lfrac  = tsdata.lfrac[startms:stopms]
-	elfrac = tsdata.elfrac[startms:stopms]
-	vfrac  = tsdata.vfrac[startms:stopms]
-	evfrac = tsdata.evfrac[startms:stopms]
-	pfrac  = tsdata.pfrac[startms:stopms]
-	epfrac = tsdata.epfrac[startms:stopms]
+	iquvt  = tsdata.iquvt
+	phits  = tsdata.phits
+	dphits = tsdata.dphits
+	lfrac  = tsdata.lfrac
+	elfrac = tsdata.elfrac
+	vfrac  = tsdata.vfrac
+	evfrac = tsdata.evfrac
+	pfrac  = tsdata.pfrac
+	epfrac = tsdata.epfrac
 	
 	phits[iquvt[0] < 10.0 * noistks[0]] = np.nan
 	dphits[iquvt[0] < 10.0 * noistks[0]] = np.nan
