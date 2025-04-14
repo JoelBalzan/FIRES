@@ -188,7 +188,7 @@ def main():
 		args.scattering_timescale_ms = scattering_timescales
 	else:
 		args.scattering_timescale_ms = False
-	print(f"Scattering timescales: {args.scattering_timescale_ms} \n")
+	print(f"Scattering timescales: {args.scattering_timescale_ms} ms \n")
 
 	# Check if multiple scattering timescales are provided
 	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != ['pa_rms']:
