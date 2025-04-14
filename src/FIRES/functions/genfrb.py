@@ -76,7 +76,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
 
     def process_dynspec_with_pa_rms(dynspec):
         tsdata, corrdspec, noisespec, noistks = process_dynspec(
-            dynspec, frequency_mhz_array, time_ms_array, startms, stopms, startchan, endchan, rm
+            dynspec, frequency_mhz_array, time_ms_array, rm
         )
         tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
         tsdata.dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan

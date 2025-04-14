@@ -229,8 +229,8 @@ def main():
 					plot=args.plot,
 					startms=args.tz[0],
 					stopms=args.tz[1],
-					startchan=args.fz[0],
-					endchan=args.fz[1]
+					start_chan=args.fz[0],
+					end_chan=args.fz[1]
 				)
 			else:
 				print("Using single-threaded processing for pa_rms generation. \n")

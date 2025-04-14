@@ -34,8 +34,8 @@ def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
 
 def generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
                      width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-                     scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, plot_pa_rms,
-                     band_centre_mhz, band_width_mhz):
+                     scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
+                     plot_pa_rms, band_centre_mhz, band_width_mhz, plot):
     """Generate dynamic spectrum based on mode."""
     if mode == 'gauss':
         return gauss_dynspec(
@@ -50,42 +50,36 @@ def generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz
             dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, width_range, noise,
             scatter, s_value, scattering_index, reference_frequency_mhz, band_centre_mhz, band_width_mhz
         )
-
+    
 def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, 
                                  spec_idx, peak_amp, width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, 
                                  rm, seed, noise, scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz, 
-                                 num_micro_gauss, width_range):
+                                 num_micro_gauss, width_range, band_centre_mhz, band_width_mhz, plot):
     """Process a single scattering timescale."""
-    dynspec = generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
-                               width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-                               scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
-                               plot_pa_rms=True)
+    dynspec = generate_dynspec(
+        mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
+        width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
+        scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
+        plot_pa_rms=(plot == ['pa_rms']),  # Ensure plot_pa_rms is correctly set
+        band_centre_mhz=band_centre_mhz, band_width_mhz=band_width_mhz, plot=plot  # Pass plot here
+    )
     pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
     return pa_rms, pa_rms_error
 
 # ------------------------- Main function -------------------------------
 
 def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write,
-                 obs_params, gauss_params, noise, scatter, plot, startms, stopms, startchan, endchan):
+                 obs_params, gauss_params, noise, scatter, plot, startms, stopms, start_chan, end_chan):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum
     """
     obsparams = get_parameters(obs_params)
     # Extract frequency and time parameters from observation parameters
-    if startchan ==0. and endchan == 0.:
-        start_frequency_mhz = float(obsparams['f0'])
-        end_frequency_mhz   = float(obsparams['f1'])
-    else:
-        start_frequency_mhz = startchan
-        end_frequency_mhz   = endchan
-    
-    if startms == 0. and stopms == 0.:
-        start_time_ms       = float(obsparams['t0'])
-        end_time_ms         = float(obsparams['t1'])
-    else:
-        start_time_ms       = startms
-        end_time_ms         = stopms
 
+    start_frequency_mhz = float(obsparams['f0'])
+    end_frequency_mhz   = float(obsparams['f1'])
+    start_time_ms       = float(obsparams['t0'])
+    end_time_ms         = float(obsparams['t1'])
     channel_width_mhz   = float(obsparams['f_res'])
     time_resolution_ms  = float(obsparams['t_res'])
 
@@ -138,7 +132,7 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
     if plot != ['pa_rms']:
         dynspec = generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
                                    width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-                                   scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range)
+                                   scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, plot)
         simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,
                                             scattering_index, gaussian_params, dynspec)
         if write:
@@ -177,11 +171,11 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
                 reference_frequency_mhz=reference_frequency_mhz,
                 num_micro_gauss=num_micro_gauss,
                 width_range=width_range,
-                startms=startms,
-                stopms=stopms,
-                startchan=startchan,
-                endchan=endchan
+                band_centre_mhz=band_centre_mhz,
+                band_width_mhz=band_width_mhz,
+                plot = plot
             )
+
             # Map the partial function to the scattering timescales
             results = list(executor.map(partial_process, scattering_timescale_ms))
 
