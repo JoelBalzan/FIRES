@@ -102,7 +102,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             )
 
     if plot != ['pa_rms']:
-        dynspec = generate_dynspec(mode)
+        dynspec, _ = generate_dynspec(mode)
         tsdata, corrdspec, noisespec, noistks = process_dynspec(
             dynspec, frequency_mhz_array, time_ms_array, rm
         )
@@ -117,7 +117,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
     elif plot == ['pa_rms']:
         pa_rms_values, pa_rms_errors = [], []
         for s in scattering_timescale_ms:
-            dynspec = generate_dynspec(mode, s)
+            dynspec, rms_pol_angles = generate_dynspec(mode, s)
             pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec)
             pa_rms_values.append(pa_rms)
             pa_rms_errors.append(pa_rms_error)
@@ -125,7 +125,7 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             output_filename = f"{data_dir}{frb_identifier}_pa_rms.pkl"
             with open(output_filename, 'wb') as frbfile:
                 pkl.dump((pa_rms_values, pa_rms_errors), frbfile)
-        return np.array(pa_rms_values), np.array(pa_rms_errors), width[1]
+        return np.array(pa_rms_values), np.array(pa_rms_errors), width[1], rms_pol_angles
 
     else:
         print("Invalid mode specified. Please use 'gauss' or 'sgauss'. \n")

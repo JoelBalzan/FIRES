@@ -151,7 +151,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec):
 	Returns:
 		- frb_time_series: Object containing time profiles
 	"""
-	with np.errstate(invalid='ignore', divide='ignore'):
+	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
 		# Average the dynamic spectrum over the specified frequency channels
 		iquvt = np.nanmean(dynspec, axis=1)					
@@ -197,11 +197,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec):
 		psits[dpsits > 10.0] = np.nan
 		dpsits[dpsits > 10.0] = np.nan
 	
-		# Avoid division by zero
-		vtsub_safe = np.where(vtsub != 0, vtsub, np.nan)
-		itsub_safe = np.where(itsub != 0, itsub, np.nan)
-	
-		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub_safe) ** 2 + (noise_stokes[0] / itsub_safe) ** 2)
+		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
 		eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
 		eufrac = np.abs(ufrac) * np.sqrt((noise_stokes[2] / utsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
 		elfrac = np.abs(lfrac) * np.sqrt((elts / lts) ** 2 + (noise_stokes[0] / itsub) ** 2)

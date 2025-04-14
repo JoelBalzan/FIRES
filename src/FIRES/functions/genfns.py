@@ -143,6 +143,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
         else:
             lin_pol_frac_var = 0.0
 
+    all_pol_angles = []  
     for g in range(num_main_gauss):
         for _ in range(num_sub_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
@@ -163,6 +164,8 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             elif lin_pol_frac_var > 0.0:
                 var_lin_pol_frac = np.clip(var_lin_pol_frac, 0.0, 1.0)
                 var_circ_pol_frac = np.clip(1.0 - var_lin_pol_frac, 0.0, 1.0)
+
+            all_pol_angles.append(var_pol_angle)
 
             # Initialize a temporary array for the current sub-Gaussian
             temp_dynspec = np.zeros_like(dynspec)
@@ -210,4 +213,5 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             # Accumulate the contributions from the current sub-Gaussian
             dynspec += temp_dynspec
 
-    return dynspec
+    rms_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
+    return dynspec, rms_pol_angles
