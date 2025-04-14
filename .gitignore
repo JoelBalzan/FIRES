@@ -25,3 +25,4 @@ plots/
 .aider*
 *.lprof
 *.mprof
+.vscode/
