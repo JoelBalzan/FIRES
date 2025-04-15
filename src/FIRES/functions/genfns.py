@@ -69,11 +69,14 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
     median_lambda_sq = np.nanmedian(lambda_sq)
     num_gauss = len(spec_idx) - 2
 
+    all_pol_angles = []  
     for g in range(num_gauss):
         temp_dynspec = np.zeros_like(dynspec)
         norm_amp = peak_amp[g + 1] * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
         pulse = gaussian_model(time_ms, 1, loc_ms[g + 1], width_ms[g + 1])
         pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
+
+        all_pol_angles.append(pol_angle)
 
         # Apply Gaussian spectral profile if band_center_mhz and band_width_mhz are provided
         if band_width_mhz[g + 1] != 0.:
@@ -102,8 +105,8 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
             )  # Stokes Q, U, V
 
         dynspec += temp_dynspec
-
-    return dynspec
+    rms_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
+    return dynspec, rms_pol_angles
 
 
 

@@ -102,7 +102,11 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             )
 
     if plot != ['pa_rms']:
-        dynspec, _ = generate_dynspec(mode)
+        if mode == 'gauss':
+            dynspec = generate_dynspec(mode)
+        else:  # mode == 'sgauss'
+            dynspec, _ = generate_dynspec(mode)
+
         noisespec = np.nanstd(dynspec, axis=2)
 
         simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,

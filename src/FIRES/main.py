@@ -153,10 +153,11 @@ def main():
 		help="Disable scattering. Overrides --scatter if both are provided."
 	)
 	parser.add_argument(
-		"--parallel",
-		action="store_true",
-		default=False,
-		help="Enable parallel processing. Default is False. Currently only works with pa_rms mode."
+		"--ncpu",
+		type=int,
+		default=1,
+		metavar="",
+		help="Number of CPUs to use for parallel processing. Default is 1 (single-threaded)."
 	)
 	parser.add_argument(
 		"--chi2-fit",
@@ -210,40 +211,22 @@ def main():
 	try:
 		# Generate the FRB or PA RMS data
 		if args.plot == ['pa_rms']:
-			# Check if parallel processing is enabled
-			if args.parallel:
-				print("Using parallel processing for pa_rms generation. \n")
-				pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb_parallel(
-					scattering_timescale_ms=args.scattering_timescale_ms,
-					frb_identifier=args.frb_identifier,
-					obs_params=obs_params_path,
-					gauss_params=gauss_params_path,
-					data_dir=args.output_dir,
-					write=args.write,
-					mode=args.mode,
-					num_micro_gauss=args.n_gauss,
-					seed=args.seed,
-					width_range=args.sg_width,
-					noise=args.noise,
-					scatter=args.scatter,
-					plot=args.plot
-				)
-			else:
-				print("Using single-threaded processing for pa_rms generation. \n")
-				pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb(
-					scattering_timescale_ms=args.scattering_timescale_ms,
-					frb_identifier=args.frb_identifier,
-					obs_params=obs_params_path,
-					gauss_params=gauss_params_path,
-					data_dir=args.output_dir,
-					write=args.write,
-					mode=args.mode,
-					num_micro_gauss=args.n_gauss,
-					seed=args.seed,
-					width_range=args.sg_width,
-					noise=args.noise,
-					scatter=args.scatter,
-					plot=args.plot
+			print(f"Processing with {args.ncpu} threads. \n")
+			pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb_parallel(
+				scattering_timescale_ms=args.scattering_timescale_ms,
+				frb_identifier=args.frb_identifier,
+				obs_params=obs_params_path,
+				gauss_params=gauss_params_path,
+				data_dir=args.output_dir,
+				write=args.write,
+				mode=args.mode,
+				num_micro_gauss=args.n_gauss,
+				seed=args.seed,
+				width_range=args.sg_width,
+				noise=args.noise,
+				scatter=args.scatter,
+				plot=args.plot,
+				ncpus=args.ncpu
 				)
 		else:
 			FRB, noisespec, rm = generate_frb(
