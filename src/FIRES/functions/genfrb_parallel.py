@@ -8,7 +8,7 @@ from FIRES.functions.genfns import *
 from FIRES.utils.utils import *
 import os
 import pickle as pkl  # Import pickle
-import concurrent.futures
+from concurrent.futures import ProcessPoolExecutor
 import functools
 
 current_dir = os.path.dirname(__file__)
@@ -137,7 +137,7 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
     elif plot == ['pa_rms']:
         pa_rms_values, pa_rms_errors = [], []
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=ncpus) as executor:
+        with ProcessPoolExecutor(max_workers=ncpus) as executor:
             # Create a partial function with all the fixed arguments
             partial_process = functools.partial(
                 process_scattering_timescale,
