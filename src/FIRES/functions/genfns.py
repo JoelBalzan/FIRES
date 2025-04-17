@@ -25,6 +25,8 @@ from scipy.interpolate import griddata
 from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
 from FIRES.functions.plotfns import *
+from concurrent.futures import ProcessPoolExecutor
+import functools
 
 
 mpl.rcParams['pdf.fonttype'] = 42
