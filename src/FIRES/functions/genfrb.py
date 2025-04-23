@@ -81,6 +81,11 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         tsdata.phits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
         tsdata.dphits[tsdata.iquvt[0] < 10.0 * noistks[0]] = np.nan
 
+        # Filter data to include only from the peak time onwards
+        peak_time_index = np.argmax(tsdata.iquvt[0], axis=0)  # Find the peak index
+        tsdata.phits[:peak_time_index] = np.nan
+        tsdata.dphits[:peak_time_index] = np.nan
+
         pa_rms = np.sqrt(np.nanmean(tsdata.phits**2))
         pa_rms_error = np.sqrt(np.nansum((2 * tsdata.phits * tsdata.dphits)**2)) / (2 * len(tsdata.phits))
         
