@@ -343,6 +343,7 @@ def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, out
 
 		# Plot the medians with MADs as error bars
 		ax.errorbar(bin_centers, medians, yerr=mads, fmt='o', capsize=2, color='black', label='Median with MAD', markersize=4)
+		#ax.scatter(tau_norm, pa_rms_norm, s=2, c='black', alpha=0.5)
 
 
 	# Fit a curve to the data

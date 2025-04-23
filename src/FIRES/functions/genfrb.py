@@ -123,8 +123,10 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         return simulated_frb_data, noisespec, rm
 
     elif plot == ['pa_rms']:
+        from tqdm import tqdm  # Import tqdm for the progress bar
+
         pa_rms_values, pa_rms_errors = [], []
-        for s in scattering_timescale_ms:
+        for s in tqdm(scattering_timescale_ms, desc="Processing scattering timescales"):
             dynspec, rms_pol_angles = generate_dynspec(mode, s)
             pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec)
             pa_rms_values.append(pa_rms)
