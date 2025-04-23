@@ -140,6 +140,8 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
         return simulated_frb_data, rm
     
     elif plot == ['pa_rms']:
+        from tqdm import tqdm  # Import tqdm for the progress bar
+
         pa_rms_values, pa_rms_errors = [], []
 
         with ProcessPoolExecutor(max_workers=ncpus) as executor:
@@ -171,12 +173,13 @@ def generate_frb_parallel(scattering_timescale_ms, frb_identifier, data_dir, mod
                 width_range=width_range if mode == 'sgauss' else None,
                 band_centre_mhz=band_centre_mhz,
                 band_width_mhz=band_width_mhz,
-                plot = plot
+                plot=plot
             )
 
-            # Map the partial function to the scattering timescales
-            results = list(executor.map(partial_process, scattering_timescale_ms))
-
+            # Map the partial function to the scattering timescales with a progress bar
+            results = list(tqdm(executor.map(partial_process, scattering_timescale_ms), 
+                                total=len(scattering_timescale_ms), 
+                                desc="Processing scattering timescales"))
 
         pa_rms_values, pa_rms_errors, rms_pol_angles = zip(*results)
         pa_rms_values = list(pa_rms_values)
