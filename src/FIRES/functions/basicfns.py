@@ -138,7 +138,7 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	return new_dynspec
 
 
-def est_profiles(dynspec, freq_mhz, time_ms, noisespec):
+def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 	"""
 	Estimate time profiles.
 	Inputs:
@@ -155,8 +155,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec):
 
 		# Average the dynamic spectrum over the specified frequency channels
 		iquvt = np.nanmean(dynspec, axis=1)					
-		# Calculate the noise for each Stokes parameter
-		noise_stokes = np.sqrt(np.nansum(noisespec ** 2, axis=1)) / len(freq_mhz)
+
 		
 		# Extract the Stokes parameters
 		itsub = iquvt[0]
@@ -165,12 +164,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec):
 		vtsub = iquvt[3]
 		
 		# Calculate the linear polarization intensity
-		lts = np.sqrt(utsub ** 2 + qtsub ** 2)
-		# Ensure the argument of sqrt is non-negative
-		arg = (lts / noise_stokes[0]) ** 2 - 1.0
-		arg = np.maximum(arg, 0)  
-		# Ensure no negative values
-		lts = np.where(arg > 0, noise_stokes[0] * np.sqrt(arg), np.nan)					
+		lts = np.sqrt(utsub ** 2 + qtsub ** 2)			
 		# Calculate the error in linear polarization intensity
 		elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
 		# Calculate the total polarization intensity
@@ -192,10 +186,10 @@ def est_profiles(dynspec, freq_mhz, time_ms, noisespec):
 		ufrac = utsub / itsub
 		
 		# Set large errors to NaN
-		phits[dphits > 10.0] = np.nan
-		dphits[dphits > 10.0] = np.nan
-		psits[dpsits > 10.0] = np.nan
-		dpsits[dpsits > 10.0] = np.nan
+		#phits[dphits  > 10.0] = np.nan
+		#dphits[dphits > 10.0] = np.nan
+		#psits[dpsits  > 10.0] = np.nan
+		#dpsits[dpsits > 10.0] = np.nan
 	
 		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
 		eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
@@ -340,38 +334,16 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
 	Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
 	"""
 
-	 
-	nchan = len(frequency_mhz_array)
 	max_rm = rm[np.argmax(np.abs(rm))]
 	
 	corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
 	noisespec = np.nanstd(dynspec, axis=2)
-	tsdata = est_profiles(corrdspec, frequency_mhz_array, time_ms_array, noisespec)
+	noistks = np.sqrt(np.nanmean(noisespec**2, axis=1))
+
+	tsdata = est_profiles(corrdspec, frequency_mhz_array, time_ms_array, noistks)
 	
-	noistks = np.sqrt(np.nansum(noisespec**2, axis=1)) / nchan
+ 
 	return tsdata, corrdspec, noisespec, noistks
-
-
-def find_zoom_indices(array, start, end):
-	"""
-	Find the start and end indices for a given range in an array.
-
-	Args:
-		array (array): Input array (e.g., time or frequency values).
-		start (float): Start value for the range.
-		end (float): End value for the range.
-
-	Returns:
-		tuple: Start index (istart) and end index (iend) for the range.
-	"""
-	if start == 0 and end == 0:
-		istart = np.argmin(array)
-		iend = np.argmax(array)
-	else:
-		istart = np.searchsorted(array, start, side="left")
-		iend = np.searchsorted(array, end, side="right") - 1
-
-	return istart, iend
 
 
 def estimate_windows(itsub, time_ms, threshold=0.1):

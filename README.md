@@ -17,9 +17,6 @@ FIRES is a Python package designed to simulate Fast Radio Bursts (FRBs) with sca
   - Visualize Stokes parameters (`IQUV`), linear polarization position angle (`PA`), and other properties.
   - Generate plots for dynamic spectra, polarization angle RMS, and more.
 
-- **Zoom and Customize**:
-  - Zoom into specific time or frequency ranges.
-  - Customize figure sizes and save plots to disk.
 
 ## Project Structure
 
