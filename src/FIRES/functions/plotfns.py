@@ -203,7 +203,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 			- tsdata: Time series data object
 			- noistks: Noise levels for each Stokes parameter
 	"""
-	# Apply zooming
+
 	iquvt  = tsdata.iquvt
 	phits  = tsdata.phits
 	dphits = tsdata.dphits
@@ -214,10 +214,10 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 	pfrac  = tsdata.pfrac
 	epfrac = tsdata.epfrac
 	
-	phits[iquvt[0] < 10.0 * noistks[0]] = np.nan
-	dphits[iquvt[0] < 10.0 * noistks[0]] = np.nan
+	#phits[iquvt[0]  < noistks[0]] = np.nan
+	#dphits[iquvt[0] < noistks[0]] = np.nan
 
-	igood = np.where(iquvt[0] > 10.0 * noistks[0])[0]
+	igood = np.where(iquvt[0] > noistks[0])[0]
 	
 	lmax = np.argmax(lfrac[igood])
 	vmax = np.argmax(vfrac[igood])
