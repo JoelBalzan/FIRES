@@ -241,7 +241,8 @@ def main():
 				width_range=args.sg_width,
 				noise=args.noise,
 				scatter=args.scatter,
-				plot=args.plot
+				plot=args.plot,
+				ncpus=None
 			)
 			if args.chi2_fit:
 				if args.noise == 0:

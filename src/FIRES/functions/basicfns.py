@@ -155,13 +155,20 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 
 		# Average the dynamic spectrum over the specified frequency channels
 		iquvt = np.nanmean(dynspec, axis=1)
-
-		
+  	
 		# Extract the Stokes parameters
-		itsub = iquvt[0]
-		qtsub = iquvt[1]
-		utsub = iquvt[2]
-		vtsub = iquvt[3]
+		I = iquvt[0]
+  
+ 		# Define a threshold for noise (e.g., 10% of the peak intensity)
+		threshold = 0.1 * np.nanmax(I)
+
+		# Mask regions where the intensity is above the threshold
+		mask = I <= threshold
+  
+		itsub = np.where(mask, np.nan, iquvt[0])
+		qtsub = np.where(mask, np.nan, iquvt[1])
+		utsub = np.where(mask, np.nan, iquvt[2])
+		vtsub = np.where(mask, np.nan, iquvt[3])
 		
 		# Calculate the linear polarization intensity
 		lts = np.sqrt(utsub ** 2 + qtsub ** 2)			
@@ -171,22 +178,25 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 		pts = np.sqrt(lts ** 2 + vtsub ** 2)
 		# Calculate the error in total polarization intensity
 		epts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2 + (vtsub * noise_stokes[3]) ** 2) / pts
-	
+  
 		# Calculate the polarization angles
 		phits = np.rad2deg(0.5 * np.arctan2(utsub, qtsub))		
 		dphits = np.rad2deg(0.5 * np.sqrt((utsub * noise_stokes[1]) ** 2 + (qtsub * noise_stokes[2]) ** 2) / (utsub ** 2 + qtsub ** 2))						
 		psits = np.rad2deg(0.5 * np.arctan2(vtsub, lts))		
 		dpsits = np.rad2deg(0.5 * np.sqrt((vtsub * elts) ** 2 + (lts * noise_stokes[3]) ** 2) / (vtsub ** 2 + lts ** 2))
+  
+		
 		
 		# Calculate the fractional polarizations
-		vfrac = vtsub / itsub
-		lfrac = lts / itsub
-		pfrac = pts / itsub		
 		qfrac = qtsub / itsub
 		ufrac = utsub / itsub
-		
+		vfrac = vtsub / itsub
+  
+		lfrac = lts / itsub
+		pfrac = pts / itsub		
+  
 		# Set large errors to NaN
-		mask = iquvt[0] < 1 * noise_stokes[0]
+		mask = iquvt[0] < noise_stokes[0]
 		phits[mask] = np.nan
 		dphits[mask] = np.nan
 		psits[mask] = np.nan

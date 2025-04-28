@@ -214,20 +214,13 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 	pfrac  = tsdata.pfrac
 	epfrac = tsdata.epfrac
 	
-	#mask = iquvt[0] < 1 * noistks[0]
-	#phits[mask] = np.nan
-	#dphits[mask] = np.nan
- 
-
-	mask = np.where(iquvt[0] > noistks[0])[0]
-	
-	lmax = np.argmax(lfrac[mask])
-	vmax = np.argmax(vfrac[mask])
-	pmax = np.argmax(pfrac[mask])
+	lmax = np.nanargmax(lfrac)
+	vmax = np.nanargmax(vfrac)
+	pmax = np.nanargmax(pfrac)
 		
-	print("Max (L/I) = %.2f +/- %.2f" % (lfrac[mask[lmax]], elfrac[mask[lmax]]))
-	print("Max (V/I) = %.2f +/- %.2f" % (vfrac[mask[vmax]], evfrac[mask[vmax]]))
-	print("Max (P/I) = %.2f +/- %.2f \n" % (pfrac[mask[pmax]], epfrac[mask[pmax]]))
+	print("L_max/I = %.2f +/- %.2f" % (lfrac[lmax], elfrac[lmax]))
+	print("V_max/I = %.2f +/- %.2f" % (vfrac[vmax], evfrac[vmax]))
+	print("P_max/I = %.2f +/- %.2f \n" % (pfrac[pmax], epfrac[pmax]))
 
 
 	# Linear polarisation

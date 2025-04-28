@@ -21,13 +21,13 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm):
     """Process dynamic spectrum to calculate PA RMS."""
-    tsdata, _, _, noistks = process_dynspec(
+    tsdata, _, _, _ = process_dynspec(
         dynspec, frequency_mhz_array, time_ms_array, rm)
     
     # Filter data to include only from the peak time onwards
-    peak_time_index = np.argmax(tsdata.iquvt[0], axis=0)  # Find the peak index
-    tsdata.phits[:peak_time_index] = np.nan
-    tsdata.dphits[:peak_time_index] = np.nan
+    #peak_time_index = np.argmax(tsdata.iquvt[0], axis=0)  # Find the peak index
+    #tsdata.phits[:peak_time_index] = np.nan
+    #tsdata.dphits[:peak_time_index] = np.nan
 
     pa_rms = np.sqrt(np.nanmean(tsdata.phits**2))
     pa_rms_error = np.sqrt(np.nansum((2 * tsdata.phits * tsdata.dphits)**2)) / (2 * len(tsdata.phits))
@@ -37,7 +37,7 @@ def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
 def generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
                      width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
                      scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
-                     plot_pa_rms, band_centre_mhz, band_width_mhz, plot):
+                     plot_pa_rms, band_centre_mhz, band_width_mhz):
     """Generate dynamic spectrum based on mode."""
     s_value = s if plot_pa_rms else scattering_timescale_ms
     if mode == 'gauss':
@@ -64,7 +64,7 @@ def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, ch
         mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
         width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
         scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
-        plot_pa_rms=(plot == ['pa_rms']), band_centre_mhz=band_centre_mhz, band_width_mhz=band_width_mhz, plot=plot
+        plot_pa_rms=(plot == ['pa_rms']), band_centre_mhz=band_centre_mhz, band_width_mhz=band_width_mhz
     )
     pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
     return pa_rms, pa_rms_error, rms_pol_angles
@@ -127,14 +127,17 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
     if plot != ['pa_rms']:
         dynspec, _ = generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
                                    width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-                                   scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, plot)
+                                   scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, plot_pa_rms=False,
+                                   band_centre_mhz=band_centre_mhz, band_width_mhz=band_width_mhz, s=None)
+        _, _, _, noisespec = process_dynspec(
+        dynspec, frequency_mhz_array, time_ms_array, rm)
         simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,
                                             scattering_index, gaussian_params, dynspec)
         if write:
             output_filename = f"{data_dir}{frb_identifier}_sc_{scattering_timescale_ms:.2f}.pkl"
             with open(output_filename, 'wb') as frbfile:
                 pkl.dump(simulated_frb_data, frbfile)
-        return simulated_frb_data, rm
+        return simulated_frb_data, noisespec, rm
     
     elif plot == ['pa_rms']:
         from tqdm import tqdm  # Import tqdm for the progress bar
