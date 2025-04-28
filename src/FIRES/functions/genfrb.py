@@ -78,8 +78,6 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
         tsdata, _, _, noistks = process_dynspec(
             dynspec, frequency_mhz_array, time_ms_array, rm
         )
-        tsdata.phits[tsdata.iquvt[0]  < noistks[0]] = np.nan
-        tsdata.dphits[tsdata.iquvt[0] < noistks[0]] = np.nan
 
         # Filter data to include only from the peak time onwards
         peak_time_index = np.argmax(tsdata.iquvt[0], axis=0)  # Find the peak index
