@@ -154,7 +154,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
 		# Average the dynamic spectrum over the specified frequency channels
-		iquvt = np.nanmean(dynspec, axis=1)					
+		iquvt = np.nanmean(dynspec, axis=1)
 
 		
 		# Extract the Stokes parameters
@@ -186,10 +186,11 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 		ufrac = utsub / itsub
 		
 		# Set large errors to NaN
-		#phits[dphits  > 10.0] = np.nan
-		#dphits[dphits > 10.0] = np.nan
-		#psits[dpsits  > 10.0] = np.nan
-		#dpsits[dpsits > 10.0] = np.nan
+		mask = iquvt[0] < 1 * noise_stokes[0]
+		phits[mask] = np.nan
+		dphits[mask] = np.nan
+		psits[mask] = np.nan
+		dpsits[mask] = np.nan
 	
 		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
 		eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
@@ -337,8 +338,20 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
 	max_rm = rm[np.argmax(np.abs(rm))]
 	
 	corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
-	noisespec = np.nanstd(dynspec, axis=2)
+ 
+	intensity_profile = np.nanmean(dynspec[0], axis=0)
+
+	# Define a threshold for noise (e.g., 10% of the peak intensity)
+	threshold = 0.1 * np.nanmax(intensity_profile)
+
+	# Mask regions where the intensity is above the threshold
+	mask = intensity_profile >= threshold
+	noise_region = np.where(mask, np.nan, dynspec)  # Mask signal regions with NaN
+
+	# Calculate noisespec directly from the masked region
+	noisespec = np.nanstd(noise_region, axis=2)
 	noistks = np.sqrt(np.nanmean(noisespec**2, axis=1))
+
 
 	tsdata = est_profiles(corrdspec, frequency_mhz_array, time_ms_array, noistks)
 	
@@ -347,33 +360,33 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
 
 
 def estimate_windows(itsub, time_ms, threshold=0.1):
-    """
-    Estimate left_window and right_window based on the total intensity profile.
+	"""
+	Estimate left_window and right_window based on the total intensity profile.
 
-    Args:
-        itsub (array): Total intensity profile (1D array).
-        time_ms (array): Time array in milliseconds (1D array).
-        threshold (float): Fraction of the peak intensity to define the window.
+	Args:
+		itsub (array): Total intensity profile (1D array).
+		time_ms (array): Time array in milliseconds (1D array).
+		threshold (float): Fraction of the peak intensity to define the window.
 
-    Returns:
-        tuple: (left_window, right_window) indices.
-    """
-    # Normalize the intensity profile
-    normalized_intensity = itsub / np.nanmax(itsub)
+	Returns:
+		tuple: (left_window, right_window) indices.
+	"""
+	# Normalize the intensity profile
+	normalized_intensity = itsub / np.nanmax(itsub)
 
-    # Find indices where intensity exceeds the threshold
-    significant_indices = np.where(normalized_intensity > threshold)[0]
+	# Find indices where intensity exceeds the threshold
+	significant_indices = np.where(normalized_intensity > threshold)[0]
 
-    if len(significant_indices) == 0:
-        raise ValueError("No significant intensity found above the threshold.")
+	if len(significant_indices) == 0:
+		raise ValueError("No significant intensity found above the threshold.")
 
-    # Determine the left and right window indices
-    left_window = significant_indices[0]
-    right_window = significant_indices[-1]
+	# Determine the left and right window indices
+	left_window = significant_indices[0]
+	right_window = significant_indices[-1]
 
-    # Convert indices to time values if needed
-    left_time = time_ms[left_window]
-    right_time = time_ms[right_window]
+	# Convert indices to time values if needed
+	left_time = time_ms[left_window]
+	right_time = time_ms[right_window]
 
-    print(f"RM: Estimated left_window: {left_time} ms, right_window: {right_time} ms")
-    return left_window, right_window
+	print(f"RM: Estimated left_window: {left_time} ms, right_window: {right_time} ms")
+	return left_window, right_window
