@@ -3,7 +3,6 @@ import argparse
 import os
 import traceback
 from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
-from FIRES.functions.genfrb_parallel import generate_frb_parallel
 from FIRES.functions.processfrb import plots
 from FIRES.utils.utils import chi2_fit, gaussian_model
 from FIRES.functions.basicfns import process_dynspec
@@ -212,7 +211,7 @@ def main():
 		# Generate the FRB or PA RMS data
 		if args.plot == ['pa_rms']:
 			print(f"Processing with {args.ncpu} threads. \n")
-			pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb_parallel(
+			pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb(
 				scattering_timescale_ms=args.scattering_timescale_ms,
 				frb_identifier=args.frb_identifier,
 				obs_params=obs_params_path,
