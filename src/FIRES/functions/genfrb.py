@@ -25,9 +25,9 @@ def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
         dynspec, frequency_mhz_array, time_ms_array, rm)
     
     # Filter data to include only from the peak time onwards
-    peak_time_index = np.argmax(tsdata.iquvt[0], axis=0)  # Find the peak index
-    tsdata.phits[:peak_time_index] = np.nan
-    tsdata.dphits[:peak_time_index] = np.nan
+    #peak_time_index = np.argmax(tsdata.iquvt[0], axis=0)  # Find the peak index
+    #tsdata.phits[:peak_time_index] = np.nan
+    #tsdata.dphits[:peak_time_index] = np.nan
 
     pa_rms = np.sqrt(np.nanmean(tsdata.phits**2))
     pa_rms_error = np.sqrt(np.nansum((2 * tsdata.phits * tsdata.dphits)**2)) / (2 * len(tsdata.phits))

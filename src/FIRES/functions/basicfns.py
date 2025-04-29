@@ -153,16 +153,11 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 	"""
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
-		# Average the dynamic spectrum over the specified frequency channels
 		iquvt = np.nanmean(dynspec, axis=1)
   	
-		# Extract the Stokes parameters
 		I = iquvt[0]
   
- 		# Define a threshold for noise (e.g., 10% of the peak intensity)
 		threshold = 0.1 * np.nanmax(I)
-
-		# Mask regions where the intensity is above the threshold
 		mask = I <= threshold
   
 		itsub = np.where(mask, np.nan, iquvt[0])
@@ -172,11 +167,9 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 		
 		# Calculate the linear polarization intensity
 		lts = np.sqrt(utsub ** 2 + qtsub ** 2)			
-		# Calculate the error in linear polarization intensity
 		elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
 		# Calculate the total polarization intensity
 		pts = np.sqrt(lts ** 2 + vtsub ** 2)
-		# Calculate the error in total polarization intensity
 		epts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2 + (vtsub * noise_stokes[3]) ** 2) / pts
   
 		# Calculate the polarization angles
@@ -349,22 +342,16 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
 	
 	corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
  
-	intensity_profile = np.nanmean(dynspec[0], axis=0)
+	I = np.nanmean(dynspec[0], axis=0)
 
-	# Define a threshold for noise (e.g., 10% of the peak intensity)
-	threshold = 0.1 * np.nanmax(intensity_profile)
-
-	# Mask regions where the intensity is above the threshold
-	mask = intensity_profile >= threshold
+	threshold = 0.1 * np.nanmax(I)
+	mask = I >= threshold
 	noise_region = np.where(mask, np.nan, dynspec)  # Mask signal regions with NaN
 
-	# Calculate noisespec directly from the masked region
 	noisespec = np.nanstd(noise_region, axis=2)
 	noistks = np.sqrt(np.nanmean(noisespec**2, axis=1))
 
-
 	tsdata = est_profiles(corrdspec, frequency_mhz_array, time_ms_array, noistks)
-	
  
 	return tsdata, corrdspec, noisespec, noistks
 
