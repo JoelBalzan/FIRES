@@ -198,7 +198,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
 
                 # Calculate the dispersion delay
                 if int(dm[g + 1]) != 0:
-                    disp_delay_ms = 4.15 * dm[g + 1] * ((1.0e3 / freq_mhz[c]) ** 2 - (1.0e3 / ref_freq_mhz) ** 2)
+                    disp_delay_ms = calculate_dispersion_delay(dm[g + 1], freq_mhz[c], ref_freq_mhz)
                     temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 
                 # Apply scattering if enabled
