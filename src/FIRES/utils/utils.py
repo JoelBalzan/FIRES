@@ -112,7 +112,7 @@ inch_to_cm				    =	2.54
 
 
 
-simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'frequency_mhz_array', 'time_ms_array', 'scattering_time_ms', 'scattering_index', 'gaussian_params', 'dynamic_spectrum'])
+simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'freq_mhz', 'time_ms', 'tau_ms', 'sc_idx', 'gaussian_params', 'dynamic_spectrum'])
 
 # time variation
 frb_time_series	=	namedtuple('frbts',['iquvt','lts','elts','pts','epts','phits','dphits','psits','dpsits','qfrac','eqfrac','ufrac','eufrac','vfrac','evfrac','lfrac','elfrac','pfrac','epfrac'])
@@ -124,13 +124,13 @@ frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','ps
 
 
 class DynspecParams(NamedTuple):
-    frequency_mhz_array: np.ndarray
-    time_ms_array: np.ndarray
-    time_resolution_ms: float
+    freq_mhz: np.ndarray
+    time_ms: np.ndarray
+    time_res_ms: float
     spec_idx: np.ndarray
     peak_amp: np.ndarray
-    width: np.ndarray
-    t0: np.ndarray
+    width_ms: np.ndarray
+    loc_ms: np.ndarray
     dm: np.ndarray
     pol_angle: np.ndarray
     lin_pol_frac: np.ndarray
@@ -140,9 +140,9 @@ class DynspecParams(NamedTuple):
     seed: int
     noise: bool
     scatter: bool
-    scattering_timescale_ms: float
-    scattering_index: float
-    reference_frequency_mhz: float
+    tau_ms: float
+    sc_idx: float
+    ref_freq_mhz: float
     num_micro_gauss: int
     width_range: float
     band_centre_mhz: float
