@@ -34,39 +34,27 @@ def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
     
     return pa_rms, pa_rms_error
 
-def generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
-                     width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-                     scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
-                     plot_pa_rms, band_centre_mhz, band_width_mhz):
+def generate_dynspec(mode, s, plot_pa_rms, **kwargs):
     """Generate dynamic spectrum based on mode."""
-    s_value = s if plot_pa_rms else scattering_timescale_ms
+    s_value = s if plot_pa_rms else kwargs["scattering_timescale_ms"]
     if mode == 'gauss':
-        return gauss_dynspec(
-            frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
-            dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise,
-            scatter, s_value, scattering_index, reference_frequency_mhz, band_centre_mhz, band_width_mhz
-        )
+        return gauss_dynspec(**kwargs, s_value=s_value)
     else:  # mode == 'sgauss'
-        return sub_gauss_dynspec(
-            frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, width, t0,
-            dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, width_range, noise,
-            scatter, s_value, scattering_index, reference_frequency_mhz, band_centre_mhz, band_width_mhz
-        )
+        return sub_gauss_dynspec(**kwargs, s_value=s_value)
 
 
 
-def process_scattering_timescale(s, mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, 
-                                 spec_idx, peak_amp, width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, 
-                                 rm, seed, noise, scatter, scattering_timescale_ms, scattering_index, reference_frequency_mhz, 
-                                 num_micro_gauss, width_range, band_centre_mhz, band_width_mhz, plot):
+def process_scattering_timescale(s, mode, plot, **kwargs):
     """Process a single scattering timescale."""
     dynspec, rms_pol_angles = generate_dynspec(
-        mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
-        width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-        scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, s, 
-        plot_pa_rms=(plot == ['pa_rms']), band_centre_mhz=band_centre_mhz, band_width_mhz=band_width_mhz
+        mode=mode,
+        s=s,
+        plot_pa_rms=(plot == ['pa_rms']),
+        **kwargs
     )
-    pa_rms, pa_rms_error = process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm)
+    pa_rms, pa_rms_error = process_dynspec_with_pa_rms(
+        dynspec, kwargs["frequency_mhz_array"], kwargs["time_ms_array"], kwargs["rm"]
+    )
     return pa_rms, pa_rms_error, rms_pol_angles
 
 # ------------------------- Main function -------------------------------
@@ -121,6 +109,36 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
     band_centre_mhz = gaussian_params[:, 10]  # Band centre frequency
     band_width_mhz  = gaussian_params[:, 11]  # Band width
 
+    
+    # Create a dictionary for dynamic spectrum parameters
+    dynspec_params = {
+        "frequency_mhz_array": frequency_mhz_array,
+        "time_ms_array": time_ms_array,
+        "channel_width_mhz": channel_width_mhz,
+        "time_resolution_ms": time_resolution_ms,
+        "spec_idx": spec_idx,
+        "peak_amp": peak_amp,
+        "width": width,
+        "t0": t0,
+        "dm": dm,
+        "pol_angle": pol_angle,
+        "lin_pol_frac": lin_pol_frac,
+        "circ_pol_frac": circ_pol_frac,
+        "delta_pol_angle": delta_pol_angle,
+        "rm": rm,
+        "seed": seed,
+        "noise": noise,
+        "scatter": scatter,
+        "scattering_timescale_ms": scattering_timescale_ms,
+        "scattering_index": scattering_index,
+        "reference_frequency_mhz": reference_frequency_mhz,
+        "num_micro_gauss": num_micro_gauss,
+        "width_range": width_range,
+        "band_centre_mhz": band_centre_mhz,
+        "band_width_mhz": band_width_mhz,
+    }
+
+
     if (lin_pol_frac + circ_pol_frac).any() > 1.0:
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0. \n")
 
@@ -149,31 +167,8 @@ def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_mi
             partial_process = functools.partial(
                 process_scattering_timescale,
                 mode=mode,
-                frequency_mhz_array=frequency_mhz_array,
-                time_ms_array=time_ms_array,
-                channel_width_mhz=channel_width_mhz,
-                time_resolution_ms=time_resolution_ms,
-                spec_idx=spec_idx,
-                peak_amp=peak_amp,
-                width=width,
-                t0=t0,
-                dm=dm,
-                pol_angle=pol_angle,
-                lin_pol_frac=lin_pol_frac,
-                circ_pol_frac=circ_pol_frac,
-                delta_pol_angle=delta_pol_angle,
-                rm=rm,
-                seed=seed,
-                noise=noise,
-                scatter=scatter,
-                scattering_timescale_ms=scattering_timescale_ms,
-                scattering_index=scattering_index,
-                reference_frequency_mhz=reference_frequency_mhz,
-                num_micro_gauss=num_micro_gauss if mode == 'sgauss' else None,
-                width_range=width_range if mode == 'sgauss' else None,
-                band_centre_mhz=band_centre_mhz,
-                band_width_mhz=band_width_mhz,
-                plot=plot
+                plot=plot,
+                **dynspec_params
             )
 
             # Map the partial function to the scattering timescales with a progress bar
