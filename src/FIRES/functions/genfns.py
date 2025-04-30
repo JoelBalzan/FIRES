@@ -39,9 +39,9 @@ mpl.rcParams["ytick.major.size"] = 3
 
 #	--------------------------	Analysis functions	-------------------------------
 
-def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                   dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter,
-                  tau_ms, sc_idx, ref_freq_mhz, band_center_mhz, band_width_mhz):
+                  tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
     """
     Generate dynamic spectrum for Gaussian pulses.
     Inputs:
@@ -80,11 +80,11 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 
         all_pol_angles.append(pol_angle)
 
-        # Apply Gaussian spectral profile if band_center_mhz and band_width_mhz are provided
+        # Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
         if band_width_mhz[g + 1] != 0.:
-            if band_center_mhz[g + 1] == 0.:
-                band_center_mhz[g + 1] = np.median(freq_mhz)
-            spectral_profile = np.exp(-((freq_mhz - band_center_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
+            if band_centre_mhz[g + 1] == 0.:
+                band_centre_mhz[g + 1] = np.median(freq_mhz)
+            spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
             norm_amp *= spectral_profile
 
         for c in range(len(freq_mhz)):
@@ -116,9 +116,9 @@ def gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak
 
 #	--------------------------------------------------------------------------------
 
-def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
-                      dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_sub_gauss, seed, 
-                      width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz, band_center_mhz, band_width_mhz):
+def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
+                      dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, 
+                      width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of sub-Gaussians.
     Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -150,7 +150,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
 
     all_pol_angles = []  
     for g in range(num_main_gauss):
-        for _ in range(num_sub_gauss[g]):
+        for _ in range(num_micro_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
             var_peak_amp        = peak_amp[g + 1] + np.random.normal(0, peak_amp_var * peak_amp[g + 1])
             # Sample the micro width as a percentage of the main width
@@ -178,11 +178,11 @@ def sub_gauss_dynspec(freq_mhz, time_ms, chan_width_mhz, time_res_ms, spec_idx, 
             # Calculate the normalized amplitude for each frequency
             norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
             
-            # Apply Gaussian spectral profile if band_center_mhz and band_width_mhz are provided
+            # Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
             if band_width_mhz[g + 1] != 0.:
-                if band_center_mhz[g + 1] == 0.:
-                    band_center_mhz[g + 1] = np.median(freq_mhz)
-                spectral_profile = np.exp(-((freq_mhz - band_center_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
+                if band_centre_mhz[g + 1] == 0.:
+                    band_centre_mhz[g + 1] = np.median(freq_mhz)
+                spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
                 norm_amp *= spectral_profile
 
             pulse = gaussian_model(time_ms, 1, var_loc_ms, var_width_ms)
