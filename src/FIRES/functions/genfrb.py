@@ -17,174 +17,152 @@ obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
 gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
-# ------------------------- Helper functions -------------------------------
-
-def process_dynspec_with_pa_rms(dynspec, frequency_mhz_array, time_ms_array, rm):
+def process_dynspec_with_pa_rms(dspec, freq_mhz, time_ms, rm):
     """Process dynamic spectrum to calculate PA RMS."""
-    tsdata, _, _, _ = process_dynspec(
-        dynspec, frequency_mhz_array, time_ms_array, rm)
+    ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
     
-    # Filter data to include only from the peak time onwards
-    #peak_time_index = np.argmax(tsdata.iquvt[0], axis=0)  # Find the peak index
-    #tsdata.phits[:peak_time_index] = np.nan
-    #tsdata.dphits[:peak_time_index] = np.nan
-
-    pa_rms = np.sqrt(np.nanmean(tsdata.phits**2))
-    pa_rms_error = np.sqrt(np.nansum((2 * tsdata.phits * tsdata.dphits)**2)) / (2 * len(tsdata.phits))
+    pa_rms = np.sqrt(np.nanmean(ts_data.phits**2))
+    pa_rms_err = np.sqrt(np.nansum((2 * ts_data.phits * ts_data.dphits)**2)) / (2 * len(ts_data.phits))
     
-    return pa_rms, pa_rms_error
+    return pa_rms, pa_rms_err
 
-def generate_dynspec(mode, s, plot_pa_rms, **kwargs):
+def generate_dynspec(mode, s_val, plot_pa_rms, **params):
     """Generate dynamic spectrum based on mode."""
-    s_value = s if plot_pa_rms else kwargs["scattering_timescale_ms"]
+    s_val = s_val if plot_pa_rms else params["tau_ms"]
+    
+    # Remove 'tau_ms' from params to avoid conflict
+    params = {k: v for k, v in params.items() if k != "tau_ms"}
+    
     if mode == 'gauss':
-        return gauss_dynspec(**kwargs, s_value=s_value)
+        return gauss_dynspec(**params, tau_ms=s_val)
     else:  # mode == 'sgauss'
-        return sub_gauss_dynspec(**kwargs, s_value=s_value)
+        return sub_gauss_dynspec(**params, tau_ms=s_val)
 
-
-
-def process_scattering_timescale(s, mode, plot, **kwargs):
+def process_scatter_timescale(s_val, mode, plot, **params):
     """Process a single scattering timescale."""
-    dynspec, rms_pol_angles = generate_dynspec(
+    dspec, rms_pol_angles = generate_dynspec(
         mode=mode,
-        s=s,
+        s_val=s_val,
         plot_pa_rms=(plot == ['pa_rms']),
-        **kwargs
+        **params
     )
-    pa_rms, pa_rms_error = process_dynspec_with_pa_rms(
-        dynspec, kwargs["frequency_mhz_array"], kwargs["time_ms_array"], kwargs["rm"]
+    pa_rms, pa_rms_err = process_dynspec_with_pa_rms(
+        dspec, params["freq_mhz"], params["time_ms"], params["rm"]
     )
-    return pa_rms, pa_rms_error, rms_pol_angles
+    return pa_rms, pa_rms_err, rms_pol_angles
 
-# ------------------------- Main function -------------------------------
-
-def generate_frb(scattering_timescale_ms, frb_identifier, data_dir, mode, num_micro_gauss, seed, width_range, write,
-                 obs_params, gauss_params, noise, scatter, plot, ncpus):
+def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, width_range, save,
+                 obs_file, gauss_file, noise, scatter, plot, n_cpus):
     """
-    Generate a simulated FRB with a dispersed and scattered dynamic spectrum
+    Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
     """
-    obsparams = get_parameters(obs_params)
-    # Extract frequency and time parameters from observation parameters
+    obs_params = get_parameters(obs_file)
 
-    start_frequency_mhz = float(obsparams['f0'])
-    end_frequency_mhz   = float(obsparams['f1'])
-    start_time_ms       = float(obsparams['t0'])
-    end_time_ms         = float(obsparams['t1'])
-    channel_width_mhz   = float(obsparams['f_res'])
-    time_resolution_ms  = float(obsparams['t_res'])
+    # Extract frequency and time parameters
+    f_start = float(obs_params['f0'])
+    f_end = float(obs_params['f1'])
+    t_start = float(obs_params['t0'])
+    t_end = float(obs_params['t1'])
+    f_res = float(obs_params['f_res'])
+    t_res = float(obs_params['t_res'])
 
-    # Extract scattering and reference frequency parameters
-    scattering_index = float(obsparams['scattering_index'])
-    reference_frequency_mhz = float(obsparams['reference_freq'])
+    scatter_idx = float(obs_params['scattering_index'])
+    ref_freq = float(obs_params['reference_freq'])
 
     # Generate frequency and time arrays
-    frequency_mhz_array = np.arange(
-        start=start_frequency_mhz,
-        stop=end_frequency_mhz + channel_width_mhz,
-        step=channel_width_mhz,
-        dtype=float
+    freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
+    time_ms = np.arange(t_start, t_end + t_res, t_res, dtype=float)
+
+    # Load Gaussian parameters
+    gauss_params = np.loadtxt(gauss_file)
+
+    # Extract Gaussian parameters
+    t0 = gauss_params[:, 0]
+    width = gauss_params[:, 1]
+    peak = gauss_params[:, 2]
+    spec_idx = gauss_params[:, 3]
+    dm = gauss_params[:, 4]
+    rm = gauss_params[:, 5]
+    pol_angle = gauss_params[:, 6]
+    lin_pol = gauss_params[:, 7]
+    circ_pol = gauss_params[:, 8]
+    delta_pa = gauss_params[:, 9]
+    band_center = gauss_params[:, 10]
+    band_width = gauss_params[:, 11]
+
+    # Create dynamic spectrum parameters
+    dspec_params = DynspecParams(
+        freq_mhz=freq_mhz,
+        time_ms=time_ms,
+        time_res_ms=t_res,
+        spec_idx=spec_idx,
+        peak_amp=peak,
+        width_ms=width,
+        loc_ms=t0,
+        dm=dm,
+        pol_angle=pol_angle,
+        lin_pol_frac=lin_pol,
+        circ_pol_frac=circ_pol,
+        delta_pol_angle=delta_pa,
+        rm=rm,
+        seed=seed,
+        noise=noise,
+        scatter=scatter,
+        tau_ms=scatter_ms,
+        sc_idx=scatter_idx,
+        ref_freq_mhz=ref_freq,
+        num_micro_gauss=n_gauss,
+        width_range=width_range,
+        band_centre_mhz=band_center,
+        band_width_mhz=band_width,
     )
-    time_ms_array = np.arange(
-        start=start_time_ms,
-        stop=end_time_ms + time_resolution_ms,
-        step=time_resolution_ms,
-        dtype=float
-    )
 
-    # Load Gaussian parameters from file
-    gaussian_params = np.loadtxt(gauss_params)
-
-    # Extract individual Gaussian parameters
-    t0              = gaussian_params[:, 0]  # Time of peak
-    width           = gaussian_params[:, 1]  # Width of the Gaussian
-    peak_amp        = gaussian_params[:, 2]  # Peak amplitude
-    spec_idx        = gaussian_params[:, 3]  # Spectral index
-    dm              = gaussian_params[:, 4]  # Dispersion measure
-    rm              = gaussian_params[:, 5]  # Rotation measure
-    pol_angle       = gaussian_params[:, 6]  # Polarization angle
-    lin_pol_frac    = gaussian_params[:, 7]  # Linear polarization fraction
-    circ_pol_frac   = gaussian_params[:, 8]  # Circular polarization fraction
-    delta_pol_angle = gaussian_params[:, 9]  # Change in polarization angle
-    band_centre_mhz = gaussian_params[:, 10]  # Band centre frequency
-    band_width_mhz  = gaussian_params[:, 11]  # Band width
-
-    
-    # Create a dictionary for dynamic spectrum parameters
-    dynspec_params = {
-        "frequency_mhz_array": frequency_mhz_array,
-        "time_ms_array": time_ms_array,
-        "channel_width_mhz": channel_width_mhz,
-        "time_resolution_ms": time_resolution_ms,
-        "spec_idx": spec_idx,
-        "peak_amp": peak_amp,
-        "width": width,
-        "t0": t0,
-        "dm": dm,
-        "pol_angle": pol_angle,
-        "lin_pol_frac": lin_pol_frac,
-        "circ_pol_frac": circ_pol_frac,
-        "delta_pol_angle": delta_pol_angle,
-        "rm": rm,
-        "seed": seed,
-        "noise": noise,
-        "scatter": scatter,
-        "scattering_timescale_ms": scattering_timescale_ms,
-        "scattering_index": scattering_index,
-        "reference_frequency_mhz": reference_frequency_mhz,
-        "num_micro_gauss": num_micro_gauss,
-        "width_range": width_range,
-        "band_centre_mhz": band_centre_mhz,
-        "band_width_mhz": band_width_mhz,
-    }
-
-
-    if (lin_pol_frac + circ_pol_frac).any() > 1.0:
-        print("WARNING: Linear and circular polarization fractions sum to more than 1.0. \n")
+    if (lin_pol + circ_pol).any() > 1.0:
+        print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
     if plot != ['pa_rms']:
-        dynspec, _ = generate_dynspec(mode, frequency_mhz_array, time_ms_array, channel_width_mhz, time_resolution_ms, spec_idx, peak_amp, 
-                                   width, t0, dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter, 
-                                   scattering_timescale_ms, scattering_index, reference_frequency_mhz, num_micro_gauss, width_range, plot_pa_rms=False,
-                                   band_centre_mhz=band_centre_mhz, band_width_mhz=band_width_mhz, s=None)
-        _, _, _, noisespec = process_dynspec(
-        dynspec, frequency_mhz_array, time_ms_array, rm)
-        simulated_frb_data = simulated_frb(frb_identifier, frequency_mhz_array, time_ms_array, scattering_timescale_ms,
-                                            scattering_index, gaussian_params, dynspec)
-        if write:
-            output_filename = f"{data_dir}{frb_identifier}_sc_{scattering_timescale_ms:.2f}.pkl"
-            with open(output_filename, 'wb') as frbfile:
-                pkl.dump(simulated_frb_data, frbfile)
-        return simulated_frb_data, noisespec, rm
-    
+        dspec, _ = generate_dynspec(
+            mode=mode,
+            s_val=None,
+            plot_pa_rms=False,
+            **dspec_params._asdict()
+        )
+        _, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
+        frb_data = simulated_frb(
+            frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, dspec
+        )
+        if save:
+            out_file = f"{out_dir}{frb_id}_sc_{scatter_ms:.2f}.pkl"
+            with open(out_file, 'wb') as frb_file:
+                pkl.dump(frb_data, frb_file)
+        return frb_data, noise_spec, rm
+
     elif plot == ['pa_rms']:
-        from tqdm import tqdm  # Import tqdm for the progress bar
+        from tqdm import tqdm
 
-        pa_rms_values, pa_rms_errors = [], []
+        pa_rms_vals, pa_rms_errs = [], []
 
-        with ProcessPoolExecutor(max_workers=ncpus) as executor:
-            # Create a partial function with all the fixed arguments
-            partial_process = functools.partial(
-                process_scattering_timescale,
+        with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+            partial_func = functools.partial(
+                process_scatter_timescale,
                 mode=mode,
                 plot=plot,
-                **dynspec_params
+                **dspec_params._asdict()
             )
 
-            # Map the partial function to the scattering timescales with a progress bar
-            results = list(tqdm(executor.map(partial_process, scattering_timescale_ms), 
-                                total=len(scattering_timescale_ms), 
+            results = list(tqdm(executor.map(partial_func, scatter_ms),
+                                total=len(scatter_ms),
                                 desc="Processing scattering timescales"))
 
-        pa_rms_values, pa_rms_errors, rms_pol_angles = zip(*results)
-        pa_rms_values = list(pa_rms_values)
-        pa_rms_errors = list(pa_rms_errors)
+        pa_rms_vals, pa_rms_errs, rms_pol_angles = zip(*results)
+        pa_rms_vals = list(pa_rms_vals)
+        pa_rms_errs = list(pa_rms_errs)
 
-        if write:
-            output_filename = f"{data_dir}{frb_identifier}_pa_rms.pkl"
-            with open(output_filename, 'wb') as frbfile:
-                pkl.dump((pa_rms_values, pa_rms_errors), frbfile)
+        if save:
+            out_file = f"{out_dir}{frb_id}_pa_rms.pkl"
+            with open(out_file, 'wb') as frb_file:
+                pkl.dump((pa_rms_vals, pa_rms_errs), frb_file)
 
-        return np.array(pa_rms_values), np.array(pa_rms_errors), width[1], rms_pol_angles
+        return np.array(pa_rms_vals), np.array(pa_rms_errs), width[1], rms_pol_angles
     else:
-        print("Invalid mode specified. Please use 'gauss' or 'sgauss'. \n")
+        print("Invalid mode specified. Please use 'gauss' or 'sgauss'.\n")
