@@ -212,37 +212,37 @@ def main():
 		if args.plot == ['pa_rms']:
 			print(f"Processing with {args.ncpu} threads. \n")
 			pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb(
-				scattering_timescale_ms=args.scattering_timescale_ms,
-				frb_identifier=args.frb_identifier,
-				obs_params=obs_params_path,
-				gauss_params=gauss_params_path,
-				data_dir=args.output_dir,
-				write=args.write,
-				mode=args.mode,
-				num_micro_gauss=args.n_gauss,
-				seed=args.seed,
-				width_range=args.sg_width,
-				noise=args.noise,
-				scatter=args.scatter,
-				plot=args.plot,
-				ncpus=args.ncpu
+				scatter_ms=args.scattering_timescale_ms,
+                frb_id=args.frb_identifier,
+                obs_file=obs_params_path,
+                gauss_file=gauss_params_path,
+                out_dir=args.output_dir,
+                save=args.write,
+                mode=args.mode,
+                n_gauss=args.n_gauss,
+                seed=args.seed,
+                width_range=args.sg_width,
+                noise=args.noise,
+                scatter=args.scatter,
+                plot=args.plot,
+                n_cpus=args.ncpu
 				)
 		else:
 			FRB, noisespec, rm = generate_frb(
-				scattering_timescale_ms=args.scattering_timescale_ms,
-				frb_identifier=args.frb_identifier,
-				obs_params=obs_params_path,
-				gauss_params=gauss_params_path,
-				data_dir=args.output_dir,
-				write=args.write,
-				mode=args.mode,
-				num_micro_gauss=args.n_gauss,
-				seed=args.seed,
-				width_range=args.sg_width,
-				noise=args.noise,
-				scatter=args.scatter,
-				plot=args.plot,
-				ncpus=None
+				scatter_ms=args.scattering_timescale_ms,
+                frb_id=args.frb_identifier,
+                obs_file=obs_params_path,
+                gauss_file=gauss_params_path,
+                out_dir=args.output_dir,
+                save=args.write,
+                mode=args.mode,
+                n_gauss=args.n_gauss,
+                seed=args.seed,
+                width_range=args.sg_width,
+                noise=args.noise,
+                scatter=args.scatter,
+                plot=args.plot,
+                n_cpus=None
 			)
 			if args.chi2_fit:
 				if args.noise == 0:
@@ -275,18 +275,18 @@ def main():
 					# Call the plotting function specifically for 'pa_rms'
 					plots(
 						fname=args.frb_identifier,
-						FRB_data=None,  # No FRB data for 'pa_rms'
-						pa_rms=pa_rms_values,
-						dpa_rms=pa_rms_errors,
-						mode=plot_mode,
-						rm=None,  # No RM for 'pa_rms'
-						outdir=data_directory,
-						save=args.save_plots,
-						figsize=args.figsize,
-						scattering_timescale=args.scattering_timescale_ms,
-						show_plots=args.show_plots,
-						width_ms=width_ms,
-						rms_pol_angle=rms_pol_angles
+                        frb_data=None,
+                        pa_rms=pa_rms_values,
+                        dpa_rms=pa_rms_errors,
+                        mode=plot_mode,
+                        rm=None,
+                        out_dir=data_directory,
+                        save=args.save_plots,
+                        figsize=args.figsize,
+                        scatter_ms=args.scattering_timescale_ms,
+                        show_plots=args.show_plots,
+                        width_ms=width_ms,
+                        rms_pol_angle=rms_pol_angles
 					)
 				else:
 					# Ensure FRB_data is not None for other plot modes
@@ -297,18 +297,18 @@ def main():
 					# Call the plotting function for other modes
 					plots(
 						fname=args.frb_identifier,
-						FRB_data=FRB,
-						pa_rms=None,
-						dpa_rms=None,
-						mode=plot_mode,
-						rm=rm,
-						outdir=data_directory,
-						save=args.save_plots,
-						figsize=args.figsize,
-						scattering_timescale=args.scattering_timescale_ms,
-						show_plots=args.show_plots,
-						width_ms=None,
-						rms_pol_angle=None
+                        frb_data=FRB,
+                        pa_rms=None,
+                        dpa_rms=None,
+                        mode=plot_mode,
+                        rm=rm,
+                        out_dir=data_directory,
+                        save=args.save_plots,
+                        figsize=args.figsize,
+                        scatter_ms=args.scattering_timescale_ms,
+                        show_plots=args.show_plots,
+                        width_ms=None,
+                        rms_pol_angle=None
 					)
 
 	except Exception as e:

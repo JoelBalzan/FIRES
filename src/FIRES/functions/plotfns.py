@@ -30,12 +30,12 @@ mpl.rcParams['font.size']		= 8
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, show_plots):
+def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots):
 	"""
 	Plot Stokes IQUV profiles and dynamic spectra.
 	Inputs:
 		- fname, outdir: Directory to save the plot
-		- dspec4: Dynamic spectrum array
+		- dspec: Dynamic spectrum array
 		- iquvt: IQUV time series array
 		- fmhzarr: Frequency array in MHz
 		- tmsarr: Time array in ms
@@ -62,7 +62,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 		
 	ax0 = fig.add_axes([0.08, 0.54, 0.90, 0.16])
 	ax0.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax0.imshow(dspec4[0], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[0])), vmax=np.nanmax(np.abs(dspec4[0])), \
+	ax0.imshow(dspec[0], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[0])), vmax=np.nanmax(np.abs(dspec[0])), \
 		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax0.text(0.95, 0.1, 'I', fontsize=10, fontweight='bold', transform=ax0.transAxes)
 	ax0.set_xticklabels([])
@@ -71,7 +71,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 	
 	ax1 = fig.add_axes([0.08, 0.38, 0.90, 0.16])
 	ax1.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax1.imshow(dspec4[1], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[1])), vmax=np.nanmax(np.abs(dspec4[1])), \
+	ax1.imshow(dspec[1], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[1])), vmax=np.nanmax(np.abs(dspec[1])), \
 		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax1.text(0.95, 0.1, 'Q', fontsize=10, fontweight='bold', transform=ax1.transAxes)
 	ax1.set_xticklabels([])
@@ -80,7 +80,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 	
 	ax2 = fig.add_axes([0.08, 0.22, 0.90, 0.16])
 	ax2.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax2.imshow(dspec4[2], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[2])), vmax=np.nanmax(np.abs(dspec4[2])), \
+	ax2.imshow(dspec[2], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[2])), vmax=np.nanmax(np.abs(dspec[2])), \
 		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax2.text(0.95, 0.1, 'U', fontsize=10, fontweight='bold', transform=ax2.transAxes)
 	ax2.set_xticklabels([])
@@ -89,7 +89,7 @@ def plot_stokes(fname, outdir, dspec4, iquvt, fmhzarr, tmsarr, save, figsize, sh
 	
 	ax3 = fig.add_axes([0.08, 0.06, 0.90, 0.16])
 	ax3.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax3.imshow(dspec4[3], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec4[3])), vmax=np.nanmax(np.abs(dspec4[3])), \
+	ax3.imshow(dspec[3], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[3])), vmax=np.nanmax(np.abs(dspec[3])), \
 		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
 	ax3.text(0.95, 0.1, 'V', fontsize=10, fontweight='bold', transform=ax3.transAxes)
 	ax3.set_xlabel(r'Time (ms)')
@@ -189,11 +189,11 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots):
+def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
-			- sc_dspec: Dynamic spectrum data
+			- dspec: Dynamic spectrum data
 			- freq_mhz: Frequency array in MHz
 			- time_ms: Time array in ms
 			- rm: Rotation measure
@@ -224,7 +224,7 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 
 	# Linear polarisation
-	L = np.sqrt(np.nanmean(sc_dspec[1,:], axis=0)**2 + np.nanmean(sc_dspec[2,:], axis=0)**2)
+	L = np.sqrt(np.nanmean(dspec[1,:], axis=0)**2 + np.nanmean(dspec[2,:], axis=0)**2)
 
 	
 	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(figsize[0], figsize[1]))
@@ -248,12 +248,12 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 	axs[0].tick_params(axis='x', direction='in')  # Make x-ticks stick up
 	
 	# Plot the mean across all frequency channels (axis 0)
-	axs[1].plot(time_ms, np.nanmean(sc_dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
-	#axs[1].plot(time_ms, np.nanmean(np.sqrt(sc_dspec[1,:]**2 + sc_dspec[2,:]**2) + sc_dspec[3,:]**2, axis=0))
+	axs[1].plot(time_ms, np.nanmean(dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
+	#axs[1].plot(time_ms, np.nanmean(np.sqrt(dspec[1,:]**2 + dspec[2,:]**2) + dspec[3,:]**2, axis=0))
 	axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
-	#axs[1].plot(time_ms, np.nanmean(sc_dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
-	#axs[1].plot(time_ms, np.nanmean(sc_dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
-	axs[1].plot(time_ms, np.nanmean(sc_dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
+	#axs[1].plot(time_ms, np.nanmean(dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
+	#axs[1].plot(time_ms, np.nanmean(dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
+	axs[1].plot(time_ms, np.nanmean(dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 	
@@ -266,13 +266,13 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 	# Plot the 2D scattered dynamic spectrum
 	## Calculate the mean and standard deviation of the dynamic spectrum
-	mn = np.mean(sc_dspec[0,:], axis=(0, 1))
-	std = np.std(sc_dspec[0,:], axis=(0, 1))
+	mn = np.mean(dspec[0,:], axis=(0, 1))
+	std = np.std(dspec[0,:], axis=(0, 1))
 	## Set appropriate minimum and maximum values for imshow (Thanks to Dr. M. Lower)
 	vmin = mn - 3*std
 	vmax = mn + 7*std
 
-	axs[2].imshow(sc_dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+	axs[2].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
 		vmin=vmin, vmax=vmax, extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 	axs[2].set_xlabel("Time (ms)")
 	axs[2].set_ylabel("Frequency (MHz)")
@@ -288,83 +288,49 @@ def plot_ilv_pa_ds(sc_dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noi
 
 
 	#	----------------------------------------------------------------------------------------------------------
+# ...existing imports...
 
-def plot_pa_rms_vs_scatter(scatter_timescales, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots, width_ms, rms_pol_angles):
-	"""
-	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
-	
-	Inputs:
-		- scatter_timescales: Array of scattering timescales
-		- pa_values: Array of polarization angle (PA) values
-		- pa_errors: Array of errors associated with the PA values
-		- save: Boolean indicating whether to save the plot
-		- fname: Filename for saving the plot
-		- outdir: Output directory for saving the plot
-		- figsize: Tuple specifying the figure size (width, height)
-	"""
+def plot_pa_rms_vs_scatter(scatter_ms, pa_rms, dpa_rms, save, fname, out_dir, figsize, show_plots, width_ms, rms_pol_angles):
+    """
+    Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
+    """
+    fig, ax = plt.subplots(figsize=figsize)
 
+    # Normalize the scattering timescale by initial Gaussian width
+    tau_norm = scatter_ms / width_ms
+    pa_rms_norm = pa_rms / rms_pol_angles
 
+    if len(tau_norm) < 15:
+        # Plot the RMS of PA with error bars
+        ax.errorbar(tau_norm, pa_rms_norm, 
+                    yerr=dpa_rms, 
+                    fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
+    else:
+        # Bin the scattering timescales
+        bin_width = 2 * iqr(tau_norm) / (len(tau_norm) ** (1 / 3))
+        bin_edges = np.arange(min(tau_norm), max(tau_norm) + bin_width, bin_width)
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        medians = []
+        mads = []
 
-	fig, ax = plt.subplots(figsize=figsize)
+        for i in range(len(bin_edges) - 1):
+            in_bin = (tau_norm >= bin_edges[i]) & (tau_norm < bin_edges[i + 1])
+            if np.any(in_bin):
+                medians.append(np.median(pa_rms_norm[in_bin]))
+                mads.append(np.median(np.abs(pa_rms_norm[in_bin] - np.median(pa_rms_norm[in_bin]))))
+            else:
+                medians.append(np.nan)
+                mads.append(np.nan)
 
-	# normalize the scattering timescale by initial gaussian width
-	tau_norm = scatter_timescales / width_ms
-	pa_rms_norm = pa_rms / rms_pol_angles
+        ax.errorbar(bin_centers, medians, yerr=mads, fmt='o', capsize=2, color='black', label='Median with MAD', markersize=4)
 
-	if len(tau_norm) < 15:
-		# Plot the RMS of PA with error bars
-		ax.errorbar(tau_norm, pa_rms_norm, 
-					yerr=dpa_rms, 
-					fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
-	
-	else:
-		# Bin the scattering timescales
-		# Determine the bin width using Freedman-Diaconis rule
-		bin_width = 2 * iqr(tau_norm) / (len(tau_norm) ** (1 / 3))
-		bin_edges = np.arange(min(tau_norm), max(tau_norm) + bin_width, bin_width)
-		bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-		medians = []
-		mads = []
+    ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
+    ax.set_ylabel(r"PA$_{RMS}$ / PA$_{RMS, microshots}$")
+    ax.grid(True, linestyle='--', alpha=0.6)
 
-		# Calculate median and MAD for each bin
-		for i in range(len(bin_edges) - 1):
-			in_bin = (tau_norm >= bin_edges[i]) & (tau_norm < bin_edges[i + 1])
-			if np.any(in_bin):
-				medians.append(np.median(pa_rms_norm[in_bin]))
-				mads.append(np.median(np.abs(pa_rms_norm[in_bin] - np.median(pa_rms_norm[in_bin]))))
-			else:
-				medians.append(np.nan)
-				mads.append(np.nan)
+    if show_plots:
+        plt.show()
 
-		# Plot the medians with MADs as error bars
-		ax.errorbar(bin_centers, medians, yerr=mads, fmt='o', capsize=2, color='black', label='Median with MAD', markersize=4)
-		#ax.scatter(tau_norm, pa_rms_norm, s=2, c='black', alpha=0.5)
-
-
-	# Fit a curve to the data
-	def model_func(x, a, b, c):
-		return a * np.exp(-b * x) + c
-
-	# Perform curve fitting
-	#popt, pcov = curve_fit(model_func, bin_centers, medians, sigma=mads, absolute_sigma=True)
-	#perr = np.sqrt(np.diag(pcov))
-
-	# Plot the fitted curve
-	#x_fit = np.linspace(min(tau_norm), max(tau_norm), 500)
-	#y_fit = model_func(x_fit, *popt)
-	#ax.plot(x_fit, y_fit, 'r-', label=f'Fit: a={popt[0]:.2f}, b={popt[1]:.2f}, c={popt[2]:.2f}')
-
-	# Set plot labels and title
-	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-	ax.set_ylabel(r"PA$_{RMS}$ / PA$_{RMS, microshots}$")
-	ax.grid(True, linestyle='--', alpha=0.6)
-	#ax.legend()
-
-	# Show the plot
-	if show_plots:
-		plt.show()
-
-	# Save the plot if required
-	if save:
-		fig.savefig(os.path.join(outdir, fname + "_pa_rms_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
-		print(f"Saved figure to {os.path.join(outdir, fname + '_pa_rms_vs_scatter.pdf')}  \n")
+    if save:
+        fig.savefig(os.path.join(out_dir, fname + "_pa_rms_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
+        print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_rms_vs_scatter.pdf')}  \n")
