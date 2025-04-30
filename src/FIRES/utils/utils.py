@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 from scipy.optimize import curve_fit
+from typing import NamedTuple
 
 
 #    --------------------------	Define parameters	-------------------------------
@@ -111,9 +112,6 @@ inch_to_cm				    =	2.54
 
 
 
-# 1 FRB data simulated, (taums as input command line),
-# dspec4 = 4D
-# create another sub directory called SIMFRB
 simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'frequency_mhz_array', 'time_ms_array', 'scattering_time_ms', 'scattering_index', 'gaussian_params', 'dynamic_spectrum'])
 
 # time variation
@@ -125,9 +123,30 @@ frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','ps
 
 
 
-
-
-
+class DynspecParams(NamedTuple):
+    frequency_mhz_array: np.ndarray
+    time_ms_array: np.ndarray
+    time_resolution_ms: float
+    spec_idx: np.ndarray
+    peak_amp: np.ndarray
+    width: np.ndarray
+    t0: np.ndarray
+    dm: np.ndarray
+    pol_angle: np.ndarray
+    lin_pol_frac: np.ndarray
+    circ_pol_frac: np.ndarray
+    delta_pol_angle: np.ndarray
+    rm: np.ndarray
+    seed: int
+    noise: bool
+    scatter: bool
+    scattering_timescale_ms: float
+    scattering_index: float
+    reference_frequency_mhz: float
+    num_micro_gauss: int
+    width_range: float
+    band_centre_mhz: float
+    band_width_mhz: float
 
 
 
