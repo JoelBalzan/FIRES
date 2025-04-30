@@ -14,41 +14,43 @@ from FIRES.functions.plotfns import *
 from FIRES.utils.utils import *
 
 
-def plots(fname, FRB_data, mode, rm, outdir, save, figsize, scattering_timescale, pa_rms, dpa_rms, show_plots, width_ms, rms_pol_angle):
-	"""
-	Plotting function for FRB data.
-	Handles dynamic spectrum, IQUV profiles, L V PA profiles, and DPA.
-	"""
-	if mode == 'pa_rms':
-		plot_pa_rms_vs_scatter(scattering_timescale, pa_rms, dpa_rms, save, fname, outdir, figsize, show_plots, width_ms, rms_pol_angle)
-		sys.exit(0)
-	
-	if FRB_data is None:
-		print("Error: FRB data is not available for the selected plot mode. \n")
-		return
-	
-	dsdata = FRB_data
+# ...existing imports...
 
-	tsdata, corrdspec, noisespec, noistks = process_dynspec(
-		dsdata.dynamic_spectrum, dsdata.frequency_mhz_array, dsdata.time_ms_array, rm
-	)
+def plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, pa_rms, dpa_rms, show_plots, width_ms, rms_pol_angle):
+    """
+    Plotting function for FRB data.
+    Handles dynamic spectrum, IQUV profiles, L V PA profiles, and DPA.
+    """
+    if mode == 'pa_rms':
+        plot_pa_rms_vs_scatter(scatter_ms, pa_rms, dpa_rms, save, fname, out_dir, figsize, show_plots, width_ms, rms_pol_angle)
+        sys.exit(0)
+    
+    if frb_data is None:
+        print("Error: FRB data is not available for the selected plot mode. \n")
+        return
+    
+    ds_data = frb_data
 
-	iquvt = tsdata.iquvt
-	tmsarr = dsdata.time_ms_array
-	fmhzarr = dsdata.frequency_mhz_array
+    ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
+        ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, rm
+    )
 
-	if mode == "all":
-		plot_ilv_pa_ds(corrdspec, fmhzarr, tmsarr, save, fname, outdir, tsdata, noistks, figsize, scattering_timescale, show_plots)
-		plot_stokes(fname, outdir, corrdspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots)
-		plot_dpa(fname, outdir, noistks, tsdata, tmsarr, 5, save, figsize, show_plots)
-		estimate_rm(corrdspec, fmhzarr, tmsarr, noisespec, 1.0e3, 1.0, outdir, save, show_plots)
-	elif mode == "iquv":
-		plot_stokes(fname, outdir, corrdspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots)
-	elif mode == "lvpa":
-		plot_ilv_pa_ds(corrdspec, fmhzarr, tmsarr, save, fname, outdir, tsdata, noistks, figsize, scattering_timescale, show_plots)
-	elif mode == "dpa":
-		plot_dpa(fname, outdir, noistks, tsdata, tmsarr, 5, save, figsize, show_plots)
-	elif mode == "rm":
-		estimate_rm(corrdspec, fmhzarr, tmsarr, noisespec, 1.0e3, 1.0, outdir, save, show_plots)
-	else:
-		print(f"Invalid mode: {mode} \n")
+    iquvt = ts_data.iquvt
+    time_ms = ds_data.time_ms
+    freq_mhz = ds_data.freq_mhz
+
+    if mode == "all":
+        plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, noise_stokes, figsize, scatter_ms, show_plots)
+        plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
+        plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
+        estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+    elif mode == "iquv":
+        plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
+    elif mode == "lvpa":
+        plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, noise_stokes, figsize, scatter_ms, show_plots)
+    elif mode == "dpa":
+        plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
+    elif mode == "rm":
+        estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+    else:
+        print(f"Invalid mode: {mode} \n")
