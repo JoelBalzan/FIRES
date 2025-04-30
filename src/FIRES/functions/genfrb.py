@@ -34,6 +34,8 @@ def generate_dynspec(mode, s_val, plot_pa_rms, **params):
     params = {k: v for k, v in params.items() if k != "tau_ms"}
     
     if mode == 'gauss':
+        params = {k: v for k, v in params.items() if k != "num_micro_gauss"}
+        params = {k: v for k, v in params.items() if k != "width_range"}
         return gauss_dynspec(**params, tau_ms=s_val)
     else:  # mode == 'sgauss'
         return sub_gauss_dynspec(**params, tau_ms=s_val)
