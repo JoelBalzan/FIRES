@@ -32,10 +32,10 @@ def generate_dynspec(mode, s_val, plot_pa_rms, **params):
     s_val = s_val if plot_pa_rms else params["tau_ms"]
     
     # Remove 'tau_ms' from params to avoid conflict
-    params = {k: v for k, v in params.items() if k != "tau_ms"}
+    params = {k: v for k, v in params.items() if k != "tau_ms" and k != "nseed"}
     
     if mode == 'gauss':
-        params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range" and k != "nseed"}
+        params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range"}
         return gauss_dynspec(**params, tau_ms=s_val)
     else:  # mode == 'sgauss'
         return sub_gauss_dynspec(**params, tau_ms=s_val)
