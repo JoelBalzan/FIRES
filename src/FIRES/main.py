@@ -127,7 +127,7 @@ def main():
 	parser.add_argument(
 		"--nseed",
 		type=int,
-		default=1,
+		default=None,
 		metavar="",
 		help="How many realisations to generate at each scattering timescale for sgauss mode."
 	)
@@ -218,7 +218,7 @@ def main():
 		# Generate the FRB or PA RMS data
 		if args.plot == ['pa_rms']:
 			print(f"Processing with {args.ncpu} threads. \n")
-			pa_rms_values, pa_rms_errors, width_ms, rms_pol_angles = generate_frb(
+			pa_rms_values, pa_rms_errors, width_ms = generate_frb(
 				scatter_ms=args.scattering_timescale_ms,
                 frb_id=args.frb_identifier,
                 obs_file=obs_params_path,
@@ -285,8 +285,8 @@ def main():
 					plots(
 						fname=args.frb_identifier,
                         frb_data=None,
-                        pa_rms=pa_rms_values,
-                        dpa_rms=pa_rms_errors,
+                        pa_rms_weighted=pa_rms_values,
+                        dpa_rms_weighted=pa_rms_errors,
                         mode=plot_mode,
                         rm=None,
                         out_dir=data_directory,
@@ -295,7 +295,6 @@ def main():
                         scatter_ms=args.scattering_timescale_ms,
                         show_plots=args.show_plots,
                         width_ms=width_ms,
-                        rms_pol_angle=rms_pol_angles
 					)
 				else:
 					# Ensure FRB_data is not None for other plot modes
@@ -307,8 +306,8 @@ def main():
 					plots(
 						fname=args.frb_identifier,
                         frb_data=FRB,
-                        pa_rms=None,
-                        dpa_rms=None,
+                        pa_rms_weighted=None,
+                        dpa_rms_weighted=None,
                         mode=plot_mode,
                         rm=rm,
                         out_dir=data_directory,
@@ -317,7 +316,6 @@ def main():
                         scatter_ms=args.scattering_timescale_ms,
                         show_plots=args.show_plots,
                         width_ms=None,
-                        rms_pol_angle=None
 					)
 
 	except Exception as e:
