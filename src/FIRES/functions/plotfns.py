@@ -290,47 +290,26 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistk
 	#	----------------------------------------------------------------------------------------------------------
 # ...existing imports...
 
-def plot_pa_rms_vs_scatter(scatter_ms, pa_rms, dpa_rms, save, fname, out_dir, figsize, show_plots, width_ms, rms_pol_angles):
-    """
-    Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
-    """
-    fig, ax = plt.subplots(figsize=figsize)
+def plot_pa_rms_vs_scatter(scatter_ms, pa_rms_weighted, dpa_rms_weighted, save, fname, out_dir, figsize, show_plots, width_ms):
+	"""
+	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
+	"""
+	fig, ax = plt.subplots(figsize=figsize)
 
-    # Normalize the scattering timescale by initial Gaussian width
-    tau_norm = scatter_ms / width_ms
-    pa_rms_norm = pa_rms / rms_pol_angles
+	# weight the scattering timescale by initial Gaussian width
+	tau_weighted = scatter_ms / width_ms
 
-    if len(tau_norm) < 15:
-        # Plot the RMS of PA with error bars
-        ax.errorbar(tau_norm, pa_rms_norm, 
-                    yerr=dpa_rms, 
-                    fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
-    else:
-        # Bin the scattering timescales
-        bin_width = 2 * iqr(tau_norm) / (len(tau_norm) ** (1 / 3))
-        bin_edges = np.arange(min(tau_norm), max(tau_norm) + bin_width, bin_width)
-        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-        medians = []
-        mads = []
+	ax.errorbar(tau_weighted, pa_rms_weighted, 
+				yerr=dpa_rms_weighted, 
+				fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
+ 
+	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
+	ax.set_ylabel(r"PA$_{RMS}$ / PA$_{RMS, microshots}$")
+	ax.grid(True, linestyle='--', alpha=0.6)
 
-        for i in range(len(bin_edges) - 1):
-            in_bin = (tau_norm >= bin_edges[i]) & (tau_norm < bin_edges[i + 1])
-            if np.any(in_bin):
-                medians.append(np.median(pa_rms_norm[in_bin]))
-                mads.append(np.median(np.abs(pa_rms_norm[in_bin] - np.median(pa_rms_norm[in_bin]))))
-            else:
-                medians.append(np.nan)
-                mads.append(np.nan)
+	if show_plots:
+		plt.show()
 
-        ax.errorbar(bin_centers, medians, yerr=mads, fmt='o', capsize=2, color='black', label='Median with MAD', markersize=4)
-
-    ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-    ax.set_ylabel(r"PA$_{RMS}$ / PA$_{RMS, microshots}$")
-    ax.grid(True, linestyle='--', alpha=0.6)
-
-    if show_plots:
-        plt.show()
-
-    if save:
-        fig.savefig(os.path.join(out_dir, fname + "_pa_rms_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
-        print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_rms_vs_scatter.pdf')}  \n")
+	if save:
+		fig.savefig(os.path.join(out_dir, fname + "_pa_rms_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
+		print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_rms_vs_scatter.pdf')}  \n")
