@@ -138,6 +138,7 @@ class DynspecParams(NamedTuple):
     delta_pol_angle: np.ndarray
     rm: np.ndarray
     seed: int
+    nseed: int
     noise: bool
     scatter: bool
     tau_ms: float
