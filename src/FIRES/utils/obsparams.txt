@@ -12,8 +12,8 @@
 f0=1100
 f1=1450
 f_res=2
-t0=-10
-t1=0
+t0=-12
+t1=2.5
 t_res=0.001
 
 scattering_index=-4
