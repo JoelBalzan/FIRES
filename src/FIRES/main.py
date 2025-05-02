@@ -125,6 +125,13 @@ def main():
 		help="Set seed for repeatability in sgauss mode."
 	)
 	parser.add_argument(
+		"--nseed",
+		type=int,
+		default=1,
+		metavar="",
+		help="How many realisations to generate at each scattering timescale for sgauss mode."
+	)
+	parser.add_argument(
 		"--sg-width",
 		nargs=2,
 		type=float,
@@ -221,6 +228,7 @@ def main():
                 mode=args.mode,
                 n_gauss=args.n_gauss,
                 seed=args.seed,
+                nseed=args.nseed,
                 width_range=args.sg_width,
                 noise=args.noise,
                 scatter=args.scatter,
@@ -238,6 +246,7 @@ def main():
                 mode=args.mode,
                 n_gauss=args.n_gauss,
                 seed=args.seed,
+                nseed=None,
                 width_range=args.sg_width,
                 noise=args.noise,
                 scatter=args.scatter,
