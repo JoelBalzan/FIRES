@@ -26,6 +26,7 @@ def process_dynspec_with_pa_rms(dspec, freq_mhz, time_ms, rm):
     
     return pa_rms, pa_rms_err
 
+
 def generate_dynspec(mode, s_val, plot_pa_rms, **params):
     """Generate dynamic spectrum based on mode."""
     s_val = s_val if plot_pa_rms else params["tau_ms"]
@@ -34,25 +35,45 @@ def generate_dynspec(mode, s_val, plot_pa_rms, **params):
     params = {k: v for k, v in params.items() if k != "tau_ms"}
     
     if mode == 'gauss':
-        params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range"}
+        params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range" and k != "nseed"}
         return gauss_dynspec(**params, tau_ms=s_val)
     else:  # mode == 'sgauss'
         return sub_gauss_dynspec(**params, tau_ms=s_val)
 
-def process_scatter_timescale(s_val, mode, plot, **params):
-    """Process a single scattering timescale."""
-    dspec, rms_pol_angles = generate_dynspec(
-        mode=mode,
-        s_val=s_val,
-        plot_pa_rms=(plot == ['pa_rms']),
-        **params
-    )
-    pa_rms, pa_rms_err = process_dynspec_with_pa_rms(
-        dspec, params["freq_mhz"], params["time_ms"], params["rm"]
-    )
-    return pa_rms, pa_rms_err, rms_pol_angles
 
-def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, width_range, save,
+def process_scatter_timescale(s_val, mode, plot, **params):
+    """Process a single scattering timescale with multiple realizations."""
+    pa_rms_list = []
+    pa_rms_err_list = []
+
+    for realisation in range(params["nseed"]):
+        current_seed = params["seed"] + realisation if params["seed"] is not None else None
+        params["seed"] = current_seed
+        print(s_val, current_seed)
+
+        dspec, rms_pol_angles = generate_dynspec(
+            mode=mode,
+            s_val=s_val,
+            plot_pa_rms=(plot == ['pa_rms']),
+            **params
+        )
+
+        pa_rms, pa_rms_err = process_dynspec_with_pa_rms(
+            dspec, params["freq_mhz"], params["time_ms"], params["rm"]
+        )
+        pa_rms_weighted = pa_rms/rms_pol_angles
+        pa_rms_err_weighted = pa_rms_err/rms_pol_angles
+
+        pa_rms_list.append(pa_rms_weighted)
+        pa_rms_err_list.append(pa_rms_err_weighted)
+
+    avg_pa_rms_weighted = np.mean(pa_rms_list)
+    avg_pa_rms_err_weighted = np.sqrt(np.sum(np.array(pa_rms_err_list) ** 2)) / len(pa_rms_err_list)
+
+    return avg_pa_rms_weighted, avg_pa_rms_err_weighted
+
+
+def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
                  obs_file, gauss_file, noise, scatter, plot, n_cpus):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
@@ -107,6 +128,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, width_range, 
         delta_pol_angle=delta_pa,
         rm=rm,
         seed=seed,
+        nseed=nseed,
         noise=noise,
         scatter=scatter,
         tau_ms=scatter_ms,
@@ -155,7 +177,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, width_range, 
                                 total=len(scatter_ms),
                                 desc="Processing scattering timescales"))
 
-        pa_rms_vals, pa_rms_errs, rms_pol_angles = zip(*results)
+        pa_rms_vals, pa_rms_errs = zip(*results)
         pa_rms_vals = list(pa_rms_vals)
         pa_rms_errs = list(pa_rms_errs)
 
@@ -164,6 +186,6 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, width_range, 
             with open(out_file, 'wb') as frb_file:
                 pkl.dump((pa_rms_vals, pa_rms_errs), frb_file)
 
-        return np.array(pa_rms_vals), np.array(pa_rms_errs), width[1], rms_pol_angles
+        return np.array(pa_rms_vals), np.array(pa_rms_errs), width[1]
     else:
         print("Invalid mode specified. Please use 'gauss' or 'sgauss'.\n")
