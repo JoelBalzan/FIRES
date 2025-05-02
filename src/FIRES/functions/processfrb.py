@@ -16,13 +16,13 @@ from FIRES.utils.utils import *
 
 # ...existing imports...
 
-def plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, pa_rms, dpa_rms, show_plots, width_ms, rms_pol_angle):
+def plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, pa_rms_weighted, dpa_rms_weighted, show_plots, width_ms):
     """
     Plotting function for FRB data.
     Handles dynamic spectrum, IQUV profiles, L V PA profiles, and DPA.
     """
     if mode == 'pa_rms':
-        plot_pa_rms_vs_scatter(scatter_ms, pa_rms, dpa_rms, save, fname, out_dir, figsize, show_plots, width_ms, rms_pol_angle)
+        plot_pa_rms_vs_scatter(scatter_ms, pa_rms_weighted, dpa_rms_weighted, save, fname, out_dir, figsize, show_plots, width_ms)
         sys.exit(0)
     
     if frb_data is None:
