@@ -10,6 +10,8 @@ import os
 import pickle as pkl  # Import pickle
 from concurrent.futures import ProcessPoolExecutor
 import functools
+from itertools import product
+from tqdm import tqdm
 
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(current_dir)
@@ -41,36 +43,26 @@ def generate_dynspec(mode, s_val, plot_pa_rms, **params):
         return sub_gauss_dynspec(**params, tau_ms=s_val)
 
 
-def process_scatter_timescale(s_val, mode, plot, **params):
-    """Process a single scattering timescale with multiple realizations."""
-    pa_rms_list = []
-    pa_rms_err_list = []
+def process_task(task, mode, plot, **params):
+    """Process a single task (combination of timescale and realization)."""
+    s_val, realization = task
+    current_seed = params["seed"] + realization if params["seed"] is not None else None
+    params["seed"] = current_seed
 
-    for realisation in range(params["nseed"]):
-        current_seed = params["seed"] + realisation if params["seed"] is not None else None
-        params["seed"] = current_seed
-        print(s_val, current_seed)
+    dspec, rms_pol_angles = generate_dynspec(
+        mode=mode,
+        s_val=s_val,
+        plot_pa_rms=(plot == ['pa_rms']),
+        **params
+    )
 
-        dspec, rms_pol_angles = generate_dynspec(
-            mode=mode,
-            s_val=s_val,
-            plot_pa_rms=(plot == ['pa_rms']),
-            **params
-        )
+    pa_rms, pa_rms_err = process_dynspec_with_pa_rms(
+        dspec, params["freq_mhz"], params["time_ms"], params["rm"]
+    )
+    pa_rms_weighted = pa_rms / rms_pol_angles
+    pa_rms_err_weighted = pa_rms_err / rms_pol_angles
 
-        pa_rms, pa_rms_err = process_dynspec_with_pa_rms(
-            dspec, params["freq_mhz"], params["time_ms"], params["rm"]
-        )
-        pa_rms_weighted = pa_rms/rms_pol_angles
-        pa_rms_err_weighted = pa_rms_err/rms_pol_angles
-
-        pa_rms_list.append(pa_rms_weighted)
-        pa_rms_err_list.append(pa_rms_err_weighted)
-
-    avg_pa_rms_weighted = np.mean(pa_rms_list)
-    avg_pa_rms_err_weighted = np.sqrt(np.sum(np.array(pa_rms_err_list) ** 2)) / len(pa_rms_err_list)
-
-    return avg_pa_rms_weighted, avg_pa_rms_err_weighted
+    return s_val, pa_rms_weighted, pa_rms_err_weighted
 
 
 def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -161,31 +153,43 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
         return frb_data, noise_spec, rm
 
     elif plot == ['pa_rms']:
-        from tqdm import tqdm
+        # Create a list of tasks (timescale, realization)
+        tasks = list(product(scatter_ms, range(nseed)))
 
-        pa_rms_vals, pa_rms_errs = [], []
-
+        # Process tasks in parallel
         with ProcessPoolExecutor(max_workers=n_cpus) as executor:
             partial_func = functools.partial(
-                process_scatter_timescale,
+                process_task,
                 mode=mode,
                 plot=plot,
                 **dspec_params._asdict()
             )
 
-            results = list(tqdm(executor.map(partial_func, scatter_ms),
-                                total=len(scatter_ms),
-                                desc="Processing scattering timescales"))
+            results = list(tqdm(executor.map(partial_func, tasks),
+                                total=len(tasks),
+                                desc="Processing scattering timescales and realizations"))
 
-        pa_rms_vals, pa_rms_errs = zip(*results)
-        pa_rms_vals = list(pa_rms_vals)
-        pa_rms_errs = list(pa_rms_errs)
+        # Aggregate results by timescale
+        pa_rms_vals = {s_val: [] for s_val in scatter_ms}
+        pa_rms_errs = {s_val: [] for s_val in scatter_ms}
+
+        for s_val, pa_rms_weighted, pa_rms_err_weighted in results:
+            pa_rms_vals[s_val].append(pa_rms_weighted)
+            pa_rms_errs[s_val].append(pa_rms_err_weighted)
+
+        # Compute averages and errors for each timescale
+        avg_pa_rms_vals = []
+        avg_pa_rms_errs = []
+
+        for s_val in scatter_ms:
+            avg_pa_rms_vals.append(np.mean(pa_rms_vals[s_val]))
+            avg_pa_rms_errs.append(np.sqrt(np.sum(np.array(pa_rms_errs[s_val]) ** 2)) / len(pa_rms_errs[s_val]))
 
         if save:
             out_file = f"{out_dir}{frb_id}_pa_rms.pkl"
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((pa_rms_vals, pa_rms_errs), frb_file)
+                pkl.dump((avg_pa_rms_vals, avg_pa_rms_errs), frb_file)
 
-        return np.array(pa_rms_vals), np.array(pa_rms_errs), width[1]
+        return np.array(avg_pa_rms_vals), np.array(avg_pa_rms_errs), width[1]
     else:
         print("Invalid mode specified. Please use 'gauss' or 'sgauss'.\n")
