@@ -24,7 +24,7 @@ def process_dynspec_with_pa_rms(dspec, freq_mhz, time_ms, rm):
     ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
     
     pa_rms = np.sqrt(np.nanmean(ts_data.phits**2))
-    pa_rms_err = np.sqrt(np.nansum((2 * ts_data.phits * ts_data.dphits)**2)) / (2 * len(ts_data.phits))
+    pa_rms_err = np.sqrt(np.nansum((ts_data.phits * ts_data.dphits)**2)) / (pa_rms * len(ts_data.phits))
     
     return pa_rms, pa_rms_err
 
