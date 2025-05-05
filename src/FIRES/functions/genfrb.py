@@ -188,7 +188,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
         if save:
             out_file = f"{out_dir}{frb_id}_pa_rms.pkl"
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((avg_pa_rms_vals, avg_pa_rms_errs), frb_file)
+                pkl.dump((scatter_ms, avg_pa_rms_vals, avg_pa_rms_errs), frb_file)
 
         return np.array(avg_pa_rms_vals), np.array(avg_pa_rms_errs), width[1]
     else:
