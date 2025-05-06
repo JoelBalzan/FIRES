@@ -31,7 +31,7 @@ def process_dynspec_with_pa_var(dspec, freq_mhz, time_ms, rm):
     #pa_var = np.sqrt(np.nanmean(phits**2))
     #pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
     pa_var = np.nanvar(phits)
-    pa_var_err = np.nansum((phits * dphits)**2) / (pa_var * len(phits))
+    pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
     
     #return pa_var, pa_var_err
     return pa_var, pa_var_err
