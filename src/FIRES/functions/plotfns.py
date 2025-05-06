@@ -306,10 +306,10 @@ def plot_pa_var_vs_scatter(scatter_ms, med_pa_var_vals, pa_var_errs, save, fname
 	# Pass the errors as a tuple to yerr
 	ax.errorbar(tau_weighted, med_pa_var_vals, 
 	            yerr=(lower_errors, upper_errors), 
-	            fmt='o', capsize=1, color='black', label=r'PA$_{var}$', markersize=2)
+	            fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
 	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-	ax.set_ylabel(r"PA$_{var}$ / PA$_{var, microshots}$")
+	ax.set_ylabel(r"Var(\psi) / Var(\psi$_{microshots}$)")
 	ax.grid(True, linestyle='--', alpha=0.6)
 
 	if show_plots:
