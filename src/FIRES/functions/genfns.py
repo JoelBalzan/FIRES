@@ -75,9 +75,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
     for g in range(num_gauss):
         temp_dynspec = np.zeros_like(dynspec)
         norm_amp = peak_amp[g + 1] * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
-        pulse = gaussian_model(time_ms, 1, loc_ms[g + 1], width_ms[g + 1])
         pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
-
         all_pol_angles.append(pol_angle)
 
         # Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
@@ -89,7 +87,8 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
 
         for c in range(len(freq_mhz)):
             faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, rm[g + 1], lambda_sq[c], median_lambda_sq)
-            temp_dynspec[0, c] = norm_amp[c] * pulse  # Stokes I
+            temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], loc_ms[g + 1], width_ms[g + 1])
+            
             if int(dm[g + 1]) != 0:
                 disp_delay_ms = calculate_dispersion_delay(dm[g + 1], freq_mhz[c], ref_freq_mhz)
                 temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
@@ -185,8 +184,6 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
                 spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
                 norm_amp *= spectral_profile
 
-            pulse = gaussian_model(time_ms, 1, var_loc_ms, var_width_ms)
-
             pol_angle_arr = var_pol_angle + (time_ms - var_loc_ms) * delta_pol_angle[g + 1]
 
             for c in range(len(freq_mhz)):
@@ -194,7 +191,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
                 faraday_rot_angle = pol_angle_arr + var_rm * (lambda_sq[c] - median_lambda_sq)
 
                 # Add the Gaussian pulse to the temporary dynamic spectrum
-                temp_dynspec[0, c] = norm_amp[c] * pulse
+                temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_loc_ms, var_width_ms)
 
                 # Calculate the dispersion delay
                 if int(dm[g + 1]) != 0:
@@ -219,4 +216,5 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
             dynspec += temp_dynspec
 
     rms_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
+    print("RMS Polarization Angle: ", rms_pol_angles)
     return dynspec, rms_pol_angles
