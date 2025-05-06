@@ -68,7 +68,7 @@ def main():
     	    "  'iquv': Plot the Stokes parameters (I, Q, U, V) as a function of time or frequency.\n"
     	    "  'lvpa': Plot linear polarization (L) and polarization angle (PA) as a function of time.\n"
     	    "  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
-    	    "  'rm': Plot the rotation measure (RM) as a function of frequency.\n"
+    	    "  'rm': Plot the rotation measure (RM) as a function of frequency from RM-Tools.\n"
     	    "  'pa_var': Plot the variance of the polarization angle (PA) as a function of scattering timescale.\n"
     	    "Pass 'None' to disable all plots."
     )
