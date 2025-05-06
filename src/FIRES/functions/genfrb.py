@@ -183,18 +183,26 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             pa_rms_errs[s_val].append(pa_rms_err_weighted)
 
         # Compute averages and errors for each timescale
-        avg_pa_rms_vals = []
-        avg_pa_rms_errs = []
+        med_pa_rms_vals = []
+        pa_rms_errs = []
 
         for s_val in scatter_ms:
-            avg_pa_rms_vals.append(np.mean(pa_rms_vals[s_val]))
-            avg_pa_rms_errs.append(np.sqrt(np.sum(np.array(pa_rms_errs[s_val]) ** 2)) / len(pa_rms_errs[s_val]))
+            # Calculate the median of pa_rms values
+            median_pa_rms = np.median(pa_rms_vals[s_val])
+            med_pa_rms_vals.append(median_pa_rms)
+
+            # Calculate the 1-sigma percentiles (16th and 84th percentiles)
+            lower_percentile = np.percentile(pa_rms_vals[s_val], 16)
+            upper_percentile = np.percentile(pa_rms_vals[s_val], 84)
+
+            # Error bars are the difference between the median and the percentiles
+            pa_rms_errs.append((lower_percentile, upper_percentile))
 
         if save:
             out_file = f"{out_dir}{frb_id}_pa_rms.pkl"
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((scatter_ms, avg_pa_rms_vals, avg_pa_rms_errs), frb_file)
+                pkl.dump((scatter_ms, med_pa_rms_vals, pa_rms_errs), frb_file)
 
-        return np.array(avg_pa_rms_vals), np.array(avg_pa_rms_errs), width[1]
+        return np.array(med_pa_rms_vals), np.array(pa_rms_errs), width[1]
     else:
         print("Invalid mode specified. Please use 'gauss' or 'sgauss'.\n")
