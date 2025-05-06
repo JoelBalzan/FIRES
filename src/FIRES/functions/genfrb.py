@@ -28,11 +28,13 @@ def process_dynspec_with_pa_rms(dspec, freq_mhz, time_ms, rm):
     phits = ts_data.phits[peak_index:]
     dphits = ts_data.dphits[peak_index:]
     
-    pa_rms = np.sqrt(np.nanmean(phits**2))
-    pa_rms_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_rms * len(phits))
+    #pa_rms = np.sqrt(np.nanmean(phits**2))
+    #pa_rms_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_rms * len(phits))
+    pa_var = np.nanvar(phits)
+    pa_var_err = np.nansum((phits * dphits)**2) / (pa_var * len(phits))
     
-    return pa_rms, pa_rms_err
-
+    #return pa_rms, pa_rms_err
+    return pa_var, pa_var_err
 
 def generate_dynspec(mode, s_val, plot_pa_rms, **params):
     """Generate dynamic spectrum based on mode."""
