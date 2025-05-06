@@ -7,7 +7,7 @@
 # t1: Ending time in milliseconds
 # t_res: Time resolution in milliseconds
 # scattering_index: Scattering index
-# reference_freq: reference_freq frequency in MHz
+# reference_freq: reference frequency for scattering and dispersion in MHz
 
 f0=1100
 f1=1450
