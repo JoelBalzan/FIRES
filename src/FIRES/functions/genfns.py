@@ -106,8 +106,8 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
             )  # Stokes Q, U, V
 
         dynspec += temp_dynspec
-    rms_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
-    return dynspec, rms_pol_angles
+    var_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
+    return dynspec, var_pol_angles
 
 
 
@@ -215,5 +215,5 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
             # Accumulate the contributions from the current sub-Gaussian
             dynspec += temp_dynspec
 
-    rms_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
-    return dynspec, rms_pol_angles
+    var_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
+    return dynspec, var_pol_angles

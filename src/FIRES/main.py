@@ -61,9 +61,9 @@ def main():
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'],
 		metavar="PLOT_NAME",
-		help="Generate plots. Pass 'all' to generate all plots, or specify one or more plot names: 'iquv', 'lvpa', 'dpa', 'rm', 'pa_rms'."
+		help="Generate plots. Pass 'all' to generate all plots, or specify one or more plot names: 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'."
 	)
 	parser.add_argument(
 		"-s", "--save-plots",
@@ -168,7 +168,7 @@ def main():
 	parser.add_argument(
 		"--chi2-fit",
 		action="store_true",
-		help="Enable chi-squared fitting on the final profiles (plot!=pa_rms)."
+		help="Enable chi-squared fitting on the final profiles (plot!=pa_var)."
 	)
 
 	args = parser.parse_args()
@@ -198,9 +198,9 @@ def main():
 	print(f"Scattering timescales: {args.scattering_timescale_ms} ms \n")
 
 	# Check if multiple scattering timescales are provided
-	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != ['pa_rms']:
-		print("Multiple scattering timescales detected. Setting plot mode to 'pa_rms' \n")
-		args.plot = ['pa_rms']
+	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != ['pa_var']:
+		print("Multiple scattering timescales detected. Setting plot mode to 'pa_var' \n")
+		args.plot = ['pa_var']
 
 
 	# Set the global data directory variable
@@ -215,10 +215,10 @@ def main():
 	
 	# Call the generate_frb function 
 	try:
-		# Generate the FRB or PA RMS data
-		if args.plot == ['pa_rms']:
+		# Generate the FRB or PA var data
+		if args.plot == ['pa_var']:
 			print(f"Processing with {args.ncpu} threads. \n")
-			pa_rms_values, pa_rms_errors, width_ms = generate_frb(
+			pa_var_values, pa_var_errors, width_ms = generate_frb(
 				scatter_ms=args.scattering_timescale_ms,
                 frb_id=args.frb_identifier,
                 obs_file=obs_params_path,
@@ -280,13 +280,13 @@ def main():
 		# Call the plotting function if required
 		if args.plot != 'None':
 			for plot_mode in args.plot:
-				if plot_mode == 'pa_rms':
-					# Call the plotting function specifically for 'pa_rms'
+				if plot_mode == 'pa_var':
+					# Call the plotting function specifically for 'pa_var'
 					plots(
 						fname=args.frb_identifier,
                         frb_data=None,
-                        pa_rms_weighted=pa_rms_values,
-                        dpa_rms_weighted=pa_rms_errors,
+                        pa_var_weighted=pa_var_values,
+                        dpa_var_weighted=pa_var_errors,
                         mode=plot_mode,
                         rm=None,
                         out_dir=data_directory,
@@ -306,8 +306,8 @@ def main():
 					plots(
 						fname=args.frb_identifier,
                         frb_data=FRB,
-                        pa_rms_weighted=None,
-                        dpa_rms_weighted=None,
+                        pa_var_weighted=None,
+                        dpa_var_weighted=None,
                         mode=plot_mode,
                         rm=rm,
                         out_dir=data_directory,
