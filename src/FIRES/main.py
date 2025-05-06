@@ -58,13 +58,21 @@ def main():
 
 	# Plotting Options
 	parser.add_argument(
-		"-p", "--plot",
-		nargs="+",
-		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'],
-		metavar="PLOT_NAME",
-		help="Generate plots. Pass 'all' to generate all plots, or specify one or more plot names: 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'."
-	)
+    	"-p", "--plot",
+    	nargs="+",
+    	default=['lvpa'],
+    	choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'],
+    	metavar="PLOT_NAME",
+    	help=(
+    	    "Generate plots. Pass 'all' to generate all plots, or specify one or more plot names:\n"
+    	    "  'iquv': Plot the Stokes parameters (I, Q, U, V) as a function of time or frequency.\n"
+    	    "  'lvpa': Plot linear polarization (L) and polarization angle (PA) as a function of time.\n"
+    	    "  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
+    	    "  'rm': Plot the rotation measure (RM) as a function of frequency.\n"
+    	    "  'pa_var': Plot the variance of the polarization angle (PA) as a function of scattering timescale.\n"
+    	    "Pass 'None' to disable all plots."
+    )
+)
 	parser.add_argument(
 		"-s", "--save-plots",
 		action="store_true",
