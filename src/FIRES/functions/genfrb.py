@@ -21,10 +21,15 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 def process_dynspec_with_pa_rms(dspec, freq_mhz, time_ms, rm):
     """Process dynamic spectrum to calculate PA RMS."""
-    ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
+    ts_data, corrdspec, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
     
-    pa_rms = np.sqrt(np.nanmean(ts_data.phits**2))
-    pa_rms_err = np.sqrt(np.nansum((ts_data.phits * ts_data.dphits)**2)) / (pa_rms * len(ts_data.phits))
+    peak_index = np.argmax(ts_data.iquvt[0])
+    
+    phits = ts_data.phits[peak_index:]
+    dphits = ts_data.dphits[peak_index:]
+    
+    pa_rms = np.sqrt(np.nanmean(phits**2))
+    pa_rms_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_rms * len(phits))
     
     return pa_rms, pa_rms_err
 
