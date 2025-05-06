@@ -290,9 +290,9 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistk
 	#	----------------------------------------------------------------------------------------------------------
 # ...existing imports...
 
-def plot_pa_rms_vs_scatter(scatter_ms, med_pa_rms_vals, pa_rms_errs, save, fname, out_dir, figsize, show_plots, width_ms):
+def plot_pa_var_vs_scatter(scatter_ms, med_pa_var_vals, pa_var_errs, save, fname, out_dir, figsize, show_plots, width_ms):
 	"""
-	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
+	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
 	"""
 	fig, ax = plt.subplots(figsize=figsize)
 
@@ -300,21 +300,21 @@ def plot_pa_rms_vs_scatter(scatter_ms, med_pa_rms_vals, pa_rms_errs, save, fname
 	tau_weighted = scatter_ms / width_ms
 
 	# Extract lower and upper errors relative to the median
-	lower_errors = [median - lower for (lower, upper), median in zip(pa_rms_errs, med_pa_rms_vals)]
-	upper_errors = [upper - median for (lower, upper), median in zip(pa_rms_errs, med_pa_rms_vals)]
+	lower_errors = [median - lower for (lower, upper), median in zip(pa_var_errs, med_pa_var_vals)]
+	upper_errors = [upper - median for (lower, upper), median in zip(pa_var_errs, med_pa_var_vals)]
 	
 	# Pass the errors as a tuple to yerr
-	ax.errorbar(tau_weighted, med_pa_rms_vals, 
+	ax.errorbar(tau_weighted, med_pa_var_vals, 
 	            yerr=(lower_errors, upper_errors), 
-	            fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
+	            fmt='o', capsize=1, color='black', label=r'PA$_{var}$', markersize=2)
  
 	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-	ax.set_ylabel(r"PA$_{RMS}$ / PA$_{RMS, microshots}$")
+	ax.set_ylabel(r"PA$_{var}$ / PA$_{var, microshots}$")
 	ax.grid(True, linestyle='--', alpha=0.6)
 
 	if show_plots:
 		plt.show()
 
 	if save:
-		fig.savefig(os.path.join(out_dir, fname + "_pa_rms_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
-		print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_rms_vs_scatter.pdf')}  \n")
+		fig.savefig(os.path.join(out_dir, fname + "_pa_var_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
+		print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_var_vs_scatter.pdf')}  \n")

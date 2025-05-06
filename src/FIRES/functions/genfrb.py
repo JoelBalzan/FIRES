@@ -19,8 +19,8 @@ obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
 gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
-def process_dynspec_with_pa_rms(dspec, freq_mhz, time_ms, rm):
-    """Process dynamic spectrum to calculate PA RMS."""
+def process_dynspec_with_pa_var(dspec, freq_mhz, time_ms, rm):
+    """Process dynamic spectrum to calculate PA var."""
     ts_data, corrdspec, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
     
     peak_index = np.argmax(ts_data.iquvt[0])
@@ -28,17 +28,17 @@ def process_dynspec_with_pa_rms(dspec, freq_mhz, time_ms, rm):
     phits = ts_data.phits[peak_index:]
     dphits = ts_data.dphits[peak_index:]
     
-    #pa_rms = np.sqrt(np.nanmean(phits**2))
-    #pa_rms_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_rms * len(phits))
+    #pa_var = np.sqrt(np.nanmean(phits**2))
+    #pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
     pa_var = np.nanvar(phits)
     pa_var_err = np.nansum((phits * dphits)**2) / (pa_var * len(phits))
     
-    #return pa_rms, pa_rms_err
+    #return pa_var, pa_var_err
     return pa_var, pa_var_err
 
-def generate_dynspec(mode, s_val, plot_pa_rms, **params):
+def generate_dynspec(mode, s_val, plot_pa_var, **params):
     """Generate dynamic spectrum based on mode."""
-    s_val = s_val if plot_pa_rms else params["tau_ms"]
+    s_val = s_val if plot_pa_var else params["tau_ms"]
     
     # Remove 'tau_ms' from params to avoid conflict
     params = {k: v for k, v in params.items() if k != "tau_ms" and k != "nseed"}
@@ -56,20 +56,20 @@ def process_task(task, mode, plot, **params):
     current_seed = params["seed"] + realization if params["seed"] is not None else None
     params["seed"] = current_seed
 
-    dspec, rms_pol_angles = generate_dynspec(
+    dspec, var_pol_angles = generate_dynspec(
         mode=mode,
         s_val=s_val,
-        plot_pa_rms=(plot == ['pa_rms']),
+        plot_pa_var=(plot == ['pa_var']),
         **params
     )
 
-    pa_rms, pa_rms_err = process_dynspec_with_pa_rms(
+    pa_var, pa_var_err = process_dynspec_with_pa_var(
         dspec, params["freq_mhz"], params["time_ms"], params["rm"]
     )
-    pa_rms_weighted = pa_rms / rms_pol_angles
-    pa_rms_err_weighted = pa_rms_err / rms_pol_angles
+    pa_var_weighted = pa_var / var_pol_angles
+    pa_var_err_weighted = pa_var_err / var_pol_angles
 
-    return s_val, pa_rms_weighted, pa_rms_err_weighted
+    return s_val, pa_var_weighted, pa_var_err_weighted
 
 
 def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -142,11 +142,11 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
     if (lin_pol + circ_pol).any() > 1.0:
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
-    if plot != ['pa_rms']:
+    if plot != ['pa_var']:
         dspec, _ = generate_dynspec(
             mode=mode,
             s_val=None,
-            plot_pa_rms=False,
+            plot_pa_var=False,
             **dspec_params._asdict()
         )
         _, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
@@ -159,7 +159,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
                 pkl.dump(frb_data, frb_file)
         return frb_data, noise_spec, rm
 
-    elif plot == ['pa_rms']:
+    elif plot == ['pa_var']:
         # Create a list of tasks (timescale, realization)
         tasks = list(product(scatter_ms, range(nseed)))
 
@@ -177,34 +177,34 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
                                 desc="Processing scattering timescales and realizations"))
 
         # Aggregate results by timescale
-        pa_rms_vals = {s_val: [] for s_val in scatter_ms}
-        pa_rms_errs = {s_val: [] for s_val in scatter_ms}
+        pa_var_vals = {s_val: [] for s_val in scatter_ms}
+        pa_var_errs = {s_val: [] for s_val in scatter_ms}
 
-        for s_val, pa_rms_weighted, pa_rms_err_weighted in results:
-            pa_rms_vals[s_val].append(pa_rms_weighted)
-            pa_rms_errs[s_val].append(pa_rms_err_weighted)
+        for s_val, pa_var_weighted, pa_var_err_weighted in results:
+            pa_var_vals[s_val].append(pa_var_weighted)
+            pa_var_errs[s_val].append(pa_var_err_weighted)
 
         # Compute averages and errors for each timescale
-        med_pa_rms_vals = []
-        pa_rms_errs = []
+        med_pa_var_vals = []
+        pa_var_errs = []
 
         for s_val in scatter_ms:
-            # Calculate the median of pa_rms values
-            median_pa_rms = np.median(pa_rms_vals[s_val])
-            med_pa_rms_vals.append(median_pa_rms)
+            # Calculate the median of pa_var values
+            median_pa_var = np.median(pa_var_vals[s_val])
+            med_pa_var_vals.append(median_pa_var)
 
             # Calculate the 1-sigma percentiles (16th and 84th percentiles)
-            lower_percentile = np.percentile(pa_rms_vals[s_val], 16)
-            upper_percentile = np.percentile(pa_rms_vals[s_val], 84)
+            lower_percentile = np.percentile(pa_var_vals[s_val], 16)
+            upper_percentile = np.percentile(pa_var_vals[s_val], 84)
 
             # Error bars are the difference between the median and the percentiles
-            pa_rms_errs.append((lower_percentile, upper_percentile))
+            pa_var_errs.append((lower_percentile, upper_percentile))
 
         if save:
-            out_file = f"{out_dir}{frb_id}_pa_rms.pkl"
+            out_file = f"{out_dir}{frb_id}_pa_var.pkl"
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((scatter_ms, med_pa_rms_vals, pa_rms_errs), frb_file)
+                pkl.dump((scatter_ms, med_pa_var_vals, pa_var_errs), frb_file)
 
-        return np.array(med_pa_rms_vals), np.array(pa_rms_errs), width[1]
+        return np.array(med_pa_var_vals), np.array(pa_var_errs), width[1]
     else:
         print("Invalid mode specified. Please use 'gauss' or 'sgauss'.\n")
