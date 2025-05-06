@@ -290,7 +290,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistk
 	#	----------------------------------------------------------------------------------------------------------
 # ...existing imports...
 
-def plot_pa_rms_vs_scatter(scatter_ms, pa_rms_weighted, dpa_rms_weighted, save, fname, out_dir, figsize, show_plots, width_ms):
+def plot_pa_rms_vs_scatter(scatter_ms, med_pa_rms_vals, pa_rms_errs, save, fname, out_dir, figsize, show_plots, width_ms):
 	"""
 	Plot the RMS of the polarization angle (PA) and its error bars vs the scattering timescale.
 	"""
@@ -299,9 +299,14 @@ def plot_pa_rms_vs_scatter(scatter_ms, pa_rms_weighted, dpa_rms_weighted, save, 
 	# weight the scattering timescale by initial Gaussian width
 	tau_weighted = scatter_ms / width_ms
 
-	ax.errorbar(tau_weighted, pa_rms_weighted, 
-				yerr=dpa_rms_weighted, 
-				fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
+	# Extract lower and upper errors relative to the median
+	lower_errors = [median - lower for (lower, upper), median in zip(pa_rms_errs, med_pa_rms_vals)]
+	upper_errors = [upper - median for (lower, upper), median in zip(pa_rms_errs, med_pa_rms_vals)]
+	
+	# Pass the errors as a tuple to yerr
+	ax.errorbar(tau_weighted, med_pa_rms_vals, 
+	            yerr=(lower_errors, upper_errors), 
+	            fmt='o', capsize=1, color='black', label=r'PA$_{RMS}$', markersize=2)
  
 	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
 	ax.set_ylabel(r"PA$_{RMS}$ / PA$_{RMS, microshots}$")
