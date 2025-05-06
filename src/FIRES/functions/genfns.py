@@ -216,5 +216,4 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
             dynspec += temp_dynspec
 
     rms_pol_angles = np.sqrt(np.nanmean(np.array(all_pol_angles) ** 2))
-    print("RMS Polarization Angle: ", rms_pol_angles)
     return dynspec, rms_pol_angles
