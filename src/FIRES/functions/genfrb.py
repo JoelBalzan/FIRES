@@ -203,7 +203,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
         if save:
             out_file = f"{out_dir}{frb_id}_pa_var.pkl"
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((scatter_ms, med_pa_var_vals, pa_var_errs), frb_file)
+                pkl.dump((scatter_ms, med_pa_var_vals, pa_var_errs, width[1]), frb_file)
 
         return np.array(med_pa_var_vals), np.array(pa_var_errs), width[1]
     else:
