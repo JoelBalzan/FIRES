@@ -201,9 +201,15 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             pa_var_errs.append((lower_percentile, upper_percentile))
 
         if save:
-            out_file = f"{out_dir}{frb_id}_pa_var.pkl"
+            # Create a descriptive filename
+            out_file = (
+                f"{out_dir}{frb_id}_mode_{mode}_sc_{scatter_ms[0]:.2f}_"
+                f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
+                f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}.pkl"
+            )
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((scatter_ms, med_pa_var_vals, pa_var_errs, width[1]), frb_file)
+                pkl.dump(frb_data, frb_file)
+            print(f"Saved FRB data to {out_file}")
 
         return np.array(med_pa_var_vals), np.array(pa_var_errs), width[1]
     else:
