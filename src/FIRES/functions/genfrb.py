@@ -205,7 +205,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             out_file = (
                 f"{out_dir}{frb_id}_mode_{mode}_sc_{scatter_ms[0]:.2f}_"
                 f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
-                f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}.pkl"
+                f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}_PAvar_{pol_angle[-1]:.2f}.pkl"
             )
             with open(out_file, 'wb') as frb_file:
                 pkl.dump(frb_data, frb_file)
