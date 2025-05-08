@@ -282,8 +282,7 @@ def main():
 						print("Chi-squared fitting failed. \n")
 
 		# Print simulation status
-		save_status = "Data saved to" if args.write else "Data not saved."
-		print(f"Simulation completed for scattering timescale {args.scattering_timescale_ms} ms. {save_status} \n")
+		print(f"Simulation completed for scattering timescale {args.scattering_timescale_ms} ms. \n")
 
 		# Call the plotting function if required
 		if args.plot != 'None':
