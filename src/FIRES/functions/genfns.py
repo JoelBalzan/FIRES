@@ -119,7 +119,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
                       dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, 
                       width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
     """
-    Generate dynamic spectrum for multiple main Gaussians, each with a distribution of sub-Gaussians.
+    Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
     Optionally apply a Gaussian spectral profile to create band-limited pulses.
     """
     # Set the random seed for reproducibility
@@ -171,7 +171,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
 
             all_pol_angles.append(var_pol_angle)
 
-            # Initialize a temporary array for the current sub-Gaussian
+            # Initialize a temporary array for the current micro-shot
             temp_dynspec = np.zeros_like(dynspec)
 
             # Calculate the normalized amplitude for each frequency
@@ -212,7 +212,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
                     temp_dynspec[0, c], var_lin_pol_frac, var_circ_pol_frac, faraday_rot_angle
                 )
 
-            # Accumulate the contributions from the current sub-Gaussian
+            # Accumulate the contributions from the current micro-shot
             dynspec += temp_dynspec
 
     var_pol_angles = np.nanvar(np.array(all_pol_angles))

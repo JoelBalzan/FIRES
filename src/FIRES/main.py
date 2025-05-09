@@ -9,7 +9,8 @@ from FIRES.functions.basicfns import process_dynspec
 
 def main():
 
-	parser = argparse.ArgumentParser(description="Simulate a Fast Radio Burst (FRB) with scattering.")
+	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarization effects",
+                                  formatter_class=argparse.RawTextHelpFormatter)
 
 	# Input Parameters
 	parser.add_argument(
@@ -62,9 +63,9 @@ def main():
     	nargs="+",
     	default=['lvpa'],
     	choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'],
-    	metavar="PLOT_NAME",
+    	metavar="",
     	help=(
-    	    "Generate plots. Pass 'all' to generate all plots, or specify one or more plot names:\n"
+    	    "Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
     	    "  'iquv': Plot the Stokes parameters (I, Q, U, V) as a function of time or frequency.\n"
     	    "  'lvpa': Plot linear polarization (L) and polarization angle (PA) as a function of time.\n"
     	    "  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
@@ -114,30 +115,30 @@ def main():
 		"-m", "--mode",
 		type=str,
 		default='gauss',
-		choices=['gauss', 'sgauss'],
+		choices=['gauss', 'mgauss'],
 		metavar="",
-		help="Mode for generating pulses: 'gauss' or 'sgauss'. Default is 'gauss.' 'sgauss' will generate a gaussian distribution of gaussian sub-pulses."
+		help="Mode for generating pulses: 'gauss' or 'mgauss'. Default is 'gauss.' 'mgauss' will generate a gaussian distribution of gaussian micro-shots."
 	)
 	parser.add_argument(
 		"--n-gauss",
 		nargs="+",  # Expect one or more values
 		type=int,
 		metavar="",
-		help="Number of sub-Gaussians to generate for each main Gaussian. Required if --mode is 'sgauss'."
+		help="Number of micro-shots to generate for each main Gaussian. Required if --mode is 'mgauss'."
 	)
 	parser.add_argument(
 		"--seed",
 		type=int,
 		default=None,
 		metavar="",
-		help="Set seed for repeatability in sgauss mode."
+		help="Set seed for repeatability in mgauss mode."
 	)
 	parser.add_argument(
 		"--nseed",
 		type=int,
 		default=None,
 		metavar="",
-		help="How many realisations to generate at each scattering timescale for sgauss mode."
+		help="How many realisations to generate at each scattering timescale for mgauss mode."
 	)
 	parser.add_argument(
 		"--sg-width",
@@ -145,7 +146,7 @@ def main():
 		type=float,
 		default=[10, 50],
 		metavar=("MIN_WIDTH", "MAX_WIDTH"),
-		help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'sgauss.'"
+		help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'mgauss.'"
 	)
 	parser.add_argument(
 		"--noise",
