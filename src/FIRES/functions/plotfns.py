@@ -189,7 +189,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, noistks, figsize, scatter, show_plots):
+def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, scatter, show_plots):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
