@@ -98,8 +98,9 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
                 temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
             # Add Gaussian noise to Stokes I before calculating Q, U, V
-            noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
-            temp_dynspec[0, c] += noise_I
+            if noise > 0:
+                noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
+                temp_dynspec[0, c] += noise_I
 
             temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
                 temp_dynspec[0, c], lin_pol_frac[g + 1], circ_pol_frac[g + 1], faraday_rot_angle

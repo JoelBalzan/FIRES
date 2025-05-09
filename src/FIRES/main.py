@@ -5,12 +5,13 @@ import traceback
 from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
 from FIRES.functions.processfrb import plots
 from FIRES.utils.utils import chi2_fit, gaussian_model
-from FIRES.functions.basicfns import process_dynspec
+from FIRES.functions.plotmodes import plot_modes
+
 
 def main():
 
 	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarization effects",
-                                  formatter_class=argparse.RawTextHelpFormatter)
+								  formatter_class=argparse.RawTextHelpFormatter)
 
 	# Input Parameters
 	parser.add_argument(
@@ -59,20 +60,20 @@ def main():
 
 	# Plotting Options
 	parser.add_argument(
-    	"-p", "--plot",
-    	nargs="+",
-    	default=['lvpa'],
-    	choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'],
-    	metavar="",
-    	help=(
-    	    "Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
-    	    "  'iquv': Plot the Stokes parameters (I, Q, U, V) as a function of time or frequency.\n"
-    	    "  'lvpa': Plot linear polarization (L) and polarization angle (PA) as a function of time.\n"
-    	    "  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
-    	    "  'rm': Plot the rotation measure (RM) as a function of frequency from RM-Tools.\n"
-    	    "  'pa_var': Plot the variance of the polarization angle (PA) as a function of scattering timescale.\n"
-    	    "Pass 'None' to disable all plots."
-    )
+		"-p", "--plot",
+		nargs="+",
+		default=['lvpa'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'],
+		metavar="",
+		help=(
+			"Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
+			"  'iquv': Plot the Stokes parameters (I, Q, U, V) as a function of time or frequency.\n"
+			"  'lvpa': Plot linear polarization (L) and polarization angle (PA) as a function of time.\n"
+			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
+			"  'rm': Plot the rotation measure (RM) as a function of frequency from RM-Tools.\n"
+			"  'pa_var': Plot the variance of the polarization angle (PA) as a function of scattering timescale.\n"
+			"Pass 'None' to disable all plots."
+	)
 )
 	parser.add_argument(
 		"-s", "--save-plots",
@@ -206,12 +207,6 @@ def main():
 		args.scattering_timescale_ms = False
 	print(f"Scattering timescales: {args.scattering_timescale_ms} ms \n")
 
-	# Check if multiple scattering timescales are provided
-	if isinstance(args.scattering_timescale_ms, np.ndarray) and args.plot != ['pa_var']:
-		print("Multiple scattering timescales detected. Setting plot mode to 'pa_var' \n")
-		args.plot = ['pa_var']
-
-
 	# Set the global data directory variable
 	global data_directory
 	data_directory = args.output_dir
@@ -220,47 +215,53 @@ def main():
 	if args.write or args.save_plots:
 		os.makedirs(args.output_dir, exist_ok=True)
 		print(f"Output directory '{data_directory}' created or already exists. \n")
+  
+	if args.plot[0] not in plot_modes:
+		raise ValueError(f"Invalid plot mode: {args.plot[0]}")
+	selected_plot_mode = plot_modes[args.plot[0]]
 
 	
 	# Call the generate_frb function 
 	try:
 		# Generate the FRB or PA var data
-		if args.plot == ['pa_var']:
+		if args.plot == ['pa_var'] or args.plot == ['lfrac']:
 			print(f"Processing with {args.ncpu} threads. \n")
-			pa_var_values, pa_var_errors, width_ms = generate_frb(
+			values, errors, width_ms, var_PA_microshots = generate_frb(
 				scatter_ms=args.scattering_timescale_ms,
-                frb_id=args.frb_identifier,
-                obs_file=obs_params_path,
-                gauss_file=gauss_params_path,
-                out_dir=args.output_dir,
-                save=args.write,
-                mode=args.mode,
-                n_gauss=args.n_gauss,
-                seed=args.seed,
-                nseed=args.nseed,
-                width_range=args.sg_width,
-                noise=args.noise,
-                scatter=args.scatter,
-                plot=args.plot,
-                n_cpus=args.ncpu
+				frb_id=args.frb_identifier,
+				obs_file=obs_params_path,
+				gauss_file=gauss_params_path,
+				out_dir=args.output_dir,
+				save=args.write,
+				mode=args.mode,
+				n_gauss=args.n_gauss,
+				seed=args.seed,
+				nseed=args.nseed,
+				width_range=args.sg_width,
+				noise=args.noise,
+				scatter=args.scatter,
+				plot=args.plot,
+				n_cpus=args.ncpu,
+				plot_mode=selected_plot_mode
 				)
 		else:
 			FRB, noisespec, rm = generate_frb(
 				scatter_ms=args.scattering_timescale_ms,
-                frb_id=args.frb_identifier,
-                obs_file=obs_params_path,
-                gauss_file=gauss_params_path,
-                out_dir=args.output_dir,
-                save=args.write,
-                mode=args.mode,
-                n_gauss=args.n_gauss,
-                seed=args.seed,
-                nseed=None,
-                width_range=args.sg_width,
-                noise=args.noise,
-                scatter=args.scatter,
-                plot=args.plot,
-                n_cpus=None
+				frb_id=args.frb_identifier,
+				obs_file=obs_params_path,
+				gauss_file=gauss_params_path,
+				out_dir=args.output_dir,
+				save=args.write,
+				mode=args.mode,
+				n_gauss=args.n_gauss,
+				seed=args.seed,
+				nseed=None,
+				width_range=args.sg_width,
+				noise=args.noise,
+				scatter=args.scatter,
+				plot=args.plot,
+				n_cpus=None,
+				plot_mode=selected_plot_mode
 			)
 			if args.chi2_fit:
 				if args.noise == 0:
@@ -292,17 +293,17 @@ def main():
 					# Call the plotting function specifically for 'pa_var'
 					plots(
 						fname=args.frb_identifier,
-                        frb_data=None,
-                        pa_var_weighted=pa_var_values,
-                        dpa_var_weighted=pa_var_errors,
-                        mode=plot_mode,
-                        rm=None,
-                        out_dir=data_directory,
-                        save=args.save_plots,
-                        figsize=args.figsize,
-                        scatter_ms=args.scattering_timescale_ms,
-                        show_plots=args.show_plots,
-                        width_ms=width_ms,
+						frb_data=None,
+						pa_var_weighted=values,
+						dpa_var_weighted=errors,
+						mode=plot_mode,
+						rm=None,
+						out_dir=data_directory,
+						save=args.save_plots,
+						figsize=args.figsize,
+						scatter_ms=args.scattering_timescale_ms,
+						show_plots=args.show_plots,
+						width_ms=width_ms,
 					)
 				else:
 					# Ensure FRB_data is not None for other plot modes
@@ -313,17 +314,17 @@ def main():
 					# Call the plotting function for other modes
 					plots(
 						fname=args.frb_identifier,
-                        frb_data=FRB,
-                        pa_var_weighted=None,
-                        dpa_var_weighted=None,
-                        mode=plot_mode,
-                        rm=rm,
-                        out_dir=data_directory,
-                        save=args.save_plots,
-                        figsize=args.figsize,
-                        scatter_ms=args.scattering_timescale_ms,
-                        show_plots=args.show_plots,
-                        width_ms=None,
+						frb_data=FRB,
+						pa_var_weighted=None,
+						dpa_var_weighted=None,
+						mode=plot_mode,
+						rm=rm,
+						out_dir=data_directory,
+						save=args.save_plots,
+						figsize=args.figsize,
+						scatter_ms=args.scattering_timescale_ms,
+						show_plots=args.show_plots,
+						width_ms=None,
 					)
 
 	except Exception as e:
