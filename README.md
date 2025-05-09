@@ -6,7 +6,7 @@ FIRES is a Python package designed to simulate Fast Radio Bursts (FRBs) with sca
 
 - **Customizable FRB Simulations**:
   - Simulate FRBs with adjustable scattering timescales.
-  - Generate Gaussian or sub-Gaussian pulse distributions.
+  - Generate Gaussian or micro-shot pulse distributions.
   - Add noise and apply scattering effects.
 
 - **Data Output**:
@@ -71,10 +71,10 @@ The `FIRES` command-line tool provides several options to customize the simulati
 | `-s`, `--save-plots`       | `flag`     | `False`           | Save plots to disk.                                                                                |
 | `--tz`                    | `float`    | `[0, 0]`          | Time zoom range for plots (start and end in milliseconds).                                         |
 | `--fz`                    | `float`    | `[0, 0]`          | Frequency zoom range for plots (start and end in MHz).                                             |
-| `-m`, `--mode`             | `str`      | `gauss`           | Mode for generating pulses: `gauss` or `sgauss`.                                                   |
-| `--n-gauss`               | `int`      | **Required**      | Number of sub-Gaussians for each main Gaussian (required if `--mode` is `sgauss`).                 |
-| `--seed`                  | `int`      | `None`            | Seed for repeatability in `sgauss` mode.                                                           |
-| `--sg-width`              | `float`    | `[10, 50]`        | Min and max percentage of the main Gaussian width for sub-Gaussians.                               |
+| `-m`, `--mode`             | `str`      | `gauss`           | Mode for generating pulses: `gauss` or `mgauss`.                                                   |
+| `--n-gauss`               | `int`      | **Required**      | Number of micro-shots for each main Gaussian (required if `--mode` is `mgauss`).                 |
+| `--seed`                  | `int`      | `None`            | Seed for repeatability in `mgauss` mode.                                                           |
+| `--sg-width`              | `float`    | `[10, 50]`        | Min and max percentage of the main Gaussian width for micro-shots.                               |
 | `--noise`                 | `float`    | `0`               | Noise scale in the dynamic spectrum.                                                               |
 | `--scatter`               | `flag`     | `True`            | Enable scattering.                                                                                 |
 | `--no-scatter`            | `flag`     | `False`           | Disable scattering. Overrides `--scatter`.                                                        |
@@ -88,9 +88,9 @@ The `FIRES` command-line tool provides several options to customize the simulati
     FIRES -t 0.5 --mode gauss --noise 2
     ```
 
-2. Simulate an FRB with sub-Gaussians:
+2. Simulate an FRB with micro-shots:
     ```bash
-    FIRES -t 0.5 --mode sgauss --n-gauss 30 20 --sg-width 10 40
+    FIRES -t 0.5 --mode mgauss --n-gauss 30 20 --sg-width 10 40
     ```
 
 3. Generate plots for the simulated FRB:

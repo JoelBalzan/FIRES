@@ -46,7 +46,7 @@ def generate_dynspec(mode, s_val, plot_pa_var, **params):
     if mode == 'gauss':
         params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range"}
         return gauss_dynspec(**params, tau_ms=s_val)
-    else:  # mode == 'sgauss'
+    else:  # mode == 'mgauss'
         return sub_gauss_dynspec(**params, tau_ms=s_val)
 
 
@@ -213,4 +213,4 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
 
         return np.array(med_pa_var_vals), np.array(pa_var_errs), width[1]
     else:
-        print("Invalid mode specified. Please use 'gauss' or 'sgauss'.\n")
+        print("Invalid mode specified. Please use 'gauss' or 'mgauss'.\n")
