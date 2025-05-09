@@ -112,7 +112,7 @@ inch_to_cm				    =	2.54
 
 
 
-simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'freq_mhz', 'time_ms', 'tau_ms', 'sc_idx', 'gaussian_params', 'dynamic_spectrum'])
+simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'freq_mhz', 'time_ms', 'tau_ms', 'sc_idx', 'gaussian_params', 'observation_params', 'dynamic_spectrum'])
 
 # time variation
 frb_time_series	=	namedtuple('frbts',['iquvt','lts','elts','pts','epts','phits','dphits','psits','dpsits','qfrac','eqfrac','ufrac','eufrac','vfrac','evfrac','lfrac','elfrac','pfrac','epfrac'])

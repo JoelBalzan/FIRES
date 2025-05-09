@@ -2,8 +2,9 @@ import numpy as np
 import argparse
 import os
 import traceback
+from inspect import signature
+
 from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
-from FIRES.functions.processfrb import plots
 from FIRES.utils.utils import chi2_fit, gaussian_model
 from FIRES.functions.plotmodes import plot_modes
 
@@ -63,7 +64,7 @@ def main():
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var', 'lfrac'],
 		metavar="",
 		help=(
 			"Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
@@ -72,6 +73,7 @@ def main():
 			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
 			"  'rm': Plot the rotation measure (RM) as a function of frequency from RM-Tools.\n"
 			"  'pa_var': Plot the variance of the polarization angle (PA) as a function of scattering timescale.\n"
+			"  'lfrac': Plot the fraction of linear polarization (L/I) as a function of time.\n"
 			"Pass 'None' to disable all plots."
 	)
 )
@@ -137,12 +139,12 @@ def main():
 	parser.add_argument(
 		"--nseed",
 		type=int,
-		default=None,
+		default=1,
 		metavar="",
 		help="How many realisations to generate at each scattering timescale for mgauss mode."
 	)
 	parser.add_argument(
-		"--sg-width",
+		"--mg-width",
 		nargs=2,
 		type=float,
 		default=[10, 50],
@@ -237,7 +239,7 @@ def main():
 				n_gauss=args.n_gauss,
 				seed=args.seed,
 				nseed=args.nseed,
-				width_range=args.sg_width,
+				width_range=args.mg_width,
 				noise=args.noise,
 				scatter=args.scatter,
 				plot=args.plot,
@@ -256,7 +258,7 @@ def main():
 				n_gauss=args.n_gauss,
 				seed=args.seed,
 				nseed=None,
-				width_range=args.sg_width,
+				width_range=args.mg_width,
 				noise=args.noise,
 				scatter=args.scatter,
 				plot=args.plot,
@@ -289,43 +291,37 @@ def main():
 		# Call the plotting function if required
 		if args.plot != 'None':
 			for plot_mode in args.plot:
-				if plot_mode == 'pa_var':
-					# Call the plotting function specifically for 'pa_var'
-					plots(
-						fname=args.frb_identifier,
-						frb_data=None,
-						pa_var_weighted=values,
-						dpa_var_weighted=errors,
-						mode=plot_mode,
-						rm=None,
-						out_dir=data_directory,
-						save=args.save_plots,
-						figsize=args.figsize,
-						scatter_ms=args.scattering_timescale_ms,
-						show_plots=args.show_plots,
-						width_ms=width_ms,
-					)
-				else:
-					# Ensure FRB_data is not None for other plot modes
-					if FRB is None:
-						print("Error: FRB data is not available for the selected plot mode. \n")
+				try:
+					plot_mode_obj = plot_modes.get(plot_mode)
+					if plot_mode_obj is None:
+						print(f"Error: Plot mode '{plot_mode}' is not defined in plotmodes.py. \n")
 						continue
 					
-					# Call the plotting function for other modes
-					plots(
-						fname=args.frb_identifier,
-						frb_data=FRB,
-						pa_var_weighted=None,
-						dpa_var_weighted=None,
-						mode=plot_mode,
-						rm=rm,
-						out_dir=data_directory,
-						save=args.save_plots,
-						figsize=args.figsize,
-						scatter_ms=args.scattering_timescale_ms,
-						show_plots=args.show_plots,
-						width_ms=None,
-					)
+					plotting_args = {
+						"fname": args.frb_identifier,
+						"frb_data": FRB if 'FRB' in locals() else None,
+						"mode": plot_mode,
+						"rm": rm if 'rm' in locals() else None,
+						"vals": values if 'values' in locals() else None,
+						"errs": errors if 'errors' in locals() else None,
+						"width_ms": width_ms if 'width_ms' in locals() else None,
+						"out_dir": data_directory,
+						"save": args.save_plots,
+						"figsize": args.figsize,
+						"scatter_ms": args.scattering_timescale_ms,
+						"show_plots": args.show_plots,
+					}
+		
+					plot_function = plot_mode_obj.plot_func
+					plot_func_params = signature(plot_function).parameters
+					filtered_args = {key: value for key, value in plotting_args.items() if key in plot_func_params}
+		
+					# Call the plotting function with the filtered arguments
+					plot_function(**filtered_args)
+						
+				except Exception as e:
+					print(f"An error occurred while plotting '{plot_mode}': {e} \n")
+					traceback.print_exc()
 
 	except Exception as e:
 		print(f"An error occurred during the simulation: {e} \n")

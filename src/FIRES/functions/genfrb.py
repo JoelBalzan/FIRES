@@ -39,14 +39,14 @@ def process_task(task, mode, plot, process_func, **params):
     Dynamically uses the provided process_func for mode-specific processing.
     """
     s_val, realization = task
-    current_seed = params["seed"] + realization if params["seed"] is not None else None
+    current_seed = params["seed"] + realization if params["seed"] is not 1 else None
     params["seed"] = current_seed
 
     # Generate dynamic spectrum
     dspec, PA_microshot = generate_dynspec(
         mode=mode,
         s_val=s_val,
-        plot_pa_var=(plot == ['pa_var']),
+        plot_var=(plot == ['pa_var']),
         **params
     )
 
@@ -126,16 +126,16 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
     if (lin_pol + circ_pol).any() > 1.0:
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
-    if plot != ['pa_var']:
+    if plot != ['pa_var'] and plot != ['lfrac']:
         dspec, _ = generate_dynspec(
             mode=mode,
             s_val=None,
-            plot_pa_var=False,
+            plot_var=False,
             **dspec_params._asdict()
         )
-        _, corrdspec, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
+        _, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
         frb_data = simulated_frb(
-            frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, corrdspec
+            frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, obs_params, dspec
         )
         if save:
             out_file = f"{out_dir}{frb_id}_sc_{scatter_ms:.2f}.pkl"
@@ -146,13 +146,14 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
     else:
         # Create a list of tasks (timescale, realization)
         tasks = list(product(scatter_ms, range(nseed)))
+        print(tasks)
 
         with ProcessPoolExecutor(max_workers=n_cpus) as executor:
             partial_func = functools.partial(
                 process_task,
                 mode=mode,
                 plot=plot,
-                process_func=plot_mode.process_func
+                process_func=plot_mode.process_func,
                 **dspec_params._asdict()
             )
 
@@ -165,8 +166,8 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
         errs = {s_val: [] for s_val in scatter_ms}
         var_PA_microshots = {s_val: [] for s_val in scatter_ms}
 
-        for s_val, var, err, PA_microshot in results:
-            vals[s_val].append(var)
+        for s_val, val, err, PA_microshot in results:
+            vals[s_val].append(val)
             errs[s_val].append(err)
             var_PA_microshots[s_val].append(PA_microshot)
             
@@ -181,7 +182,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             var_PA_microshots = None
 
         med_vals = []
-        errs = []
+        percentile_errs = []
 
         for s_val in scatter_ms:
             # Calculate the median of pa_var values
@@ -193,7 +194,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             upper_percentile = np.percentile(vals[s_val], 84)
 
             # Error bars are the difference between the median and the percentiles
-            errs.append((lower_percentile, upper_percentile))
+            percentile_errs.append((lower_percentile, upper_percentile))
 
         if save:
             # Create a descriptive filename

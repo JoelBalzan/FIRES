@@ -6,38 +6,66 @@ import matplotlib.pyplot as plt
 from FIRES.functions.basicfns import process_dynspec
 from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
+
 class PlotMode:
 	def __init__(self, name, process_func, plot_func):
 		self.name = name
 		self.process_func = process_func
 		self.plot_func = plot_func
 		
+def basic_plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, show_plots):
+
+    ds_data = frb_data
+
+    ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
+        ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, rm
+    )
+
+    iquvt = ts_data.iquvt
+    time_ms = ds_data.time_ms
+    freq_mhz = ds_data.freq_mhz
+
+    if mode == "all":
+        plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
+        plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
+        plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
+        estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+    elif mode == "iquv":
+        plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
+    elif mode == "lvpa":
+        plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
+    elif mode == "dpa":
+        plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
+    elif mode == "rm":
+        estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+    else:
+        print(f"Invalid mode: {mode} \n")
 
 # Define the iquv mode
 iquv = PlotMode(
 	name="iquv",
 	process_func=None,  # No specific processing needed for iquv
-	plot_func=plot_stokes  # Use the general-purpose plot_stokes function
+	plot_func=basic_plots  # Use the general-purpose plot_stokes function
 )
 
 # Define the lvpa mode
 lvpa = PlotMode(
 	name="lvpa",
 	process_func=None,  # No specific processing needed for lvpa
-	plot_func=plot_ilv_pa_ds  # Use the general-purpose plot_ilv_pa_ds function
+	plot_func=basic_plots  # Use the general-purpose plot_ilv_pa_ds function
 )
 
 # Define the dpa mode
 dpa = PlotMode(
 	name="dpa",
 	process_func=None,  # No specific processing needed for dpa
-	plot_func=plot_dpa  # Use the general-purpose plot_dpa function
+	plot_func=basic_plots  # Use the general-purpose plot_dpa function
 )
 # Define the rm mode
 rm = PlotMode(
 	name="rm",
 	process_func=None,  # No specific processing needed for rm
-	plot_func=estimate_rm  # Use the general-purpose estimate_rm function
+	plot_func=basic_plots  # Use the general-purpose estimate_rm function
 )
 
 
@@ -53,7 +81,7 @@ def process_pa_var(dspec, freq_mhz, time_ms, rm):
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(scatter_ms, med_pa_var_vals, pa_var_errs, save, fname, out_dir, figsize, show_plots, width_ms):
+def plot_pa_var(scatter_ms, vals, errs, save, fname, out_dir, figsize, show_plots, width_ms):
 	"""
 	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
 	"""
@@ -63,11 +91,11 @@ def plot_pa_var(scatter_ms, med_pa_var_vals, pa_var_errs, save, fname, out_dir, 
 	tau_weighted = scatter_ms / width_ms
 
 	# Extract lower and upper errors relative to the median
-	lower_errors = [median - lower for (lower, upper), median in zip(pa_var_errs, med_pa_var_vals)]
-	upper_errors = [upper - median for (lower, upper), median in zip(pa_var_errs, med_pa_var_vals)]
+	lower_errors = [median - lower for (lower, upper), median in zip(errs, vals)]
+	upper_errors = [upper - median for (lower, upper), median in zip(errs, vals)]
 	
 	# Pass the errors as a tuple to yerr
-	ax.errorbar(tau_weighted, med_pa_var_vals, 
+	ax.errorbar(tau_weighted, vals, 
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
@@ -86,7 +114,7 @@ def plot_pa_var(scatter_ms, med_pa_var_vals, pa_var_errs, save, fname, out_dir, 
 pa_var = PlotMode(name="pa_var", 
 					   process_func=process_pa_var, 
 					   plot_func=plot_pa_var
-					   )
+)
 
 
 
@@ -122,16 +150,16 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm):
 	return lfrac, lfrac_err
 
 
-def plot_lfrac_var(scatter_ms, lfrac_vals, lfrac_errs, save, fname, out_dir, figsize, show_plots, width_ms):
+def plot_lfrac_var(scatter_ms, vals, errs, save, fname, out_dir, figsize, show_plots, width_ms):
 	fig, ax = plt.subplots(figsize=figsize)
 
 
 	# Extract lower and upper errors relative to the median
-	lower_errors = [median - lower for (lower, upper), median in zip(lfrac_errs, lfrac_vals)]
-	upper_errors = [upper - median for (lower, upper), median in zip(lfrac_errs, lfrac_vals)]
+	lower_errors = [median - lower for (lower, upper), median in zip(errs, vals)]
+	upper_errors = [upper - median for (lower, upper), median in zip(errs, vals)]
 	
 	# Pass the errors as a tuple to yerr
-	ax.errorbar(scatter_ms, lfrac_vals, 
+	ax.errorbar(scatter_ms, vals, 
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
@@ -159,5 +187,5 @@ plot_modes = {
 	"lvpa": lvpa,
 	"dpa": dpa,
 	"rm": rm,
-	"lfrac_var": lfrac,
+	"lfrac": lfrac,
 }
