@@ -228,7 +228,7 @@ def main():
 		# Generate the FRB or PA var data
 		if args.plot == ['pa_var'] or args.plot == ['lfrac']:
 			print(f"Processing with {args.ncpu} threads. \n")
-			values, errors, width_ms, var_PA_microshots = generate_frb(
+			values, errors, percentile_errors, width_ms, var_PA_microshots = generate_frb(
 				scatter_ms=args.scattering_timescale_ms,
 				frb_id=args.frb_identifier,
 				obs_file=obs_params_path,
@@ -304,6 +304,7 @@ def main():
 						"rm": rm if 'rm' in locals() else None,
 						"vals": values if 'values' in locals() else None,
 						"errs": errors if 'errors' in locals() else None,
+						"percentile_errs": percentile_errors if 'percentile_errors' in locals() else None,
 						"width_ms": width_ms if 'width_ms' in locals() else None,
 						"out_dir": data_directory,
 						"save": args.save_plots,

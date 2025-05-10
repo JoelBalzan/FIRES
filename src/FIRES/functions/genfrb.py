@@ -13,15 +13,17 @@ import functools
 from itertools import product
 from tqdm import tqdm
 
+from FIRES.functions.plotmodes import plot_modes
+
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(current_dir)
 obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
 gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
-def generate_dynspec(mode, s_val, plot_var, **params):
+def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
     """Generate dynamic spectrum based on mode."""
-    s_val = s_val if plot_var else params["tau_ms"]
+    s_val = s_val if plot_multiple_tau else params["tau_ms"]
     
     # Remove 'tau_ms' from params to avoid conflict
     params = {k: v for k, v in params.items() if k != "tau_ms" and k != "nseed"}
@@ -39,14 +41,16 @@ def process_task(task, mode, plot, process_func, **params):
     Dynamically uses the provided process_func for mode-specific processing.
     """
     s_val, realization = task
-    current_seed = params["seed"] + realization if params["seed"] is not 1 else None
+    current_seed = params["seed"] + realization if params["seed"] is not None else None
     params["seed"] = current_seed
+    
+    requires_multiple_tau = any(plot_modes[p].requires_multiple_tau for p in plot if p in plot_modes) 
 
     # Generate dynamic spectrum
     dspec, PA_microshot = generate_dynspec(
         mode=mode,
         s_val=s_val,
-        plot_var=(plot == ['pa_var']),
+        plot_multiple_tau=requires_multiple_tau,
         **params
     )
 
@@ -146,7 +150,6 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
     else:
         # Create a list of tasks (timescale, realization)
         tasks = list(product(scatter_ms, range(nseed)))
-        print(tasks)
 
         with ProcessPoolExecutor(max_workers=n_cpus) as executor:
             partial_func = functools.partial(
@@ -207,4 +210,4 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
                 pkl.dump((scatter_ms, med_vals, errs, width[1], var_PA_microshots), frb_file)
             print(f"Saved FRB data to {out_file}")
 
-        return np.array(med_vals), np.array(errs), width[1], var_PA_microshots
+        return np.array(med_vals), np.array(errs), np.array(percentile_errs), width[1], np.array(var_PA_microshots)
