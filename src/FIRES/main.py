@@ -199,11 +199,7 @@ def main():
 					raise ValueError("Invalid range format for scattering timescales. Use '(start,stop,step)'.")
 			else:
 				scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
-	
-		# If only one scattering time is passed, convert to a float
-		if len(scattering_timescales) == 1:
-			scattering_timescales = float(scattering_timescales[0])
-	
+
 		args.scattering_timescale_ms = scattering_timescales
 	else:
 		args.scattering_timescale_ms = False
