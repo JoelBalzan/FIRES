@@ -102,17 +102,16 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm):
 	U = ts_data.iquvt[2]
 	V = ts_data.iquvt[3]
  
-	threshold = 0.1 * np.nanmax(I)
+	threshold = 0.05 * np.nanmax(I)
 	mask = I <= threshold
  
-	itsub = np.where(mask, np.nan, iquvt[0])
-	qtsub = np.where(mask, np.nan, iquvt[1])
-	utsub = np.where(mask, np.nan, iquvt[2])
-	vtsub = np.where(mask, np.nan, iquvt[3])
+	I_masked = np.where(mask, np.nan, iquvt[0])
+	Q_masked = np.where(mask, np.nan, iquvt[1])
+	U_masked = np.where(mask, np.nan, iquvt[2])
 	
-	L = np.sqrt(Q**2 + U**2)
+	L = np.sqrt(Q_masked**2 + U_masked**2)
  
-	integrated_I = np.nansum(itsub)
+	integrated_I = np.nansum(I_masked)
 	integrated_L = np.nansum(L)
 	lfrac = integrated_L / integrated_I
  
