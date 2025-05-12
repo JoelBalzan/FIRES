@@ -73,11 +73,9 @@ def plot_pa_var(scatter_ms, vals, percentile_errs, save, fname, out_dir, figsize
 	# weight the scattering timescale by initial Gaussian width
 	tau_weighted = scatter_ms / width_ms
 
-	# Extract lower and upper errors relative to the median
 	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, vals)]
 	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, vals)]
 	
-	# Pass the errors as a tuple to yerr
 	ax.errorbar(tau_weighted, vals, 
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
@@ -128,11 +126,9 @@ def plot_lfrac_var(scatter_ms, vals, percentile_errs, save, fname, out_dir, figs
 	fig, ax = plt.subplots(figsize=figsize)
 
 
-	# Extract lower and upper errors relative to the median
 	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, vals)]
 	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, vals)]
 	
-	# Pass the errors as a tuple to yerr
 	ax.errorbar(scatter_ms, vals, 
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
@@ -153,45 +149,44 @@ pa_var = PlotMode(
     name="pa_var",
     process_func=process_pa_var,
     plot_func=plot_pa_var,
-    requires_multiple_tau=True  # This plot mode requires `plot_var=True`
+    requires_multiple_tau=True  
 )
 
 lfrac = PlotMode(
     name="lfrac",
     process_func=process_lfrac,
     plot_func=plot_lfrac_var,
-    requires_multiple_tau=True  # This plot mode requires `plot_var=True`
+    requires_multiple_tau=True  
 )
 
 iquv = PlotMode(
     name="iquv",
-    process_func=None,  # No specific processing needed for iquv
+    process_func=None, 
     plot_func=basic_plots,
-    requires_multiple_tau=False  # This plot mode does not require `plot_var`
+    requires_multiple_tau=False  
 )
 
 lvpa = PlotMode(
     name="lvpa",
-    process_func=None,  # No specific processing needed for lvpa
+    process_func=None, 
     plot_func=basic_plots,
     requires_multiple_tau=False
 )
 
 dpa = PlotMode(
     name="dpa",
-    process_func=None,  # No specific processing needed for dpa
+    process_func=None, 
     plot_func=basic_plots,
     requires_multiple_tau=False
 )
 
 rm = PlotMode(
     name="rm",
-    process_func=None,  # No specific processing needed for rm
+    process_func=None,  
     plot_func=basic_plots,
     requires_multiple_tau=False
 )
 
-# Register all available plot modes
 plot_modes = {
 	"pa_var": pa_var,
 	"iquv": iquv,
