@@ -131,10 +131,11 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
     if plot != ['pa_var'] and plot != ['lfrac']:
+        
         dspec, _ = generate_dynspec(
             mode=mode,
             s_val=None,
-            plot_var=False,
+            plot_multiple_tau=False,
             **dspec_params._asdict()
         )
         _, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
