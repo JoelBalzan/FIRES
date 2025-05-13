@@ -66,10 +66,13 @@ def process_pa_var(dspec, freq_mhz, time_ms, rm):
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms):
+def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms, var_PA_microshots):
 	"""
 	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
 	"""
+	
+	# weight PA_var by microshot var
+	vals /= var_PA_microshots
  
 	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
  
