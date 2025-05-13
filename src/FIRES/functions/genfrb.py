@@ -175,22 +175,6 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             errs[s_val].append(err)
             var_PA_microshots[s_val].append(PA_microshot)
             
-
-        med_vals = []
-        percentile_errs = []
-
-        for s_val in scatter_ms:
-            # Calculate the median of pa_var values
-            median_val = np.median(vals[s_val])
-            med_vals.append(median_val)
-
-            # Calculate the 1-sigma percentiles (16th and 84th percentiles)
-            lower_percentile = np.percentile(vals[s_val], 16)
-            upper_percentile = np.percentile(vals[s_val], 84)
-
-            # Error bars are the difference between the median and the percentiles
-            percentile_errs.append((lower_percentile, upper_percentile))
-
         if save:
             # Create a descriptive filename
             out_file = (
@@ -199,7 +183,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
                 f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
             )
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((scatter_ms, med_vals, errs, percentile_errs, width[1], var_PA_microshots), frb_file)
+                pkl.dump((scatter_ms, val, errs, width[1], var_PA_microshots), frb_file)
             print(f"Saved FRB data to {out_file}")
 
-        return np.array(med_vals), np.array(errs), np.array(percentile_errs), width[1], np.array(var_PA_microshots)
+        return np.array(vals), np.array(errs), width[1], np.array(var_PA_microshots)
