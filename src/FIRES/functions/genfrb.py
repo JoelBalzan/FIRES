@@ -176,15 +176,6 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             var_PA_microshots[s_val].append(PA_microshot)
             
 
-        # Compute averages and errors for each timescale
-        if plot == ['pa_var']:
-            vals /= var_PA_microshots
-            errs /= var_PA_microshots
-            #vals /= {s_val: np.array(vals[s_val]) for s_val in scatter_ms}
-            #errs = {s_val: np.array(errs[s_val]) for s_val in scatter_ms}
-        else:
-            var_PA_microshots = None
-
         med_vals = []
         percentile_errs = []
 
