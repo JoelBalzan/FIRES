@@ -3,53 +3,53 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from FIRES.functions.basicfns import process_dynspec, median_percentiles
+from FIRES.functions.basicfns import process_dynspec, median_percentiles, weight_dict
 from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
 class PlotMode:
-    def __init__(self, name, process_func, plot_func, requires_multiple_tau=False):
-        """
-        Represents a plot mode with its associated processing and plotting functions.
+	def __init__(self, name, process_func, plot_func, requires_multiple_tau=False):
+		"""
+		Represents a plot mode with its associated processing and plotting functions.
 
-        Args:
-            name (str): Name of the plot mode.
-            process_func (callable): Function to process data for this plot mode.
-            plot_func (callable): Function to generate the plot.
-            requires_multiple_tau (bool): Whether this plot mode requires `plot_var=True`.
-        """
-        self.name = name
-        self.process_func = process_func
-        self.plot_func = plot_func
-        self.requires_multiple_tau = requires_multiple_tau
+		Args:
+			name (str): Name of the plot mode.
+			process_func (callable): Function to process data for this plot mode.
+			plot_func (callable): Function to generate the plot.
+			requires_multiple_tau (bool): Whether this plot mode requires `plot_var=True`.
+		"""
+		self.name = name
+		self.process_func = process_func
+		self.plot_func = plot_func
+		self.requires_multiple_tau = requires_multiple_tau
 		
 def basic_plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, show_plots):
 
-    ds_data = frb_data
+	ds_data = frb_data
 
-    ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
-        ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, rm
-    )
+	ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
+		ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, rm
+	)
 
-    iquvt = ts_data.iquvt
-    time_ms = ds_data.time_ms
-    freq_mhz = ds_data.freq_mhz
+	iquvt = ts_data.iquvt
+	time_ms = ds_data.time_ms
+	freq_mhz = ds_data.freq_mhz
 
-    if mode == "all":
-        plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
-        plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
-        plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
-        estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
-    elif mode == "iquv":
-        plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
-    elif mode == "lvpa":
-        plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
-    elif mode == "dpa":
-        plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
-    elif mode == "rm":
-        estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
-    else:
-        print(f"Invalid mode: {mode} \n")
+	if mode == "all":
+		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
+		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
+		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
+		estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+	elif mode == "iquv":
+		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
+	elif mode == "lvpa":
+		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
+	elif mode == "dpa":
+		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
+	elif mode == "rm":
+		estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+	else:
+		print(f"Invalid mode: {mode} \n")
 
 
 
@@ -72,10 +72,9 @@ def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, wid
 	"""
 	
 	# weight PA_var by microshot var
-	vals /= var_PA_microshots
+	vals = weight_dict(scatter_ms, vals, var_PA_microshots)
  
 	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
- 
  
 	fig, ax = plt.subplots(figsize=figsize)
 
@@ -133,9 +132,9 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm):
 
 
 def plot_lfrac_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots):
-    
+	
 	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
-    
+	
 	fig, ax = plt.subplots(figsize=figsize)
 
 	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, med_vals)]
@@ -158,45 +157,45 @@ def plot_lfrac_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots):
 
 
 pa_var = PlotMode(
-    name="pa_var",
-    process_func=process_pa_var,
-    plot_func=plot_pa_var,
-    requires_multiple_tau=True  
+	name="pa_var",
+	process_func=process_pa_var,
+	plot_func=plot_pa_var,
+	requires_multiple_tau=True  
 )
 
 lfrac = PlotMode(
-    name="lfrac",
-    process_func=process_lfrac,
-    plot_func=plot_lfrac_var,
-    requires_multiple_tau=True  
+	name="lfrac",
+	process_func=process_lfrac,
+	plot_func=plot_lfrac_var,
+	requires_multiple_tau=True  
 )
 
 iquv = PlotMode(
-    name="iquv",
-    process_func=None, 
-    plot_func=basic_plots,
-    requires_multiple_tau=False  
+	name="iquv",
+	process_func=None, 
+	plot_func=basic_plots,
+	requires_multiple_tau=False  
 )
 
 lvpa = PlotMode(
-    name="lvpa",
-    process_func=None, 
-    plot_func=basic_plots,
-    requires_multiple_tau=False
+	name="lvpa",
+	process_func=None, 
+	plot_func=basic_plots,
+	requires_multiple_tau=False
 )
 
 dpa = PlotMode(
-    name="dpa",
-    process_func=None, 
-    plot_func=basic_plots,
-    requires_multiple_tau=False
+	name="dpa",
+	process_func=None, 
+	plot_func=basic_plots,
+	requires_multiple_tau=False
 )
 
 rm = PlotMode(
-    name="rm",
-    process_func=None,  
-    plot_func=basic_plots,
-    requires_multiple_tau=False
+	name="rm",
+	process_func=None,  
+	plot_func=basic_plots,
+	requires_multiple_tau=False
 )
 
 plot_modes = {
