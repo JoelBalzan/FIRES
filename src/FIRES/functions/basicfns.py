@@ -404,3 +404,12 @@ def median_percentiles(vals, scatter_ms):
            percentile_errs.append((lower_percentile, upper_percentile))
            
     return med_vals, percentile_errs
+
+def weight_dict(scatter_ms, vals, weights_dict):
+	normalised_vals = {s_val: [] for s_val in scatter_ms}
+	
+	for s_val in scatter_ms:
+			normalised_vals[s_val] = [ val / pa if pa != 0 else 0 for val, pa in zip(vals[s_val], weights_dict[s_val]) ]
+   
+	return normalised_vals
+	
