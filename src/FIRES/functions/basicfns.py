@@ -387,3 +387,20 @@ def estimate_windows(itsub, time_ms, threshold=0.1):
 
 	print(f"RM: Estimated left_window: {left_time} ms, right_window: {right_time} ms")
 	return left_window, right_window
+
+
+def median_percentiles(vals, scatter_ms):
+    med_vals = []
+    percentile_errs = []
+    
+    for s_val in scatter_ms:
+           # Calculate the median of pa_var values
+           median_val = np.median(vals[s_val])
+           med_vals.append(median_val)
+           # Calculate the 1-sigma percentiles (16th and 84th percentiles)
+           lower_percentile = np.percentile(vals[s_val], 16)
+           upper_percentile = np.percentile(vals[s_val], 84)
+           # Error bars are the difference between the median and the percentiles
+           percentile_errs.append((lower_percentile, upper_percentile))
+           
+    return med_vals, percentile_errs
