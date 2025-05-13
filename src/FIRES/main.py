@@ -306,7 +306,7 @@ def main():
 						"figsize": args.figsize,
 						"scatter_ms": args.scattering_timescale_ms,
 						"show_plots": args.show_plots,
-						"PA_microshot": var_PA_microshots if 'var_PA_microshots' in locals() else None,
+						"var_PA_microshots": var_PA_microshots if 'var_PA_microshots' in locals() else None,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
