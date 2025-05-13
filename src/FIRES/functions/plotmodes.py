@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from FIRES.functions.basicfns import process_dynspec
+from FIRES.functions.basicfns import process_dynspec, median_percentiles
 from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
@@ -56,27 +56,33 @@ def basic_plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, s
 # Processing function for pa_var
 def process_pa_var(dspec, freq_mhz, time_ms, rm):
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
+ 
 	peak_index = np.argmax(ts_data.iquvt[0])
 	phits = ts_data.phits[peak_index:]
 	dphits = ts_data.dphits[peak_index:]
+ 
 	pa_var = np.nanvar(phits)
 	pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(scatter_ms, vals, percentile_errs, save, fname, out_dir, figsize, show_plots, width_ms):
+def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms):
 	"""
 	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
 	"""
+ 
+	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+ 
+ 
 	fig, ax = plt.subplots(figsize=figsize)
 
 	# weight the scattering timescale by initial Gaussian width
 	tau_weighted = scatter_ms / width_ms
 
-	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, vals)]
-	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, vals)]
+	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, med_vals)]
+	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, med_vals)]
 	
-	ax.errorbar(tau_weighted, vals, 
+	ax.errorbar(tau_weighted, med_vals, 
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
@@ -94,6 +100,7 @@ def plot_pa_var(scatter_ms, vals, percentile_errs, save, fname, out_dir, figsize
 
 def process_lfrac(dspec, freq_mhz, time_ms, rm):
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
+ 
 	iquvt = ts_data.iquvt
 	I = ts_data.iquvt[0]
 	Q = ts_data.iquvt[1]
@@ -122,14 +129,16 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm):
 	return lfrac, lfrac_err
 
 
-def plot_lfrac_var(scatter_ms, vals, percentile_errs, save, fname, out_dir, figsize, show_plots, width_ms):
+def plot_lfrac_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots):
+    
+	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+    
 	fig, ax = plt.subplots(figsize=figsize)
 
-
-	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, vals)]
-	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, vals)]
+	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, med_vals)]
+	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, med_vals)]
 	
-	ax.errorbar(scatter_ms, vals, 
+	ax.errorbar(scatter_ms, med_vals, 
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
