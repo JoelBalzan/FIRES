@@ -183,7 +183,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
                 f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
             )
             with open(out_file, 'wb') as frb_file:
-                pkl.dump((scatter_ms, val, errs, width[1], var_PA_microshots), frb_file)
+                pkl.dump((scatter_ms, vals, errs, width[1], var_PA_microshots), frb_file)
             print(f"Saved FRB data to {out_file}")
 
         return vals, errs, width[1], var_PA_microshots
