@@ -332,3 +332,41 @@ def weight_dict(scatter_ms, vals, weights_dict):
    
 	return normalised_vals
 	
+ 
+def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
+	"""
+	Apply scattering to chan using a causal exponential IRF,
+	with padding to prevent boundary artifacts.
+
+	Inputs:
+		- stokes_I: 1D array of chan (len(time_ms))
+		- freq_mhz: Channel frequency in MHz
+		- time_ms: 1D array of time values in ms (uniformly spaced)
+		- tau_ms: Reference scattering timescale (ms) at ref_freq_mhz
+		- sc_idx: Scattering index (e.g. -4)
+		- ref_freq_mhz: Reference frequency in MHz
+
+	Returns:
+		- sc_stokes_I: Scattered chan (same shape as input)
+		- tau_cms: Scattering timescale at freq_mhz
+	"""
+	# Calculate frequency-dependent scattering timescale
+	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
+
+	# Time resolution
+	dt = time_ms[1] - time_ms[0]
+
+	# Pad to cover tail (~5 tau)
+	n_pad = int(np.ceil(5 * tau_cms / dt))
+	padded_I = np.pad(chan, (0, n_pad), mode='constant')  # Pad only at end
+
+	# Create IRF time axis
+	irf_t = np.arange(0, (n_pad + 1)) * dt
+	irf = np.exp(-irf_t / tau_cms)
+	irf /= np.sum(irf)  # Normalize
+
+	# Convolve and trim back to original size
+	convolved = fftconvolve(padded_I, irf, mode='full')
+	sc_chan = convolved[:len(chan)]
+
+	return sc_chan
