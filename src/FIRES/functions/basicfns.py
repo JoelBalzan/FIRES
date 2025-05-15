@@ -263,7 +263,7 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
  
 	I = np.nanmean(dynspec[0], axis=0)
 
-	threshold = 0.1 * np.nanmax(I)
+	threshold = 0.05 * np.nanmax(I)
 	mask = I >= threshold
 	noise_region = np.where(mask, np.nan, dynspec)  # Mask signal regions with NaN
 
