@@ -61,7 +61,7 @@ def process_task(task, mode, plot_mode, **params):
     return s_val, result, result_err, PA_microshot
 
 
-def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
+def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
                  obs_file, gauss_file, noise, scatter, n_cpus, plot_mode):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
@@ -133,7 +133,21 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
 
     if plot_mode.requires_multiple_tau == False:
         
-        dspec, _ = generate_dynspec(
+        if data != None:
+            if isinstance(data, str):
+                if data.endswith('.pkl'):
+                    with open(data, 'rb') as f:
+                        dspec = pkl.load(f)['dspec']
+                elif data.endswith('.npy'):
+                    dspec = np.load(data)
+                else:
+                    raise ValueError("Unsupported file format: only .pkl and .npy are supported")
+            elif isinstance(data, np.ndarray):
+                dspec = data
+            else:
+                raise ValueError("Unsupported data type for 'data'")
+        else:
+            dspec, _ = generate_dynspec(
             mode=mode,
             s_val=None,
             plot_multiple_tau=False,
@@ -150,30 +164,71 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
         return frb_data, noise_spec, rm
 
     else:
-        # Create a list of tasks (timescale, realization)
-        tasks = list(product(scatter_ms, range(nseed)))
+        if data is not None:
+            # store aggregated data
+            all_scatter_ms = []
+            all_vals = {}  
+            all_errs = {}  
+            all_var_PA_microshots = {}  
+            width_ms = None  # This will be extracted from the first file
 
-        with ProcessPoolExecutor(max_workers=n_cpus) as executor:
-            partial_func = functools.partial(
-                process_task,
-                mode=mode,
-                plot_mode=plot_mode,
-                **dspec_params._asdict()
-            )
+            file_names = [file_name for file_name in sorted(os.listdir(data)) if file_name.endswith(".pkl")]
 
-            results = list(tqdm(executor.map(partial_func, tasks),
-                                total=len(tasks),
-                                desc="Processing scattering timescales and realizations"))
+            # Sort file_names by the number after the first '_'
+            file_names.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
 
-        # Aggregate results by timescale
-        vals = {s_val: [] for s_val in scatter_ms}
-        errs = {s_val: [] for s_val in scatter_ms}
-        var_PA_microshots = {s_val: [] for s_val in scatter_ms}
+            for file_name in sorted(file_names):
+                with open(file_name, "rb") as f:
+                    scatter_ms, vals, errs, width, var_PA_microshots = pkl.load(f)
 
-        for s_val, val, err, PA_microshot in results:
-            vals[s_val].append(val)
-            errs[s_val].append(err)
-            var_PA_microshots[s_val].append(PA_microshot)
+                for s_val in scatter_ms:
+                    if s_val not in all_vals:
+                        all_vals[s_val] = []
+                        all_errs[s_val] = []
+                        all_var_PA_microshots[s_val] = []
+
+                    all_vals[s_val].extend(vals[s_val])
+                    all_errs[s_val].extend(errs[s_val])
+                    all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+
+                all_scatter_ms.extend(scatter_ms)
+
+                # Set width_ms (assume it's the same for all files)
+                if width_ms is None:
+                    width_ms = width
+                
+                vals = all_vals
+                errs = all_errs
+                var_PA_microshots = all_var_PA_microshots
+                scatter_ms = all_scatter_ms
+                width = width_ms
+                
+                
+        else:
+            # Create a list of tasks (timescale, realization)
+            tasks = list(product(scatter_ms, range(nseed)))
+
+            with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+                partial_func = functools.partial(
+                    process_task,
+                    mode=mode,
+                    plot_mode=plot_mode,
+                    **dspec_params._asdict()
+                )
+
+                results = list(tqdm(executor.map(partial_func, tasks),
+                                    total=len(tasks),
+                                    desc="Processing scattering timescales and realizations"))
+
+            # Aggregate results by timescale
+            vals = {s_val: [] for s_val in scatter_ms}
+            errs = {s_val: [] for s_val in scatter_ms}
+            var_PA_microshots = {s_val: [] for s_val in scatter_ms}
+
+            for s_val, val, err, PA_microshot in results:
+                vals[s_val].append(val)
+                errs[s_val].append(err)
+                var_PA_microshots[s_val].append(PA_microshot)
             
         if save:
             # Create a descriptive filename
@@ -181,6 +236,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
                 tau = f"{scatter_ms[0]:.2f}-{scatter_ms[-1]:.2f}"
             else:
                 tau = f"{scatter_ms[0]:.2f}"
+                
             out_file = (
                 f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
                 f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"

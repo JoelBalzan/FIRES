@@ -115,6 +115,13 @@ def main():
 
 	# Simulation Options
 	parser.add_argument(
+		"--data",
+		type=str,
+		default=None,
+		metavar="",
+		help="Path to the data file. If provided, the simulation will use this data instead of generating new data."
+	)
+	parser.add_argument(
 		"-m", "--mode",
 		type=str,
 		default='gauss',
@@ -224,6 +231,7 @@ def main():
 			print(f"Processing with {args.ncpu} threads. \n")
    
 			values, errors, width_ms, var_PA_microshots = generate_frb(
+				data=args.data,
 				scatter_ms=args.scattering_timescale_ms,
 				frb_id=args.frb_identifier,
 				obs_file=obs_params_path,
@@ -239,10 +247,11 @@ def main():
 				scatter=args.scatter,
 				n_cpus=args.ncpu,
 				plot_mode=selected_plot_mode,
-				
+
 				)
 		else:
 			FRB, noisespec, rm = generate_frb(
+				data=args.data,
 				scatter_ms=args.scattering_timescale_ms,
 				frb_id=args.frb_identifier,
 				obs_file=obs_params_path,
