@@ -29,10 +29,6 @@ def apply_faraday_rotation(pol_angle_arr, rm, lambda_sq, median_lambda_sq):
 	return pol_angle_arr + rm * (lambda_sq - median_lambda_sq)
 
 
-def gaussian_model(x, amp, mean, stddev):
-    return amp * np.exp(-((x - mean) ** 2) / (2 * stddev ** 2))
-
-
 def calculate_dispersion_delay(dm, freq, ref_freq):
 	return 4.15 * dm * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
 
