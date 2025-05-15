@@ -219,11 +219,10 @@ def main():
 	selected_plot_mode = plot_modes[args.plot[0]]
 
 	
-	# Call the generate_frb function 
 	try:
-		# Generate the FRB or PA var data
-		if args.plot == ['pa_var'] or args.plot == ['lfrac']:
+		if selected_plot_mode.requires_multiple_tau:
 			print(f"Processing with {args.ncpu} threads. \n")
+   
 			values, errors, width_ms, var_PA_microshots = generate_frb(
 				scatter_ms=args.scattering_timescale_ms,
 				frb_id=args.frb_identifier,
@@ -238,9 +237,9 @@ def main():
 				width_range=args.mg_width,
 				noise=args.SNR,
 				scatter=args.scatter,
-				plot=args.plot,
 				n_cpus=args.ncpu,
-				plot_mode=selected_plot_mode
+				plot_mode=selected_plot_mode,
+				
 				)
 		else:
 			FRB, noisespec, rm = generate_frb(
@@ -257,7 +256,6 @@ def main():
 				width_range=args.mg_width,
 				noise=args.SNR,
 				scatter=args.scatter,
-				plot=args.plot,
 				n_cpus=None,
 				plot_mode=selected_plot_mode
 			)
