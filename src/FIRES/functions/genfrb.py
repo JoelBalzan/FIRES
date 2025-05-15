@@ -32,7 +32,7 @@ def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
         params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range"}
         return gauss_dynspec(**params, tau_ms=s_val)
     else:  # mode == 'mgauss'
-        return sub_gauss_dynspec(**params, tau_ms=s_val)
+        return m_gauss_dynspec(**params, tau_ms=s_val)
 
 
 def process_task(task, mode, plot, process_func, **params):
