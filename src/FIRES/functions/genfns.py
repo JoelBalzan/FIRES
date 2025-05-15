@@ -14,31 +14,110 @@
 #
 #	--------------------------	Import modules	---------------------------
 
-import os
-import sys
 
 import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
-from scipy.interpolate import griddata
+
 from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
 from FIRES.functions.plotfns import *
-from concurrent.futures import ProcessPoolExecutor
-import functools
 
 
-mpl.rcParams['pdf.fonttype'] = 42
-mpl.rcParams['ps.fonttype'] = 42
-mpl.rcParams['savefig.dpi'] = 600
-mpl.rcParams['font.family'] = 'sans-serif'
-mpl.rcParams['font.size'] = 8
-mpl.rcParams["xtick.major.size"] = 3
-mpl.rcParams["ytick.major.size"] = 3
+#    --------------------------	Functions ---------------------------
 
-#	--------------------------	Analysis functions	-------------------------------
+def apply_faraday_rotation(pol_angle_arr, rm, lambda_sq, median_lambda_sq):
+	return pol_angle_arr + rm * (lambda_sq - median_lambda_sq)
 
+
+def gaussian_model(x, amp, mean, stddev):
+    return amp * np.exp(-((x - mean) ** 2) / (2 * stddev ** 2))
+
+
+def calculate_dispersion_delay(dm, freq, ref_freq):
+	return 4.15 * dm * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
+
+
+def add_noise_to_stokes_I(temp_dynspec_chan, peak_amp, noise):
+    # Set noise level based on desired SNR (signal-to-noise ratio)
+    # SNR = peak signal / noise stddev => noise stddev = peak signal / SNR
+    # Use the intended envelope peak as the reference signal
+    signal_level = np.nanmax(peak_amp)
+    noise_std = signal_level / noise  # 'noise' parameter is now SNR
+    noise_I = np.random.normal(loc=0.0, scale=noise_std, size=temp_dynspec_chan.shape)
+    
+    return temp_dynspec_chan + noise_I
+
+
+def add_noise_to_dynspec(dynspec, peak_amp, noise):
+    """
+    Add Gaussian noise to the Stokes I, Q, U, V dynamic spectrum.
+    Noise is added independently to each Stokes parameter.
+    Args:
+        dynspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
+        peak_amp: Reference peak amplitude (float or array)
+        noise: SNR (signal-to-noise ratio), noise stddev = peak_amp / noise
+    Returns:
+        dynspec_noisy: dynspec with noise added
+    """
+    dynspec_noisy = dynspec.copy()
+    signal_level = np.nanmax(peak_amp)
+    noise_std = signal_level / noise
+    for stokes in range(dynspec.shape[0]):
+        noise_arr = np.random.normal(loc=0.0, scale=noise_std, size=dynspec[stokes].shape)
+        dynspec_noisy[stokes] += noise_arr
+    return dynspec_noisy
+
+
+def scatter_stokes_chan(stokes_I, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
+	"""
+	Apply scattering to Stokes I using a causal exponential IRF,
+	with padding to prevent boundary artifacts.
+
+	Inputs:
+		- stokes_I: 1D array of Stokes I (len(time_ms))
+		- freq_mhz: Channel frequency in MHz
+		- time_ms: 1D array of time values in ms (uniformly spaced)
+		- tau_ms: Reference scattering timescale (ms) at ref_freq_mhz
+		- sc_idx: Scattering index (e.g. -4)
+		- ref_freq_mhz: Reference frequency in MHz
+
+	Returns:
+		- sc_stokes_I: Scattered Stokes I (same shape as input)
+		- tau_cms: Scattering timescale at freq_mhz
+	"""
+	# Calculate frequency-dependent scattering timescale
+	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
+
+	# Time resolution
+	dt = time_ms[1] - time_ms[0]
+
+	# Pad to cover tail (~5 tau)
+	n_pad = int(np.ceil(5 * tau_cms / dt))
+	padded_I = np.pad(stokes_I, (0, n_pad), mode='constant')  # Pad only at end
+
+	# Create IRF time axis
+	irf_t = np.arange(0, (n_pad + 1)) * dt
+	irf = np.exp(-irf_t / tau_cms)
+	irf /= np.sum(irf)  # Normalize
+
+	# Convolve and trim back to original size
+	convolved = fftconvolve(padded_I, irf, mode='full')
+	sc_stokes_I = convolved[:len(stokes_I)]
+
+	return sc_stokes_I
+
+
+def calculate_stokes(temp_dynspec, lin_pol_frac, circ_pol_frac, faraday_rot_angle):
+	stokes_q = temp_dynspec * lin_pol_frac * np.cos(2 * faraday_rot_angle)
+	stokes_u = temp_dynspec * lin_pol_frac * np.sin(2 * faraday_rot_angle)
+	stokes_v = temp_dynspec * circ_pol_frac
+	return stokes_q, stokes_u, stokes_v
+
+
+
+
+
+# -------------------------- FRB generator functions ---------------------------
 def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                   dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter,
                   tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
@@ -98,9 +177,9 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
                 temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
             # Add Gaussian noise to Stokes I before calculating Q, U, V
-            if noise > 0:
-                noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
-                temp_dynspec[0, c] += noise_I
+            #if noise > 0:
+            #    temp_dynspec[0, c] = add_noise_to_stokes_I(temp_dynspec[0, c], peak_amp[g + 1], noise)
+
 
             temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
                 temp_dynspec[0, c], lin_pol_frac[g + 1], circ_pol_frac[g + 1], faraday_rot_angle
@@ -108,15 +187,15 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
 
         dynspec += temp_dynspec
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
+    
+    dynspec = add_noise_to_dynspec(dynspec, peak_amp, noise)
+
     return dynspec, var_pol_angles
 
 
 
 
-
-#	--------------------------------------------------------------------------------
-
-def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
+def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                       dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, 
                       width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
     """
@@ -189,8 +268,7 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
 
             for c in range(len(freq_mhz)):
                 # Apply Faraday rotation
-                faraday_rot_angle = pol_angle_arr + var_rm * (lambda_sq[c] - median_lambda_sq)
-
+                faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, var_rm, lambda_sq[c], median_lambda_sq)
                 # Add the Gaussian pulse to the temporary dynamic spectrum
                 temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_loc_ms, var_width_ms)
 
@@ -204,9 +282,8 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
                     temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
                 # Add Gaussian noise to Stokes I
-                if noise > 0:
-                    noise_I = np.random.normal(loc=0.0, scale=np.nanstd(temp_dynspec[0, c]) * noise, size=temp_dynspec[0, c].shape)
-                    temp_dynspec[0, c] += noise_I
+                #if noise > 0:
+                #    temp_dynspec[0, c] = add_noise_to_stokes_I(temp_dynspec[0, c], peak_amp[g + 1], noise)
 
                 # Calculate Stokes Q, U, V
                 temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
@@ -215,6 +292,13 @@ def sub_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_
 
             # Accumulate the contributions from the current micro-shot
             dynspec += temp_dynspec
+    
+    # Normalize dynspec so its maximum matches the intended envelope peak
+    if np.nanmax(dynspec[0]) > 0 and np.nanmax(peak_amp) > 0:
+        dynspec *= np.nanmax(peak_amp) / np.nanmax(dynspec[0])
 
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
+    
+    dynspec = add_noise_to_dynspec(dynspec, peak_amp, noise)
+    
     return dynspec, var_pol_angles
