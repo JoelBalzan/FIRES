@@ -177,8 +177,12 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             
         if save:
             # Create a descriptive filename
+            if len(scatter_ms) > 1:
+                tau = f"{scatter_ms[0]:.2f}-{scatter_ms[-1]:.2f}"
+            else:
+                tau = f"{scatter_ms[0]:.2f}"
             out_file = (
-                f"{out_dir}{frb_id}_mode_{mode}_sc_{scatter_ms[0]:.2f}_"
+                f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
                 f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
                 f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
             )
