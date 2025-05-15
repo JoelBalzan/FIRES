@@ -35,7 +35,7 @@ def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
         return m_gauss_dynspec(**params, tau_ms=s_val)
 
 
-def process_task(task, mode, plot, process_func, **params):
+def process_task(task, mode, plot_mode, **params):
     """
     Process a single task (combination of timescale and realization).
     Dynamically uses the provided process_func for mode-specific processing.
@@ -44,7 +44,7 @@ def process_task(task, mode, plot, process_func, **params):
     current_seed = params["seed"] + realization if params["seed"] is not None else None
     params["seed"] = current_seed
     
-    requires_multiple_tau = any(plot_modes[p].requires_multiple_tau for p in plot if p in plot_modes) 
+    requires_multiple_tau = plot_mode.requires_multiple_tau
 
     # Generate dynamic spectrum
     dspec, PA_microshot = generate_dynspec(
@@ -54,6 +54,7 @@ def process_task(task, mode, plot, process_func, **params):
         **params
     )
 
+    process_func = plot_mode.process_func
     # Use the provided process_func for mode-specific processing
     result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"])
 
@@ -61,7 +62,7 @@ def process_task(task, mode, plot, process_func, **params):
 
 
 def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
-                 obs_file, gauss_file, noise, scatter, plot, n_cpus, plot_mode):
+                 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode):
     """
     Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
     """
@@ -130,7 +131,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
     if (lin_pol + circ_pol).any() > 1.0:
         print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
-    if plot != ['pa_var'] and plot != ['lfrac']:
+    if plot_mode.requires_multiple_tau == False:
         
         dspec, _ = generate_dynspec(
             mode=mode,
@@ -156,8 +157,7 @@ def generate_frb(scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_
             partial_func = functools.partial(
                 process_task,
                 mode=mode,
-                plot=plot,
-                process_func=plot_mode.process_func,
+                plot_mode=plot_mode,
                 **dspec_params._asdict()
             )
 
