@@ -156,7 +156,7 @@ def main():
 		type=float,
 		default=0,
 		metavar="",
-		help="For setting noise scale in dynamic spectrum. This value is multiplied by the standard deviation of each Stokes I frequency channel."
+		help="Signal-to-noise ratio (SNR) for the simulated FRB. Default is 0 (no noise)."
 	)
 	parser.add_argument(
 		"--scatter",
