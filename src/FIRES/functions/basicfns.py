@@ -24,21 +24,6 @@ from FIRES.utils.utils import *
 
 #	---------------------------------------------------------------------------------
 
-def pol_angle_diff(angle, ref_angle):
-	"""
-	Calculate the difference between two angles, taking care of wrapping around (takes absolute diff).
-	Inputs:
-		- angle: Array of angles in degrees
-		- ref_angle: Reference angle in degrees
-	Returns:
-		- dpang: Difference between angles in degrees
-	"""
-	angle = np.deg2rad(angle)  # Convert angle to radians
-	ref_angle = np.deg2rad(ref_angle)  # Convert reference angle to radians
-	dpang = np.rad2deg(np.arcsin(np.sin(angle - ref_angle)))  # Calculate the difference and convert back to degrees
-	return dpang
-
-
 def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 	"""
 	Determine RM using RM synthesis with RMtool.
@@ -265,72 +250,6 @@ def est_spectra(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
 	return frb_spectrum(iquvspec, noispec0, lspec, dlspec, pspec, dpspec, qfracspec, dqfrac, ufracspec, dufrac, vfracspec, dvfrac, lfracspec, dlfrac, pfracspec, dpfrac, phispec, dphispec, psispec, dpsispec)
 
 
-def calculate_dispersion_delay(dm, freq, ref_freq):
-	return 4.15 * dm * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
-
-
-def apply_faraday_rotation(pol_angle_arr, rm, lambda_sq, median_lambda_sq):
-	return pol_angle_arr + rm * (lambda_sq - median_lambda_sq)
-
-
-def calculate_stokes(temp_dynspec, lin_pol_frac, circ_pol_frac, faraday_rot_angle):
-	stokes_q = temp_dynspec * lin_pol_frac * np.cos(2 * faraday_rot_angle)
-	stokes_u = temp_dynspec * lin_pol_frac * np.sin(2 * faraday_rot_angle)
-	stokes_v = temp_dynspec * circ_pol_frac
-	return stokes_q, stokes_u, stokes_v
-
-
-def scatter_stokes(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
-	sc_dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float) 
-	# Calculate the scattering time scale for each frequency
-	tau_cms = tau_ms * ((freq_mhz / ref_freq_mhz) ** sc_idx)  
-	for c in range(len(freq_mhz)):
-		# Calculate the impulse response function
-		irf = np.heaviside(time_ms, 1.0) * np.exp(-time_ms / tau_cms[c]) #/ tau_cms[c]
-		irf /= np.sum(irf)  # Normalize the impulse response function to ensure its integral equals 1
-		
-		for stk in range(4):
-			sc_dspec[stk, c] = np.convolve(dspec[stk, c], irf, mode='same')
-	return sc_dspec
-
-
-def scatter_stokes_chan(stokes_I, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
-	"""
-	Apply scattering to Stokes I using a causal exponential IRF,
-	with padding to prevent boundary artifacts.
-
-	Inputs:
-		- stokes_I: 1D array of Stokes I (len(time_ms))
-		- freq_mhz: Channel frequency in MHz
-		- time_ms: 1D array of time values in ms (uniformly spaced)
-		- tau_ms: Reference scattering timescale (ms) at ref_freq_mhz
-		- sc_idx: Scattering index (e.g. -4)
-		- ref_freq_mhz: Reference frequency in MHz
-
-	Returns:
-		- sc_stokes_I: Scattered Stokes I (same shape as input)
-		- tau_cms: Scattering timescale at freq_mhz
-	"""
-	# Calculate frequency-dependent scattering timescale
-	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
-
-	# Time resolution
-	dt = time_ms[1] - time_ms[0]
-
-	# Pad to cover tail (~5 tau)
-	n_pad = int(np.ceil(5 * tau_cms / dt))
-	padded_I = np.pad(stokes_I, (0, n_pad), mode='constant')  # Pad only at end
-
-	# Create IRF time axis
-	irf_t = np.arange(0, (n_pad + 1)) * dt
-	irf = np.exp(-irf_t / tau_cms)
-	irf /= np.sum(irf)  # Normalize
-
-	# Convolve and trim back to original size
-	convolved = fftconvolve(padded_I, irf, mode='full')
-	sc_stokes_I = convolved[:len(stokes_I)]
-
-	return sc_stokes_I
 
 
 def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
