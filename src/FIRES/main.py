@@ -152,7 +152,7 @@ def main():
 		help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'mgauss.'"
 	)
 	parser.add_argument(
-		"--noise",
+		"--SNR",
 		type=float,
 		default=0,
 		metavar="",
@@ -236,7 +236,7 @@ def main():
 				seed=args.seed,
 				nseed=args.nseed,
 				width_range=args.mg_width,
-				noise=args.noise,
+				noise=args.SNR,
 				scatter=args.scatter,
 				plot=args.plot,
 				n_cpus=args.ncpu,
@@ -255,7 +255,7 @@ def main():
 				seed=args.seed,
 				nseed=None,
 				width_range=args.mg_width,
-				noise=args.noise,
+				noise=args.SNR,
 				scatter=args.scatter,
 				plot=args.plot,
 				n_cpus=None,
