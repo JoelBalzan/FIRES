@@ -44,23 +44,21 @@ def add_noise_to_stokes_I(temp_dynspec_chan, peak_amp, noise):
     return temp_dynspec_chan + noise_I
 
 
-def add_noise_to_dynspec(dynspec, peak_amp, noise):
+def add_noise_to_dynspec(dynspec, peak_amp, SNR):
     """
     Add Gaussian noise to the Stokes I, Q, U, V dynamic spectrum.
     Noise is added independently to each Stokes parameter.
     Args:
         dynspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
         peak_amp: Reference peak amplitude (float or array)
-        noise: SNR (signal-to-noise ratio), noise stddev = peak_amp / noise
+        SNR: SNR (signal-to-noise ratio), noise stddev = peak_amp / noise
     Returns:
         dynspec_noisy: dynspec with noise added
     """
-    dynspec_noisy = dynspec.copy()
     signal_level = np.nanmax(peak_amp)
-    noise_std = signal_level / noise
-    for stokes in range(dynspec.shape[0]):
-        noise_arr = np.random.normal(loc=0.0, scale=noise_std, size=dynspec[stokes].shape)
-        dynspec_noisy[stokes] += noise_arr
+    noise_std = signal_level / SNR
+    noise_arr = np.random.normal(loc=0.0, scale=noise_std, size=dynspec.shape)
+    dynspec_noisy = dynspec + noise_arr
     return dynspec_noisy
 
 
