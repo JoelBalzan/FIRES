@@ -58,8 +58,6 @@ def load_data(data, scatter, scatter_ms, freq_mhz=None, time_ms=None, sc_idx=Non
     else:
         raise ValueError("Unsupported data type for 'data'")
     if scatter and scatter_ms > 0:
-        if freq_mhz is None or time_ms is None or sc_idx is None or ref_freq is None:
-            raise ValueError("Must provide freq_mhz, time_ms, sc_idx, and ref_freq for scattering loaded data.")
         dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, sc_idx, ref_freq)
     return dspec
 
