@@ -14,6 +14,7 @@ from itertools import product
 from tqdm import tqdm
 
 from FIRES.functions.plotmodes import plot_modes
+from FIRES.functions.basicfns import scatter_stokes_chan
 
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(current_dir)
@@ -21,229 +22,265 @@ obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
 gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
+
+def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
+    """
+    Scatter the Stokes I channel of a loaded dynamic spectrum in the same way as in genfns.py.
+    Args:
+        dspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
+        freq_mhz: Frequency array (nchan,)
+        time_ms: Time array (ntime,)
+        tau_ms: Scattering timescale (float)
+        sc_idx: Scattering index (float)
+        ref_freq_mhz: Reference frequency (float)
+    Returns:
+        dspec_scattered: Scattered dynamic spectrum (same shape as input)
+    """
+    dspec_scattered = dspec.copy()
+    for c in range(len(freq_mhz)):
+        dspec_scattered[0, c] = scatter_stokes_chan(
+            dspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz
+        )
+    return dspec_scattered
+
+
+def load_data(data, scatter, scatter_ms, freq_mhz=None, time_ms=None, sc_idx=None, ref_freq=None):
+    if isinstance(data, str):
+        if data.endswith('.pkl'):
+            with open(data, 'rb') as f:
+                dspec = pkl.load(f)['dspec']
+        elif data.endswith('.npy'):
+            dspec = np.load(data)
+        else:
+            raise ValueError("Unsupported file format: only .pkl and .npy are supported")
+    elif isinstance(data, np.ndarray):
+        dspec = data
+    else:
+        raise ValueError("Unsupported data type for 'data'")
+    if scatter and scatter_ms > 0:
+        if freq_mhz is None or time_ms is None or sc_idx is None or ref_freq is None:
+            raise ValueError("Must provide freq_mhz, time_ms, sc_idx, and ref_freq for scattering loaded data.")
+        dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, sc_idx, ref_freq)
+    return dspec
+
+
+def load_multiple_data(data, scatter, scatter_ms):
+	# store aggregated data
+	all_scatter_ms = []
+	all_vals = {}  
+	all_errs = {}  
+	all_var_PA_microshots = {}  
+	width_ms = None  # This will be extracted from the first file
+
+	file_names = [file_name for file_name in sorted(os.listdir(data)) if file_name.endswith(".pkl")]
+
+	# Sort file_names by the number after the first '_'
+	file_names.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+
+	for file_name in sorted(file_names):
+		with open(file_name, "rb") as f:
+			scatter_ms, vals, errs, width, var_PA_microshots = pkl.load(f)
+
+		for s_val in scatter_ms:
+			if s_val not in all_vals:
+				all_vals[s_val] = []
+				all_errs[s_val] = []
+				all_var_PA_microshots[s_val] = []
+
+			all_vals[s_val].extend(vals[s_val])
+			all_errs[s_val].extend(errs[s_val])
+			all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+
+		all_scatter_ms.extend(scatter_ms)
+
+		# Set width_ms (assume it's the same for all files)
+		if width_ms is None:
+			width_ms = width
+		
+		vals = all_vals
+		errs = all_errs
+		var_PA_microshots = all_var_PA_microshots
+		scatter_ms = all_scatter_ms
+		width = width_ms
+		
+	return scatter_ms, vals, errs, width, var_PA_microshots
+
+
 def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
-    """Generate dynamic spectrum based on mode."""
-    s_val = s_val if plot_multiple_tau else params["tau_ms"]
-    
-    # Remove 'tau_ms' from params to avoid conflict
-    params = {k: v for k, v in params.items() if k != "tau_ms" and k != "nseed"}
-    
-    if mode == 'gauss':
-        params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range"}
-        return gauss_dynspec(**params, tau_ms=s_val)
-    else:  # mode == 'mgauss'
-        return m_gauss_dynspec(**params, tau_ms=s_val)
+	"""Generate dynamic spectrum based on mode."""
+	s_val = s_val if plot_multiple_tau else params["tau_ms"]
+	
+	# Remove 'tau_ms' from params to avoid conflict
+	params = {k: v for k, v in params.items() if k != "tau_ms" and k != "nseed"}
+	
+	if mode == 'gauss':
+		params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range"}
+		return gauss_dynspec(**params, tau_ms=s_val)
+	else:  # mode == 'mgauss'
+		return m_gauss_dynspec(**params, tau_ms=s_val)
 
 
 def process_task(task, mode, plot_mode, **params):
-    """
-    Process a single task (combination of timescale and realization).
-    Dynamically uses the provided process_func for mode-specific processing.
-    """
-    s_val, realization = task
-    current_seed = params["seed"] + realization if params["seed"] is not None else None
-    params["seed"] = current_seed
-    
-    requires_multiple_tau = plot_mode.requires_multiple_tau
+	"""
+	Process a single task (combination of timescale and realization).
+	Dynamically uses the provided process_func for mode-specific processing.
+	"""
+	s_val, realization = task
+	current_seed = params["seed"] + realization if params["seed"] is not None else None
+	params["seed"] = current_seed
+	
+	requires_multiple_tau = plot_mode.requires_multiple_tau
 
-    # Generate dynamic spectrum
-    dspec, PA_microshot = generate_dynspec(
-        mode=mode,
-        s_val=s_val,
-        plot_multiple_tau=requires_multiple_tau,
-        **params
-    )
+	# Generate dynamic spectrum
+	dspec, PA_microshot = generate_dynspec(
+		mode=mode,
+		s_val=s_val,
+		plot_multiple_tau=requires_multiple_tau,
+		**params
+	)
 
-    process_func = plot_mode.process_func
-    # Use the provided process_func for mode-specific processing
-    result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"])
+	process_func = plot_mode.process_func
+	# Use the provided process_func for mode-specific processing
+	result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"])
 
-    return s_val, result, result_err, PA_microshot
+	return s_val, result, result_err, PA_microshot
 
 
 def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
-                 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode):
-    """
-    Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
-    """
-    obs_params = get_parameters(obs_file)
+				 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode):
+	"""
+	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
+	"""
+	obs_params = get_parameters(obs_file)
 
-    # Extract frequency and time parameters
-    f_start = float(obs_params['f0'])
-    f_end = float(obs_params['f1'])
-    t_start = float(obs_params['t0'])
-    t_end = float(obs_params['t1'])
-    f_res = float(obs_params['f_res'])
-    t_res = float(obs_params['t_res'])
+	# Extract frequency and time parameters
+	f_start = float(obs_params['f0'])
+	f_end = float(obs_params['f1'])
+	t_start = float(obs_params['t0'])
+	t_end = float(obs_params['t1'])
+	f_res = float(obs_params['f_res'])
+	t_res = float(obs_params['t_res'])
 
-    scatter_idx = float(obs_params['scattering_index'])
-    ref_freq = float(obs_params['reference_freq'])
+	scatter_idx = float(obs_params['scattering_index'])
+	ref_freq = float(obs_params['reference_freq'])
 
-    # Generate frequency and time arrays
-    freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
-    time_ms = np.arange(t_start, t_end + t_res, t_res, dtype=float)
+	# Generate frequency and time arrays
+	freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
+	time_ms = np.arange(t_start, t_end + t_res, t_res, dtype=float)
 
-    # Load Gaussian parameters
-    gauss_params = np.loadtxt(gauss_file)
+	# Load Gaussian parameters
+	gauss_params = np.loadtxt(gauss_file)
 
-    # Extract Gaussian parameters
-    t0 = gauss_params[:, 0]
-    width = gauss_params[:, 1]
-    peak = gauss_params[:, 2]
-    spec_idx = gauss_params[:, 3]
-    dm = gauss_params[:, 4]
-    rm = gauss_params[:, 5]
-    pol_angle = gauss_params[:, 6]
-    lin_pol = gauss_params[:, 7]
-    circ_pol = gauss_params[:, 8]
-    delta_pa = gauss_params[:, 9]
-    band_center = gauss_params[:, 10]
-    band_width = gauss_params[:, 11]
+	# Extract Gaussian parameters
+	t0 = gauss_params[:, 0]
+	width = gauss_params[:, 1]
+	peak = gauss_params[:, 2]
+	spec_idx = gauss_params[:, 3]
+	dm = gauss_params[:, 4]
+	rm = gauss_params[:, 5]
+	pol_angle = gauss_params[:, 6]
+	lin_pol = gauss_params[:, 7]
+	circ_pol = gauss_params[:, 8]
+	delta_pa = gauss_params[:, 9]
+	band_center = gauss_params[:, 10]
+	band_width = gauss_params[:, 11]
 
-    # Create dynamic spectrum parameters
-    dspec_params = DynspecParams(
-        freq_mhz=freq_mhz,
-        time_ms=time_ms,
-        time_res_ms=t_res,
-        spec_idx=spec_idx,
-        peak_amp=peak,
-        width_ms=width,
-        loc_ms=t0,
-        dm=dm,
-        pol_angle=pol_angle,
-        lin_pol_frac=lin_pol,
-        circ_pol_frac=circ_pol,
-        delta_pol_angle=delta_pa,
-        rm=rm,
-        seed=seed,
-        nseed=nseed,
-        noise=noise,
-        scatter=scatter,
-        tau_ms=scatter_ms,
-        sc_idx=scatter_idx,
-        ref_freq_mhz=ref_freq,
-        num_micro_gauss=n_gauss,
-        width_range=width_range,
-        band_centre_mhz=band_center,
-        band_width_mhz=band_width,
-    )
+	# Create dynamic spectrum parameters
+	dspec_params = DynspecParams(
+		freq_mhz=freq_mhz,
+		time_ms=time_ms,
+		time_res_ms=t_res,
+		spec_idx=spec_idx,
+		peak_amp=peak,
+		width_ms=width,
+		loc_ms=t0,
+		dm=dm,
+		pol_angle=pol_angle,
+		lin_pol_frac=lin_pol,
+		circ_pol_frac=circ_pol,
+		delta_pol_angle=delta_pa,
+		rm=rm,
+		seed=seed,
+		nseed=nseed,
+		noise=noise,
+		scatter=scatter,
+		tau_ms=scatter_ms,
+		sc_idx=scatter_idx,
+		ref_freq_mhz=ref_freq,
+		num_micro_gauss=n_gauss,
+		width_range=width_range,
+		band_centre_mhz=band_center,
+		band_width_mhz=band_width,
+	)
 
-    if (lin_pol + circ_pol).any() > 1.0:
-        print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
+	if (lin_pol + circ_pol).any() > 1.0:
+		print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
-    if plot_mode.requires_multiple_tau == False:
-        
-        if data != None:
-            if isinstance(data, str):
-                if data.endswith('.pkl'):
-                    with open(data, 'rb') as f:
-                        dspec = pkl.load(f)['dspec']
-                elif data.endswith('.npy'):
-                    dspec = np.load(data)
-                else:
-                    raise ValueError("Unsupported file format: only .pkl and .npy are supported")
-            elif isinstance(data, np.ndarray):
-                dspec = data
-            else:
-                raise ValueError("Unsupported data type for 'data'")
-        else:
-            dspec, _ = generate_dynspec(
-            mode=mode,
-            s_val=None,
-            plot_multiple_tau=False,
-            **dspec_params._asdict()
-        )
-        _, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
-        frb_data = simulated_frb(
-            frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, obs_params, dspec
-        )
-        if save:
-            out_file = f"{out_dir}{frb_id}_sc_{scatter_ms:.2f}.pkl"
-            with open(out_file, 'wb') as frb_file:
-                pkl.dump(frb_data, frb_file)
-        return frb_data, noise_spec, rm
+	if plot_mode.requires_multiple_tau == False:
+		
+		if data != None:
+			dspec = load_data(data, scatter, scatter_ms, freq_mhz, time_ms, scatter_idx, ref_freq)
+		else:
+			dspec, _ = generate_dynspec(
+			mode=mode,
+			s_val=None,
+			plot_multiple_tau=False,
+			**dspec_params._asdict()
+		)
+		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
+		frb_data = simulated_frb(
+			frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, obs_params, dspec
+		)
+		if save:
+			out_file = f"{out_dir}{frb_id}_sc_{scatter_ms:.2f}.pkl"
+			with open(out_file, 'wb') as frb_file:
+				pkl.dump(frb_data, frb_file)
+		return frb_data, noise_spec, rm
 
-    else:
-        if data is not None:
-            # store aggregated data
-            all_scatter_ms = []
-            all_vals = {}  
-            all_errs = {}  
-            all_var_PA_microshots = {}  
-            width_ms = None  # This will be extracted from the first file
+	else:
+		if data is not None:
+			scatter_ms, vals, errs, width, var_PA_microshots = load_multiple_data(data)                
+				
+		else:
+			# Create a list of tasks (timescale, realization)
+			tasks = list(product(scatter_ms, range(nseed)))
 
-            file_names = [file_name for file_name in sorted(os.listdir(data)) if file_name.endswith(".pkl")]
+			with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+				partial_func = functools.partial(
+					process_task,
+					mode=mode,
+					plot_mode=plot_mode,
+					**dspec_params._asdict()
+				)
 
-            # Sort file_names by the number after the first '_'
-            file_names.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+				results = list(tqdm(executor.map(partial_func, tasks),
+									total=len(tasks),
+									desc="Processing scattering timescales and realizations"))
 
-            for file_name in sorted(file_names):
-                with open(file_name, "rb") as f:
-                    scatter_ms, vals, errs, width, var_PA_microshots = pkl.load(f)
+			# Aggregate results by timescale
+			vals = {s_val: [] for s_val in scatter_ms}
+			errs = {s_val: [] for s_val in scatter_ms}
+			var_PA_microshots = {s_val: [] for s_val in scatter_ms}
 
-                for s_val in scatter_ms:
-                    if s_val not in all_vals:
-                        all_vals[s_val] = []
-                        all_errs[s_val] = []
-                        all_var_PA_microshots[s_val] = []
+			for s_val, val, err, PA_microshot in results:
+				vals[s_val].append(val)
+				errs[s_val].append(err)
+				var_PA_microshots[s_val].append(PA_microshot)
+			
+		if save:
+			# Create a descriptive filename
+			if len(scatter_ms) > 1:
+				tau = f"{scatter_ms[0]:.2f}-{scatter_ms[-1]:.2f}"
+			else:
+				tau = f"{scatter_ms[0]:.2f}"
+				
+			out_file = (
+				f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
+				f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
+				f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
+			)
+			with open(out_file, 'wb') as frb_file:
+				pkl.dump((scatter_ms, vals, errs, width[1], var_PA_microshots), frb_file)
+			print(f"Saved FRB data to {out_file}")
 
-                    all_vals[s_val].extend(vals[s_val])
-                    all_errs[s_val].extend(errs[s_val])
-                    all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
-
-                all_scatter_ms.extend(scatter_ms)
-
-                # Set width_ms (assume it's the same for all files)
-                if width_ms is None:
-                    width_ms = width
-                
-                vals = all_vals
-                errs = all_errs
-                var_PA_microshots = all_var_PA_microshots
-                scatter_ms = all_scatter_ms
-                width = width_ms
-                
-                
-        else:
-            # Create a list of tasks (timescale, realization)
-            tasks = list(product(scatter_ms, range(nseed)))
-
-            with ProcessPoolExecutor(max_workers=n_cpus) as executor:
-                partial_func = functools.partial(
-                    process_task,
-                    mode=mode,
-                    plot_mode=plot_mode,
-                    **dspec_params._asdict()
-                )
-
-                results = list(tqdm(executor.map(partial_func, tasks),
-                                    total=len(tasks),
-                                    desc="Processing scattering timescales and realizations"))
-
-            # Aggregate results by timescale
-            vals = {s_val: [] for s_val in scatter_ms}
-            errs = {s_val: [] for s_val in scatter_ms}
-            var_PA_microshots = {s_val: [] for s_val in scatter_ms}
-
-            for s_val, val, err, PA_microshot in results:
-                vals[s_val].append(val)
-                errs[s_val].append(err)
-                var_PA_microshots[s_val].append(PA_microshot)
-            
-        if save:
-            # Create a descriptive filename
-            if len(scatter_ms) > 1:
-                tau = f"{scatter_ms[0]:.2f}-{scatter_ms[-1]:.2f}"
-            else:
-                tau = f"{scatter_ms[0]:.2f}"
-                
-            out_file = (
-                f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
-                f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
-                f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
-            )
-            with open(out_file, 'wb') as frb_file:
-                pkl.dump((scatter_ms, vals, errs, width[1], var_PA_microshots), frb_file)
-            print(f"Saved FRB data to {out_file}")
-
-        return vals, errs, width[1], var_PA_microshots
+		return vals, errs, width[1], var_PA_microshots
