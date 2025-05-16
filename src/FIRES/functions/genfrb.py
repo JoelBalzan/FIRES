@@ -46,23 +46,47 @@ def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 
 def load_data(data, scatter, scatter_ms, freq_mhz=None, time_ms=None, sc_idx=None, ref_freq=None):
     if isinstance(data, str):
-        if data.endswith('.pkl'):
+        if os.path.isdir(data):
+            # Expect exactly one file for each Stokes parameter: I, Q, U, V
+            stokes_labels = ['I', 'Q', 'U', 'V']
+            stokes_files = []
+            for s in stokes_labels:
+                # Find the file for this Stokes parameter
+                matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
+                if len(matches) != 1:
+                    raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
+                stokes_files.append(os.path.join(data, matches[0]))
+            # Load and stack
+            arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
+            dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
+            
+            summary_file = "parameters.txt"
+            summary = get_parameters(os.path.join(data, summary_file))
+            cfreq_mhz = float(summary['centre_freq_frb'])
+            bw_mhz = float(summary['bw'])
+            freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
+            time_res_ms = 1 / bw_mhz * 1e3  # Convert to milliseconds
+            time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
+            print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
+            
             with open(data, 'rb') as f:
                 dspec = pkl.load(f)['dspec']
         elif data.endswith('.npy'):
-            dspec = np.load(data)
+            arr = np.load(data)
+            if arr.ndim == 2:
+                dspec = arr[np.newaxis, ...]  # shape: (1, nchan, ntime)
+            else:
+                dspec = arr
         else:
             raise ValueError("Unsupported file format: only .pkl and .npy are supported")
-    elif isinstance(data, np.ndarray):
-        dspec = data
     else:
         raise ValueError("Unsupported data type for 'data'")
     if scatter and scatter_ms > 0:
         dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, sc_idx, ref_freq)
-    return dspec
+    return dspec, freq_mhz, time_ms
 
 
-def load_multiple_data(data, scatter, scatter_ms):
+def load_multiple_data(data):
 	# store aggregated data
 	all_scatter_ms = []
 	all_vals = {}  
@@ -217,7 +241,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	if plot_mode.requires_multiple_tau == False:
 		
 		if data != None:
-			dspec = load_data(data, scatter, scatter_ms, freq_mhz, time_ms, scatter_idx, ref_freq)
+			dspec, freq_mhz, time_ms = load_data(data, scatter, scatter_ms, freq_mhz, time_ms, scatter_idx, ref_freq)
 		else:
 			dspec, _ = generate_dynspec(
 			mode=mode,
