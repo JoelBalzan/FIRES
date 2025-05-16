@@ -204,25 +204,9 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			- noistks: Noise levels for each Stokes parameter
 	"""
 
-	iquvt  = tsdata.iquvt
 	phits  = tsdata.phits
 	dphits = tsdata.dphits
-	lfrac  = tsdata.lfrac
-	elfrac = tsdata.elfrac
-	vfrac  = tsdata.vfrac
-	evfrac = tsdata.evfrac
-	pfrac  = tsdata.pfrac
-	epfrac = tsdata.epfrac
-	
-	lmax = np.nanargmax(lfrac)
-	vmax = np.nanargmax(vfrac)
-	pmax = np.nanargmax(pfrac)
-		
-	print("L_max/I = %.2f +/- %.2f" % (lfrac[lmax], elfrac[lmax]))
-	print("V_max/I = %.2f +/- %.2f" % (vfrac[vmax], evfrac[vmax]))
-	print("P_max/I = %.2f +/- %.2f \n" % (pfrac[pmax], epfrac[pmax]))
-
-
+ 
 	# Linear polarisation
 	L = np.sqrt(np.nanmean(dspec[1,:], axis=0)**2 + np.nanmean(dspec[2,:], axis=0)**2)
 
@@ -266,14 +250,16 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 	# Plot the 2D scattered dynamic spectrum
 	## Calculate the mean and standard deviation of the dynamic spectrum
-	mn = np.mean(dspec[0,:], axis=(0, 1))
-	std = np.std(dspec[0,:], axis=(0, 1))
+	mn = np.mean(dspec[0])
+	std = np.std(dspec[0])
 	## Set appropriate minimum and maximum values for imshow (Thanks to Dr. M. Lower)
-	vmin = mn - 3*std
-	vmax = mn + 7*std
-
+	#vmin = mn - 3*std
+	#vmax = mn + 7*std
+	vmin = np.nanpercentile(dspec[0], 1)
+	vmax = np.nanpercentile(dspec[0], 99)
 	axs[2].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-		vmin=vmin, vmax=vmax, extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
+		vmin=vmin, vmax=vmax, 
+  		extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 	axs[2].set_xlabel("Time (ms)")
 	axs[2].set_ylabel("Frequency (MHz)")
 	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
