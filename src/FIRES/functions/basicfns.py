@@ -142,7 +142,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
   	
 		I = iquvt[0]
   
-		threshold = 0.1 * np.nanmax(I)
+		threshold = 0.05 * np.nanmax(I)
 		mask = I <= threshold
   
 		itsub = np.where(mask, np.nan, iquvt[0])
@@ -259,13 +259,16 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
 
 	max_rm = rm[np.argmax(np.abs(rm))]
 	
-	corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
+	if np.abs(max_rm) > 0:
+		corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
+	else:
+		corrdspec = dynspec.copy()
  
-	I = np.nanmean(dynspec[0], axis=0)
+	I = np.nanmean(corrdspec[0], axis=0)
 
 	threshold = 0.05 * np.nanmax(I)
 	mask = I >= threshold
-	noise_region = np.where(mask, np.nan, dynspec)  # Mask signal regions with NaN
+	noise_region = np.where(mask, np.nan, corrdspec)  # Mask signal regions with NaN
 
 	noisespec = np.nanstd(noise_region, axis=2)
 	noistks = np.sqrt(np.nanmean(noisespec**2, axis=1))
@@ -370,3 +373,21 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 	sc_chan = convolved[:len(chan)]
 
 	return sc_chan
+
+
+def add_noise_to_dynspec(dynspec, peak_amp, SNR):
+    """
+    Add Gaussian noise to the Stokes I, Q, U, V dynamic spectrum.
+    Noise is added independently to each Stokes parameter.
+    Args:
+        dynspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
+        peak_amp: Reference peak amplitude (float or array)
+        SNR: SNR (signal-to-noise ratio), noise stddev = peak_amp / noise
+    Returns:
+        dynspec_noisy: dynspec with noise added
+    """
+    signal_level = np.nanmax(peak_amp)
+    noise_std = signal_level / SNR
+    noise_arr = np.random.normal(loc=0.0, scale=noise_std, size=dynspec.shape)
+    dynspec_noisy = dynspec + noise_arr
+    return dynspec_noisy
