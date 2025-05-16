@@ -14,7 +14,7 @@ from itertools import product
 from tqdm import tqdm
 
 from FIRES.functions.plotmodes import plot_modes
-from FIRES.functions.basicfns import scatter_stokes_chan
+from FIRES.functions.basicfns import scatter_stokes_chan, add_noise_to_dynspec
 
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(current_dir)
@@ -24,67 +24,69 @@ gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
 def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
-    """
-    Scatter the Stokes I channel of a loaded dynamic spectrum in the same way as in genfns.py.
-    Args:
-        dspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
-        freq_mhz: Frequency array (nchan,)
-        time_ms: Time array (ntime,)
-        tau_ms: Scattering timescale (float)
-        sc_idx: Scattering index (float)
-        ref_freq_mhz: Reference frequency (float)
-    Returns:
-        dspec_scattered: Scattered dynamic spectrum (same shape as input)
-    """
-    dspec_scattered = dspec.copy()
-    for c in range(len(freq_mhz)):
-        dspec_scattered[0, c] = scatter_stokes_chan(
-            dspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz
-        )
-    return dspec_scattered
+	"""
+	Scatter all Stokes channels of a loaded dynamic spectrum.
+	Args:
+		dspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
+		freq_mhz: Frequency array (nchan,)
+		time_ms: Time array (ntime,)
+		tau_ms: Scattering timescale (float)
+		sc_idx: Scattering index (float)
+		ref_freq_mhz: Reference frequency (float)
+	Returns:
+		dspec_scattered: Scattered dynamic spectrum (same shape as input)
+	"""
+	dspec_scattered = dspec.copy()
+	for stokes_idx in range(dspec.shape[0]):  # Loop over I, Q, U, V
+		for c in range(len(freq_mhz)):
+			dspec_scattered[stokes_idx, c] = scatter_stokes_chan(
+				dspec[stokes_idx, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz
+			)
+	return dspec_scattered
 
 
-def load_data(data, scatter, scatter_ms, freq_mhz=None, time_ms=None, sc_idx=None, ref_freq=None):
-    if isinstance(data, str):
-        if os.path.isdir(data):
-            # Expect exactly one file for each Stokes parameter: I, Q, U, V
-            stokes_labels = ['I', 'Q', 'U', 'V']
-            stokes_files = []
-            for s in stokes_labels:
-                # Find the file for this Stokes parameter
-                matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
-                if len(matches) != 1:
-                    raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
-                stokes_files.append(os.path.join(data, matches[0]))
-            # Load and stack
-            arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
-            dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
-            
-            summary_file = "parameters.txt"
-            summary = get_parameters(os.path.join(data, summary_file))
-            cfreq_mhz = float(summary['centre_freq_frb'])
-            bw_mhz = float(summary['bw'])
-            freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
-            time_res_ms = 1 / bw_mhz * 1e3  # Convert to milliseconds
-            time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
-            print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
-            
-        elif data.endswith('.pkl'):
-            with open(data, 'rb') as f:
-                dspec = pkl.load(f)['dspec']
-        elif data.endswith('.npy'):
-            arr = np.load(data)
-            if arr.ndim == 2:
-                dspec = arr[np.newaxis, ...]  # shape: (1, nchan, ntime)
-            else:
-                dspec = arr
-        else:
-            raise ValueError("Unsupported file format: only .pkl and .npy are supported")
-    else:
-        raise ValueError("Unsupported data type for 'data'")
-    if scatter and scatter_ms > 0:
-        dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, sc_idx, ref_freq)
-    return dspec, freq_mhz, time_ms
+def load_data(data, freq_mhz, time_ms):
+	if isinstance(data, str):
+		if os.path.isdir(data):
+			# Expect exactly one file for each Stokes parameter: I, Q, U, V
+			stokes_labels = ['I', 'Q', 'U', 'V']
+			stokes_files = []
+			for s in stokes_labels:
+				# Find the file for this Stokes parameter
+				#matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
+				matches = [f for f in os.listdir(data) if f.endswith(f'{s}.npy')]
+				
+				if len(matches) != 1:
+					raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
+				stokes_files.append(os.path.join(data, matches[0]))
+			# Load and stack
+			arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
+			dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
+			
+			summary_file = "parameters.txt"
+			summary = get_parameters(os.path.join(data, summary_file))
+			cfreq_mhz = float(summary['centre_freq_frb'])
+			bw_mhz = float(summary['bw'])
+			freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
+			time_res_ms = 0.001 # Convert to milliseconds
+			time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
+			print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
+			
+		elif data.endswith('.pkl'):
+			with open(data, 'rb') as f:
+				dspec = pkl.load(f)['dspec']
+		elif data.endswith('.npy'):
+			arr = np.load(data)
+			if arr.ndim == 2:
+				dspec = arr[np.newaxis, ...]  # shape: (1, nchan, ntime)
+			else:
+				dspec = arr
+		else:
+			raise ValueError("Unsupported file format: only .pkl and .npy are supported")
+	else:
+		raise ValueError("Unsupported data type for 'data'")
+
+	return dspec, freq_mhz, time_ms
 
 
 def load_multiple_data(data):
@@ -242,7 +244,12 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	if plot_mode.requires_multiple_tau == False:
 		
 		if data != None:
-			dspec, freq_mhz, time_ms = load_data(data, scatter, scatter_ms, freq_mhz, time_ms, scatter_idx, ref_freq)
+			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)
+			if scatter and scatter_ms > 0:
+				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, scatter_idx, ref_freq)
+			if noise > 0:
+				dspec = add_noise_to_dynspec(dspec, peak_amp = peak, SNR = noise)
+    
 		else:
 			dspec, _ = generate_dynspec(
 			mode=mode,
