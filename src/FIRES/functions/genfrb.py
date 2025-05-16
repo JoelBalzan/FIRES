@@ -69,6 +69,7 @@ def load_data(data, scatter, scatter_ms, freq_mhz=None, time_ms=None, sc_idx=Non
             time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
             print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
             
+        elif data.endswith('.pkl'):
             with open(data, 'rb') as f:
                 dspec = pkl.load(f)['dspec']
         elif data.endswith('.npy'):
