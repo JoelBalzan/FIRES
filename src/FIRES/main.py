@@ -9,6 +9,16 @@ from FIRES.utils.utils import chi2_fit, gaussian_model
 from FIRES.functions.plotmodes import plot_modes
 
 
+def str2bool(v):
+	if isinstance(v, bool):
+		return v
+	if v.lower() in ('yes', 'true', 't', 'y', '1'):
+		return True
+	elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+		return False
+	else:
+		raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def main():
 
 	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarization effects",
@@ -84,26 +94,10 @@ def main():
 	)
 	parser.add_argument(
 		"--show-plots",
-		type=bool,
+		type=str2bool,
 		default=True,
 		help="Display plots. Default is True. Set to False to disable plot display."
 	)
-	#parser.add_argument(
-	#	"--tz",
-	#	nargs=2,
-	#	type=float,
-	#	default=[0, 0],
-	#	metavar=("START_TIME", "END_TIME"),
-	#	help="Time zoom range for plots. Provide two values: start time and end time (in milliseconds)."
-	#)
-	#parser.add_argument(
-	#	"--fz",
-	#	nargs=2,
-	#	type=float,
-	#	default=[0, 0],
-	#	metavar=("START_FREQ", "END_FREQ"),
-	#	help="Frequency zoom range for plots. Provide two values: start frequency and end frequency (in MHz)."
-	#)
 	parser.add_argument(
 		"--figsize",
 		type=float,
@@ -219,7 +213,7 @@ def main():
 	# Check if the output directory exists, if not create it
 	if args.write or args.save_plots:
 		os.makedirs(args.output_dir, exist_ok=True)
-		print(f"Output directory '{data_directory}' created or already exists. \n")
+		print(f"Output directory: '{data_directory}' \n")
   
 	if args.plot[0] not in plot_modes:
 		raise ValueError(f"Invalid plot mode: {args.plot[0]}")
