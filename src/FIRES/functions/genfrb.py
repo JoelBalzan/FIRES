@@ -75,40 +75,40 @@ def find_offpulse_window(profile, window_frac=0.2):
 
 
 def select_offpulse_window(profile):
-    """
-    Plot the profile and let the user select the off-pulse window by clicking twice.
-    Only mouse clicks are accepted.
-    Returns:
-        off_start_frac, off_end_frac: Start and end as fractions (0-1)
-    """
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(profile, lw=0.5, color='k')
-    ax.set_xlim(0, len(profile))
-    ax.set_title("Click twice to select the off-pulse window")
+	"""
+	Plot the profile and let the user select the off-pulse window by clicking twice.
+	Only mouse clicks are accepted.
+	Returns:
+		off_start_frac, off_end_frac: Start and end as fractions (0-1)
+	"""
+	fig, ax = plt.subplots(figsize=(10, 4))
+	ax.plot(profile, lw=0.5, color='k')
+	ax.set_xlim(0, len(profile))
+	ax.set_title("Click twice to select the off-pulse window")
 
-    clicks = []
+	clicks = []
 
-    def onclick(event):
-        # Only accept mouse button presses inside the axes
-        if event.inaxes == ax and event.button in [1, 2, 3]:
-            ax.axvline(event.xdata, color='r', linestyle='--')
-            fig.canvas.draw()
-            clicks.append(event.xdata)
-            if len(clicks) == 2:
-                fig.canvas.mpl_disconnect(cid)
-                plt.close(fig)
+	def onclick(event):
+		# Only accept mouse button presses inside the axes
+		if event.inaxes == ax and event.button in [1, 2, 3]:
+			ax.axvline(event.xdata, color='r', linestyle='--')
+			fig.canvas.draw()
+			clicks.append(event.xdata)
+			if len(clicks) == 2:
+				fig.canvas.mpl_disconnect(cid)
+				plt.close(fig)
 
-    cid = fig.canvas.mpl_connect('button_press_event', onclick)
-    plt.show()
+	cid = fig.canvas.mpl_connect('button_press_event', onclick)
+	plt.show()
 
-    if len(clicks) < 2:
-        raise RuntimeError("Fewer than two mouse clicks registered.")
+	if len(clicks) < 2:
+		raise RuntimeError("Fewer than two mouse clicks registered.")
 
-    idx = sorted([int(round(x)) for x in clicks])
-    nbin = len(profile)
-    off_start_frac = max(0, idx[0] / nbin)
-    off_end_frac = min(1, idx[1] / nbin)
-    return off_start_frac, off_end_frac
+	idx = sorted([int(round(x)) for x in clicks])
+	nbin = len(profile)
+	off_start_frac = max(0, idx[0] / nbin)
+	off_end_frac = min(1, idx[1] / nbin)
+	return off_start_frac, off_end_frac
 
 
 def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
@@ -223,22 +223,22 @@ def load_multiple_data(data):
 	return scatter_ms, vals, errs, width, var_PA_microshots
 
 def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
-    """Generate dynamic spectrum based on mode."""
-    s_val = s_val if plot_multiple_tau else params["tau_ms"]
+	"""Generate dynamic spectrum based on mode."""
+	s_val = s_val if plot_multiple_tau else params["tau_ms"]
 
-    # Choose the correct function
-    if mode == 'gauss':
-        dynspec_func = gauss_dynspec
-    else:  # mode == 'mgauss'
-        dynspec_func = m_gauss_dynspec
+	# Choose the correct function
+	if mode == 'gauss':
+		dynspec_func = gauss_dynspec
+	else:  # mode == 'mgauss'
+		dynspec_func = m_gauss_dynspec
 
-    # Get the argument names for the selected function
-    sig = inspect.signature(dynspec_func)
-    allowed_args = set(sig.parameters.keys())
+	# Get the argument names for the selected function
+	sig = inspect.signature(dynspec_func)
+	allowed_args = set(sig.parameters.keys())
 
-    # Always pass tau_ms as s_val
-    params_filtered = {k: v for k, v in params.items() if k in allowed_args and k != "tau_ms"}
-    return dynspec_func(**params_filtered, tau_ms=s_val)
+	# Always pass tau_ms as s_val
+	params_filtered = {k: v for k, v in params.items() if k in allowed_args and k != "tau_ms"}
+	return dynspec_func(**params_filtered, tau_ms=s_val)
 
 
 def process_task(task, mode, plot_mode, **params):
@@ -261,8 +261,16 @@ def process_task(task, mode, plot_mode, **params):
 	)
 
 	process_func = plot_mode.process_func
-	# Use the provided process_func for mode-specific processing
-	result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"], params["phase_window"], params["freq_window"])
+ 
+	# Dynamically select only the needed arguments for process_func
+	sig = inspect.signature(process_func)
+	allowed_args = set(sig.parameters.keys())
+	# Always provide dspec as the first argument
+	process_func_args = {'dspec': dspec}
+	# Add other allowed arguments from params if present
+	process_func_args.update({k: params[k] for k in allowed_args if k in params and k != 'dspec'})
+
+	result, result_err = process_func(**process_func_args)
 
 	return s_val, result, result_err, PA_microshot
 
