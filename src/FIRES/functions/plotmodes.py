@@ -54,19 +54,42 @@ def basic_plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, s
 
 
 # Processing function for pa_var
-def process_pa_var(dspec, freq_mhz, time_ms, rm, window):
+def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
+	q = int(len(freq_mhz)/4)
+	if freq_window == "1q":
+		freq_mhz = freq_mhz[:q]
+		dspec = dspec[:q, :]
+	elif freq_window == "2q":
+		freq_mhz = freq_mhz[:2*q]
+		dspec = dspec[:2*q, :]
+	elif freq_window == "3q":
+		freq_mhz = freq_mhz[:3*q]
+		dspec = dspec[:3*q, :]
+	elif freq_window == "4q":
+		freq_mhz = freq_mhz[:4*q]
+		dspec = dspec[:4*q, :]
+	elif freq_window == "all":
+		pass
+	else:
+		print(f"Invalid frequency window: {freq_window} \n")
+		return None, None
+		
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
 	
 	peak_index = np.argmax(ts_data.iquvt[0])
-	if window == "first":
+	if phase_window == "first":
 		phits = ts_data.phits[:peak_index]
 		dphits = ts_data.dphits[:peak_index]
-	elif window == "last":
+	elif phase_window == "last":
 		phits = ts_data.phits[peak_index:]
 		dphits = ts_data.dphits[peak_index:]
-	elif window == "all":
+	elif phase_window == "all":
 		phits = ts_data.phits
 		dphits = ts_data.dphits
+	else:
+		print(f"Invalid phase window: {phase_window} \n")
+		return None, None
+		
    
 	pa_var = np.nanvar(phits)
 	pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
@@ -107,7 +130,27 @@ def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, wid
 		print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_var_vs_scatter.pdf')}  \n")
 
 
-def process_lfrac(dspec, freq_mhz, time_ms, rm, window):
+def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
+    
+	q = int(len(freq_mhz)/4)
+	if freq_window == "1q":
+		freq_mhz = freq_mhz[:q]
+		dspec = dspec[:q, :]
+	elif freq_window == "2q":
+		freq_mhz = freq_mhz[:2*q]
+		dspec = dspec[:2*q, :]
+	elif freq_window == "3q":
+		freq_mhz = freq_mhz[:3*q]
+		dspec = dspec[:3*q, :]
+	elif freq_window == "4q":
+		freq_mhz = freq_mhz[:4*q]
+		dspec = dspec[:4*q, :]
+	elif freq_window == "all":
+		pass
+	else:
+		print(f"Invalid frequency window: {freq_window} \n")
+		return None, None
+
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
  
 	iquvt = ts_data.iquvt
@@ -125,12 +168,12 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, window):
 	V_masked = np.where(mask, np.nan, iquvt[3])
 	
 	peak_index = np.argmax(I_masked)
-	if window == "first":
+	if phase_window == "first":
 		I_masked = I_masked[:peak_index]
 		Q_masked = Q_masked[:peak_index]
 		U_masked = U_masked[:peak_index]
 		V_masked = V_masked[:peak_index]
-	elif window == "last":
+	elif phase_window == "last":
 		I_masked = I_masked[peak_index:]
 		Q_masked = Q_masked[peak_index:]
 		U_masked = U_masked[peak_index:]

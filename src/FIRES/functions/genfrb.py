@@ -262,13 +262,13 @@ def process_task(task, mode, plot_mode, **params):
 
 	process_func = plot_mode.process_func
 	# Use the provided process_func for mode-specific processing
-	result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"], params["plot_window"])
+	result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"], params["phase_window"], params["freq_window"])
 
 	return s_val, result, result_err, PA_microshot
 
 
 def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
-				 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode, plot_window):
+				 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -332,7 +332,8 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		width_range=width_range,
 		band_centre_mhz=band_center,
 		band_width_mhz=band_width,
-		plot_window=plot_window,
+		phase_window=phase_window,
+		freq_window=freq_window
 	)
 
 	if (lin_pol + circ_pol).any() > 1.0:
