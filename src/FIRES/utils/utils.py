@@ -148,7 +148,8 @@ class DynspecParams(NamedTuple):
     width_range: float
     band_centre_mhz: float
     band_width_mhz: float
-    plot_window: str
+    phase_window: str
+    freq_window: str
 
 
 

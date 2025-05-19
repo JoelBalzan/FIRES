@@ -184,12 +184,20 @@ def main():
 		help="Enable chi-squared fitting on the final profiles (plot!=pa_var)."
 	)
 	parser.add_argument(
-		"--plot-window",
+		"--phase-window",
 		type=str,
 		default="all",
 		choices=['first', 'last', 'all'],
 		metavar="",
 		help="Window for plotting PA variance and L fraction. Choose 'first', 'last', or 'all'. Default is 'all'."
+	)
+	parser.add_argument(
+		"--freq-window",
+		type=str,
+		default="all",
+		choices=['1q', '2q', '3q', '4q', 'all'],
+		metavar="",
+		help="Frequency window for plotting PA variance and L fraction. Choose '1q', '2q', '3q', '4q', or 'all'. Default is 'all'."
 	)
 
 	args = parser.parse_args()
@@ -249,7 +257,8 @@ def main():
 				scatter=args.scatter,
 				n_cpus=args.ncpu,
 				plot_mode=selected_plot_mode,
-				plot_window=args.plot_window
+				phase_window=args.phase_window,
+				freq_window=args.freq_window,
 
 				)
 		else:
@@ -270,7 +279,8 @@ def main():
 				scatter=args.scatter,
 				n_cpus=None,
 				plot_mode=selected_plot_mode,
-				plot_window=None,
+				phase_window=None,
+				freq_window=None,
 			)
 			if args.chi2_fit:
 				if args.noise == 0:
