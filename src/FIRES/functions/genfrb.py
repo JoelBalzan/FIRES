@@ -12,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 import functools
 from itertools import product
 from tqdm import tqdm
+import inspect
 
 from FIRES.functions.plotmodes import plot_modes
 from FIRES.functions.basicfns import scatter_stokes_chan, add_noise_to_dynspec
@@ -221,19 +222,23 @@ def load_multiple_data(data):
 		
 	return scatter_ms, vals, errs, width, var_PA_microshots
 
-
 def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
-	"""Generate dynamic spectrum based on mode."""
-	s_val = s_val if plot_multiple_tau else params["tau_ms"]
-	
-	# Remove 'tau_ms' from params to avoid conflict
-	params = {k: v for k, v in params.items() if k != "tau_ms" and k != "nseed"}
-	
-	if mode == 'gauss':
-		params = {k: v for k, v in params.items() if k != "num_micro_gauss" and k != "width_range"}
-		return gauss_dynspec(**params, tau_ms=s_val)
-	else:  # mode == 'mgauss'
-		return m_gauss_dynspec(**params, tau_ms=s_val)
+    """Generate dynamic spectrum based on mode."""
+    s_val = s_val if plot_multiple_tau else params["tau_ms"]
+
+    # Choose the correct function
+    if mode == 'gauss':
+        dynspec_func = gauss_dynspec
+    else:  # mode == 'mgauss'
+        dynspec_func = m_gauss_dynspec
+
+    # Get the argument names for the selected function
+    sig = inspect.signature(dynspec_func)
+    allowed_args = set(sig.parameters.keys())
+
+    # Always pass tau_ms as s_val
+    params_filtered = {k: v for k, v in params.items() if k in allowed_args and k != "tau_ms"}
+    return dynspec_func(**params_filtered, tau_ms=s_val)
 
 
 def process_task(task, mode, plot_mode, **params):
@@ -257,13 +262,13 @@ def process_task(task, mode, plot_mode, **params):
 
 	process_func = plot_mode.process_func
 	# Use the provided process_func for mode-specific processing
-	result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"])
+	result, result_err = process_func(dspec, params["freq_mhz"], params["time_ms"], params["rm"], params["plot_window"])
 
 	return s_val, result, result_err, PA_microshot
 
 
 def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
-				 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode):
+				 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode, plot_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -327,6 +332,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		width_range=width_range,
 		band_centre_mhz=band_center,
 		band_width_mhz=band_width,
+		plot_window=plot_window,
 	)
 
 	if (lin_pol + circ_pol).any() > 1.0:
