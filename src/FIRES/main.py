@@ -183,6 +183,14 @@ def main():
 		action="store_true",
 		help="Enable chi-squared fitting on the final profiles (plot!=pa_var)."
 	)
+	parser.add_argument(
+		"--plot-window",
+		type=str,
+		default="all",
+		choices=['first', 'last', 'all'],
+		metavar="",
+		help="Window for plotting PA variance and L fraction. Choose 'first', 'last', or 'all'. Default is 'all'."
+	)
 
 	args = parser.parse_args()
 
@@ -241,6 +249,7 @@ def main():
 				scatter=args.scatter,
 				n_cpus=args.ncpu,
 				plot_mode=selected_plot_mode,
+				plot_window=args.plot_window
 
 				)
 		else:
@@ -260,7 +269,8 @@ def main():
 				noise=args.SNR,
 				scatter=args.scatter,
 				n_cpus=None,
-				plot_mode=selected_plot_mode
+				plot_mode=selected_plot_mode,
+				plot_window=None,
 			)
 			if args.chi2_fit:
 				if args.noise == 0:
