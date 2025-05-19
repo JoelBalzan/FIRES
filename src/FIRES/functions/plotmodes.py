@@ -54,13 +54,20 @@ def basic_plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, s
 
 
 # Processing function for pa_var
-def process_pa_var(dspec, freq_mhz, time_ms, rm):
+def process_pa_var(dspec, freq_mhz, time_ms, rm, window):
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
- 
+	
 	peak_index = np.argmax(ts_data.iquvt[0])
-	phits = ts_data.phits[peak_index:]
-	dphits = ts_data.dphits[peak_index:]
- 
+	if window == "first":
+		phits = ts_data.phits[:peak_index]
+		dphits = ts_data.dphits[:peak_index]
+	elif window == "last":
+		phits = ts_data.phits[peak_index:]
+		dphits = ts_data.dphits[peak_index:]
+	elif window == "all":
+		phits = ts_data.phits
+		dphits = ts_data.dphits
+   
 	pa_var = np.nanvar(phits)
 	pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
 	return pa_var, pa_var_err
@@ -100,7 +107,7 @@ def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, wid
 		print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_var_vs_scatter.pdf')}  \n")
 
 
-def process_lfrac(dspec, freq_mhz, time_ms, rm):
+def process_lfrac(dspec, freq_mhz, time_ms, rm, window):
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
  
 	iquvt = ts_data.iquvt
@@ -115,6 +122,20 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm):
 	I_masked = np.where(mask, np.nan, iquvt[0])
 	Q_masked = np.where(mask, np.nan, iquvt[1])
 	U_masked = np.where(mask, np.nan, iquvt[2])
+	V_masked = np.where(mask, np.nan, iquvt[3])
+	
+	peak_index = np.argmax(I_masked)
+	if window == "first":
+		I_masked = I_masked[:peak_index]
+		Q_masked = Q_masked[:peak_index]
+		U_masked = U_masked[:peak_index]
+		V_masked = V_masked[:peak_index]
+	elif window == "last":
+		I_masked = I_masked[peak_index:]
+		Q_masked = Q_masked[peak_index:]
+		U_masked = U_masked[peak_index:]
+		V_masked = V_masked[peak_index:]
+
 	
 	L = np.sqrt(Q_masked**2 + U_masked**2)
  
