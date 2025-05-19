@@ -2,7 +2,7 @@
 # AB, Sep 2024
 # -------------------------- Import modules ---------------------------
 from importlib.resources import files
-import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 from FIRES.functions.genfns import *
 from FIRES.utils.utils import *
@@ -21,6 +21,93 @@ parent_dir = os.path.dirname(current_dir)
 obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
 gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
+
+def subtract_baseline_offpulse(dspec, off_start, off_end, axis=-1, method='median'):
+	"""
+	Subtracts the baseline using a specific off-pulse window, specified as fractions (0-1) of the axis length.
+	Args:
+		dspec: np.ndarray, shape (nstokes, nchan, ntime)
+		off_start: float, start of off-pulse window as fraction (0-1)
+		off_end: float, end of off-pulse window as fraction (0-1)
+		axis: int, axis along which to estimate the baseline (default: time axis)
+		method: 'median' or 'mean'
+	Returns:
+		dspec_baseline_subtracted: np.ndarray, same shape as dspec
+	"""
+	axis_len = dspec.shape[axis]
+	start_idx = int(np.floor(off_start * axis_len))
+	end_idx = int(np.floor(off_end * axis_len))
+	slicer = [slice(None)] * dspec.ndim
+	slicer[axis] = slice(start_idx, end_idx)
+	offpulse_region = dspec[tuple(slicer)]
+
+	if method == 'median':
+		baseline = np.nanmedian(offpulse_region, axis=axis, keepdims=True)
+	elif method == 'mean':
+		baseline = np.nanmean(offpulse_region, axis=axis, keepdims=True)
+	else:
+		raise ValueError("method must be 'median' or 'mean'")
+	return dspec - baseline
+
+
+def find_offpulse_window(profile, window_frac=0.2):
+	"""
+	Find the off-pulse window in a 1D profile by sliding a window and finding the minimum mean.
+	Args:
+		profile: 1D numpy array (summed over frequency and Stokes if needed)
+		window_frac: Fractional width of the window (e.g., 0.2 for 20%)
+	Returns:
+		off_start_frac, off_end_frac: Start and end as fractions (0-1)
+	"""
+	nbin = len(profile)
+	win_size = int(window_frac * nbin)
+	min_mean = np.inf
+	min_start = 0
+	for i in range(nbin - win_size + 1):
+		win_mean = np.mean(profile[i:i+win_size])
+		if win_mean < min_mean:
+			min_mean = win_mean
+			min_start = i
+	off_start_frac = min_start / nbin
+	off_end_frac = (min_start + win_size) / nbin
+	return off_start_frac, off_end_frac
+
+
+def select_offpulse_window(profile):
+    """
+    Plot the profile and let the user select the off-pulse window by clicking twice.
+    Only mouse clicks are accepted.
+    Returns:
+        off_start_frac, off_end_frac: Start and end as fractions (0-1)
+    """
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(profile, lw=0.5, color='k')
+    ax.set_xlim(0, len(profile))
+    ax.set_title("Click twice to select the off-pulse window")
+
+    clicks = []
+
+    def onclick(event):
+        # Only accept mouse button presses inside the axes
+        if event.inaxes == ax and event.button in [1, 2, 3]:
+            ax.axvline(event.xdata, color='r', linestyle='--')
+            fig.canvas.draw()
+            clicks.append(event.xdata)
+            if len(clicks) == 2:
+                fig.canvas.mpl_disconnect(cid)
+                plt.close(fig)
+
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+    plt.show()
+
+    if len(clicks) < 2:
+        raise RuntimeError("Fewer than two mouse clicks registered.")
+
+    idx = sorted([int(round(x)) for x in clicks])
+    nbin = len(profile)
+    off_start_frac = max(0, idx[0] / nbin)
+    off_end_frac = min(1, idx[1] / nbin)
+    return off_start_frac, off_end_frac
 
 
 def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
@@ -53,8 +140,8 @@ def load_data(data, freq_mhz, time_ms):
 			stokes_files = []
 			for s in stokes_labels:
 				# Find the file for this Stokes parameter
-				#matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
-				matches = [f for f in os.listdir(data) if f.endswith(f'{s}.npy')]
+				matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
+				#matches = [f for f in os.listdir(data) if f.endswith(f'{s}.npy')]
 				
 				if len(matches) != 1:
 					raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
@@ -85,6 +172,10 @@ def load_data(data, freq_mhz, time_ms):
 			raise ValueError("Unsupported file format: only .pkl and .npy are supported")
 	else:
 		raise ValueError("Unsupported data type for 'data'")
+
+	#start, stop = find_offpulse_window(np.nanmean(dspec[0], axis=0), window_frac=0.2)
+	start, stop = select_offpulse_window(np.nanmean(dspec[0], axis=0))
+	dspec = subtract_baseline_offpulse(dspec, start, stop, axis=-1, method='mean')
 
 	return dspec, freq_mhz, time_ms
 
@@ -249,7 +340,8 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, scatter_idx, ref_freq)
 			if noise > 0:
 				dspec = add_noise_to_dynspec(dspec, peak_amp = peak, SNR = noise)
-    
+	
+	
 		else:
 			dspec, _ = generate_dynspec(
 			mode=mode,
