@@ -1,18 +1,19 @@
+# -----------------------------------------------------------------------------
+# utils.py
+# FIRES: The Fast, Intense Radio Emission Simulator
 #
-#	Functions for simulating scattering 
+# This module provides utility functions and constants for the FIRES simulation
+# pipeline, including parameter file parsing, chi-squared fitting, Gaussian
+# modeling, and physical constants. It also defines namedtuples for FRB data
+# structures used throughout the codebase.
 #
-#								AB, May 2024
-#
+# Author: JB
+# Date: 2025-05-20
+# -----------------------------------------------------------------------------
+
 #	--------------------------	Import modules	---------------------------
 
-import os
-import pickle as pkl
-import sys
 from collections import namedtuple
-
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
 from scipy.optimize import curve_fit
 from typing import NamedTuple

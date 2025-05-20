@@ -1,26 +1,25 @@
+# -----------------------------------------------------------------------------
+# plotfns.py
+# FIRES: The Fast, Intense Radio Emission Simulator
 #
-#	Plotting functions
+# This module provides plotting functions for visualizing FRB simulation results,
+# including Stokes parameter profiles, dynamic spectra, polarization angle,
+# and derived quantities as a function of simulation parameters.
 #
-#								AB, August 2024
-#
-#	Function list
-#
+# Author: JB
+# Date: 2025-05-20
+# -----------------------------------------------------------------------------
 
 #	--------------------------	Import modules	---------------------------
 
 import os
-import sys
 
 import matplotlib as mpl
-import matplotlib.colors as mpc
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
-from matplotlib.ticker import FormatStrFormatter, FuncFormatter
-from scipy.optimize import curve_fit
 from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
-from scipy.stats import iqr
 
 mpl.rcParams['pdf.fonttype']	= 42
 mpl.rcParams['ps.fonttype'] 	= 42
