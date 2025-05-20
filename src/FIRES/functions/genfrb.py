@@ -281,7 +281,7 @@ def process_task(task, mode, plot_mode, **params):
 
 
 def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
-				 obs_file, gauss_file, noise, scatter, n_cpus, plot_mode, phase_window, freq_window):
+				 obs_file, gauss_file, noise, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -337,7 +337,6 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		seed=seed,
 		nseed=nseed,
 		noise=noise,
-		scatter=scatter,
 		tau_ms=scatter_ms,
 		sc_idx=scatter_idx,
 		ref_freq_mhz=ref_freq,
@@ -356,7 +355,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)
-			if scatter and scatter_ms > 0:
+			if scatter_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, scatter_idx, ref_freq)
 			if noise > 0:
 				dspec = add_noise_to_dynspec(dspec, peak_amp = peak, SNR = noise)

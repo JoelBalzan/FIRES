@@ -174,18 +174,6 @@ def main():
 		help="Signal-to-noise ratio (SNR) for the simulated FRB. Default is 0 (no noise)."
 	)
 	parser.add_argument(
-		"--scatter",
-		action="store_true",
-		default=True,
-		help="Enable scattering. Use --no-scatter to disable it."
-	)
-	parser.add_argument(
-		"--no-scatter",
-		action="store_false",
-		dest="scatter",
-		help="Disable scattering. Overrides --scatter if both are provided."
-	)
-	parser.add_argument(
 		"--ncpu",
 		type=int,
 		default=1,
@@ -268,7 +256,6 @@ def main():
 				nseed=args.nseed,
 				width_range=args.mg_width,
 				noise=args.SNR,
-				scatter=args.scatter,
 				n_cpus=args.ncpu,
 				plot_mode=selected_plot_mode,
 				phase_window=args.phase_window,
@@ -290,7 +277,6 @@ def main():
 				nseed=None,
 				width_range=args.mg_width,
 				noise=args.SNR,
-				scatter=args.scatter,
 				n_cpus=None,
 				plot_mode=selected_plot_mode,
 				phase_window=None,

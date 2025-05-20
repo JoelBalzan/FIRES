@@ -141,7 +141,6 @@ class DynspecParams(NamedTuple):
     seed: int
     nseed: int
     noise: bool
-    scatter: bool
     tau_ms: float
     sc_idx: float
     ref_freq_mhz: float
