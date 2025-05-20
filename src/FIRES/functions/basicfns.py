@@ -311,29 +311,38 @@ def estimate_windows(itsub, time_ms, threshold=0.1):
 	return left_window, right_window
 
 
-def median_percentiles(vals, scatter_ms):
+def median_percentiles(vals, scatter_ms, ndigits=3):
     med_vals = []
     percentile_errs = []
-    
+    # Round all keys in vals for consistent lookup
+    vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
     for s_val in scatter_ms:
-           # Calculate the median of pa_var values
-           median_val = np.median(vals[s_val])
-           med_vals.append(median_val)
-           # Calculate the 1-sigma percentiles (16th and 84th percentiles)
-           lower_percentile = np.percentile(vals[s_val], 16)
-           upper_percentile = np.percentile(vals[s_val], 84)
-           # Error bars are the difference between the median and the percentiles
-           percentile_errs.append((lower_percentile, upper_percentile))
-           
+        key = round(float(s_val), ndigits)
+        v = vals_rounded.get(key, None)
+        if v is not None and isinstance(v, (list, np.ndarray)) and len(v) > 0:
+            median_val = np.median(v)
+            lower_percentile = np.percentile(v, 16)
+            upper_percentile = np.percentile(v, 84)
+            med_vals.append(median_val)
+            percentile_errs.append((lower_percentile, upper_percentile))
+        else:
+            med_vals.append(np.nan)
+            percentile_errs.append((np.nan, np.nan))
     return med_vals, percentile_errs
 
-def weight_dict(scatter_ms, vals, weights_dict):
-	normalised_vals = {s_val: [] for s_val in scatter_ms}
-	
-	for s_val in scatter_ms:
-			normalised_vals[s_val] = [ val / pa if pa != 0 else 0 for val, pa in zip(vals[s_val], weights_dict[s_val]) ]
-   
-	return normalised_vals
+
+def weight_dict(scatter_ms, vals, weights_dict, ndigits=3):
+    # Round all keys in vals and weights_dict
+    vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
+    weights_rounded = {round(float(k), ndigits): v for k, v in weights_dict.items()}
+    normalised_vals = {}
+    for s_val in scatter_ms:
+        key = round(float(s_val), ndigits)
+        if key in vals_rounded and key in weights_rounded:
+            normalised_vals[key] = [val / pa if pa != 0 else 0 for val, pa in zip(vals_rounded[key], weights_rounded[key])]
+        else:
+            normalised_vals[key] = None  # or handle missing keys as needed
+    return normalised_vals
 	
  
 def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
