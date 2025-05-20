@@ -93,9 +93,6 @@ def get_phase_window_indices(phase_window, peak_index):
 def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	
 	slc = get_freq_window_indices(freq_mhz, freq_window)
-	if slc is None:
-		print(f"Invalid frequency window: {freq_window} \n")
-		return None, None
 	freq_mhz = freq_mhz[slc]
 	dspec = dspec[:, slc, :]
 		
@@ -149,21 +146,20 @@ def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, wid
 
 def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	
-	slc = get_freq_window_indices(freq_mhz, freq_window)
-	if slc is None:
-		print(f"Invalid frequency window: {freq_window} \n")
-		return None, None
-	freq_mhz = freq_mhz[slc]
-	dspec = dspec[:, slc, :]
+	freq_slc = get_freq_window_indices(freq_mhz, freq_window)
+	
+	peak_index = np.argmax(np.mean(dspec, axis=(0, 1)))
+	phase_slc = get_phase_window_indices(phase_window, peak_index)
 
+	freq_mhz = freq_mhz[freq_slc]
+	time_ms = time_ms[phase_slc]
+	dspec = dspec[:, freq_slc, phase_slc]
+	
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
  
 	iquvt = ts_data.iquvt
 	I = ts_data.iquvt[0]
-	Q = ts_data.iquvt[1]
-	U = ts_data.iquvt[2]
-	V = ts_data.iquvt[3]
- 
+
 	threshold = 0.05 * np.nanmax(I)
 	mask = I <= threshold
  
@@ -172,14 +168,6 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	U_masked = np.where(mask, np.nan, iquvt[2])
 	V_masked = np.where(mask, np.nan, iquvt[3])
 	
-	peak_index = np.argmax(I_masked)
-	phase_slc = get_phase_window_indices(phase_window, peak_index)
-
-	I_masked = I_masked[phase_slc]
-	Q_masked = Q_masked[phase_slc]
-	U_masked = U_masked[phase_slc]
-	V_masked = V_masked[phase_slc]
-
 	L = np.sqrt(Q_masked**2 + U_masked**2)
  
 	integrated_I = np.nansum(I_masked)
@@ -190,8 +178,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	noise_I = np.nanstd(I[mask])
 	noise_L = np.nanstd(L[mask])
 	lfrac_err = np.sqrt((noise_L / integrated_I)**2 + (integrated_L * noise_I / integrated_I**2)**2)
-	
- 
+
 	return lfrac, lfrac_err
 
 
