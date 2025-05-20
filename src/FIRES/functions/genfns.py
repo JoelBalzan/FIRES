@@ -54,7 +54,7 @@ def calculate_stokes(temp_dynspec, lin_pol_frac, circ_pol_frac, faraday_rot_angl
 
 # -------------------------- FRB generator functions ---------------------------
 def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
-                  dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise, scatter,
+                  dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, seed, noise,
                   tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
     """
     Generate dynamic spectrum for Gaussian pulses.
@@ -108,7 +108,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
                 temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
             
             # Apply scattering if enabled
-            if scatter and tau_ms > 0:
+            if tau_ms > 0:
                 temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
             # Add Gaussian noise to Stokes I before calculating Q, U, V
@@ -133,7 +133,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, loc_ms, 
                       dm, pol_angle, lin_pol_frac, circ_pol_frac, delta_pol_angle, rm, num_micro_gauss, seed, 
-                      width_range, noise, scatter, tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
+                      width_range, noise, tau_ms, sc_idx, ref_freq_mhz, band_centre_mhz, band_width_mhz):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
     Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -214,7 +214,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms
                     temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 
                 # Apply scattering if enabled
-                if scatter and tau_ms > 0:
+                if tau_ms > 0:
                     temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
                 # Add Gaussian noise to Stokes I
