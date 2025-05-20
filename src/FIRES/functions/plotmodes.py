@@ -67,27 +67,27 @@ def basic_plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, s
 		print(f"Invalid mode: {mode} \n")
 
 
+def get_freq_window_indices(freq_mhz, freq_window):
+	q = int(len(freq_mhz) / 4)
+	windows = {
+		"1q": slice(0, q),
+		"2q": slice(q, 2*q),
+		"3q": slice(2*q, 3*q),
+		"4q": slice(3*q, None),
+		"all": slice(None)
+	}
+	return windows.get(freq_window, None)
+
 
 # Processing function for pa_var
 def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
-	q = int(len(freq_mhz)/4)
-	if freq_window == "1q":
-		freq_mhz = freq_mhz[:q]
-		dspec = dspec[:q, :]
-	elif freq_window == "2q":
-		freq_mhz = freq_mhz[q:2*q]
-		dspec = dspec[q:2*q, :]
-	elif freq_window == "3q":
-		freq_mhz = freq_mhz[2*q:3*q]
-		dspec = dspec[2*q:3*q, :]
-	elif freq_window == "4q":
-		freq_mhz = freq_mhz[3*q:]
-		dspec = dspec[3*q:, :]
-	elif freq_window == "all":
-		pass
-	else:
+	
+	slc = get_freq_window_indices(freq_mhz, freq_window)
+	if slc is None:
 		print(f"Invalid frequency window: {freq_window} \n")
 		return None, None
+	freq_mhz = freq_mhz[slc]
+	dspec = dspec[:, slc, :]
 		
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
 	
@@ -146,25 +146,13 @@ def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, wid
 
 
 def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
-    
-	q = int(len(freq_mhz)/4)
-	if freq_window == "1q":
-		freq_mhz = freq_mhz[:q]
-		dspec = dspec[:q, :]
-	elif freq_window == "2q":
-		freq_mhz = freq_mhz[:2*q]
-		dspec = dspec[:2*q, :]
-	elif freq_window == "3q":
-		freq_mhz = freq_mhz[:3*q]
-		dspec = dspec[:3*q, :]
-	elif freq_window == "4q":
-		freq_mhz = freq_mhz[:4*q]
-		dspec = dspec[:4*q, :]
-	elif freq_window == "all":
-		pass
-	else:
+	
+	slc = get_freq_window_indices(freq_mhz, freq_window)
+	if slc is None:
 		print(f"Invalid frequency window: {freq_window} \n")
 		return None, None
+	freq_mhz = freq_mhz[slc]
+	dspec = dspec[slc, :]
 
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
  
