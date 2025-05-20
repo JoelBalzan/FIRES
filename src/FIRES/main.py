@@ -206,22 +206,20 @@ def main():
 
 
 	# Parse scattering timescale(s)
-	if args.scatter:
-		scattering_timescales = np.array([])
-		for value in args.scattering_timescale_ms:
-			if value.startswith("(") and value.endswith(")"):  # Check if it's a range
-				try:
-					start, stop, step = map(float, value.strip("()").split(","))
-					range_values = np.arange(start, stop + step, step)  # Include the stop value
-					scattering_timescales = np.concatenate((scattering_timescales, range_values))  # Append to array
-				except ValueError:
-					raise ValueError("Invalid range format for scattering timescales. Use '(start,stop,step)'.")
-			else:
-				scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
+	scattering_timescales = np.array([])
+	for value in args.scattering_timescale_ms:
+		if value.startswith("(") and value.endswith(")"):  # Check if it's a range
+			try:
+				start, stop, step = map(float, value.strip("()").split(","))
+				range_values = np.arange(start, stop + step, step)  # Include the stop value
+				scattering_timescales = np.concatenate((scattering_timescales, range_values))  # Append to array
+			except ValueError:
+				raise ValueError("Invalid range format for scattering timescales. Use '(start,stop,step)'.")
+		else:
+			scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
 
-		args.scattering_timescale_ms = scattering_timescales
-	else:
-		args.scattering_timescale_ms = False
+	args.scattering_timescale_ms = scattering_timescales
+
 	print(f"Scattering timescales: {args.scattering_timescale_ms} ms \n")
 
 	# Set the global data directory variable
