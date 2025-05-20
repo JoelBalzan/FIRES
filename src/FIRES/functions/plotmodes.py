@@ -173,18 +173,13 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	V_masked = np.where(mask, np.nan, iquvt[3])
 	
 	peak_index = np.argmax(I_masked)
-	if phase_window == "first":
-		I_masked = I_masked[:peak_index]
-		Q_masked = Q_masked[:peak_index]
-		U_masked = U_masked[:peak_index]
-		V_masked = V_masked[:peak_index]
-	elif phase_window == "last":
-		I_masked = I_masked[peak_index:]
-		Q_masked = Q_masked[peak_index:]
-		U_masked = U_masked[peak_index:]
-		V_masked = V_masked[peak_index:]
+	phase_slc = get_phase_window_indices(phase_window, peak_index)
 
-	
+	I_masked = I_masked[phase_slc]
+	Q_masked = Q_masked[phase_slc]
+	U_masked = U_masked[phase_slc]
+	V_masked = V_masked[phase_slc]
+
 	L = np.sqrt(Q_masked**2 + U_masked**2)
  
 	integrated_I = np.nansum(I_masked)
