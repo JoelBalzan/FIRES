@@ -78,6 +78,16 @@ def get_freq_window_indices(freq_mhz, freq_window):
 	}
 	return windows.get(freq_window, None)
 
+def get_phase_window_indices(phase_window, peak_index):
+	"""
+	Returns a slice object for the desired phase window.
+	"""
+	phase_slices = {
+		"first": slice(0, peak_index),
+		"last": slice(peak_index, None),
+		"all": slice(None)
+	}
+	return phase_slices.get(phase_window, None)
 
 # Processing function for pa_var
 def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
@@ -92,18 +102,10 @@ def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
 	
 	peak_index = np.argmax(ts_data.iquvt[0])
-	if phase_window == "first":
-		phits = ts_data.phits[:peak_index]
-		dphits = ts_data.dphits[:peak_index]
-	elif phase_window == "last":
-		phits = ts_data.phits[peak_index:]
-		dphits = ts_data.dphits[peak_index:]
-	elif phase_window == "all":
-		phits = ts_data.phits
-		dphits = ts_data.dphits
-	else:
-		print(f"Invalid phase window: {phase_window} \n")
-		return None, None
+	phase_slc = get_phase_window_indices(phase_window, peak_index)
+
+	phits = ts_data.phits[phase_slc]
+	dphits = ts_data.dphits[phase_slc]
 		
    
 	pa_var = np.nanvar(phits)
@@ -152,7 +154,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 		print(f"Invalid frequency window: {freq_window} \n")
 		return None, None
 	freq_mhz = freq_mhz[slc]
-	dspec = dspec[slc, :]
+	dspec = dspec[:, slc, :]
 
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, rm)
  
