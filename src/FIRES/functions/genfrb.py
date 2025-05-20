@@ -187,7 +187,7 @@ def load_multiple_data(data):
 	all_vals = {}  
 	all_errs = {}  
 	all_var_PA_microshots = {}  
-	width_ms = None  # This will be extracted from the first file
+	all_widths = []
 
 	file_names = [file_name for file_name in sorted(os.listdir(data)) if file_name.endswith(".pkl")]
 
@@ -209,18 +209,14 @@ def load_multiple_data(data):
 			all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
 
 		all_scatter_ms.extend(scatter_ms)
+		all_widths.append(width)
 
-		# Set width_ms (assume it's the same for all files)
-		if width_ms is None:
-			width_ms = width
-		
 		vals = all_vals
 		errs = all_errs
 		var_PA_microshots = all_var_PA_microshots
 		scatter_ms = all_scatter_ms
-		width = width_ms
 		
-	return scatter_ms, vals, errs, width, var_PA_microshots
+	return scatter_ms, vals, errs, all_widths, var_PA_microshots
 
 def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
 	"""Generate dynamic spectrum based on mode."""
