@@ -75,14 +75,14 @@ def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 		freq_mhz = freq_mhz[:q]
 		dspec = dspec[:q, :]
 	elif freq_window == "2q":
-		freq_mhz = freq_mhz[:2*q]
-		dspec = dspec[:2*q, :]
+		freq_mhz = freq_mhz[q:2*q]
+		dspec = dspec[q:2*q, :]
 	elif freq_window == "3q":
-		freq_mhz = freq_mhz[:3*q]
-		dspec = dspec[:3*q, :]
+		freq_mhz = freq_mhz[2*q:3*q]
+		dspec = dspec[2*q:3*q, :]
 	elif freq_window == "4q":
-		freq_mhz = freq_mhz[:4*q]
-		dspec = dspec[:4*q, :]
+		freq_mhz = freq_mhz[3*q:]
+		dspec = dspec[3*q:, :]
 	elif freq_window == "all":
 		pass
 	else:
