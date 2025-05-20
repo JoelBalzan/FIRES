@@ -1,3 +1,18 @@
+# -----------------------------------------------------------------------------
+# plotmodes.py
+# FIRES: The Fast, Intense Radio Emission Simulator
+#
+# This module defines plot modes and their associated processing and plotting
+# functions for visualizing FRB simulation results. It includes classes and
+# functions for plotting Stokes parameters, polarization angle variance,
+# linear fraction, and other derived quantities as a function of scattering
+# and simulation parameters.
+#
+# Author: JB
+# Date: 2025-05-20
+# -----------------------------------------------------------------------------
+
+#	--------------------------	Import modules	---------------------------
 import numpy as np
 import os
 import numpy as np

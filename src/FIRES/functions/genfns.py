@@ -1,21 +1,19 @@
+# -----------------------------------------------------------------------------
+# genfns.py
+# FIRES: The Fast, Intense Radio Emission Simulator
 #
-#	Functions for simulating scattering 
+# This module provides core functions for generating FRB dynamic spectra,
+# applying Faraday rotation, dispersion, noise, and polarization effects.
+# It includes both single-Gaussian and multi-Gaussian (micro-shot) models,
+# as well as helper routines for Stokes parameter calculation.
 #
-#								AB, May 2024
-#								TC, Sep 2024
-#
-#	Function list
-#
-#	gauss_dynspec(fmhzarr, tmsarr, df_mhz, dtms, specind, peak, wms, locms, dmpccc):
-#		Generate dynamic spectrum for a Gaussian pulse
-#
-#	scatter_dynspec(dspec, fmhzarr, tmsarr, df_mhz, dtms, taums, scindex):
-#		Scatter a given dynamic spectrum
-#
+# Author: JB
+# Date: 2025-05-20
+# -----------------------------------------------------------------------------
+
 #	--------------------------	Import modules	---------------------------
 
 
-import matplotlib as mpl
 import numpy as np
 
 from FIRES.utils.utils import *

@@ -1,16 +1,16 @@
+# -----------------------------------------------------------------------------
+# basicfns.py
+# FIRES: The Fast, Intense Radio Emission Simulator
 #
-#	Functions for FRB polarization analysis
+# This module provides core processing functions for the FIRES simulation
+# pipeline, including RM synthesis, RM correction, profile and spectra
+# estimation, dynamic spectrum processing, window estimation, and utility
+# routines for handling floating point dictionary keys and noise addition.
 #
-#								AB, August 2024
-#
-#	Function list
-#
-#			estimate_rm(frbname, dm, nchan, ffac, avgfac, fmhz0, lwms, rwms, phirange, dphi, startchan, endchan, tpeakms):
-#						Estimate rotation measure
-#
-#			unfarot(frbname, dm, nchan, ffac, avgfac, fmhz0, rm0):
-#						Generate RM corrected dynamic spectrum 
-#
+# Author: JB
+# Date: 2025-05-20
+# -----------------------------------------------------------------------------
+
 #	--------------------------	Import modules	---------------------------
 
 import os

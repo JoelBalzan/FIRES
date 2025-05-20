@@ -1,3 +1,17 @@
+# -----------------------------------------------------------------------------
+# main.py
+# FIRES: The Fast, Intense Radio Emission Simulator
+#
+# This script serves as the main entry point for simulating Fast Radio Bursts (FRBs)
+# with scattering and polarization effects. It parses command-line arguments,
+# manages simulation and output options, and calls the appropriate functions for
+# generating FRBs and plotting results.
+#
+# Author: JB
+# Date: 2025-05-20
+# -----------------------------------------------------------------------------
+
+#	--------------------------	Import modules	---------------------------
 import numpy as np
 import argparse
 import os

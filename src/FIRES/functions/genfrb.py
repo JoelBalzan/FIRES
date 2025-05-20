@@ -1,20 +1,29 @@
-# Simulating scattering
-# AB, Sep 2024
+# -----------------------------------------------------------------------------
+# genfrb.py
+# FIRES: The Fast, Intense Radio Emission Simulator
+#
+# This module contains functions for generating Fast Radio Burst (FRB) dynamic
+# spectra, handling baseline subtraction, off-pulse window selection, scattering,
+# data loading, and parallelized simulation and aggregation of FRB realizations.
+# It is a core part of the FIRES simulation pipeline.
+#
+# Author: JB
+# Date: 2025-05-20
+# -----------------------------------------------------------------------------
+
 # -------------------------- Import modules ---------------------------
-from importlib.resources import files
 import matplotlib.pyplot as plt
 import numpy as np
 from FIRES.functions.genfns import *
 from FIRES.utils.utils import *
 import os
-import pickle as pkl  # Import pickle
+import pickle as pkl
 from concurrent.futures import ProcessPoolExecutor
 import functools
 from itertools import product
 from tqdm import tqdm
 import inspect
 
-from FIRES.functions.plotmodes import plot_modes
 from FIRES.functions.basicfns import scatter_stokes_chan, add_noise_to_dynspec
 
 current_dir = os.path.dirname(__file__)
