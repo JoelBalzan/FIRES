@@ -312,37 +312,37 @@ def estimate_windows(itsub, time_ms, threshold=0.1):
 
 
 def median_percentiles(vals, scatter_ms, ndigits=3):
-    med_vals = []
-    percentile_errs = []
-    # Round all keys in vals for consistent lookup
-    vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
-    for s_val in scatter_ms:
-        key = round(float(s_val), ndigits)
-        v = vals_rounded.get(key, None)
-        if v is not None and isinstance(v, (list, np.ndarray)) and len(v) > 0:
-            median_val = np.median(v)
-            lower_percentile = np.percentile(v, 16)
-            upper_percentile = np.percentile(v, 84)
-            med_vals.append(median_val)
-            percentile_errs.append((lower_percentile, upper_percentile))
-        else:
-            med_vals.append(np.nan)
-            percentile_errs.append((np.nan, np.nan))
-    return med_vals, percentile_errs
+	med_vals = []
+	percentile_errs = []
+	# Round all keys in vals for consistent lookup
+	vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
+	for s_val in scatter_ms:
+		key = round(float(s_val), ndigits)
+		v = vals_rounded.get(key, None)
+		if v is not None and isinstance(v, (list, np.ndarray)) and len(v) > 0:
+			median_val = np.median(v)
+			lower_percentile = np.percentile(v, 16)
+			upper_percentile = np.percentile(v, 84)
+			med_vals.append(median_val)
+			percentile_errs.append((lower_percentile, upper_percentile))
+		else:
+			med_vals.append(np.nan)
+			percentile_errs.append((np.nan, np.nan))
+	return med_vals, percentile_errs
 
 
 def weight_dict(scatter_ms, vals, weights_dict, ndigits=3):
-    # Round all keys in vals and weights_dict
-    vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
-    weights_rounded = {round(float(k), ndigits): v for k, v in weights_dict.items()}
-    normalised_vals = {}
-    for s_val in scatter_ms:
-        key = round(float(s_val), ndigits)
-        if key in vals_rounded and key in weights_rounded:
-            normalised_vals[key] = [val / pa if pa != 0 else 0 for val, pa in zip(vals_rounded[key], weights_rounded[key])]
-        else:
-            normalised_vals[key] = None  # or handle missing keys as needed
-    return normalised_vals
+	# Round all keys in vals and weights_dict
+	vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
+	weights_rounded = {round(float(k), ndigits): v for k, v in weights_dict.items()}
+	normalised_vals = {}
+	for s_val in scatter_ms:
+		key = round(float(s_val), ndigits)
+		if key in vals_rounded and key in weights_rounded:
+			normalised_vals[key] = [val / pa if pa != 0 else 0 for val, pa in zip(vals_rounded[key], weights_rounded[key])]
+		else:
+			normalised_vals[key] = None  # or handle missing keys as needed
+	return normalised_vals
 	
  
 def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
@@ -384,19 +384,23 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 	return sc_chan
 
 
-def add_noise_to_dynspec(dynspec, peak_amp, SNR):
-    """
-    Add Gaussian noise to the Stokes I, Q, U, V dynamic spectrum.
-    Noise is added independently to each Stokes parameter.
-    Args:
-        dynspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
-        peak_amp: Reference peak amplitude (float or array)
-        SNR: SNR (signal-to-noise ratio), noise stddev = peak_amp / noise
-    Returns:
-        dynspec_noisy: dynspec with noise added
-    """
-    signal_level = np.nanmax(peak_amp)
-    noise_std = signal_level / SNR
-    noise_arr = np.random.normal(loc=0.0, scale=noise_std, size=dynspec.shape)
-    dynspec_noisy = dynspec + noise_arr
-    return dynspec_noisy
+def add_noise_to_dynspec(dynspec, peak_amp, SNR, seed):
+	"""
+	Add Gaussian noise to the Stokes I, Q, U, V dynamic spectrum.
+	Noise is added independently to each Stokes parameter.
+	Args:
+		dynspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
+		peak_amp: Reference peak amplitude (float or array)
+		SNR: SNR (signal-to-noise ratio), noise stddev = peak_amp / noise
+	Returns:
+		dynspec_noisy: dynspec with noise added
+	"""
+	# Set the random seed for reproducibility
+	if seed is not None:
+		np.random.seed(seed)
+
+	signal_level = np.nanmax(peak_amp)
+	noise_std = signal_level / SNR
+	noise_arr = np.random.normal(loc=0.0, scale=noise_std, size=dynspec.shape)
+	dynspec_noisy = dynspec + noise_arr
+	return dynspec_noisy
