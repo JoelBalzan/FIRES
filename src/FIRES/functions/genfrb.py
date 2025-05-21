@@ -220,12 +220,7 @@ def load_multiple_data(data):
 		all_scatter_ms.extend(scatter_ms)
 		all_widths.append(width)
 
-		vals = all_vals
-		errs = all_errs
-		var_PA_microshots = all_var_PA_microshots
-		scatter_ms = all_scatter_ms
-		
-	return scatter_ms, vals, errs, all_widths, var_PA_microshots
+	return all_scatter_ms, all_vals, all_errs, all_widths, all_var_PA_microshots
 
 def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
 	"""Generate dynamic spectrum based on mode."""
@@ -358,7 +353,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			if scatter_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, scatter_idx, ref_freq)
 			if noise > 0:
-				dspec = add_noise_to_dynspec(dspec, peak_amp = peak, SNR = noise)
+				dspec = add_noise_to_dynspec(dspec, peak_amp = peak, SNR = noise, seed=seed)
 	
 	
 		else:

@@ -120,6 +120,14 @@ def main():
 		metavar=("WIDTH", "HEIGHT"),
 		help="Figure size for plots. Provide two values: width and height (in inches)."
 	)
+	parser.add_argument(
+		"--plot-scale",
+		type=str,
+		default="linear",
+		choices=['linear', 'log', 'loglog'],
+		metavar="",
+		help="Scale for plots. Choose 'linear' or 'log' (for y-axis) or loglog. Default is 'linear'."
+	)
 
 	# Simulation Options
 	parser.add_argument(
@@ -326,6 +334,7 @@ def main():
 						"scatter_ms": args.scattering_timescale_ms,
 						"show_plots": args.show_plots,
 						"var_PA_microshots": var_PA_microshots if 'var_PA_microshots' in locals() else None,
+						"scale": args.plot_scale,
 					}
 		
 					plot_function = plot_mode_obj.plot_func

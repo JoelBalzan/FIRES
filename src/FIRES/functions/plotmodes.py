@@ -110,7 +110,7 @@ def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms, var_PA_microshots):
+def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms, var_PA_microshots, scale):
 	"""
 	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
 	"""
@@ -132,9 +132,24 @@ def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, wid
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
-	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-	ax.set_ylabel(r"Var(\psi) / Var(\psi$_{microshots}$)")
+	
 	ax.grid(True, linestyle='--', alpha=0.6)
+ 
+	if scale == "linear":
+		ax.set_yscale('linear')
+		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
+		ax.set_ylabel(r"L/I")
+  
+	elif scale == "log":
+		ax.set_yscale('log')
+		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
+		ax.set_ylabel(r"log(L/I)")
+  
+	elif scale == "loglog":
+		ax.set_xscale('log')
+		ax.set_yscale('log')
+		ax.set_xlabel(r"log($\tau_{ms} / \sigma_{ms}$)")
+		ax.set_ylabel(r"log(L/I)")
 
 	if show_plots:
 		plt.show()
@@ -182,22 +197,41 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	return lfrac, lfrac_err
 
 
-def plot_lfrac_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots):
+def plot_lfrac_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms, scale):
+	
 	
 	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+ 
+	tau_weighted = scatter_ms / width_ms
 	
 	fig, ax = plt.subplots(figsize=figsize)
 
 	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, med_vals)]
 	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, med_vals)]
 	
-	ax.errorbar(scatter_ms, med_vals, 
+ 
+	ax.errorbar(tau_weighted, med_vals, 
 				yerr=(lower_errors, upper_errors), 
 				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
-	ax.set_xlabel(r"L/I")
-	ax.set_ylabel(r"Var(\psi) / Var(\psi$_{microshots}$)")
 	ax.grid(True, linestyle='--', alpha=0.6)
+ 
+	if scale == "linear":
+		ax.set_yscale('linear')
+		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
+		ax.set_ylabel(r"L/I")
+  
+	elif scale == "log":
+		ax.set_yscale('log')
+		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
+		ax.set_ylabel(r"log(L/I)")
+    
+	elif scale == "loglog":
+		ax.set_xscale('log')
+		ax.set_yscale('log')
+		ax.set_xlabel(r"log($\tau_{ms} / \sigma_{ms}$)")
+		ax.set_ylabel(r"log(L/I)")
+	
 
 	if show_plots:
 		plt.show()
