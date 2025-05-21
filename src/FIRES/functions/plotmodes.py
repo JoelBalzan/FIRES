@@ -89,7 +89,26 @@ def get_phase_window_indices(phase_window, peak_index):
 	}
 	return phase_slices.get(phase_window, None)
 
-# Processing function for pa_var
+
+def set_scale_and_labels(ax, scale, xvar, yvar):
+    """
+    Set axis scales and labels for the plot based on the scale argument.
+    """
+    if scale == "linear":
+        ax.set_yscale('linear')
+        ax.set_xlabel(xvar)
+        ax.set_ylabel(yvar)
+    elif scale == "log":
+        ax.set_yscale('log')
+        ax.set_xlabel(xvar)
+        ax.set_ylabel(f"log({yvar})")
+    elif scale == "loglog":
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel(f"log({xvar})")
+        ax.set_ylabel(f"log({yvar})")
+
+
 def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	
 	slc = get_freq_window_indices(freq_mhz, freq_window)
@@ -135,21 +154,7 @@ def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, wid
 	
 	ax.grid(True, linestyle='--', alpha=0.6)
  
-	if scale == "linear":
-		ax.set_yscale('linear')
-		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-		ax.set_ylabel(r"L/I")
-  
-	elif scale == "log":
-		ax.set_yscale('log')
-		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-		ax.set_ylabel(r"log(L/I)")
-  
-	elif scale == "loglog":
-		ax.set_xscale('log')
-		ax.set_yscale('log')
-		ax.set_xlabel(r"log($\tau_{ms} / \sigma_{ms}$)")
-		ax.set_ylabel(r"log(L/I)")
+	set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"Var($\psi$)/$\psi_{microshots}$")
 
 	if show_plots:
 		plt.show()
@@ -216,21 +221,7 @@ def plot_lfrac_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, 
  
 	ax.grid(True, linestyle='--', alpha=0.6)
  
-	if scale == "linear":
-		ax.set_yscale('linear')
-		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-		ax.set_ylabel(r"L/I")
-  
-	elif scale == "log":
-		ax.set_yscale('log')
-		ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-		ax.set_ylabel(r"log(L/I)")
-    
-	elif scale == "loglog":
-		ax.set_xscale('log')
-		ax.set_yscale('log')
-		ax.set_xlabel(r"log($\tau_{ms} / \sigma_{ms}$)")
-		ax.set_ylabel(r"log(L/I)")
+	set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"L/I")
 	
 
 	if show_plots:
