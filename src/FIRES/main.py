@@ -82,7 +82,22 @@ def main():
 		action="store_true",
 		help="If set, the simulation will be saved to disk. Default is False."
 	)
-
+	parser.add_argument(
+		"--phase-window",
+		type=str,
+		default="all",
+		choices=['first', 'last', 'all'],
+		metavar="",
+		help="Window for plotting PA variance and L fraction. Choose 'first', 'last', or 'all'. Default is 'all'."
+	)
+	parser.add_argument(
+		"--freq-window",
+		type=str,
+		default="all",
+		choices=['1q', '2q', '3q', '4q', 'all'],
+		metavar="",
+		help="Frequency window for plotting PA variance and L fraction. Choose '1q', '2q', '3q', '4q', or 'all'. Default is 'all'."
+	)
 	# Plotting Options
 	parser.add_argument(
 		"-p", "--plot",
@@ -100,7 +115,7 @@ def main():
 			"  'lfrac': Plot the fraction of linear polarization (L/I) as a function of time.\n"
 			"Pass 'None' to disable all plots."
 	)
-)
+	)
 	parser.add_argument(
 		"-s", "--save-plots",
 		action="store_true",
@@ -124,9 +139,9 @@ def main():
 		"--plot-scale",
 		type=str,
 		default="linear",
-		choices=['linear', 'log', 'loglog'],
+		choices=['linear', 'logx', 'logy', 'loglog'],
 		metavar="",
-		help="Scale for plots. Choose 'linear' or 'log' (for y-axis) or loglog. Default is 'linear'."
+		help="Scale for plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
 	)
 
 	# Simulation Options
@@ -175,7 +190,7 @@ def main():
 		help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'mgauss.'"
 	)
 	parser.add_argument(
-		"--SNR",
+		"--snr",
 		type=float,
 		default=0,
 		metavar="",
@@ -193,22 +208,7 @@ def main():
 		action="store_true",
 		help="Enable chi-squared fitting on the final profiles (plot!=pa_var)."
 	)
-	parser.add_argument(
-		"--phase-window",
-		type=str,
-		default="all",
-		choices=['first', 'last', 'all'],
-		metavar="",
-		help="Window for plotting PA variance and L fraction. Choose 'first', 'last', or 'all'. Default is 'all'."
-	)
-	parser.add_argument(
-		"--freq-window",
-		type=str,
-		default="all",
-		choices=['1q', '2q', '3q', '4q', 'all'],
-		metavar="",
-		help="Frequency window for plotting PA variance and L fraction. Choose '1q', '2q', '3q', '4q', or 'all'. Default is 'all'."
-	)
+
 
 	args = parser.parse_args()
 
@@ -261,7 +261,7 @@ def main():
 				seed=args.seed,
 				nseed=args.nseed,
 				width_range=args.mg_width,
-				noise=args.SNR,
+				noise=args.snr,
 				n_cpus=args.ncpu,
 				plot_mode=selected_plot_mode,
 				phase_window=args.phase_window,
@@ -282,7 +282,7 @@ def main():
 				seed=args.seed,
 				nseed=None,
 				width_range=args.mg_width,
-				noise=args.SNR,
+				noise=args.snr,
 				n_cpus=None,
 				plot_mode=selected_plot_mode,
 				phase_window=None,

@@ -91,22 +91,26 @@ def get_phase_window_indices(phase_window, peak_index):
 
 
 def set_scale_and_labels(ax, scale, xvar, yvar):
-    """
-    Set axis scales and labels for the plot based on the scale argument.
-    """
-    if scale == "linear":
-        ax.set_yscale('linear')
-        ax.set_xlabel(xvar)
-        ax.set_ylabel(yvar)
-    elif scale == "log":
-        ax.set_yscale('log')
-        ax.set_xlabel(xvar)
-        ax.set_ylabel(f"log({yvar})")
-    elif scale == "loglog":
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_xlabel(f"log({xvar})")
-        ax.set_ylabel(f"log({yvar})")
+	"""
+	Set axis scales and labels for the plot based on the scale argument.
+	"""
+	if scale == "linear":
+		ax.set_yscale('linear')
+		ax.set_xlabel(xvar)
+		ax.set_ylabel(yvar)
+	elif scale == "logx":
+		ax.set_xscale('log')
+		ax.set_xlabel(f"log({xvar})")
+		ax.set_ylabel(yvar)
+	elif scale == "logy":
+		ax.set_yscale('log')
+		ax.set_xlabel(xvar)
+		ax.set_ylabel(f"log({yvar})")
+	elif scale == "loglog":
+		ax.set_xscale('log')
+		ax.set_yscale('log')
+		ax.set_xlabel(f"log({xvar})")
+		ax.set_ylabel(f"log({yvar})")
 
 
 def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
