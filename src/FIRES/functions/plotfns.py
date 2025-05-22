@@ -207,7 +207,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	dphits = tsdata.dphits
  
 	# Linear polarisation
-	L = np.sqrt(np.nanmean(dspec[1,:], axis=0)**2 + np.nanmean(dspec[2,:], axis=0)**2)
+	L = np.sqrt(np.nansum(dspec[1,:], axis=0)**2 + np.nansum(dspec[2,:], axis=0)**2)
 
 	
 	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(figsize[0], figsize[1]))
@@ -231,12 +231,12 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[0].tick_params(axis='x', direction='in')  # Make x-ticks stick up
 	
 	# Plot the mean across all frequency channels (axis 0)
-	axs[1].plot(time_ms, np.nanmean(dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
-	#axs[1].plot(time_ms, np.nanmean(np.sqrt(dspec[1,:]**2 + dspec[2,:]**2) + dspec[3,:]**2, axis=0))
+	axs[1].plot(time_ms, np.nansum(dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
+	#axs[1].plot(time_ms, np.nansum(np.sqrt(dspec[1,:]**2 + dspec[2,:]**2) + dspec[3,:]**2, axis=0))
 	axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
-	#axs[1].plot(time_ms, np.nanmean(dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
-	#axs[1].plot(time_ms, np.nanmean(dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
-	axs[1].plot(time_ms, np.nanmean(dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
+	#axs[1].plot(time_ms, np.nansum(dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
+	#axs[1].plot(time_ms, np.nansum(dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
+	axs[1].plot(time_ms, np.nansum(dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 	
