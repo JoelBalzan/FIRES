@@ -1,11 +1,9 @@
 #	Parameters for Gaussian components	
 #
-#	DO NOT remove the first (dummy) entry!
-#
 #	Each row represents a Gaussian components
 #   
-#   THE LAST ROW REPRESENTS THE FACTORS TO MODULATE THE GAUSSIAN PARAMETERS BY (ONLY FOR THE MGAUSS MODE)
-#       - CURRENTLY ONLY NEED TO SET PEAK
+#   THE SECOND LAST ROW REPRESENTS THE FACTORS TO MODULATE THE GAUSSIAN PARAMETERS BY (ONLY FOR THE MGAUSS MODE)
+#   THE LAST ROW REPRESENTS A VARIANCE RANGE FROM SECOND LAST ROW FOR PLOTTING 
 #
 #	Columns:
 #	t0(ms)		  - Time offset of the Gaussian pulse in milliseconds
@@ -22,6 +20,7 @@
 
 
 #t0(ms) W(ms)	Peak	Spec	DM		RM		PA(rad)	(L/I)	(V/I)	dpadt(rad/ms)	band_centre(MHz)    band_width(MHz)     Other 	
-0.0		0.0		0.0		0.0		0.0		0.0		0.0		0.0		0.0		0.0		        0.0                 0.0           0.0     
--8.0    0.5 	10.0 	0.0 	0.0		0.0		0.5 	1.0 	0.0 	0.0             0.0                 0.0           0.0
-0.0	    0.005   0.01	0.0		0.0		0.0		0.2     0.0		0.0 	0.0		        0.0                 0.0           0.0
+-8.0    0.5 	10.0 	0.0 	0.0		0.0		0.5 	1.0 	0.0 	0.0             0.0                 0.0                 0.0     #gausssian
+0.0	    0.005   0.01	0.0		0.0		0.0		0.2     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #mgauss var factor
+0.0	    0.0     0.0 	0.0		0.0		0.0		0.0     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var range
+
