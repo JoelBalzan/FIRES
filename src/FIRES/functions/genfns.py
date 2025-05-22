@@ -124,7 +124,10 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
     if noise > 0:
-        dynspec = add_noise_to_dynspec(dynspec, peak_amp, noise)
+        width_ds = width_ms[1] / time_res_ms
+        if band_width_mhz[1] == 0.:
+            band_width_mhz = freq_mhz[-1] - freq_mhz[0]
+        dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
 
     return dynspec, var_pol_angles
 
@@ -236,7 +239,9 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
     if noise > 0:
-        # Add noise to the dynamic spectrum
-        dynspec = add_noise_to_dynspec(dynspec, peak_amp, noise)
+        width_ds = width_ms[1] / time_res_ms
+        if band_width_mhz[1] == 0.:
+            band_width_mhz = freq_mhz[-1] - freq_mhz[0]
+        dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
     
     return dynspec, var_pol_angles

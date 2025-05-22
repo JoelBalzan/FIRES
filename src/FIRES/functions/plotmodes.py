@@ -168,7 +168,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	
 	freq_slc = get_freq_window_indices(freq_mhz, freq_window)
 	
-	peak_index = np.argmax(np.mean(dspec, axis=(0, 1)))
+	peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
 	phase_slc = get_phase_window_indices(phase_window, peak_index)
 
 	freq_mhz = freq_mhz[freq_slc]
