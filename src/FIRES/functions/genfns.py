@@ -88,36 +88,31 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms, 
     all_pol_angles = []  
     for g in range(num_gauss):
         temp_dynspec = np.zeros_like(dynspec)
-        norm_amp = peak_amp[g + 1] * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
-        pol_angle_arr = pol_angle[g + 1] + (time_ms - loc_ms[g + 1]) * delta_pol_angle[g + 1]
+        norm_amp = peak_amp[g] * (freq_mhz / ref_freq_mhz) ** spec_idx[g]
+        pol_angle_arr = pol_angle[g] + (time_ms - loc_ms[g]) * delta_pol_angle[g]
         all_pol_angles.append(pol_angle)
 
         # Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
-        if band_width_mhz[g + 1] != 0.:
-            if band_centre_mhz[g + 1] == 0.:
-                band_centre_mhz[g + 1] = np.median(freq_mhz)
-            spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
+        if band_width_mhz[g] != 0.:
+            if band_centre_mhz[g] == 0.:
+                band_centre_mhz[g] = np.median(freq_mhz)
+            spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g]) ** 2) / (2 * (band_width_mhz[g] / 2.355) ** 2)) #2.355 is the FWHM factor
             norm_amp *= spectral_profile
 
         for c in range(len(freq_mhz)):
-            faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, rm[g + 1], lambda_sq[c], median_lambda_sq)
-            temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], loc_ms[g + 1], width_ms[g + 1])
+            faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, rm[g], lambda_sq[c], median_lambda_sq)
+            temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], loc_ms[g], width_ms[g])
             
-            if int(dm[g + 1]) != 0:
-                disp_delay_ms = calculate_dispersion_delay(dm[g + 1], freq_mhz[c], ref_freq_mhz)
+            if int(dm[g]) != 0:
+                disp_delay_ms = calculate_dispersion_delay(dm[g], freq_mhz[c], ref_freq_mhz)
                 temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
             
             # Apply scattering if enabled
             if tau_ms > 0:
                 temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
 
-            # Add Gaussian noise to Stokes I before calculating Q, U, V
-            #if noise > 0:
-            #    temp_dynspec[0, c] = add_noise_to_stokes_I(temp_dynspec[0, c], peak_amp[g + 1], noise)
-
-
             temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
-                temp_dynspec[0, c], lin_pol_frac[g + 1], circ_pol_frac[g + 1], faraday_rot_angle
+                temp_dynspec[0, c], lin_pol_frac[g], circ_pol_frac[g], faraday_rot_angle
             )  # Stokes Q, U, V
 
         dynspec += temp_dynspec
@@ -149,15 +144,15 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms
     lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
     median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
-    num_main_gauss = len(spec_idx) - 2  # Number of main Gaussian components (-1 for the dummy component and -1 for the variation row)
+    num_main_gauss = len(spec_idx) - 2  # Number of main Gaussian components (-1 for the the variation row and -1 for the plot variation row)
 
     # Use the last value in each array as the variation factor
-    peak_amp_var        = peak_amp[-1]
-    pol_angle_var       = pol_angle[-1]
-    lin_pol_frac_var    = lin_pol_frac[-1]
-    circ_pol_frac_var   = circ_pol_frac[-1]
-    delta_pol_angle_var = delta_pol_angle[-1]
-    rm_var              = rm[-1]
+    peak_amp_var        = peak_amp[-2]
+    pol_angle_var       = pol_angle[-2]
+    lin_pol_frac_var    = lin_pol_frac[-2]
+    circ_pol_frac_var   = circ_pol_frac[-2]
+    delta_pol_angle_var = delta_pol_angle[-2]
+    rm_var              = rm[-2]
 
     if lin_pol_frac_var > 0.0 and circ_pol_frac_var > 0.0:
         input("Linear and circular polarisation variations are both > 0.0. Choose one to vary (l/c).")
@@ -170,15 +165,15 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms
     for g in range(num_main_gauss):
         for _ in range(num_micro_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
-            var_peak_amp        = peak_amp[g + 1] + np.random.normal(0, peak_amp_var * peak_amp[g + 1])
+            var_peak_amp        = peak_amp[g] + np.random.normal(0, peak_amp_var * peak_amp[g])
             # Sample the micro width as a percentage of the main width
-            var_width_ms        = width_ms[g + 1] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
-            var_loc_ms          = np.random.normal(loc=loc_ms[g + 1], scale=width_ms[g + 1])
-            var_pol_angle       = pol_angle[g + 1] + np.random.normal(0, pol_angle_var)
-            var_lin_pol_frac    = lin_pol_frac[g + 1] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g + 1])
-            var_circ_pol_frac   = circ_pol_frac[g + 1] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g + 1])
-            var_delta_pol_angle = delta_pol_angle[g + 1] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g + 1]))
-            var_rm              = rm[g + 1] + np.random.normal(0, rm_var)
+            var_width_ms        = width_ms[g] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
+            var_loc_ms          = np.random.normal(loc=loc_ms[g], scale=width_ms[g])
+            var_pol_angle       = pol_angle[g] + np.random.normal(0, pol_angle_var)
+            var_lin_pol_frac    = lin_pol_frac[g] + np.random.normal(0, lin_pol_frac_var * lin_pol_frac[g])
+            var_circ_pol_frac   = circ_pol_frac[g] + np.random.normal(0, circ_pol_frac_var * circ_pol_frac[g])
+            var_delta_pol_angle = delta_pol_angle[g] + np.random.normal(0, delta_pol_angle_var * np.abs(delta_pol_angle[g]))
+            var_rm              = rm[g] + np.random.normal(0, rm_var)
 
             if circ_pol_frac_var > 0.0:
                 var_circ_pol_frac = np.clip(var_circ_pol_frac, 0.0, 1.0)
@@ -194,16 +189,16 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms
             temp_dynspec = np.zeros_like(dynspec)
 
             # Calculate the normalized amplitude for each frequency
-            norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g + 1]
+            norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g]
             
             # Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
-            if band_width_mhz[g + 1] != 0.:
-                if band_centre_mhz[g + 1] == 0.:
-                    band_centre_mhz[g + 1] = np.median(freq_mhz)
-                spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g + 1]) ** 2) / (2 * (band_width_mhz[g + 1] / 2.355) ** 2)) #2.355 is the FWHM factor
+            if band_width_mhz[g] != 0.:
+                if band_centre_mhz[g] == 0.:
+                    band_centre_mhz[g] = np.median(freq_mhz)
+                spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g]) ** 2) / (2 * (band_width_mhz[g] / 2.355) ** 2)) #2.355 is the FWHM factor
                 norm_amp *= spectral_profile
 
-            pol_angle_arr = var_pol_angle + (time_ms - var_loc_ms) * delta_pol_angle[g + 1]
+            pol_angle_arr = var_pol_angle + (time_ms - var_loc_ms) * delta_pol_angle[g]
 
             for c in range(len(freq_mhz)):
                 # Apply Faraday rotation
@@ -212,17 +207,13 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, spec_idx, peak_amp, width_ms
                 temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_loc_ms, var_width_ms)
 
                 # Calculate the dispersion delay
-                if int(dm[g + 1]) != 0:
-                    disp_delay_ms = calculate_dispersion_delay(dm[g + 1], freq_mhz[c], ref_freq_mhz)
+                if int(dm[g]) != 0:
+                    disp_delay_ms = calculate_dispersion_delay(dm[g], freq_mhz[c], ref_freq_mhz)
                     temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 
                 # Apply scattering if enabled
                 if tau_ms > 0:
                     temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz)
-
-                # Add Gaussian noise to Stokes I
-                #if noise > 0:
-                #    temp_dynspec[0, c] = add_noise_to_stokes_I(temp_dynspec[0, c], peak_amp[g + 1], noise)
 
                 # Calculate Stokes Q, U, V
                 temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
