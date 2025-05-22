@@ -183,8 +183,8 @@ def load_data(data, freq_mhz, time_ms):
 	else:
 		raise ValueError("Unsupported data type for 'data'")
 
-	#start, stop = find_offpulse_window(np.nanmean(dspec[0], axis=0), window_frac=0.2)
-	start, stop = select_offpulse_window(np.nanmean(dspec[0], axis=0))
+	#start, stop = find_offpulse_window(np.nansum(dspec[0], axis=0), window_frac=0.2)
+	start, stop = select_offpulse_window(np.nansum(dspec[0], axis=0))
 	dspec = subtract_baseline_offpulse(dspec, start, stop, axis=-1, method='mean')
 
 	return dspec, freq_mhz, time_ms
@@ -353,7 +353,10 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			if scatter_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, scatter_idx, ref_freq)
 			if noise > 0:
-				dspec = add_noise_to_dynspec(dspec, peak_amp = peak, SNR = noise, seed=seed)
+				width_ds = width[1] / t_res
+				if band_width_mhz[1] == 0.:
+					band_width_mhz = freq_mhz[-1] - freq_mhz[0]
+				dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
 	
 	
 		else:
@@ -374,7 +377,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		return frb_data, noise_spec, rm
 
 	else:
-		if data is not None:
+		if data != None:
 			scatter_ms, vals, errs, width, var_PA_microshots = load_multiple_data(data)                
 				
 		else:
