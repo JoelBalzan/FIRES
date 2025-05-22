@@ -71,14 +71,14 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 		- res_rmtool: List containing RM, RM error, polarization angle, and polarization angle error
 	"""
 	
-	left_window, right_window = estimate_windows(np.nanmean(dynspec[0], axis=0), time_ms, threshold=0.1)
+	left_window, right_window = estimate_windows(np.nansum(dynspec[0], axis=0), time_ms, threshold=0.1)
 		
    
 	# Calculate the mean spectra for each Stokes parameter
-	ispec  = np.nanmean(dynspec[0, :, left_window:right_window], axis=1)
-	vspec  = np.nanmean(dynspec[3, :, left_window:right_window], axis=1)
-	qspec0 = np.nanmean(dynspec[1, :, left_window:right_window], axis=1)
-	uspec0 = np.nanmean(dynspec[2, :, left_window:right_window], axis=1)
+	ispec  = np.nansum(dynspec[0, :, left_window:right_window], axis=1)
+	vspec  = np.nansum(dynspec[3, :, left_window:right_window], axis=1)
+	qspec0 = np.nansum(dynspec[1, :, left_window:right_window], axis=1)
+	uspec0 = np.nansum(dynspec[2, :, left_window:right_window], axis=1)
 	noispec = noisespec / np.sqrt(float(right_window + 1 - left_window))	
 		
 
@@ -138,7 +138,7 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 	"""
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
-		iquvt = np.nanmean(dynspec, axis=1)
+		iquvt = np.nansum(dynspec, axis=1)
   	
 		I = iquvt[0]
   
@@ -205,7 +205,7 @@ def est_spectra(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
 	"""
 	 
 	# Average the dynamic spectrum over the specified time range
-	iquvspec = np.nanmean(dynspec[:, :, left_window_ms:right_window_ms + 1], axis=2)
+	iquvspec = np.nansum(dynspec[:, :, left_window_ms:right_window_ms + 1], axis=2)
 	
 	# Extract the Stokes parameters
 	ispec = iquvspec[0]
@@ -259,12 +259,9 @@ def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
 
 	max_rm = rm[np.argmax(np.abs(rm))]
 	
-	if np.abs(max_rm) > 0:
-		corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
-	else:
-		corrdspec = dynspec.copy()
- 
-	I = np.nanmean(corrdspec[0], axis=0)
+	corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
+
+	I = np.nansum(corrdspec[0], axis=0)
 
 	threshold = 0.05 * np.nanmax(I)
 	mask = I >= threshold
@@ -384,23 +381,69 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 	return sc_chan
 
 
-def add_noise_to_dynspec(dynspec, peak_amp, SNR, seed):
-	"""
-	Add Gaussian noise to the Stokes I, Q, U, V dynamic spectrum.
-	Noise is added independently to each Stokes parameter.
-	Args:
-		dynspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
-		peak_amp: Reference peak amplitude (float or array)
-		SNR: SNR (signal-to-noise ratio), noise stddev = peak_amp / noise
-	Returns:
-		dynspec_noisy: dynspec with noise added
-	"""
-	# Set the random seed for reproducibility
-	if seed is not None:
-		np.random.seed(seed)
 
-	signal_level = np.nanmax(peak_amp)
-	noise_std = signal_level / SNR
-	noise_arr = np.random.normal(loc=0.0, scale=noise_std, size=dynspec.shape)
-	dynspec_noisy = dynspec + noise_arr
-	return dynspec_noisy
+def add_noise_to_dynspec(data, desired_snr, bandwidth_mhz, width_ds,
+                                     tsys_k=75.0, gain_k_jy=0.3, npol=2, 
+                                     use_radiometer_floor=True):
+    """
+    Add noise with optional radiometer equation floor constraint.
+    
+    Parameters:
+    -----------
+    data : ndarray, shape (4, nchan, ntime)
+        Input IQUV dynamic spectrum data
+    desired_snr : float
+        Desired SNR in the final pulse profile
+    bandwidth_mhz : float
+        Total bandwidth in MHz
+    width_ds : float
+        Time width of first gaussian envelope in bins
+    tsys_k : float, optional
+        System temperature in Kelvin
+    gain_k_jy : float, optional
+        System gain in K/Jy
+    npol : int, optional
+        Number of polarizations
+    use_radiometer_floor : bool, optional
+        If True, ensures noise is at least as high as radiometer equation predicts
+    
+    Returns:
+    --------
+    noisy_data : ndarray, shape (4, nchan, ntime)
+        IQUV data with added noise
+    profile_snr_achieved : float
+        Actual SNR achieved in the summed profile
+    noise_std_used : float
+        Actual noise standard deviation used per channel
+    radiometer_noise : float
+        Theoretical noise from radiometer equation
+    """
+    
+    nstokes, nchan, ntime = data.shape
+    
+    # Calculate radiometer noise per channel
+
+    bandwidth_mhz = bandwidth_mhz * 1e6  # Convert MHz to Hz
+    #radiometer_noise = tsys_k / (gain_k_jy * np.sqrt(npol * bandwidth_mhz * width_ds))
+    radiometer_noise = tsys_k / (np.sqrt(bandwidth_mhz * width_ds))
+    
+    # Calculate required noise for target SNR (as before)
+    stokes_i_profile = np.sum(data[0], axis=0)
+    signal_peak_profile = np.max(stokes_i_profile)
+    signal_peak_per_channel = signal_peak_profile / nchan
+    
+    snr_per_channel_needed = desired_snr / np.sqrt(nchan)
+    noise_from_snr = signal_peak_per_channel / snr_per_channel_needed
+    
+    # Use the higher of the two noise levels
+    if use_radiometer_floor:
+        noise_std_used = max(noise_from_snr, radiometer_noise)
+    else:
+        noise_std_used = noise_from_snr
+    
+    # Generate and add noise
+    noise = np.random.normal(0, noise_std_used, data.shape)
+    noisy_data = data + noise
+
+    
+    return noisy_data
