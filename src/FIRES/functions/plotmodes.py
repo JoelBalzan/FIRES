@@ -133,39 +133,113 @@ def process_pa_var(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms, var_PA_microshots, scale):
+def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale):
 	"""
 	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
+	Supports plotting multiple job ID groups for comparison.
 	"""
+	# If frb_dict contains multiple job IDs, plot each on the same axes
+	if all(isinstance(v, dict) and "scatter_ms" in v for v in frb_dict.values()):
+		fig, ax = plt.subplots(figsize=figsize)
+		cmap = plt.get_cmap('Set1')
+		for idx, (run, subdict) in enumerate(frb_dict.items()):
+			color = cmap(idx % cmap.N)
+			
+			scatter_ms = np.array(subdict["scatter_ms"])
+			vals = subdict["vals"]
+			var_PA_microshots = subdict["var_PA_microshots"]
+			width_ms = np.array(subdict["width_ms"])[0]
+			
+			vals = weight_dict(scatter_ms, vals, var_PA_microshots)
+			med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+			tau_weighted = scatter_ms / width_ms
+			
+			lower = np.array([lower for (lower, upper) in percentile_errs])
+			upper = np.array([upper for (lower, upper) in percentile_errs])
+			
+			ax.plot(tau_weighted, med_vals, label=run, color=color)
+			ax.fill_between(tau_weighted, lower, upper, color=color, alpha=0.2)
+		ax.grid(True, linestyle='--', alpha=0.6)
+		set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"Var($\psi$)/$\psi_{microshots}$")
+		ax.legend()
+		if show_plots:
+			plt.show()
+		if save:
+			fig.savefig(os.path.join(out_dir, fname + "_pa_var_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
+			print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_var_vs_scatter.pdf')}  \n")
+		return
 	
-	# weight PA_var by microshot var
+	# Otherwise, plot as usual (single job)
+	scatter_ms = frb_dict["scatter_ms"]
+	vals = frb_dict["vals"]
+	var_PA_microshots = frb_dict["var_PA_microshots"]
+	width_ms = frb_dict["width_ms"]
 	vals = weight_dict(scatter_ms, vals, var_PA_microshots)
- 
 	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
- 
 	fig, ax = plt.subplots(figsize=figsize)
-
-	# weight the scattering timescale by initial Gaussian width
 	tau_weighted = scatter_ms / width_ms
-
-	lower_errors = [median - lower for (lower, upper), median in zip(percentile_errs, med_vals)]
-	upper_errors = [upper - median for (lower, upper), median in zip(percentile_errs, med_vals)]
-	
-	ax.errorbar(tau_weighted, med_vals, 
-				yerr=(lower_errors, upper_errors), 
-				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
- 
-	
+	lower = np.array([lower for (lower, upper) in percentile_errs])
+	upper = np.array([upper for (lower, upper) in percentile_errs])
+	ax.plot(tau_weighted, med_vals, color='black', label=r'\psi$_{var}$')
+	ax.fill_between(tau_weighted, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
- 
 	set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"Var($\psi$)/$\psi_{microshots}$")
-
 	if show_plots:
 		plt.show()
-
 	if save:
 		fig.savefig(os.path.join(out_dir, fname + "_pa_var_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
 		print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_var_vs_scatter.pdf')}  \n")
+
+
+def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale):
+	# If frb_dict contains multiple job IDs, plot each on the same axes
+	if all(isinstance(v, dict) and "scatter_ms" in v for v in frb_dict.values()):
+		fig, ax = plt.subplots(figsize=figsize)
+		cmap = plt.get_cmap('Set1')
+		for idx, (run, subdict) in frb_dict.items():
+			color = cmap(idx % cmap.N)
+			scatter_ms = np.array(subdict["scatter_ms"])
+			vals = subdict["vals"]
+			errs = subdict["errs"]
+			width_ms = np.array(subdict["width_ms"])[0]
+			
+			med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+			tau_weighted = scatter_ms / width_ms
+			
+			lower = np.array([lower for (lower, upper) in percentile_errs])
+			upper = np.array([upper for (lower, upper) in percentile_errs])
+			
+			ax.plot(tau_weighted, med_vals, label=run, color=color)
+			ax.fill_between(tau_weighted, lower, upper, alpha=0.2, color=color)
+		ax.grid(True, linestyle='--', alpha=0.6)
+		set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"L/I")
+		ax.legend()
+		if show_plots:
+			plt.show()
+		if save:
+			fig.savefig(os.path.join(out_dir, fname + "_lfrac_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
+			print(f"Saved figure to {os.path.join(out_dir, fname + '_lfrac_vs_scatter.pdf')}  \n")
+		return
+
+	# Otherwise, plot as usual (single job)
+	scatter_ms = frb_dict["scatter_ms"]
+	vals = frb_dict["vals"]
+	errs = frb_dict["errs"]
+	width_ms = frb_dict["width_ms"]
+	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+	tau_weighted = scatter_ms / width_ms
+	fig, ax = plt.subplots(figsize=figsize)
+	lower = np.array([lower for (lower, upper) in percentile_errs])
+	upper = np.array([upper for (lower, upper) in percentile_errs])
+	ax.plot(tau_weighted, med_vals, color='black', label=r'\psi$_{var}$')
+	ax.fill_between(tau_weighted, lower, upper, color='black', alpha=0.2)
+	ax.grid(True, linestyle='--', alpha=0.6)
+	set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"L/I")
+	if show_plots:
+		plt.show()
+	if save:
+		fig.savefig(os.path.join(out_dir, fname + "_lfrac_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
+		print(f"Saved figure to {os.path.join(out_dir, fname + '_lfrac_vs_scatter.pdf')}  \n")
 
 
 def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
@@ -206,9 +280,13 @@ def process_lfrac(dspec, freq_mhz, time_ms, rm, phase_window, freq_window):
 	return lfrac, lfrac_err
 
 
-def plot_lfrac_var(scatter_ms, vals, save, fname, out_dir, figsize, show_plots, width_ms, scale):
-	
-	
+def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale):
+		
+	scatter_ms = frb_dict["scatter_ms"]
+	vals = frb_dict["vals"]
+	errs = frb_dict["errs"]
+	width_ms = frb_dict["width_ms"]
+ 
 	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
  
 	tau_weighted = scatter_ms / width_ms
