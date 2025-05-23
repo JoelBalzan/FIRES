@@ -332,6 +332,8 @@ def main():
 						"scatter_ms": args.scattering_timescale_ms,
 						"show_plots": args.show_plots,
 						"scale": args.plot_scale,
+	  					"phase_window":args.phase_window,
+						"freq_window":args.freq_window,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
