@@ -222,6 +222,66 @@ def load_multiple_data(data):
 
 	return all_scatter_ms, all_vals, all_errs, all_widths, all_var_PA_microshots
 
+
+def load_multiple_data_grouped(data):
+	"""
+	Group simulation outputs by prefix (everything before the first underscore).
+	Returns a dictionary: {prefix: {'scatter_ms': ..., 'vals': ..., ...}, ...}
+	"""
+	from collections import defaultdict
+	import re
+
+	file_names = [f for f in sorted(os.listdir(data)) if f.endswith(".pkl")]
+	groups = defaultdict(list)
+	for fname in file_names:
+		prefix = fname.split('_')[0]
+		groups[prefix].append(fname)
+
+	all_results = {}
+	for prefix, files in groups.items():
+		all_scatter_ms = []
+		all_vals = {}
+		all_errs = {}
+		all_var_PA_microshots = {}
+		all_widths = []
+		#seed = None
+		#nseed = None
+
+		## Try to extract seed and nseed from the first filename in the group
+		#m = re.search(r'seed_(\d+)_nseed_(\d+)', files[0])
+		#if m:
+		#	seed = int(m.group(1))
+		#	nseed = int(m.group(2))
+   
+		for file_name in files:
+			with open(os.path.join(data, file_name), "rb") as f:
+				scatter_ms, vals, errs, width, var_PA_microshots = pkl.load(f)
+
+			for s_val in scatter_ms:
+				if s_val not in all_vals:
+					all_vals[s_val] = []
+					all_errs[s_val] = []
+					all_var_PA_microshots[s_val] = []
+				all_vals[s_val].extend(vals[s_val])
+				all_errs[s_val].extend(errs[s_val])
+				all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+
+			all_scatter_ms.extend(scatter_ms)
+			all_widths.append(width)
+
+		all_results[prefix] = {
+			'scatter_ms': all_scatter_ms,
+			'vals': all_vals,
+			'errs': all_errs,
+			'width_ms': all_widths,
+			'var_PA_microshots': all_var_PA_microshots,
+			#'seed': seed,
+			#'nseed': nseed
+		}
+
+	return all_results
+
+
 def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
 	"""Generate dynamic spectrum based on mode."""
 	s_val = s_val if plot_multiple_tau else params["tau_ms"]
@@ -378,8 +438,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 
 	else:
 		if data != None:
-			scatter_ms, vals, errs, width, var_PA_microshots = load_multiple_data(data)                
-				
+			frb_dict = load_multiple_data_grouped(data)
 		else:
 			# Create a list of tasks (timescale, realization)
 			tasks = list(product(scatter_ms, range(nseed)))
@@ -405,6 +464,16 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 				vals[s_val].append(val)
 				errs[s_val].append(err)
 				var_PA_microshots[s_val].append(PA_microshot)
+	
+			frb_dict = {
+				"scatter_ms": scatter_ms,
+				"vals": vals,
+				"errs": errs,
+				"width_ms": width,
+				"var_PA_microshots": var_PA_microshots,
+				#"seed": seed,
+				#"nseed": nseed
+			}
 			
 		if save:
 			# Create a descriptive filename
@@ -416,10 +485,10 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			out_file = (
 				f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
 				f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
-				f"gauss_{n_gauss}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
+				f"gauss_{n_gauss[0]}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
 			)
 			with open(out_file, 'wb') as frb_file:
-				pkl.dump((scatter_ms, vals, errs, width[1], var_PA_microshots), frb_file)
+				pkl.dump((frb_dict), frb_file)
 			print(f"Saved FRB data to {out_file}")
 
-		return vals, errs, width[1], var_PA_microshots
+		return frb_dict

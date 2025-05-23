@@ -248,7 +248,7 @@ def main():
 		if selected_plot_mode.requires_multiple_tau:
 			print(f"Processing with {args.ncpu} threads. \n")
    
-			values, errors, width_ms, var_PA_microshots = generate_frb(
+			frb_dict = generate_frb(
 				data=args.data,
 				scatter_ms=args.scattering_timescale_ms,
 				frb_id=args.frb_identifier,
@@ -325,15 +325,12 @@ def main():
 						"frb_data": FRB if 'FRB' in locals() else None,
 						"mode": plot_mode,
 						"rm": rm if 'rm' in locals() else None,
-						"vals": values if 'values' in locals() else None,
-						"errs": errors if 'errors' in locals() else None,
-						"width_ms": width_ms if 'width_ms' in locals() else None,
+						"frb_dict": frb_dict if 'frb_dict' in locals() else None,
 						"out_dir": data_directory,
 						"save": args.save_plots,
 						"figsize": args.figsize,
 						"scatter_ms": args.scattering_timescale_ms,
 						"show_plots": args.show_plots,
-						"var_PA_microshots": var_PA_microshots if 'var_PA_microshots' in locals() else None,
 						"scale": args.plot_scale,
 					}
 		
