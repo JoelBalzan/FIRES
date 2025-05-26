@@ -17,15 +17,26 @@ import os
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib.lines import Line2D
 import numpy as np
 from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
 
-mpl.rcParams['pdf.fonttype']	= 42
-mpl.rcParams['ps.fonttype'] 	= 42
-mpl.rcParams['savefig.dpi'] 	= 600
-mpl.rcParams['font.family'] 	= 'sans-serif'
-mpl.rcParams['font.size']		= 8
+
+
+#	--------------------------	Set plot parameters	---------------------------
+plt.rcParams['pdf.fonttype']	= 42
+plt.rcParams['ps.fonttype'] 	= 42
+plt.rcParams['savefig.dpi'] 	= 600
+plt.rcParams['font.size'] 		= 14  
+plt.rcParams['font.family']		= 'sans-serif'  
+plt.rcParams['axes.labelsize']  = 16    
+plt.rcParams['axes.titlesize']  = 18    
+plt.rcParams['legend.fontsize'] = 12   
+plt.rcParams['xtick.labelsize'] = 12   
+plt.rcParams['ytick.labelsize'] = 12   
+plt.rcParams['text.usetex'] 	= True
+
 
 #	----------------------------------------------------------------------------------------------------------
 
@@ -239,12 +250,20 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].plot(time_ms, np.nansum(dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
-	
+ 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 	axs[1].legend(loc='upper right')
-	axs[1].set_ylabel("Flux Density (arb.)")
+	axs[1].set_ylabel("Flux Density [arb.]")
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
 	axs[1].tick_params(axis='x', direction='in')  # Make x-ticks stick up
+	axs[1].text(
+		0.98, 0.40,  # x, y in axes fraction coordinates (adjust y as needed)
+		r"$\tau = %.2f$ ms" % scatter[0],
+		ha='right', va='top',
+		transform=axs[1].transAxes,
+		fontsize=12, color='black',
+		bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.2')
+	)
 
 
 	# Plot the 2D scattered dynamic spectrum
@@ -268,8 +287,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{scatter}" + "_dynspec.pdf")))
+		fig.savefig(os.path.join(outdir, fname + f"_{scatter[0]}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{scatter[0]}" + "_dynspec.pdf")))
 
 
 	#	----------------------------------------------------------------------------------------------------------
@@ -290,8 +309,8 @@ def plot_pa_var_vs_scatter(scatter_ms, med_pa_var_vals, pa_var_errs, save, fname
 	
 	# Pass the errors as a tuple to yerr
 	ax.errorbar(tau_weighted, med_pa_var_vals, 
-	            yerr=(lower_errors, upper_errors), 
-	            fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
+				yerr=(lower_errors, upper_errors), 
+				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
  
 	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
 	ax.set_ylabel(r"Var(\psi) / Var(\psi$_{microshots}$)")
