@@ -22,6 +22,22 @@ from FIRES.functions.basicfns import process_dynspec, median_percentiles, weight
 from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
+
+#	--------------------------	Set plot parameters	---------------------------
+plt.rcParams['pdf.fonttype']	= 42
+plt.rcParams['ps.fonttype'] 	= 42
+plt.rcParams['savefig.dpi'] 	= 600
+plt.rcParams['font.size'] 		= 14  
+plt.rcParams['font.family']		= 'sans-serif'  
+plt.rcParams['axes.labelsize']  = 16    
+plt.rcParams['axes.titlesize']  = 18    
+plt.rcParams['legend.fontsize'] = 12   
+plt.rcParams['xtick.labelsize'] = 12   
+plt.rcParams['ytick.labelsize'] = 12   
+plt.rcParams['text.usetex'] 	= True
+
+
+
 class PlotMode:
 	def __init__(self, name, process_func, plot_func, requires_multiple_tau=False):
 		"""
@@ -91,26 +107,26 @@ def get_phase_window_indices(phase_window, peak_index):
 
 
 def set_scale_and_labels(ax, scale, xvar, yvar):
-	"""
-	Set axis scales and labels for the plot based on the scale argument.
-	"""
-	if scale == "linear":
-		ax.set_yscale('linear')
-		ax.set_xlabel(xvar)
-		ax.set_ylabel(yvar)
-	elif scale == "logx":
-		ax.set_xscale('log')
-		ax.set_xlabel(f"log({xvar})")
-		ax.set_ylabel(yvar)
-	elif scale == "logy":
-		ax.set_yscale('log')
-		ax.set_xlabel(xvar)
-		ax.set_ylabel(f"log({yvar})")
-	elif scale == "loglog":
-		ax.set_xscale('log')
-		ax.set_yscale('log')
-		ax.set_xlabel(f"log({xvar})")
-		ax.set_ylabel(f"log({yvar})")
+    """
+    Set axis scales and labels for the plot based on the scale argument.
+    """
+    if scale == "linear":
+        ax.set_yscale('linear')
+        ax.set_xlabel(rf"${xvar}$")
+        ax.set_ylabel(rf"${yvar}$")
+    elif scale == "logx":
+        ax.set_xscale('log')
+        ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
+        ax.set_ylabel(rf"${yvar}$")
+    elif scale == "logy":
+        ax.set_yscale('log')
+        ax.set_xlabel(rf"${xvar}$")
+        ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
+    elif scale == "loglog":
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
+        ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
 
 
 def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -162,10 +178,10 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		cmap = plt.get_cmap('Set1')
-		linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
+		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
 		for idx, (run, subdict) in enumerate(frb_dict.items()):
 			color = cmap(idx % cmap.N)
-			linestyle = linestyles[idx % len(linestyles)]
+			#linestyle = linestyles[idx % len(linestyles)]
 			
 			scatter_ms = np.array(subdict["scatter_ms"])
 			vals = subdict["vals"]
@@ -179,10 +195,11 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
-			ax.plot(tau_weighted, med_vals, label=run, color=color, linestyle=linestyle)
+			ax.plot(tau_weighted, med_vals, label=run, color=color)#, linestyle=linestyle)
+			ax.set_xlim(tau_weighted[0], tau_weighted[-1])
 			ax.fill_between(tau_weighted, lower, upper, color=color, alpha=0.1)
 		ax.grid(True, linestyle='--', alpha=0.6)
-		set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"Var($\psi$)/$\psi_{microshots}$")
+		set_scale_and_labels(ax, scale, xvar=r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}", yvar=r"\frac{\mathrm{Var}(\psi)}{\mathrm{Var}(\psi_\mathrm{micro})}")
 		ax.legend()
 		if show_plots:
 			plt.show()
@@ -210,7 +227,8 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	ax.plot(tau_weighted, med_vals, color='black', label=r'\psi$_{var}$')
 	ax.fill_between(tau_weighted, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
-	set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"Var($\psi$)/$\psi_{microshots}$")
+	ax.set_xlim(tau_weighted[0], tau_weighted[-1])
+	set_scale_and_labels(ax, scale, xvar=r"\tau_{ms} / \sigma_{ms}", yvar=r"\frac{\mathrm{Var}(\psi_\mathrm{env})}{\mathrm{Var}(\psi_\mathrm{micro})}")
 	if show_plots:
 		plt.show()
 	if save:
@@ -263,10 +281,10 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		cmap = plt.get_cmap('Set1')
-		linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
+		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
 		for idx, (run, subdict) in frb_dict.items():
 			color = cmap(idx % cmap.N)
-			linestyle = linestyles[idx % len(linestyles)]
+			#linestyle = linestyles[idx % len(linestyles)]
    
 			scatter_ms = np.array(subdict["scatter_ms"])
 			vals = subdict["vals"]
@@ -279,7 +297,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
-			ax.plot(tau_weighted, med_vals, label=run, color=color, linestyle=linestyle)
+			ax.plot(tau_weighted, med_vals, label=run, color=color)#, linestyle=linestyle)
 			ax.fill_between(tau_weighted, lower, upper, alpha=0.2, color=color)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"L/I")
