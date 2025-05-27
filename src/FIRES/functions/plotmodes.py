@@ -39,7 +39,7 @@ plt.rcParams['text.usetex'] 	= True
 
 
 class PlotMode:
-	def __init__(self, name, process_func, plot_func, requires_multiple_tau=False):
+	def __init__(self, name, process_func, plot_func, requires_multiple_frb=False):
 		"""
 		Represents a plot mode with its associated processing and plotting functions.
 
@@ -47,12 +47,12 @@ class PlotMode:
 			name (str): Name of the plot mode.
 			process_func (callable): Function to process data for this plot mode.
 			plot_func (callable): Function to generate the plot.
-			requires_multiple_tau (bool): Whether this plot mode requires `plot_var=True`.
+			requires_multiple_frb (bool): Whether this plot mode requires `plot_var=True`.
 		"""
 		self.name = name
 		self.process_func = process_func
 		self.plot_func = plot_func
-		self.requires_multiple_tau = requires_multiple_tau
+		self.requires_multiple_frb = requires_multiple_frb
 		
 def basic_plots(fname, frb_data, mode, rm, out_dir, save, figsize, scatter_ms, show_plots):
 
@@ -344,42 +344,42 @@ pa_var = PlotMode(
 	name="pa_var",
 	process_func=process_pa_var,
 	plot_func=plot_pa_var,
-	requires_multiple_tau=True  
+	requires_multiple_frb=True  
 )
 
 lfrac = PlotMode(
 	name="lfrac",
 	process_func=process_lfrac,
 	plot_func=plot_lfrac_var,
-	requires_multiple_tau=True  
+	requires_multiple_frb=True  
 )
 
 iquv = PlotMode(
 	name="iquv",
 	process_func=None, 
 	plot_func=basic_plots,
-	requires_multiple_tau=False  
+	requires_multiple_frb=False  
 )
 
 lvpa = PlotMode(
 	name="lvpa",
 	process_func=None, 
 	plot_func=basic_plots,
-	requires_multiple_tau=False
+	requires_multiple_frb=False
 )
 
 dpa = PlotMode(
 	name="dpa",
 	process_func=None, 
 	plot_func=basic_plots,
-	requires_multiple_tau=False
+	requires_multiple_frb=False
 )
 
 rm = PlotMode(
 	name="rm",
 	process_func=None,  
 	plot_func=basic_plots,
-	requires_multiple_tau=False
+	requires_multiple_frb=False
 )
 
 plot_modes = {

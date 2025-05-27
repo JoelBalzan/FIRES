@@ -310,13 +310,13 @@ def process_task(task, mode, plot_mode, **params):
 	current_seed = params["seed"] + realization if params["seed"] is not None else None
 	params["seed"] = current_seed
 	
-	requires_multiple_tau = plot_mode.requires_multiple_tau
+	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
 	dspec, PA_microshot = generate_dynspec(
 		mode=mode,
 		s_val=s_val,
-		plot_multiple_tau=requires_multiple_tau,
+		plot_multiple_tau=requires_multiple_frb,
 		**params
 	)
 
@@ -406,7 +406,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	if (lin_pol + circ_pol).any() > 1.0:
 		print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
-	if plot_mode.requires_multiple_tau == False:
+	if plot_mode.requires_multiple_frb == False:
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)

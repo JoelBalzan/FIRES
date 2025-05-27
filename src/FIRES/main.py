@@ -245,7 +245,7 @@ def main():
 
 	
 	try:
-		if selected_plot_mode.requires_multiple_tau:
+		if selected_plot_mode.requires_multiple_frb:
 			print(f"Processing with {args.ncpu} threads. \n")
    
 			frb_dict = generate_frb(
