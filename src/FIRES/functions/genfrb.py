@@ -12,19 +12,22 @@
 # -----------------------------------------------------------------------------
 
 # -------------------------- Import modules ---------------------------
-import matplotlib.pyplot as plt
-import numpy as np
-from FIRES.functions.genfns import *
-from FIRES.utils.utils import *
 import os
-import pickle as pkl
-from concurrent.futures import ProcessPoolExecutor
-import functools
-from itertools import product
-from tqdm import tqdm
+import sys
 import inspect
+import functools
+
+import numpy as np
+import pickle as pkl
+import matplotlib.pyplot as plt
+
+from tqdm import tqdm
+from itertools import product
+from concurrent.futures import ProcessPoolExecutor
 
 from FIRES.functions.basicfns import scatter_stokes_chan, add_noise_to_dynspec
+from FIRES.functions.genfns import *
+from FIRES.utils.utils import *
 
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(current_dir)
@@ -282,9 +285,9 @@ def load_multiple_data_grouped(data):
 	return all_results
 
 
-def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
+def generate_dynspec(var_range_name, mode, var, plot_multiple_frb, **params):
 	"""Generate dynamic spectrum based on mode."""
-	s_val = s_val if plot_multiple_tau else params["tau_ms"]
+	var = var if plot_multiple_frb else params["tau_ms"]
 
 	# Choose the correct function
 	if mode == 'gauss':
@@ -297,16 +300,19 @@ def generate_dynspec(mode, s_val, plot_multiple_tau, **params):
 	allowed_args = set(sig.parameters.keys())
 
 	# Always pass tau_ms as s_val
-	params_filtered = {k: v for k, v in params.items() if k in allowed_args and k != "tau_ms"}
-	return dynspec_func(**params_filtered, tau_ms=s_val)
+	params_filtered = {
+		k: v for k, v in params.items()
+		if k in allowed_args and k not in ("var_range_name")
+	}
+	return dynspec_func(**params_filtered, var_range=var, var_range_name=var_range_name)
 
 
-def process_task(task, mode, plot_mode, **params):
+def process_task(task, var_range_name, mode, plot_mode, **params):
 	"""
 	Process a single task (combination of timescale and realization).
 	Dynamically uses the provided process_func for mode-specific processing.
 	"""
-	s_val, realization = task
+	var, realization = task
 	current_seed = params["seed"] + realization if params["seed"] is not None else None
 	params["seed"] = current_seed
 	
@@ -314,9 +320,10 @@ def process_task(task, mode, plot_mode, **params):
 
 	# Generate dynamic spectrum
 	dspec, PA_microshot = generate_dynspec(
+		var_range_name=var_range_name,
 		mode=mode,
-		s_val=s_val,
-		plot_multiple_tau=requires_multiple_frb,
+		var=var,
+		plot_multiple_frb=requires_multiple_frb,
 		**params
 	)
 
@@ -332,7 +339,7 @@ def process_task(task, mode, plot_mode, **params):
 
 	result, result_err = process_func(**process_func_args)
 
-	return s_val, result, result_err, PA_microshot
+	return var, result, result_err, PA_microshot
 
 
 def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -360,35 +367,43 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	# Load Gaussian parameters
 	gauss_params = np.loadtxt(gauss_file)
 
-	# Extract Gaussian parameters
-	t0 = gauss_params[:, 0]
-	width = gauss_params[:, 1]
-	peak = gauss_params[:, 2]
-	spec_idx = gauss_params[:, 3]
-	dm = gauss_params[:, 4]
-	rm = gauss_params[:, 5]
-	pol_angle = gauss_params[:, 6]
-	lin_pol = gauss_params[:, 7]
-	circ_pol = gauss_params[:, 8]
-	delta_pa = gauss_params[:, 9]
-	band_center = gauss_params[:, 10]
-	band_width = gauss_params[:, 11]
+	gdict = {
+		't0': gauss_params[:-3, 0],
+		'width_ms': gauss_params[:-3, 1],
+		'peak_amp': gauss_params[:-3, 2],
+		'spec_idx': gauss_params[:-3, 3],
+		'DM': gauss_params[:-3, 4],
+		'RM': gauss_params[:-3, 5],
+		'PA': gauss_params[:-3, 6],
+		'lfrac': gauss_params[:-3, 7],
+		'vfrac': gauss_params[:-3, 8],
+		'dPA': gauss_params[:-3, 9],
+		'band_centre_mhz': gauss_params[:-3, 10],
+		'band_width_mhz': gauss_params[:-3, 11]
+	}
+ 
+	var_dict = {
+		't0_var': gauss_params[-3:, 0],
+		'width_ms_var': gauss_params[-3:, 1],
+		'peak_amp_var': gauss_params[-3:, 2],
+		'spec_idx_var': gauss_params[-3:, 3],
+		'DM_var': gauss_params[-3:, 4],
+		'RM_var': gauss_params[-3:, 5],
+		'PA_var': gauss_params[-3:, 6],
+		'lfrac_var': gauss_params[-3:, 7],
+		'vfrac_var': gauss_params[-3:, 8],
+		'dPA_var': gauss_params[-3:, 9],
+		'band_centre_mhz_var': gauss_params[-3:, 10],
+		'band_width_mhz_var': gauss_params[-3:, 11]
+	}
 
 	# Create dynamic spectrum parameters
 	dspec_params = DynspecParams(
+		gdict=gdict,
+		var_dict=var_dict,
 		freq_mhz=freq_mhz,
 		time_ms=time_ms,
 		time_res_ms=t_res,
-		spec_idx=spec_idx,
-		peak_amp=peak,
-		width_ms=width,
-		loc_ms=t0,
-		dm=dm,
-		pol_angle=pol_angle,
-		lin_pol_frac=lin_pol,
-		circ_pol_frac=circ_pol,
-		delta_pol_angle=delta_pa,
-		rm=rm,
 		seed=seed,
 		nseed=nseed,
 		noise=noise,
@@ -397,13 +412,12 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		ref_freq_mhz=ref_freq,
 		num_micro_gauss=n_gauss,
 		width_range=width_range,
-		band_centre_mhz=band_center,
-		band_width_mhz=band_width,
 		phase_window=phase_window,
-		freq_window=freq_window
+		freq_window=freq_window,
+  
 	)
 
-	if (lin_pol + circ_pol).any() > 1.0:
+	if (gdict['lfrac'] + gdict['vfrac']).any() > 1.0:
 		print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
 	if plot_mode.requires_multiple_frb == False:
@@ -413,7 +427,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			if scatter_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, scatter_idx, ref_freq)
 			if noise > 0:
-				width_ds = width[1] / t_res
+				width_ds = gdict['width_ms'][1] / t_res
 				if band_width_mhz[1] == 0.:
 					band_width_mhz = freq_mhz[-1] - freq_mhz[0]
 				dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
@@ -421,12 +435,13 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	
 		else:
 			dspec, _ = generate_dynspec(
+			var_range_name=None,
 			mode=mode,
-			s_val=None,
-			plot_multiple_tau=False,
+			var=None,
+			plot_multiple_frb=False,
 			**dspec_params._asdict()
 		)
-		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, rm)
+		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, gdict['RM'])
 		frb_data = simulated_frb(
 			frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, obs_params, dspec
 		)
@@ -434,42 +449,84 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			out_file = f"{out_dir}{frb_id}_sc_{scatter_ms:.2f}.pkl"
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump(frb_data, frb_file)
-		return frb_data, noise_spec, rm
+		return frb_data, noise_spec, gdict['RM']
 
 	else:
 		if data != None:
 			frb_dict = load_multiple_data_grouped(data)
 		else:
-			# Create a list of tasks (timescale, realization)
-			tasks = list(product(scatter_ms, range(nseed)))
+			if all(gauss_params[-1,:] == 0.0):
+				# Create a list of tasks (timescale, realization)
+				tasks = list(product(scatter_ms, range(nseed)))
+				key_name = 'tau_ms'
 
-			with ProcessPoolExecutor(max_workers=n_cpus) as executor:
-				partial_func = functools.partial(
-					process_task,
-					mode=mode,
-					plot_mode=plot_mode,
-					**dspec_params._asdict()
-				)
+				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+					partial_func = functools.partial(
+						process_task,
+						var_range_name=key_name,
+						mode=mode,
+						plot_mode=plot_mode,
+						**dspec_params._asdict()
+					)
 
-				results = list(tqdm(executor.map(partial_func, tasks),
-									total=len(tasks),
-									desc="Processing scattering timescales and realizations"))
+					results = list(tqdm(executor.map(partial_func, tasks),
+										total=len(tasks),
+										desc="Processing scattering timescales and realisations"))
+			else:			
+				if np.count_nonzero(gauss_params[-1, :]) > 1:
+					print("More than one value in the last row of gauss_params is not 0:")
+					print(gauss_params[-1, :])
+					sys.exit(1)
+				else:
+					# Find which column in gauss_params the final entry is not zero
+					col_idx = np.where(gauss_params[-1, :] != 0.0)[0][0]
+					start = gauss_params[-3, col_idx]
+					stop = gauss_params[-2, col_idx]
+					step = gauss_params[-1, col_idx]
+					# Ensure inclusion of the final point
+					g_var = np.arange(start, stop + step/2, step)
 
-			# Aggregate results by timescale
-			vals = {s_val: [] for s_val in scatter_ms}
-			errs = {s_val: [] for s_val in scatter_ms}
-			var_PA_microshots = {s_val: [] for s_val in scatter_ms}
+					# Find the corresponding key in gdict for col_idx
+					gdict_keys = list(gdict.keys())
+					key_name = gdict_keys[col_idx] + '_var'
+	 
+					tasks = list(product(g_var, range(nseed)))
 
-			for s_val, val, err, PA_microshot in results:
-				vals[s_val].append(val)
-				errs[s_val].append(err)
-				var_PA_microshots[s_val].append(PA_microshot)
+					with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+						partial_func = functools.partial(
+							process_task,
+							var_range_name=key_name,
+							mode=mode,
+							plot_mode=plot_mode,
+							**dspec_params._asdict()
+						)					
+	  
+						results = list(tqdm(executor.map(partial_func, tasks),
+											total=len(tasks),
+											desc=f"Processing {key_name} variance and realisations"))
+
+						# Aggregate results by timescale
+			   # Determine the correct set of keys for aggregation
+			if 'tau_ms' in key_name or (all(gauss_params[-1,:] == 0.0)):
+				result = scatter_ms
+			else:
+				result = g_var
+			
+			vals = {s_val: [] for s_val in result}
+			errs = {s_val: [] for s_val in result}
+			var_PA_microshots = {s_val: [] for s_val in result}
+			
+			for var, val, err, PA_microshot in results:
+				vals[var].append(val)
+				errs[var].append(err)
+				var_PA_microshots[var].append(PA_microshot)
+
 	
 			frb_dict = {
-				"scatter_ms": scatter_ms,
+				"result": result,
 				"vals": vals,
 				"errs": errs,
-				"width_ms": width,
+				"width_ms": gdict['width_ms'],
 				"var_PA_microshots": var_PA_microshots,
 				#"seed": seed,
 				#"nseed": nseed
@@ -485,7 +542,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			out_file = (
 				f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
 				f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
-				f"gauss_{n_gauss[0]}_seed_{seed}_nseed_{nseed}_PA{pol_angle[-1]:.2f}.pkl"
+				f"gauss_{n_gauss[0]}_seed_{seed}_nseed_{nseed}_PA{gdict['PA'][-1]:.2f}.pkl"
 			)
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump((frb_dict), frb_file)
