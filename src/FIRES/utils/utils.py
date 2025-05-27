@@ -125,19 +125,11 @@ frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','ps
 
 
 class DynspecParams(NamedTuple):
+    gdict: dict
+    var_dict: dict
     freq_mhz: np.ndarray
     time_ms: np.ndarray
     time_res_ms: float
-    spec_idx: np.ndarray
-    peak_amp: np.ndarray
-    width_ms: np.ndarray
-    loc_ms: np.ndarray
-    dm: np.ndarray
-    pol_angle: np.ndarray
-    lin_pol_frac: np.ndarray
-    circ_pol_frac: np.ndarray
-    delta_pol_angle: np.ndarray
-    rm: np.ndarray
     seed: int
     nseed: int
     noise: bool
@@ -146,8 +138,6 @@ class DynspecParams(NamedTuple):
     ref_freq_mhz: float
     num_micro_gauss: int
     width_range: float
-    band_centre_mhz: float
-    band_width_mhz: float
     phase_window: str
     freq_window: str
 

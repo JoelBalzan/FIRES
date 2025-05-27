@@ -103,14 +103,14 @@ def main():
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'rm', 'pa_var', 'lfrac'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'lfrac'],
 		metavar="",
 		help=(
 			"Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
 			"  'iquv': Plot the Stokes parameters (I, Q, U, V) as a function of time or frequency.\n"
 			"  'lvpa': Plot linear polarization (L) and polarization angle (PA) as a function of time.\n"
 			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
-			"  'rm': Plot the rotation measure (RM) as a function of frequency from RM-Tools.\n"
+			"  'RM': Plot the rotation measure (RM) as a function of frequency from RM-Tools.\n"
 			"  'pa_var': Plot the variance of the polarization angle (PA) as a function of scattering timescale.\n"
 			"  'lfrac': Plot the fraction of linear polarization (L/I) as a function of time.\n"
 			"Pass 'None' to disable all plots."
@@ -269,7 +269,7 @@ def main():
 
 				)
 		else:
-			FRB, noisespec, rm = generate_frb(
+			FRB, noisespec, RM = generate_frb(
 				data=args.data,
 				scatter_ms=args.scattering_timescale_ms,
 				frb_id=args.frb_identifier,
@@ -324,7 +324,7 @@ def main():
 						"fname": args.frb_identifier,
 						"frb_data": FRB if 'FRB' in locals() else None,
 						"mode": plot_mode,
-						"rm": rm if 'rm' in locals() else None,
+						"RM": RM if 'RM' in locals() else None,
 						"frb_dict": frb_dict if 'frb_dict' in locals() else None,
 						"out_dir": data_directory,
 						"save": args.save_plots,

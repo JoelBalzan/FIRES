@@ -67,7 +67,7 @@ The `FIRES` command-line tool provides several options to customize the simulati
 | `-o`, `--obs_params`       | `str`      | `obs_params_path` | Path to observation parameters file.                                                               |
 | `-g`, `--gauss_params`     | `str`      | `gauss_params_path` | Path to Gaussian parameters file.                                                                  |
 | `--write`                  | `flag`     | `False`           | Save the simulation to disk.                                                                       |
-| `-p`, `--plot`             | `str`      | `lvpa`            | Generate plots. Options: `all`, `None`, `iquv`, `lvpa`, `dpa`, `rm`, `pa_var`.                     |
+| `-p`, `--plot`             | `str`      | `lvpa`            | Generate plots. Options: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`.                     |
 | `-s`, `--save-plots`       | `flag`     | `False`           | Save plots to disk.                                                                                |
 | `--tz`                    | `float`    | `[0, 0]`          | Time zoom range for plots (start and end in milliseconds).                                         |
 | `--fz`                    | `float`    | `[0, 0]`          | Frequency zoom range for plots (start and end in MHz).                                             |

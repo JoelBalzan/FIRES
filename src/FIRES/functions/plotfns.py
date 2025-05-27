@@ -206,7 +206,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			- dspec: Dynamic spectrum data
 			- freq_mhz: Frequency array in MHz
 			- time_ms: Time array in ms
-			- rm: Rotation measure
+			- RM: Rotation measure
 			- save: Boolean indicating whether to save the plot
 			- fname: Filename for saving the plot
 			- outdir: Output directory for saving the plot

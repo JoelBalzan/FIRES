@@ -2,8 +2,10 @@
 #
 #	Each row represents a Gaussian components
 #   
-#   THE SECOND LAST ROW REPRESENTS THE FACTORS TO MODULATE THE GAUSSIAN PARAMETERS BY (ONLY FOR THE MGAUSS MODE)
-#   THE LAST ROW REPRESENTS A VARIANCE RANGE FROM SECOND LAST ROW FOR PLOTTING 
+#   THE THIRD LAST ROW REPRESENTS THE FACTORS TO MODULATE THE GAUSSIAN PARAMETERS BY (ONLY FOR THE MGAUSS MODE)
+#   THE SECOND LAST ROW REPRESENTS A VARIANCE RANGE FROM THIRD LAST ROW FOR PLOTTING 
+#   THE LAST ROW IS THE STEP SIZE
+#       - only one value can be varied --- make sure only one value in the final row is != 0
 #
 #	Columns:
 #	t0(ms)		  - Time offset of the Gaussian pulse in milliseconds
@@ -19,8 +21,11 @@
 #	Other 		  - Placeholder for any additional parameters
 
 
-#t0(ms) W(ms)	Peak	Spec	DM		RM		PA(rad)	(L/I)	(V/I)	dpadt(rad/ms)	band_centre(MHz)    band_width(MHz)     Other 	
--8.0    0.5 	10.0 	0.0 	0.0		0.0		0.5 	1.0 	0.0 	0.0             0.0                 0.0                 0.0     #gausssian
-0.0	    0.005   0.01	0.0		0.0		0.0		0.2     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #mgauss var factor
-0.0	    0.0     0.0 	0.0		0.0		0.0		0.0     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var range
+#t0(ms) width_ms	peak_amp	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	        band_centre_mhz    band_width_mhz       Other 	
+#                                                           (rad)                   (rad/ms)
+-8.0    0.5 	    10.0 	    0.0 	    0.0		0.0		0.5 	1.0 	0.0 	0.0             0.0                 0.0                 0.0     #gausssian
+0.0	    0.005       0.01	    0.0		    0.0		0.0		0.2     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #mgauss var factor
+0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.2     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var range
+0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.0     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var step
+
 

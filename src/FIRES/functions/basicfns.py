@@ -40,7 +40,7 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 	
 	# Run RM synthesis
 	rm_synth_data, rm_synth_ad = run_rmsynth(rm_data, polyOrd=3, phiMax_radm2=1.0e3, dPhi_radm2=1.0, nSamples=100.0, weightType='variance', fitRMSF=False, noStokesI=False, phiNoise_radm2=1000000.0, \
-						nBits=32, showPlots=show_plots, debug=False, verbose=False, log=print, units='Jy/beam', prefixOut=os.path.join(outdir,"rm"), saveFigures=save, fit_function='log')
+						nBits=32, showPlots=show_plots, debug=False, verbose=False, log=print, units='Jy/beam', prefixOut=os.path.join(outdir,"RM"), saveFigures=save, fit_function='log')
 	
 	# Run RM clean
 	rm_clean_data = run_rmclean(rm_synth_data, rm_synth_ad, 0.1, maxIter=1000, gain=0.1, nBits=32, showPlots=show_plots, verbose=False, log=print)
@@ -252,12 +252,12 @@ def est_spectra(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
 
 
 
-def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, rm):
+def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, RM):
 	"""
 	Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
 	"""
 
-	max_rm = rm[np.argmax(np.abs(rm))]
+	max_rm = RM[np.argmax(np.abs(RM))]
 	
 	corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
 
