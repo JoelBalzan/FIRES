@@ -27,13 +27,13 @@ from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estim
 plt.rcParams['pdf.fonttype']	= 42
 plt.rcParams['ps.fonttype'] 	= 42
 plt.rcParams['savefig.dpi'] 	= 600
-plt.rcParams['font.size'] 		= 14  
+plt.rcParams['font.size'] 		= 18
 plt.rcParams['font.family']		= 'sans-serif'  
-plt.rcParams['axes.labelsize']  = 16    
-plt.rcParams['axes.titlesize']  = 18    
-plt.rcParams['legend.fontsize'] = 12   
-plt.rcParams['xtick.labelsize'] = 12   
-plt.rcParams['ytick.labelsize'] = 12   
+plt.rcParams['axes.labelsize']  = 20
+plt.rcParams['axes.titlesize']  = 18
+plt.rcParams['legend.fontsize'] = 12
+plt.rcParams['xtick.labelsize'] = 12
+plt.rcParams['ytick.labelsize'] = 12
 plt.rcParams['text.usetex'] 	= True
 
 
@@ -151,26 +151,26 @@ def is_multi_run_dict(frb_dict):
 
 def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
 	"""
-	Extracts the x values and variable name for the x-axis based on the type of frb_dict.
+	Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
 	"""
 	if plot_type == "pa_var":
-		if frb_dict["type"] == "tau_ms":
-			x = np.array(frb_dict["result"]) / width_ms
+		if frb_dict["xname"] == "tau_ms":
+			x = np.array(frb_dict["xvals"]) / width_ms
 			xvar = r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}"
-		elif frb_dict["type"] == "PA_var":
-			x = np.array(frb_dict["result"])
+		elif frb_dict["xname"] == "PA_var":
+			x = np.array(frb_dict["xvals"])
 			xvar = r"\Delta\psi_\mathrm{micro}"
 		else:
-			raise ValueError(f"Unknown type: {frb_dict['type']}")
+			raise ValueError(f"Unknown xname: {frb_dict['xname']}")
 	elif plot_type == "lfrac":
-		if frb_dict["type"] == "tau_ms":
-			x = np.array(frb_dict["result"]) / width_ms
+		if frb_dict["xname"] == "tau_ms":
+			x = np.array(frb_dict["xvals"]) / width_ms
 			xvar = r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}"
-		elif frb_dict["type"] == "PA_var":
-			x = np.array(frb_dict["result"])
+		elif frb_dict["xname"] == "PA_var":
+			x = np.array(frb_dict["xvals"])
 			xvar = r"\Delta\psi_\mathrm{micro}"
 		else:
-			raise ValueError(f"Unknown type: {frb_dict['type']}")
+			raise ValueError(f"Unknown xname: {frb_dict['xname']}")
 	return x, xvar
 
 
@@ -209,13 +209,13 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			color = cmap(idx % cmap.N)
 			#linestyle = linestyles[idx % len(linestyles)]
 			
-			result = np.array(subdict["result"])
-			vals = subdict["vals"]
+			xvals = np.array(subdict["xvals"])
+			yvals = subdict["yvals"]
 			var_PA_microshots = subdict["var_PA_microshots"]
 			width_ms = np.array(subdict["width_ms"])[0]
 			
-			vals = weight_dict(result, vals, var_PA_microshots)
-			med_vals, percentile_errs = median_percentiles(vals, result)
+			yvals = weight_dict(xvals, yvals, var_PA_microshots)
+			med_vals, percentile_errs = median_percentiles(yvals, xvals)
 
 			x, xvar = get_x_and_xvar(subdict, width_ms)
 	
@@ -238,13 +238,14 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		return
 	
 	# Otherwise, plot as usual (single job)
-	result = frb_dict["result"]
-	vals = frb_dict["vals"]
+	print(frb_dict.keys())
+	xvals = frb_dict["xvals"]
+	yvals = frb_dict["yvals"]
 	var_PA_microshots = frb_dict["var_PA_microshots"]
 	width_ms = frb_dict["width_ms"]
  
-	vals = weight_dict(result, vals, var_PA_microshots)
-	med_vals, percentile_errs = median_percentiles(vals, result)
+	yvals = weight_dict(xvals, yvals, var_PA_microshots)
+	med_vals, percentile_errs = median_percentiles(yvals, xvals)
  
 	x, xvar = get_x_and_xvar(frb_dict, width_ms)
  
@@ -316,11 +317,11 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			#linestyle = linestyles[idx % len(linestyles)]
    
 			scatter_ms = np.array(subdict["scatter_ms"])
-			vals = subdict["vals"]
+			yvals = subdict["yvals"]
 			errs = subdict["errs"]
 			width_ms = np.array(subdict["width_ms"])[0]
 			
-			med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+			med_vals, percentile_errs = median_percentiles(yvals, scatter_ms)
 			x, xvar = get_x_and_xvar(subdict, width_ms, plot_type="lfrac")
 			
 			lower = np.array([lower for (lower, upper) in percentile_errs])
@@ -343,11 +344,11 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 
 	# Otherwise, plot as usual (single job)
 	scatter_ms = frb_dict["scatter_ms"]
-	vals = frb_dict["vals"]
+	yvals = frb_dict["yvals"]
 	errs = frb_dict["errs"]
 	width_ms = frb_dict["width_ms"]
  
-	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
+	med_vals, percentile_errs = median_percentiles(yvals, scatter_ms)
 	x, xvar = get_x_and_xvar(frb_dict, width_ms, plot_type="lfrac")
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])
