@@ -237,7 +237,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		label='Error'
 	)
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
-	axs[0].set_ylabel("PA [deg]")
+	axs[0].set_ylabel("PA (degrees)")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
 	axs[0].tick_params(axis='x', direction='in')  # Make x-ticks stick up
 	
@@ -253,7 +253,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
  
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 	axs[1].legend(loc='upper right')
-	axs[1].set_ylabel("Flux Density [arb.]")
+	axs[1].set_ylabel("Flux Density (arb.)")
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
 	axs[1].tick_params(axis='x', direction='in')  # Make x-ticks stick up
 	axs[1].text(
@@ -292,33 +292,3 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 
 	#	----------------------------------------------------------------------------------------------------------
-# ...existing imports...
-
-def plot_pa_var_vs_scatter(scatter_ms, med_pa_var_vals, pa_var_errs, save, fname, out_dir, figsize, show_plots, width_ms):
-	"""
-	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
-	"""
-	fig, ax = plt.subplots(figsize=figsize)
-
-	# weight the scattering timescale by initial Gaussian width
-	tau_weighted = scatter_ms / width_ms
-
-	# Extract lower and upper errors relative to the median
-	lower_errors = [median - lower for (lower, upper), median in zip(pa_var_errs, med_pa_var_vals)]
-	upper_errors = [upper - median for (lower, upper), median in zip(pa_var_errs, med_pa_var_vals)]
-	
-	# Pass the errors as a tuple to yerr
-	ax.errorbar(tau_weighted, med_pa_var_vals, 
-				yerr=(lower_errors, upper_errors), 
-				fmt='o', capsize=1, color='black', label=r'\psi$_{var}$', markersize=2)
- 
-	ax.set_xlabel(r"$\tau_{ms} / \sigma_{ms}$")
-	ax.set_ylabel(r"Var(\psi) / Var(\psi$_{microshots}$)")
-	ax.grid(True, linestyle='--', alpha=0.6)
-
-	if show_plots:
-		plt.show()
-
-	if save:
-		fig.savefig(os.path.join(out_dir, fname + "_pa_var_vs_scatter.pdf"), bbox_inches='tight', dpi=600)
-		print(f"Saved figure to {os.path.join(out_dir, fname + '_pa_var_vs_scatter.pdf')}  \n")
