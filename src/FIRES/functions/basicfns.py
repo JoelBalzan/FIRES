@@ -308,13 +308,13 @@ def estimate_windows(itsub, time_ms, threshold=0.1):
 	return left_window, right_window
 
 
-def median_percentiles(vals, scatter_ms, ndigits=3):
+def median_percentiles(yvals, x, ndigits=3):
 	med_vals = []
 	percentile_errs = []
-	# Round all keys in vals for consistent lookup
-	vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
-	for s_val in scatter_ms:
-		key = round(float(s_val), ndigits)
+	# Round all keys in yvals for consistent lookup
+	vals_rounded = {round(float(k), ndigits): v for k, v in yvals.items()}
+	for var in x:
+		key = round(float(var), ndigits)
 		v = vals_rounded.get(key, None)
 		if v is not None and isinstance(v, (list, np.ndarray)) and len(v) > 0:
 			median_val = np.median(v)
@@ -328,13 +328,13 @@ def median_percentiles(vals, scatter_ms, ndigits=3):
 	return med_vals, percentile_errs
 
 
-def weight_dict(scatter_ms, vals, weights_dict, ndigits=3):
-	# Round all keys in vals and weights_dict
-	vals_rounded = {round(float(k), ndigits): v for k, v in vals.items()}
+def weight_dict(x, yvals, weights_dict, ndigits=3):
+	# Round all keys in yvals and weights_dict
+	vals_rounded = {round(float(k), ndigits): v for k, v in yvals.items()}
 	weights_rounded = {round(float(k), ndigits): v for k, v in weights_dict.items()}
 	normalised_vals = {}
-	for s_val in scatter_ms:
-		key = round(float(s_val), ndigits)
+	for var in x:
+		key = round(float(var), ndigits)
 		if key in vals_rounded and key in weights_rounded:
 			normalised_vals[key] = [val / pa if pa != 0 else 0 for val, pa in zip(vals_rounded[key], weights_rounded[key])]
 		else:

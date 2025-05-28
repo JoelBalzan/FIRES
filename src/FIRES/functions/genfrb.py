@@ -208,7 +208,7 @@ def load_multiple_data(data):
 
 	for file_name in sorted(file_names):
 		with open(file_name, "rb") as f:
-			scatter_ms, vals, errs, width, var_PA_microshots = pkl.load(f)
+			scatter_ms, yvals, errs, width, var_PA_microshots = pkl.load(f)
 
 		for s_val in scatter_ms:
 			if s_val not in all_vals:
@@ -216,7 +216,7 @@ def load_multiple_data(data):
 				all_errs[s_val] = []
 				all_var_PA_microshots[s_val] = []
 
-			all_vals[s_val].extend(vals[s_val])
+			all_vals[s_val].extend(yvals[s_val])
 			all_errs[s_val].extend(errs[s_val])
 			all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
 
@@ -229,7 +229,7 @@ def load_multiple_data(data):
 def load_multiple_data_grouped(data):
 	"""
 	Group simulation outputs by prefix (everything before the first underscore).
-	Returns a dictionary: {prefix: {'scatter_ms': ..., 'vals': ..., ...}, ...}
+	Returns a dictionary: {prefix: {'scatter_ms': ..., 'yvals': ..., ...}, ...}
 	"""
 	from collections import defaultdict
 	import re
@@ -258,14 +258,14 @@ def load_multiple_data_grouped(data):
    
 		for file_name in files:
 			with open(os.path.join(data, file_name), "rb") as f:
-				scatter_ms, vals, errs, width, var_PA_microshots = pkl.load(f)
+				scatter_ms, yvals, errs, width, var_PA_microshots = pkl.load(f)
 
 			for s_val in scatter_ms:
 				if s_val not in all_vals:
 					all_vals[s_val] = []
 					all_errs[s_val] = []
 					all_var_PA_microshots[s_val] = []
-				all_vals[s_val].extend(vals[s_val])
+				all_vals[s_val].extend(yvals[s_val])
 				all_errs[s_val].extend(errs[s_val])
 				all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
 
@@ -274,7 +274,7 @@ def load_multiple_data_grouped(data):
 
 		all_results[prefix] = {
 			'scatter_ms': all_scatter_ms,
-			'vals': all_vals,
+			'yvals': all_vals,
 			'errs': all_errs,
 			'width_ms': all_widths,
 			'var_PA_microshots': all_var_PA_microshots,
@@ -337,9 +337,9 @@ def process_task(task, var_range_name, mode, plot_mode, **params):
 	# Add other allowed arguments from params if present
 	process_func_args.update({k: params[k] for k in allowed_args if k in params and k != 'dspec'})
 
-	result, result_err = process_func(**process_func_args)
+	xvals, result_err = process_func(**process_func_args)
 
-	return var, result, result_err, PA_microshot
+	return var, xvals, result_err, PA_microshot
 
 
 def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -473,17 +473,22 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 
 	else:
 		if data != None:
-			frb_dict = load_multiple_data_grouped(data)
+			files = [f for f in os.listdir(data) if f.endswith('.pkl')]
+			if len(files) > 1:
+				frb_dict = load_multiple_data_grouped(data)
+			elif len(files) == 1:
+				with open(os.path.join(data, files[0]), 'rb') as f:
+					frb_dict = pkl.load(f)
 		else:
 			if np.all(gauss_params[-1,:] == 0.0):
 				# Create a list of tasks (timescale, realization)
 				tasks = list(product(scatter_ms, range(nseed)))
-				type = 'tau_ms'
+				xname = 'tau_ms'
 
 				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 					partial_func = functools.partial(
 						process_task,
-						var_range_name=type,
+						var_range_name=xname,
 						mode=mode,
 						plot_mode=plot_mode,
 						**dspec_params._asdict()
@@ -504,18 +509,18 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 					stop = gauss_params[-2, col_idx]
 					step = gauss_params[-1, col_idx]
 					# Ensure inclusion of the final point
-					g_var = np.arange(start, stop + step/2, step)
+					xvals = np.arange(start, stop + step/2, step)
 
 					# Find the corresponding key in gdict for col_idx
 					gdict_keys = list(gdict.keys())
-					type = gdict_keys[col_idx] + '_var'
+					xname = gdict_keys[col_idx] + '_var'
 	 
-					tasks = list(product(g_var, range(nseed)))
+					tasks = list(product(xvals, range(nseed)))
 
 					with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 						partial_func = functools.partial(
 							process_task,
-							var_range_name=type,
+							var_range_name=xname,
 							mode=mode,
 							plot_mode=plot_mode,
 							**dspec_params._asdict()
@@ -523,29 +528,27 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	  
 						results = list(tqdm(executor.map(partial_func, tasks),
 											total=len(tasks),
-											desc=f"Processing {type} variance and realisations"))
+											desc=f"Processing {xname} variance and realisations"))
 
 						# Aggregate results by timescale
 			   # Determine the correct set of keys for aggregation
-			if 'tau_ms' in type or np.all(gauss_params[-1,:] == 0.0):
-				result = scatter_ms
-			else:
-				result = g_var
+			if 'tau_ms' in xname or np.all(gauss_params[-1,:] == 0.0):
+				xvals = scatter_ms
 			
-			vals = {s_val: [] for s_val in result}
-			errs = {s_val: [] for s_val in result}
-			var_PA_microshots = {s_val: [] for s_val in result}
+			yvals = {s_val: [] for s_val in xvals}
+			errs = {s_val: [] for s_val in xvals}
+			var_PA_microshots = {s_val: [] for s_val in xvals}
 			
 			for var, val, err, PA_microshot in results:
-				vals[var].append(val)
+				yvals[var].append(val)
 				errs[var].append(err)
 				var_PA_microshots[var].append(PA_microshot)
 
 	
 			frb_dict = {
-				"type": type,
-				"result": result,
-				"vals": vals,
+				"xname": xname,
+				"xvals": xvals,
+				"yvals": yvals,
 				"errs": errs,
 				"width_ms": gdict['width_ms'],
 				"var_PA_microshots": var_PA_microshots,
