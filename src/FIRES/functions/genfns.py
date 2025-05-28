@@ -77,18 +77,18 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, noise, 
     if seed is not None:
         np.random.seed(seed)
         
-    t0 = gdict['t0']
-    width_ms = gdict['width_ms']
-    peak_amp = gdict['peak_amp']
-    spec_idx = gdict['spec_idx']
-    PA = gdict['PA']
-    DM = gdict['DM']
-    RM = gdict['RM']
-    lfrac = gdict['lfrac']
-    vfrac = gdict['vfrac']
-    dPA = gdict['dPA']
+    t0              = gdict['t0']
+    width_ms        = gdict['width_ms']
+    peak_amp        = gdict['peak_amp']
+    spec_idx        = gdict['spec_idx']
+    PA              = gdict['PA']
+    DM              = gdict['DM']
+    RM              = gdict['RM']
+    lfrac           = gdict['lfrac']
+    vfrac           = gdict['vfrac']
+    dPA             = gdict['dPA']
     band_centre_mhz = gdict['band_centre_mhz']
-    band_width_mhz = gdict['band_width_mhz']
+    band_width_mhz  = gdict['band_width_mhz']
 
     # Initialize dynamic spectrum for all Stokes parameters
     dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # [I, Q, U, V]
@@ -130,8 +130,8 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, noise, 
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
     if noise > 0:
-        width_ds = width_ms[1] / time_res_ms
-        if band_width_mhz[1] == 0.:
+        width_ds = width_ms[0] / time_res_ms
+        if band_width_mhz[0] == 0.:
             band_width_mhz = freq_mhz[-1] - freq_mhz[0]
         dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
 
@@ -141,7 +141,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, noise, 
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict, var_dict,
-                      width_range, noise, tau_ms, sc_idx, ref_freq_mhz, microvar=None, microvar_name=None):
+                      width_range, noise, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
     Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -171,9 +171,9 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 
 
     if microvar is not None:
-        if microvar_name in var_dict:
-            var_dict[microvar_name][0] = microvar
-        elif microvar_name == "tau_ms":
+        if xname in var_dict:
+            var_dict[xname][0] = microvar
+        elif xname == "tau_ms":
             tau_ms = microvar
             
     peak_amp_var        = var_dict['peak_amp_var'][0]
@@ -259,8 +259,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
     if noise > 0:
-        width_ds = width_ms / time_res_ms
-        if band_width_mhz == 0.:
+        width_ds = width_ms[0] / time_res_ms
+        if band_width_mhz[0] == 0.:
             band_width_mhz = freq_mhz[-1] - freq_mhz[0]
         dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
     
