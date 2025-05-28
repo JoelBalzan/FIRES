@@ -416,8 +416,17 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		freq_window=freq_window,
   
 	)
-
-	if (gdict['lfrac'] + gdict['vfrac']).any() > 1.0:
+	if np.any(gauss_params[-1,:] != 0.0) and len(scatter_ms) > 1:
+		print("WARNING: The last row of gauss_params is not all zeros, but scatter_ms has more than one value.")
+		print("Please pick only one.")
+		sys.exit(1)
+  
+	if len(np.where(gauss_params[-1,:] != 0.0)[0]) > 1:
+		print("WARNING: More than one value in the last row of gauss_params is not 0.")
+		print("Please ensure that only one value is non-zero in the last row.")
+		sys.exit(1)
+  
+	if np.any(gdict['lfrac'] + gdict['vfrac']) > 1.0:
 		print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
 	if plot_mode.requires_multiple_frb == False:
@@ -446,7 +455,18 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, obs_params, dspec
 		)
 		if save:
-			out_file = f"{out_dir}{frb_id}_sc_{scatter_ms:.2f}.pkl"
+			tau = f"{scatter_ms:.2f}"
+			if mode == 'gauss':
+				out_file = (
+					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
+					f"seed_{seed}_PA_{gdict['PA'][-1]:.2f}.pkl"
+				)
+			else:  # mode == 'mgauss'
+				out_file = (
+					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
+					f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
+					f"seed_{seed}_nseed_{nseed}_PA_{gdict['PA'][-1]:.2f}.pkl"
+				)
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump(frb_data, frb_file)
 		return frb_data, noise_spec, gdict['RM']
@@ -455,15 +475,15 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		if data != None:
 			frb_dict = load_multiple_data_grouped(data)
 		else:
-			if all(gauss_params[-1,:] == 0.0):
+			if np.all(gauss_params[-1,:] == 0.0):
 				# Create a list of tasks (timescale, realization)
 				tasks = list(product(scatter_ms, range(nseed)))
-				key_name = 'tau_ms'
+				type = 'tau_ms'
 
 				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 					partial_func = functools.partial(
 						process_task,
-						var_range_name=key_name,
+						var_range_name=type,
 						mode=mode,
 						plot_mode=plot_mode,
 						**dspec_params._asdict()
@@ -488,14 +508,14 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 
 					# Find the corresponding key in gdict for col_idx
 					gdict_keys = list(gdict.keys())
-					key_name = gdict_keys[col_idx] + '_var'
+					type = gdict_keys[col_idx] + '_var'
 	 
 					tasks = list(product(g_var, range(nseed)))
 
 					with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 						partial_func = functools.partial(
 							process_task,
-							var_range_name=key_name,
+							var_range_name=type,
 							mode=mode,
 							plot_mode=plot_mode,
 							**dspec_params._asdict()
@@ -503,11 +523,11 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	  
 						results = list(tqdm(executor.map(partial_func, tasks),
 											total=len(tasks),
-											desc=f"Processing {key_name} variance and realisations"))
+											desc=f"Processing {type} variance and realisations"))
 
 						# Aggregate results by timescale
 			   # Determine the correct set of keys for aggregation
-			if 'tau_ms' in key_name or (all(gauss_params[-1,:] == 0.0)):
+			if 'tau_ms' in type or np.all(gauss_params[-1,:] == 0.0):
 				result = scatter_ms
 			else:
 				result = g_var
@@ -523,6 +543,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 
 	
 			frb_dict = {
+				"type": type,
 				"result": result,
 				"vals": vals,
 				"errs": errs,
@@ -542,7 +563,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			out_file = (
 				f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
 				f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
-				f"gauss_{n_gauss[0]}_seed_{seed}_nseed_{nseed}_PA{gdict['PA'][-1]:.2f}.pkl"
+				f"gauss_{n_gauss[0]}_seed_{seed}_nseed_{nseed}_PA_{gdict['PA'][-1]:.2f}.pkl"
 			)
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump((frb_dict), frb_file)

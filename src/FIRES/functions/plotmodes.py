@@ -107,26 +107,26 @@ def get_phase_window_indices(phase_window, peak_index):
 
 
 def set_scale_and_labels(ax, scale, xvar, yvar):
-    """
-    Set axis scales and labels for the plot based on the scale argument.
-    """
-    if scale == "linear":
-        ax.set_yscale('linear')
-        ax.set_xlabel(rf"${xvar}$")
-        ax.set_ylabel(rf"${yvar}$")
-    elif scale == "logx":
-        ax.set_xscale('log')
-        ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
-        ax.set_ylabel(rf"${yvar}$")
-    elif scale == "logy":
-        ax.set_yscale('log')
-        ax.set_xlabel(rf"${xvar}$")
-        ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
-    elif scale == "loglog":
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
-        ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
+	"""
+	Set axis scales and labels for the plot based on the scale argument.
+	"""
+	if scale == "linear":
+		ax.set_yscale('linear')
+		ax.set_xlabel(rf"${xvar}$")
+		ax.set_ylabel(rf"${yvar}$")
+	elif scale == "logx":
+		ax.set_xscale('log')
+		ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
+		ax.set_ylabel(rf"${yvar}$")
+	elif scale == "logy":
+		ax.set_yscale('log')
+		ax.set_xlabel(rf"${xvar}$")
+		ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
+	elif scale == "loglog":
+		ax.set_xscale('log')
+		ax.set_yscale('log')
+		ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
+		ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
 
 
 def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -147,6 +147,31 @@ def is_multi_run_dict(frb_dict):
 	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'scatter_ms' keys).
 	"""
 	return all(isinstance(v, dict) and "scatter_ms" in v for v in frb_dict.values())
+
+
+def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
+	"""
+	Extracts the x values and variable name for the x-axis based on the type of frb_dict.
+	"""
+	if plot_type == "pa_var":
+		if frb_dict["type"] == "tau_ms":
+			x = np.array(frb_dict["result"]) / width_ms
+			xvar = r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}"
+		elif frb_dict["type"] == "PA_var":
+			x = np.array(frb_dict["result"])
+			xvar = r"\Delta\psi_\mathrm{micro}"
+		else:
+			raise ValueError(f"Unknown type: {frb_dict['type']}")
+	elif plot_type == "lfrac":
+		if frb_dict["type"] == "tau_ms":
+			x = np.array(frb_dict["result"]) / width_ms
+			xvar = r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}"
+		elif frb_dict["type"] == "PA_var":
+			x = np.array(frb_dict["result"])
+			xvar = r"\Delta\psi_\mathrm{micro}"
+		else:
+			raise ValueError(f"Unknown type: {frb_dict['type']}")
+	return x, xvar
 
 
 def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
@@ -175,6 +200,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	Supports plotting multiple run groups for comparison.
 	"""
 	# If frb_dict contains multiple runs, plot each on the same axes
+	yvar = r"\frac{\mathrm{Var}(\psi_\mathrm{env})}{\mathrm{Var}(\psi_\mathrm{micro})}"
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		cmap = plt.get_cmap('Set1')
@@ -190,16 +216,17 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			
 			vals = weight_dict(result, vals, var_PA_microshots)
 			med_vals, percentile_errs = median_percentiles(vals, result)
-			tau_weighted = result / width_ms
-			
+
+			x, xvar = get_x_and_xvar(subdict, width_ms)
+	
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
-			ax.plot(tau_weighted, med_vals, label=run, color=color)#, linestyle=linestyle)
-			ax.set_xlim(tau_weighted[0], tau_weighted[-1])
-			ax.fill_between(tau_weighted, lower, upper, color=color, alpha=0.1)
+			ax.plot(x, med_vals, label=run, color=color)#, linestyle=linestyle)
+			ax.set_xlim(x[0], x[-1])
+			ax.fill_between(x, lower, upper, color=color, alpha=0.1)
 		ax.grid(True, linestyle='--', alpha=0.6)
-		set_scale_and_labels(ax, scale, xvar=r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}", yvar=r"\frac{\mathrm{Var}(\psi)}{\mathrm{Var}(\psi_\mathrm{micro})}")
+		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
 		ax.legend()
 		if show_plots:
 			plt.show()
@@ -218,17 +245,18 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
  
 	vals = weight_dict(result, vals, var_PA_microshots)
 	med_vals, percentile_errs = median_percentiles(vals, result)
-	tau_weighted = result / width_ms
+ 
+	x, xvar = get_x_and_xvar(frb_dict, width_ms)
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
  
 	fig, ax = plt.subplots(figsize=figsize)
-	ax.plot(tau_weighted, med_vals, color='black', label=r'\psi$_{var}$')
-	ax.fill_between(tau_weighted, lower, upper, color='black', alpha=0.2)
+	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$')
+	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
-	ax.set_xlim(tau_weighted[0], tau_weighted[-1])
-	set_scale_and_labels(ax, scale, xvar=r"\tau_{ms} / \sigma_{ms}", yvar=r"\frac{\mathrm{Var}(\psi_\mathrm{env})}{\mathrm{Var}(\psi_\mathrm{micro})}")
+	ax.set_xlim(x[0], x[-1])
+	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
 	if show_plots:
 		plt.show()
 	if save:
@@ -277,6 +305,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 
 
 def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window):
+	yvar = r"L/I"
 	# If frb_dict contains multiple job IDs, plot each on the same axes
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
@@ -292,15 +321,15 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			width_ms = np.array(subdict["width_ms"])[0]
 			
 			med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
-			tau_weighted = scatter_ms / width_ms
+			x, xvar = get_x_and_xvar(subdict, width_ms, plot_type="lfrac")
 			
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
-			ax.plot(tau_weighted, med_vals, label=run, color=color)#, linestyle=linestyle)
-			ax.fill_between(tau_weighted, lower, upper, alpha=0.2, color=color)
+			ax.plot(x, med_vals, label=run, color=color)#, linestyle=linestyle)
+			ax.fill_between(x, lower, upper, alpha=0.2, color=color)
 		ax.grid(True, linestyle='--', alpha=0.6)
-		set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"L/I")
+		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
 		ax.legend()
 		if show_plots:
 			plt.show()
@@ -319,16 +348,16 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	width_ms = frb_dict["width_ms"]
  
 	med_vals, percentile_errs = median_percentiles(vals, scatter_ms)
-	tau_weighted = scatter_ms / width_ms
+	x, xvar = get_x_and_xvar(frb_dict, width_ms, plot_type="lfrac")
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
  
 	fig, ax = plt.subplots(figsize=figsize)
-	ax.plot(tau_weighted, med_vals, color='black', label=r'\psi$_{var}$')
-	ax.fill_between(tau_weighted, lower, upper, color='black', alpha=0.2)
+	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$')
+	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
-	set_scale_and_labels(ax, scale, xvar=r"$\tau_{ms} / \sigma_{ms}$", yvar=r"L/I")
+	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
 	if show_plots:
 		plt.show()
 	if save:
