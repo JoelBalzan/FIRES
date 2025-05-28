@@ -195,11 +195,11 @@ def load_data(data, freq_mhz, time_ms):
 
 def load_multiple_data(data):
 	# store aggregated data
-	all_scatter_ms = []
-	all_vals = {}  
-	all_errs = {}  
-	all_var_PA_microshots = {}  
-	all_widths = []
+	all_scatter_ms        = []
+	all_vals              = {}
+	all_errs              = {}
+	all_var_PA_microshots = {}
+	all_widths            = []
 
 	file_names = [file_name for file_name in sorted(os.listdir(data)) if file_name.endswith(".pkl")]
 
@@ -230,7 +230,6 @@ def load_multiple_data_grouped(data):
     """
     Group simulation outputs by prefix (everything before the first underscore).
     Returns a dictionary: {prefix: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
-    Assumes all files are in the new dict format.
     """
     from collections import defaultdict
 
@@ -242,23 +241,22 @@ def load_multiple_data_grouped(data):
 
     all_results = {}
     for prefix, files in groups.items():
-        all_xvals = []
-        all_yvals = {}
-        all_errs = {}
+        all_xvals             = []
+        all_yvals             = {}
+        all_errs              = {}
         all_var_PA_microshots = {}
-        all_widths = []
-        xname = None
+        all_widths            = []
+        xname                 = None
 
         for file_name in files:
             with open(os.path.join(data, file_name), "rb") as f:
                 obj = pkl.load(f)
-            # Assume new dict format
             if xname is None:
                 xname = obj.get("xname", "unknown")
-            xvals = obj["xvals"]
-            yvals = obj["yvals"]
-            errs = obj["errs"]
-            width = obj["width_ms"]
+            xvals             = obj["xvals"]
+            yvals             = obj["yvals"]
+            errs              = obj["errs"]
+            width             = obj["width_ms"]
             var_PA_microshots = obj["var_PA_microshots"]
 
             for s_val in xvals:
@@ -274,18 +272,18 @@ def load_multiple_data_grouped(data):
             all_widths.append(width)
 
         all_results[prefix] = {
-            'xname': xname,
-            'xvals': all_xvals,
-            'yvals': all_yvals,
-            'errs': all_errs,
-            'width_ms': all_widths,
+            'xname'            : xname,
+            'xvals'            : all_xvals,
+            'yvals'            : all_yvals,
+            'errs'             : all_errs,
+            'width_ms'         : all_widths,
             'var_PA_microshots': all_var_PA_microshots,
         }
 
     return all_results
 
 
-def generate_dynspec(var_range_name, mode, var, plot_multiple_frb, **params):
+def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	"""Generate dynamic spectrum based on mode."""
 	var = var if plot_multiple_frb else params["tau_ms"]
 
@@ -302,12 +300,12 @@ def generate_dynspec(var_range_name, mode, var, plot_multiple_frb, **params):
 	# Always pass tau_ms as s_val
 	params_filtered = {
 		k: v for k, v in params.items()
-		if k in allowed_args and k not in ("var_range_name")
+		if k in allowed_args and k not in ("xname")
 	}
-	return dynspec_func(**params_filtered, var_range=var, var_range_name=var_range_name)
+	return dynspec_func(**params_filtered, microvar=var, xname=xname)
 
 
-def process_task(task, var_range_name, mode, plot_mode, **params):
+def process_task(task, xname, mode, plot_mode, **params):
 	"""
 	Process a single task (combination of timescale and realization).
 	Dynamically uses the provided process_func for mode-specific processing.
@@ -320,7 +318,7 @@ def process_task(task, var_range_name, mode, plot_mode, **params):
 
 	# Generate dynamic spectrum
 	dspec, PA_microshot = generate_dynspec(
-		var_range_name=var_range_name,
+		xname=xname,
 		mode=mode,
 		var=var,
 		plot_multiple_frb=requires_multiple_frb,
@@ -351,69 +349,69 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 
 	# Extract frequency and time parameters
 	f_start = float(obs_params['f0'])
-	f_end = float(obs_params['f1'])
+	f_end   = float(obs_params['f1'])
 	t_start = float(obs_params['t0'])
-	t_end = float(obs_params['t1'])
-	f_res = float(obs_params['f_res'])
-	t_res = float(obs_params['t_res'])
+	t_end   = float(obs_params['t1'])
+	f_res   = float(obs_params['f_res'])
+	t_res   = float(obs_params['t_res'])
 
 	scatter_idx = float(obs_params['scattering_index'])
-	ref_freq = float(obs_params['reference_freq'])
+	ref_freq 	= float(obs_params['reference_freq'])
 
 	# Generate frequency and time arrays
 	freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
-	time_ms = np.arange(t_start, t_end + t_res, t_res, dtype=float)
+	time_ms  = np.arange(t_start, t_end + t_res, t_res, dtype=float)
 
 	# Load Gaussian parameters
 	gauss_params = np.loadtxt(gauss_file)
 
 	gdict = {
-		't0': gauss_params[:-3, 0],
-		'width_ms': gauss_params[:-3, 1],
-		'peak_amp': gauss_params[:-3, 2],
-		'spec_idx': gauss_params[:-3, 3],
-		'DM': gauss_params[:-3, 4],
-		'RM': gauss_params[:-3, 5],
-		'PA': gauss_params[:-3, 6],
-		'lfrac': gauss_params[:-3, 7],
-		'vfrac': gauss_params[:-3, 8],
-		'dPA': gauss_params[:-3, 9],
+		't0'             : gauss_params[:-3, 0],
+		'width_ms'       : gauss_params[:-3, 1],
+		'peak_amp'       : gauss_params[:-3, 2],
+		'spec_idx'       : gauss_params[:-3, 3],
+		'DM'             : gauss_params[:-3, 4],
+		'RM'             : gauss_params[:-3, 5],
+		'PA'             : gauss_params[:-3, 6],
+		'lfrac'          : gauss_params[:-3, 7],
+		'vfrac'          : gauss_params[:-3, 8],
+		'dPA'            : gauss_params[:-3, 9],
 		'band_centre_mhz': gauss_params[:-3, 10],
-		'band_width_mhz': gauss_params[:-3, 11]
+		'band_width_mhz' : gauss_params[:-3, 11]
 	}
  
 	var_dict = {
-		't0_var': gauss_params[-3:, 0],
-		'width_ms_var': gauss_params[-3:, 1],
-		'peak_amp_var': gauss_params[-3:, 2],
-		'spec_idx_var': gauss_params[-3:, 3],
-		'DM_var': gauss_params[-3:, 4],
-		'RM_var': gauss_params[-3:, 5],
-		'PA_var': gauss_params[-3:, 6],
-		'lfrac_var': gauss_params[-3:, 7],
-		'vfrac_var': gauss_params[-3:, 8],
-		'dPA_var': gauss_params[-3:, 9],
+		't0_var'             : gauss_params[-3:, 0],
+		'width_ms_var'       : gauss_params[-3:, 1],
+		'peak_amp_var'       : gauss_params[-3:, 2],
+		'spec_idx_var'       : gauss_params[-3:, 3],
+		'DM_var'             : gauss_params[-3:, 4],
+		'RM_var'             : gauss_params[-3:, 5],
+		'PA_var'             : gauss_params[-3:, 6],
+		'lfrac_var'          : gauss_params[-3:, 7],
+		'vfrac_var'          : gauss_params[-3:, 8],
+		'dPA_var'            : gauss_params[-3:, 9],
 		'band_centre_mhz_var': gauss_params[-3:, 10],
-		'band_width_mhz_var': gauss_params[-3:, 11]
+		'band_width_mhz_var' : gauss_params[-3:, 11]
 	}
 
 	# Create dynamic spectrum parameters
 	dspec_params = DynspecParams(
-		gdict=gdict,
-		var_dict=var_dict,
-		freq_mhz=freq_mhz,
-		time_ms=time_ms,
-		time_res_ms=t_res,
-		seed=seed,
-		nseed=nseed,
-		noise=noise,
-		tau_ms=scatter_ms,
-		sc_idx=scatter_idx,
-		ref_freq_mhz=ref_freq,
-		num_micro_gauss=n_gauss,
-		width_range=width_range,
-		phase_window=phase_window,
-		freq_window=freq_window,
+		gdict           = gdict,
+		var_dict        = var_dict,
+		freq_mhz        = freq_mhz,
+		time_ms         = time_ms,
+		time_res_ms     = t_res,
+		seed            = seed,
+		nseed           = nseed,
+		noise           = noise,
+		tau_ms          = scatter_ms,
+		sc_idx          = scatter_idx,
+		ref_freq_mhz    = ref_freq,
+		num_micro_gauss = n_gauss,
+		width_range     = width_range,
+		phase_window    = phase_window,
+		freq_window     = freq_window,
   
 	)
 	if np.any(gauss_params[-1,:] != 0.0) and len(scatter_ms) > 1:
@@ -444,7 +442,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 	
 		else:
 			dspec, _ = generate_dynspec(
-			var_range_name=None,
+			xname=None,
 			mode=mode,
 			var=None,
 			plot_multiple_frb=False,
@@ -488,7 +486,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 					partial_func = functools.partial(
 						process_task,
-						var_range_name=xname,
+						xname=xname,
 						mode=mode,
 						plot_mode=plot_mode,
 						**dspec_params._asdict()
@@ -520,7 +518,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 					with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 						partial_func = functools.partial(
 							process_task,
-							var_range_name=xname,
+							xname=xname,
 							mode=mode,
 							plot_mode=plot_mode,
 							**dspec_params._asdict()
@@ -546,11 +544,11 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 
 	
 			frb_dict = {
-				"xname": xname,
-				"xvals": xvals,
-				"yvals": yvals,
-				"errs": errs,
-				"width_ms": gdict['width_ms'],
+				"xname"            : xname,
+				"xvals"            : xvals,
+				"yvals"            : yvals,
+				"errs"             : errs,
+				"width_ms"         : gdict['width_ms'],
 				"var_PA_microshots": var_PA_microshots,
 				#"seed": seed,
 				#"nseed": nseed

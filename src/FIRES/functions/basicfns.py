@@ -75,14 +75,14 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 		
    
 	# Calculate the mean spectra for each Stokes parameter
-	ispec  = np.nansum(dynspec[0, :, left_window:right_window], axis=1)
-	vspec  = np.nansum(dynspec[3, :, left_window:right_window], axis=1)
-	qspec0 = np.nansum(dynspec[1, :, left_window:right_window], axis=1)
-	uspec0 = np.nansum(dynspec[2, :, left_window:right_window], axis=1)
-	noispec = noisespec / np.sqrt(float(right_window + 1 - left_window))	
+	ispec   = np.nansum(dynspec[0, :, left_window:right_window], axis=1)
+	vspec   = np.nansum(dynspec[3, :, left_window:right_window], axis=1)
+	qspec0  = np.nansum(dynspec[1, :, left_window:right_window], axis=1)
+	uspec0  = np.nansum(dynspec[2, :, left_window:right_window], axis=1)
+	noispec = noisespec / np.sqrt(float(right_window + 1 - left_window))
 		
 
-	iquv = (ispec, qspec0, uspec0, vspec)
+	iquv  = (ispec, qspec0, uspec0, vspec)
 	eiquv = (noispec[0], noispec[1], noispec[2], noispec[3])
 		
 	# Run RM synthesis
@@ -106,12 +106,12 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	"""
 	
 	# Initialize the new dynamic spectrum
-	new_dynspec = np.zeros(dynspec.shape, dtype=float)
+	new_dynspec    = np.zeros(dynspec.shape, dtype=float)
 	new_dynspec[0] = dynspec[0]
 	new_dynspec[3] = dynspec[3]
 	
 	# Calculate the lambda squared array
-	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
+	lambda_sq 		 = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
 	lambda_sq_median = np.nanmedian(lambda_sq)
 		
 	# Apply RM correction to Q and U spectra
@@ -151,16 +151,16 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
 		vtsub = np.where(mask, np.nan, iquvt[3])
 		
 		# Calculate the linear polarization intensity
-		lts = np.sqrt(utsub ** 2 + qtsub ** 2)			
+		lts  = np.sqrt(utsub ** 2 + qtsub ** 2)			
 		elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
 		# Calculate the total polarization intensity
-		pts = np.sqrt(lts ** 2 + vtsub ** 2)
+		pts  = np.sqrt(lts ** 2 + vtsub ** 2)
 		epts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2 + (vtsub * noise_stokes[3]) ** 2) / pts
   
 		# Calculate the polarization angles
-		phits = np.rad2deg(0.5 * np.arctan2(utsub, qtsub))		
+		phits  = np.rad2deg(0.5 * np.arctan2(utsub, qtsub))		
 		dphits = np.rad2deg(0.5 * np.sqrt((utsub * noise_stokes[1]) ** 2 + (qtsub * noise_stokes[2]) ** 2) / (utsub ** 2 + qtsub ** 2))						
-		psits = np.rad2deg(0.5 * np.arctan2(vtsub, lts))		
+		psits  = np.rad2deg(0.5 * np.arctan2(vtsub, lts))		
 		dpsits = np.rad2deg(0.5 * np.sqrt((vtsub * elts) ** 2 + (lts * noise_stokes[3]) ** 2) / (vtsub ** 2 + lts ** 2))
   
 		
@@ -175,9 +175,9 @@ def est_profiles(dynspec, freq_mhz, time_ms, noise_stokes):
   
 		# Set large errors to NaN
 		mask = iquvt[0] < noise_stokes[0]
-		phits[mask] = np.nan
+		phits[mask]  = np.nan
 		dphits[mask] = np.nan
-		psits[mask] = np.nan
+		psits[mask]  = np.nan
 		dpsits[mask] = np.nan
 	
 		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
@@ -215,13 +215,9 @@ def est_spectra(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
 	
 	# Calculate the noise for each Stokes parameter
 	noispec0 = noisespec / np.sqrt(float(right_window_ms + 1 - left_window_ms))
-	# Calculate the linear polarization intensity
-	lspec = np.sqrt(uspec ** 2 + qspec ** 2)
-	# Calculate the error in linear polarization intensity
+	lspec  = np.sqrt(uspec ** 2 + qspec ** 2)
 	dlspec = np.sqrt((uspec * noispec0[2]) ** 2 + (qspec * noispec0[1]) ** 2) / lspec
-	# Calculate the total polarization intensity
-	pspec = np.sqrt(lspec ** 2 + vspec ** 2)
-	# Calculate the error in total polarization intensity
+	pspec  = np.sqrt(lspec ** 2 + vspec ** 2)
 	dpspec = np.sqrt((vspec * dlspec) ** 2 + (lspec * noispec0[3]) ** 2) / pspec
 
 	# Calculate the fractional polarizations
@@ -235,15 +231,15 @@ def est_spectra(dynspec, freq_mhz, time_ms, noisespec, left_window_ms, right_win
 
 	# Calculate the fractional linear and total polarizations
 	lfracspec = lspec / ispec
-	dlfrac = np.sqrt((lspec * noispec0[0]) ** 2 + (ispec * dlspec) ** 2) / (ispec ** 2)
+	dlfrac	  = np.sqrt((lspec * noispec0[0]) ** 2 + (ispec * dlspec) ** 2) / (ispec ** 2)
 	pfracspec = pspec / ispec
-	dpfrac = np.sqrt((pspec * noispec0[0]) ** 2 + (ispec * dpspec) ** 2) / (ispec ** 2)
+	dpfrac 	  = np.sqrt((pspec * noispec0[0]) ** 2 + (ispec * dpspec) ** 2) / (ispec ** 2)
 
 	# Calculate the polarization angles
-	phispec = np.rad2deg(0.5 * np.arctan2(uspec, qspec))		
+	phispec  = np.rad2deg(0.5 * np.arctan2(uspec, qspec))		
 	dphispec = np.rad2deg(0.5 * np.sqrt((uspec * noispec0[1]) ** 2 + (qspec * noispec0[2]) ** 2) / (uspec ** 2 + qspec ** 2))
 
-	psispec = np.rad2deg(0.5 * np.arctan2(vspec, lspec))		
+	psispec  = np.rad2deg(0.5 * np.arctan2(vspec, lspec))		
 	dpsispec = np.rad2deg(0.5 * np.sqrt((vspec * dlspec) ** 2 + (lspec * noispec0[2]) ** 2) / (vspec ** 2 + lspec ** 2))
 
 	# Return the spectra as a frb_spectrum object
@@ -297,11 +293,11 @@ def estimate_windows(itsub, time_ms, threshold=0.1):
 		raise ValueError("No significant intensity found above the threshold.")
 
 	# Determine the left and right window indices
-	left_window = significant_indices[0]
+	left_window  = significant_indices[0]
 	right_window = significant_indices[-1]
 
 	# Convert indices to time values if needed
-	left_time = time_ms[left_window]
+	left_time  = time_ms[left_window]
 	right_time = time_ms[right_window]
 
 	print(f"RM: Estimated left_window: {left_time} ms, right_window: {right_time} ms")

@@ -90,28 +90,6 @@ astronomical_unit_cm	    =	1.496e13					#	1 AU in cm
 inch_to_cm				    =	2.54
 
 
-# constants for scintillation application (SCINTOOLS)
-#mb2							=	2							#mb2: Max Born parameter for strength of scattering
-#rf							=	1							#rf: Fresnel scale
-#ds							=	0.01						#ds (or dx,dy): Spatial step sizes with respect to rf
-#alpha						=	5/3							#alpha: Structure function exponent (Kolmogorov = 5/3)
-#ar							=	1							#ar: Anisotropy axial ratio
-#psi							=	0							#psi: Anisotropy orientation
-#inner						=	0.001						#inner: Inner scale w.r.t rf - should generally be smaller than ds
-#ns							=	256							#ns (or nx,ny): Number of spatial steps
-#nf							=	256							#nf: Number of frequency steps.
-#dlam						=	0.25						#dlam: Fractional bandwidth relative to centre frequency
-#lamsteps					=	False						#lamsteps: Boolean to choose whether steps in lambda or freq
-#seed						=	1234 						#seed: Seed number, or use "-1" to shuffle
-#nx							=	None
-#ny							=	None
-#dx							=	None
-#dy							=	None
-#plot						=	False
-#verbose						=	False
-#dt							=	30
-
-
 
 simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'freq_mhz', 'time_ms', 'tau_ms', 'sc_idx', 'gaussian_params', 'observation_params', 'dynamic_spectrum'])
 
@@ -125,21 +103,21 @@ frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','ps
 
 
 class DynspecParams(NamedTuple):
-    gdict: dict
-    var_dict: dict
-    freq_mhz: np.ndarray
-    time_ms: np.ndarray
-    time_res_ms: float
-    seed: int
-    nseed: int
-    noise: bool
-    tau_ms: float
-    sc_idx: float
-    ref_freq_mhz: float
+    gdict          : dict
+    var_dict       : dict
+    freq_mhz       : np.ndarray
+    time_ms        : np.ndarray
+    time_res_ms    : float
+    seed           : int
+    nseed          : int
+    noise          : bool
+    tau_ms         : float
+    sc_idx         : float
+    ref_freq_mhz   : float
     num_micro_gauss: int
-    width_range: float
-    phase_window: str
-    freq_window: str
+    width_range    : float
+    phase_window   : str
+    freq_window    : str
 
 
 
