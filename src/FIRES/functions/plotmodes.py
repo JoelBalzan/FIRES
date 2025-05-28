@@ -32,8 +32,8 @@ plt.rcParams['font.family']		= 'sans-serif'
 plt.rcParams['axes.labelsize']  = 20
 plt.rcParams['axes.titlesize']  = 18
 plt.rcParams['legend.fontsize'] = 12
-plt.rcParams['xtick.labelsize'] = 12
-plt.rcParams['ytick.labelsize'] = 12
+plt.rcParams['xtick.labelsize'] = 14
+plt.rcParams['ytick.labelsize'] = 14
 plt.rcParams['text.usetex'] 	= True
 
 
@@ -146,7 +146,7 @@ def is_multi_run_dict(frb_dict):
 	"""
 	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'scatter_ms' keys).
 	"""
-	return all(isinstance(v, dict) and "scatter_ms" in v for v in frb_dict.values())
+	return all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
 
 
 def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
@@ -238,7 +238,6 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		return
 	
 	# Otherwise, plot as usual (single job)
-	print(frb_dict.keys())
 	xvals = frb_dict["xvals"]
 	yvals = frb_dict["yvals"]
 	var_PA_microshots = frb_dict["var_PA_microshots"]

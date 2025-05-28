@@ -227,62 +227,62 @@ def load_multiple_data(data):
 
 
 def load_multiple_data_grouped(data):
-	"""
-	Group simulation outputs by prefix (everything before the first underscore).
-	Returns a dictionary: {prefix: {'scatter_ms': ..., 'yvals': ..., ...}, ...}
-	"""
-	from collections import defaultdict
-	import re
+    """
+    Group simulation outputs by prefix (everything before the first underscore).
+    Returns a dictionary: {prefix: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
+    Assumes all files are in the new dict format.
+    """
+    from collections import defaultdict
 
-	file_names = [f for f in sorted(os.listdir(data)) if f.endswith(".pkl")]
-	groups = defaultdict(list)
-	for fname in file_names:
-		prefix = fname.split('_')[0]
-		groups[prefix].append(fname)
+    file_names = [f for f in sorted(os.listdir(data)) if f.endswith(".pkl")]
+    groups = defaultdict(list)
+    for fname in file_names:
+        prefix = fname.split('_')[0]
+        groups[prefix].append(fname)
 
-	all_results = {}
-	for prefix, files in groups.items():
-		all_scatter_ms = []
-		all_vals = {}
-		all_errs = {}
-		all_var_PA_microshots = {}
-		all_widths = []
-		#seed = None
-		#nseed = None
+    all_results = {}
+    for prefix, files in groups.items():
+        all_xvals = []
+        all_yvals = {}
+        all_errs = {}
+        all_var_PA_microshots = {}
+        all_widths = []
+        xname = None
 
-		## Try to extract seed and nseed from the first filename in the group
-		#m = re.search(r'seed_(\d+)_nseed_(\d+)', files[0])
-		#if m:
-		#	seed = int(m.group(1))
-		#	nseed = int(m.group(2))
-   
-		for file_name in files:
-			with open(os.path.join(data, file_name), "rb") as f:
-				scatter_ms, yvals, errs, width, var_PA_microshots = pkl.load(f)
+        for file_name in files:
+            with open(os.path.join(data, file_name), "rb") as f:
+                obj = pkl.load(f)
+            # Assume new dict format
+            if xname is None:
+                xname = obj.get("xname", "unknown")
+            xvals = obj["xvals"]
+            yvals = obj["yvals"]
+            errs = obj["errs"]
+            width = obj["width_ms"]
+            var_PA_microshots = obj["var_PA_microshots"]
 
-			for s_val in scatter_ms:
-				if s_val not in all_vals:
-					all_vals[s_val] = []
-					all_errs[s_val] = []
-					all_var_PA_microshots[s_val] = []
-				all_vals[s_val].extend(yvals[s_val])
-				all_errs[s_val].extend(errs[s_val])
-				all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+            for s_val in xvals:
+                if s_val not in all_yvals:
+                    all_yvals[s_val] = []
+                    all_errs[s_val] = []
+                    all_var_PA_microshots[s_val] = []
+                all_yvals[s_val].extend(yvals[s_val])
+                all_errs[s_val].extend(errs[s_val])
+                all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
 
-			all_scatter_ms.extend(scatter_ms)
-			all_widths.append(width)
+            all_xvals.extend(xvals)
+            all_widths.append(width)
 
-		all_results[prefix] = {
-			'scatter_ms': all_scatter_ms,
-			'yvals': all_vals,
-			'errs': all_errs,
-			'width_ms': all_widths,
-			'var_PA_microshots': all_var_PA_microshots,
-			#'seed': seed,
-			#'nseed': nseed
-		}
+        all_results[prefix] = {
+            'xname': xname,
+            'xvals': all_xvals,
+            'yvals': all_yvals,
+            'errs': all_errs,
+            'width_ms': all_widths,
+            'var_PA_microshots': all_var_PA_microshots,
+        }
 
-	return all_results
+    return all_results
 
 
 def generate_dynspec(var_range_name, mode, var, plot_multiple_frb, **params):
