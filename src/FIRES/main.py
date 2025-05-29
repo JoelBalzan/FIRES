@@ -45,7 +45,7 @@ def main():
 
 	# Input Parameters
 	parser.add_argument(
-		"-t", "--scattering_timescale_ms",
+		"-t", "--tau_ms",
 		type=str,
 		nargs="+",  # Allow multiple values
 		default=[0.0],
