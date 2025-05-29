@@ -154,7 +154,13 @@ def main():
 		metavar="",
 		help="Scale for plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
 	)
-
+	parser.add_argument(
+		"--fit",
+		nargs="+",
+		default=None,
+		metavar="",
+		help="Fit function for the data. Options: 'power', 'exp', or 'power N' for power law of degree N."
+	)
 	# Simulation Options
 	parser.add_argument(
 		"--data",
@@ -349,6 +355,7 @@ def main():
 						"scale"       : args.plot_scale,
 						"phase_window": args.phase_window,
 						"freq_window" : args.freq_window,
+						"fit"         : args.fit,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
