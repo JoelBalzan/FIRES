@@ -31,12 +31,12 @@ def calculate_dispersion_delay(DM, freq, ref_freq):
 	return 4.15 * DM * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
 
 
-def add_noise_to_stokes_I(temp_dynspec_chan, peak_amp, noise):
+def add_noise_to_stokes_I(temp_dynspec_chan, peak_amp, snr):
     # Set noise level based on desired SNR (signal-to-noise ratio)
-    # SNR = peak signal / noise stddev => noise stddev = peak signal / SNR
+    # SNR = peak signal / snr stddev => snr stddev = peak signal / SNR
     # Use the intended envelope peak as the reference signal
     signal_level = np.nanmax(peak_amp)
-    noise_std = signal_level / noise  # 'noise' parameter is now SNR
+    noise_std = signal_level / snr  
     noise_I = np.random.normal(loc=0.0, scale=noise_std, size=temp_dynspec_chan.shape)
     
     return temp_dynspec_chan + noise_I
@@ -53,7 +53,7 @@ def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, noise, tau_ms, sc_idx, ref_freq_mhz):
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, snr, tau_ms, sc_idx, ref_freq_mhz):
     """
     Generate dynamic spectrum for Gaussian pulses.
     Inputs:
@@ -129,11 +129,11 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, noise, 
         dynspec += temp_dynspec
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
-    if noise > 0:
+    if snr > 0:
         width_ds = width_ms[0] / time_res_ms
         if band_width_mhz[0] == 0.:
             band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-        dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
+        dynspec = add_noise_to_dynspec(dynspec, snr, seed, band_width_mhz, width_ds)
 
     return dynspec, var_pol_angles
 
@@ -141,7 +141,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, noise, 
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict, var_dict,
-                      width_range, noise, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None):
+                      width_range, snr, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
     Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -258,10 +258,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
-    if noise > 0:
+    if snr > 0:
         width_ds = width_ms[0] / time_res_ms
         if band_width_mhz[0] == 0.:
             band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-        dynspec = add_noise_to_dynspec(dynspec, noise, seed, band_width_mhz, width_ds)
+        dynspec = add_noise_to_dynspec(dynspec, snr, seed, band_width_mhz, width_ds)
     
     return dynspec, var_pol_angles

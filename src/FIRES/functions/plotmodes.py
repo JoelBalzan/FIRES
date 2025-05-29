@@ -106,27 +106,40 @@ def get_phase_window_indices(phase_window, peak_index):
 	return phase_slices.get(phase_window, None)
 
 
-def set_scale_and_labels(ax, scale, xvar, yvar):
-	"""
-	Set axis scales and labels for the plot based on the scale argument.
-	"""
-	if scale == "linear":
-		ax.set_yscale('linear')
-		ax.set_xlabel(rf"${xvar}$")
-		ax.set_ylabel(rf"${yvar}$")
-	elif scale == "logx":
-		ax.set_xscale('log')
-		ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
-		ax.set_ylabel(rf"${yvar}$")
-	elif scale == "logy":
-		ax.set_yscale('log')
-		ax.set_xlabel(rf"${xvar}$")
-		ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
-	elif scale == "loglog":
-		ax.set_xscale('log')
-		ax.set_yscale('log')
-		ax.set_xlabel(rf"$\log_{{10}}\left({yvar}\right)$")
-		ax.set_ylabel(rf"$\log_{{10}}\left({yvar}\right)$")
+def set_scale_and_labels(ax, scale, xvar, yvar, x=None):
+    """
+    Set axis scales and labels for the plot based on the scale argument.
+    Optionally set x-limits using the provided x array.
+    """
+    if scale == "linear":
+        ax.set_yscale('linear')
+        ax.set_xlabel(rf"${xvar}$")
+        ax.set_ylabel(rf"${yvar}$")
+        if x is not None:
+            ax.set_xlim(x[0], x[-1])
+    elif scale == "logx":
+        ax.set_xscale('log')
+        ax.set_xlabel(rf"${xvar}$")
+        ax.set_ylabel(rf"${yvar}$")
+        if x is not None:
+            x_positive = x[x > 0]
+            if len(x_positive) > 0:
+                ax.set_xlim(x_positive[0], x_positive[-1])
+    elif scale == "logy":
+        ax.set_yscale('log')
+        ax.set_xlabel(rf"${xvar}$")
+        ax.set_ylabel(rf"${yvar}$")
+        if x is not None:
+            ax.set_xlim(x[0], x[-1])
+    elif scale == "loglog":
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel(rf"${xvar}$")
+        ax.set_ylabel(rf"${yvar}$")
+        if x is not None:
+            x_positive = x[x > 0]
+            if len(x_positive) > 0:
+                ax.set_xlim(x_positive[0], x_positive[-1])
 
 
 def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -223,10 +236,9 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
 			ax.plot(x, med_vals, label=run, color=color)#, linestyle=linestyle)
-			ax.set_xlim(x[0], x[-1])
 			ax.fill_between(x, lower, upper, color=color, alpha=0.1)
 		ax.grid(True, linestyle='--', alpha=0.6)
-		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
+		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
 		if show_plots:
 			plt.show()
@@ -255,8 +267,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$')
 	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
-	ax.set_xlim(x[0], x[-1])
-	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
+	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 	if show_plots:
 		plt.show()
 	if save:
@@ -329,7 +340,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			ax.plot(x, med_vals, label=run, color=color)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, alpha=0.2, color=color)
 		ax.grid(True, linestyle='--', alpha=0.6)
-		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
+		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
 		if show_plots:
 			plt.show()
@@ -357,7 +368,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$')
 	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
-	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar)
+	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 	if show_plots:
 		plt.show()
 	if save:

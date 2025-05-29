@@ -209,7 +209,7 @@ def main():
 		type=float,
 		default=0,
 		metavar="",
-		help="Signal-to-noise ratio (SNR) for the simulated FRB. Default is 0 (no noise)."
+		help="Signal-to-noise ratio (SNR) for the simulated FRB. Default is 0 (no snr)."
 	)
 	parser.add_argument(
 		"--ncpu",
@@ -276,7 +276,7 @@ def main():
 				seed         = args.seed,
 				nseed        = args.nseed,
 				width_range  = args.mg_width,
-				noise        = args.snr,
+				snr          = args.snr,
 				n_cpus       = args.ncpu,
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
@@ -297,14 +297,14 @@ def main():
 				seed         = args.seed,
 				nseed        = None,
 				width_range  = args.mg_width,
-				noise        = args.snr,
+				snr          = args.snr,
 				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
 				freq_window  = None,
 			)
 			if args.chi2_fit:
-				if args.noise == 0:
+				if args.snr == 0:
 					print("No noise added to the dynamic spectrum. Skipping chi-squared fitting. \n")
 				else:
 					print("Performing chi-squared fitting on the final profiles... \n")
