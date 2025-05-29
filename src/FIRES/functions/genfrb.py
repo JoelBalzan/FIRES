@@ -63,28 +63,6 @@ def subtract_baseline_offpulse(dspec, off_start, off_end, axis=-1, method='media
 	return dspec - baseline
 
 
-def find_offpulse_window(profile, window_frac=0.2):
-	"""
-	Find the off-pulse window in a 1D profile by sliding a window and finding the minimum mean.
-	Args:
-		profile: 1D numpy array (summed over frequency and Stokes if needed)
-		window_frac: Fractional width of the window (e.g., 0.2 for 20%)
-	Returns:
-		off_start_frac, off_end_frac: Start and end as fractions (0-1)
-	"""
-	nbin = len(profile)
-	win_size = int(window_frac * nbin)
-	min_mean = np.inf
-	min_start = 0
-	for i in range(nbin - win_size + 1):
-		win_mean = np.mean(profile[i:i+win_size])
-		if win_mean < min_mean:
-			min_mean = win_mean
-			min_start = i
-	off_start_frac = min_start / nbin
-	off_end_frac = (min_start + win_size) / nbin
-	return off_start_frac, off_end_frac
-
 
 def select_offpulse_window(profile):
 	"""
@@ -412,8 +390,8 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		width_range     = width_range,
 		phase_window    = phase_window,
 		freq_window     = freq_window,
-  
 	)
+ 
 	if np.any(gauss_params[-1,:] != 0.0) and len(scatter_ms) > 1:
 		print("WARNING: The last row of gauss_params is not all zeros, but scatter_ms has more than one value.")
 		print("Please pick only one.")
@@ -448,7 +426,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			plot_multiple_frb=False,
 			**dspec_params._asdict()
 		)
-		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, gdict['RM'])
+		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, gdict)
 		frb_data = simulated_frb(
 			frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, obs_params, dspec
 		)
@@ -467,7 +445,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 				)
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump(frb_data, frb_file)
-		return frb_data, noise_spec, gdict['RM']
+		return frb_data, noise_spec, gdict
 
 	else:
 		if data != None:

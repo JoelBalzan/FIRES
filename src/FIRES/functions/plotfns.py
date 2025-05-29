@@ -206,7 +206,6 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			- dspec: Dynamic spectrum data
 			- freq_mhz: Frequency array in MHz
 			- time_ms: Time array in ms
-			- RM: Rotation measure
 			- save: Boolean indicating whether to save the plot
 			- fname: Filename for saving the plot
 			- outdir: Output directory for saving the plot
@@ -257,7 +256,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
 	axs[1].tick_params(axis='x', direction='in')  # Make x-ticks stick up
 	axs[1].text(
-		0.98, 0.40,  # x, y in axes fraction coordinates (adjust y as needed)
+		0.80, 0.95,  # x, y in axes fraction coordinates (adjust y as needed)
 		r"$\tau = %.2f$ ms" % scatter[0],
 		ha='right', va='top',
 		transform=axs[1].transAxes,

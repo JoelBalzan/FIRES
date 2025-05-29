@@ -56,12 +56,12 @@ class PlotMode:
 		self.plot_func = plot_func
 		self.requires_multiple_frb = requires_multiple_frb
 		
-def basic_plots(fname, frb_data, mode, RM, out_dir, save, figsize, scatter_ms, show_plots):
+def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, scatter_ms, show_plots):
 
 	ds_data = frb_data
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
-		ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, RM
+		ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, gdict
 	)
 
 	iquvt = ts_data.iquvt
@@ -72,7 +72,7 @@ def basic_plots(fname, frb_data, mode, RM, out_dir, save, figsize, scatter_ms, s
 		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
-		estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+		estimate_rm(ds_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
 	elif mode == "lvpa":
@@ -80,7 +80,7 @@ def basic_plots(fname, frb_data, mode, RM, out_dir, save, figsize, scatter_ms, s
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
 	elif mode == "RM":
-		estimate_rm(corr_dspec, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
+		estimate_rm(ds_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	else:
 		print(f"Invalid mode: {mode} \n")
 
@@ -252,7 +252,7 @@ def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	freq_mhz = freq_mhz[slc]
 	dspec = dspec[:, slc, :]
 		
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict['RM'])
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict)
 	
 	peak_index = np.argmax(ts_data.iquvt[0])
 	phase_slc = get_phase_window_indices(phase_window, peak_index)
@@ -272,7 +272,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	Supports plotting multiple run groups for comparison.
 	"""
 	# If frb_dict contains multiple runs, plot each on the same axes
-	yvar = r"\frac{\mathrm{Var}(\psi)}{\mathrm{Var}(\psi_\mathrm{micro})}"
+	yvar = r"\mathcal{R}_\psi"
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		cmap = plt.get_cmap('Set1')
@@ -352,7 +352,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	time_ms = time_ms[phase_slc]
 	dspec = dspec[:, freq_slc, phase_slc]
 	
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict['RM'])
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict)
  
 	iquvt = ts_data.iquvt
 	I = ts_data.iquvt[0]
