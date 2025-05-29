@@ -17,6 +17,8 @@ import numpy as np
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.optimize import curve_fit
 
 from FIRES.functions.basicfns import process_dynspec, median_percentiles, weight_dict
 from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
@@ -119,7 +121,7 @@ def set_scale_and_labels(ax, scale, xvar, yvar, x=None):
             ax.set_xlim(x[0], x[-1])
     elif scale == "logx":
         ax.set_xscale('log')
-        ax.set_xlabel(rf"${xvar}$")
+        ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
         ax.set_ylabel(rf"${yvar}$")
         if x is not None:
             x_positive = x[x > 0]
@@ -128,14 +130,14 @@ def set_scale_and_labels(ax, scale, xvar, yvar, x=None):
     elif scale == "logy":
         ax.set_yscale('log')
         ax.set_xlabel(rf"${xvar}$")
-        ax.set_ylabel(rf"${yvar}$")
+        ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
         if x is not None:
             ax.set_xlim(x[0], x[-1])
     elif scale == "loglog":
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlabel(rf"${xvar}$")
-        ax.set_ylabel(rf"${yvar}$")
+        ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
+        ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
         if x is not None:
             x_positive = x[x > 0]
             if len(x_positive) > 0:
@@ -160,6 +162,63 @@ def is_multi_run_dict(frb_dict):
 	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'scatter_ms' keys).
 	"""
 	return all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
+
+
+def fit_and_plot(ax, x, y, fit, label=None, color='black'):
+	"""
+	Fit the data (x, y) with the specified function and plot the fit on ax.
+	fit: list or tuple, e.g. ['power'], ['exp'], or ['power', '3']
+	"""
+	if fit is None:
+		return
+	
+	x = np.asarray(x)
+	y = np.asarray(y)
+
+	# Parse fit argument
+	if isinstance(fit, str):
+		fit = [fit]
+	fit_type = fit[0].lower()
+	fit_degree = int(fit[1]) if len(fit) > 1 and fit_type == "power" else None
+
+	# Define fit functions
+	def power_law(x, a, n):
+		return a * x**n
+
+	def power_fixed_n(x, a):
+		return a * x**fit_degree
+
+	def exponential(x, a, b):
+		return a * np.exp(b * x)
+
+	# Remove NaNs and non-positive x for log fits
+	mask = np.isfinite(x) & np.isfinite(y)
+	if fit_type in ("power",) and fit_degree is None:
+		mask &= (x > 0)
+	x_fit = x[mask]
+	y_fit = y[mask]
+
+	# Choose and fit the model
+	try:
+		if fit_type == "power" and fit_degree is not None:
+			popt, _ = curve_fit(power_fixed_n, x_fit, y_fit, p0=[np.max(y_fit)])
+			y_model = power_fixed_n(x_fit, *popt)
+			fit_label = f"Fit: $a x^{fit_degree}$"
+		elif fit_type == "power":
+			popt, _ = curve_fit(power_law, x_fit, y_fit, p0=[np.max(y_fit), 1])
+			y_model = power_law(x_fit, *popt)
+			fit_label = f"Fit: $a x^n$\n($n$={popt[1]:.2f})"
+		elif fit_type == "exp":
+			popt, _ = curve_fit(exponential, x_fit, y_fit, p0=[np.max(y_fit), -1])
+			y_model = exponential(x_fit, *popt)
+			fit_label = f"Fit: $a e^{{b x}}$\n($b$={popt[1]:.2f})"
+		else:
+			print(f"Unknown fit type: {fit_type}")
+			return
+		# Plot the fit
+		ax.plot(x_fit, y_model, '--', color = color, label=fit_label if label is None else label)
+	except Exception as e:
+		print(f"Fit failed: {e}")
 
 
 def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
@@ -207,13 +266,13 @@ def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window):
+def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit):
 	"""
 	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
 	Supports plotting multiple run groups for comparison.
 	"""
 	# If frb_dict contains multiple runs, plot each on the same axes
-	yvar = r"\frac{\mathrm{Var}(\psi_\mathrm{env})}{\mathrm{Var}(\psi_\mathrm{micro})}"
+	yvar = r"\frac{\mathrm{Var}(\psi)}{\mathrm{Var}(\psi_\mathrm{micro})}"
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		cmap = plt.get_cmap('Set1')
@@ -235,8 +294,10 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
-			ax.plot(x, med_vals, label=run, color=color)#, linestyle=linestyle)
+			ax.plot(x, med_vals, label=run, color=color, linewidth=2)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, color=color, alpha=0.1)
+			if fit is not None:
+				fit_and_plot(ax, x, med_vals, fit, label=None, color=color)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
@@ -264,9 +325,12 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	upper = np.array([upper for (lower, upper) in percentile_errs])
  
 	fig, ax = plt.subplots(figsize=figsize)
-	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$')
+	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$', linewidth=2)
 	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
+	if fit is not None:
+		fit_and_plot(ax, x, med_vals, fit, label=None)
+		ax.legend()
 	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 	if show_plots:
 		plt.show()
@@ -315,7 +379,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	return lfrac, lfrac_err
 
 
-def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window):
+def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit):
 	yvar = r"L/I"
 	# If frb_dict contains multiple job IDs, plot each on the same axes
 	if is_multi_run_dict(frb_dict):
@@ -339,6 +403,8 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			
 			ax.plot(x, med_vals, label=run, color=color)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, alpha=0.2, color=color)
+			if fit is not None:
+				fit_and_plot(ax, x, med_vals, fit, label=None)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
@@ -368,6 +434,9 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$')
 	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
+	if fit is not None:
+		fit_and_plot(ax, x, med_vals, fit, label=None)
+		ax.legend()
 	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 	if show_plots:
 		plt.show()
