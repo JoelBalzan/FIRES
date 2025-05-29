@@ -72,7 +72,7 @@ The `FIRES` command-line tool provides several options to customize the simulati
 | `--show-plots`            | `bool`     | `True`            | Display plots. Set to `False` to disable plot display.                                              |
 | `--figsize`               | `float`    | `[6, 10]`         | Figure size for plots (width and height in inches).                                                 |
 | `--plot-scale`            | `str`      | `linear`          | Scale for plots: `linear`, `logx`, `logy`, `loglog`.                                                |
-| `--fit`                   | `str`      | `None`            | Fit function for the data. Options: `power`, `exp`, or `power N`.                                   |
+| `--fit`                   | `str`      | `None`            | Fit function for pa_var and lfrac plots. Options: `power`, `exp`, or `power N`.                     |
 | `--phase-window`          | `str`      | `all`             | Window for plotting PA variance and L fraction: `first`, `last`, or `all`.                          |
 | `--freq-window`           | `str`      | `all`             | Frequency window for plotting PA variance and L fraction: `1q`, `2q`, `3q`, `4q`, or `all`.         |
 | `--tz`                    | `float`    | `[0, 0]`          | Time zoom range for plots (start and end in ms).                                                    |

@@ -159,7 +159,7 @@ def main():
 		nargs="+",
 		default=None,
 		metavar="",
-		help="Fit function for the data. Options: 'power', 'exp', or 'power N' for power law of degree N."
+		help="Fit function for pa_var and lfrac plots. Options: 'power', 'exp', or 'power N' for power law of degree N."
 	)
 	# Simulation Options
 	parser.add_argument(
