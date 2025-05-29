@@ -15,6 +15,7 @@
 import numpy as np
 import argparse
 import os
+import sys
 import traceback
 from inspect import signature
 
@@ -34,6 +35,10 @@ def str2bool(v):
 		raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def main():
+	if len(sys.argv) == 1:
+		print("FIRES: The Fast, Intense Radio Emission Simulator \n")
+		print("For help, run:\n  FIRES --help\n")
+		return
 
 	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarization effects",
 								  formatter_class=argparse.RawTextHelpFormatter)
@@ -45,7 +50,9 @@ def main():
 		nargs="+",  # Allow multiple values
 		default=[0.0],
 		metavar="",
-		help="Scattering time scale(s) in milliseconds. Provide one or more values. Use '(start,stop,step)' for ranges. Default is 0.0 ms."
+		help=("Scattering time scale(s) in milliseconds.\n"
+        	  "Provide one or more values. Use '(start,stop,step)' for ranges. Default is 0.0 ms."
+           )
 	)
 	parser.add_argument(
 		"-f", "--frb_identifier",
@@ -88,7 +95,9 @@ def main():
 		default="all",
 		choices=['first', 'last', 'all'],
 		metavar="",
-		help="Window for plotting PA variance and L fraction. Choose 'first', 'last', or 'all'. Default is 'all'."
+		help=("Window for plotting PA variance and L fraction.\n"
+  			 "Choose 'first', 'last', or 'all'. Default is 'all'."
+      )
 	)
 	parser.add_argument(
 		"--freq-window",
@@ -96,7 +105,9 @@ def main():
 		default="all",
 		choices=['1q', '2q', '3q', '4q', 'all'],
 		metavar="",
-		help="Frequency window for plotting PA variance and L fraction. Choose '1q', '2q', '3q', '4q', or 'all'. Default is 'all'."
+		help=("Frequency window for plotting PA variance and L fraction.\n"
+  			  "Choose '1q', '2q', '3q', '4q', or 'all'. Default is 'all'."
+      )
 	)
 	# Plotting Options
 	parser.add_argument(
@@ -107,14 +118,14 @@ def main():
 		metavar="",
 		help=(
 			"Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
-			"  'iquv': Plot the Stokes parameters (I, Q, U, V) as a function of time or frequency.\n"
-			"  'lvpa': Plot linear polarization (L) and polarization angle (PA) as a function of time.\n"
-			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) as a function of time.\n"
-			"  'RM': Plot the rotation measure (RM) as a function of frequency from RM-Tools.\n"
-			"  'pa_var': Plot the variance of the polarization angle (PA) as a function of scattering timescale.\n"
-			"  'lfrac': Plot the fraction of linear polarization (L/I) as a function of time.\n"
+			"  'iquv': Plot the Stokes parameters (I, Q, U, V) vs. time or frequency.\n"
+			"  'lvpa': Plot linear polarization (L) and polarization angle (PA) vs. time.\n"
+			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) vs. time.\n"
+			"  'RM': Plot the rotation measure (RM) vs. frequency from RM-Tools.\n"
+			"  'pa_var': Plot the variance of the polarization angle (PA) vs. scattering timescale or microshot variation.\n"
+			"  'lfrac': Plot the fraction of linear polarization (L/I) vs. scattering timescale or microshot variation.\n"
 			"Pass 'None' to disable all plots."
-	)
+		)
 	)
 	parser.add_argument(
 		"-s", "--save-plots",
@@ -158,7 +169,9 @@ def main():
 		default='gauss',
 		choices=['gauss', 'mgauss'],
 		metavar="",
-		help="Mode for generating pulses: 'gauss' or 'mgauss'. Default is 'gauss.' 'mgauss' will generate a gaussian distribution of gaussian micro-shots."
+		help=("Mode for generating pulses: 'gauss' or 'mgauss'. Default is 'gauss.'\n"
+        	  "'mgauss' will generate a gaussian distribution of gaussian micro-shots."
+           )
 	)
 	parser.add_argument(
 		"--n-gauss",
@@ -187,7 +200,9 @@ def main():
 		type=float,
 		default=[10, 50],
 		metavar=("MIN_WIDTH", "MAX_WIDTH"),
-		help="Minimum and maximum percentage of the main gaussian width to generate micro-gaussians with if --mode is 'mgauss.'"
+		help=("Minimum and maximum percentage of the main gaussian width to generate micro-gaussians.\n"
+  			  "Only if --mode mgauss is set. Default is [10, 50] percent of the main gaussian width."
+     )
 	)
 	parser.add_argument(
 		"--snr",
