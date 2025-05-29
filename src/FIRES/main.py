@@ -290,7 +290,7 @@ def main():
 
 				)
 		else:
-			FRB, noisespec, RM = generate_frb(
+			FRB, noisespec, gdict = generate_frb(
 				data         = args.data,
 				scatter_ms   = args.scattering_timescale_ms,
 				frb_id       = args.frb_identifier,
@@ -345,7 +345,7 @@ def main():
 						"fname"       : args.frb_identifier,
 						"frb_data"    : FRB if 'FRB' in locals() else None,
 						"mode"        : plot_mode,
-						"RM"          : RM if 'RM' in locals() else None,
+						"gdict"       : gdict if 'gdict' in locals() else None,
 						"frb_dict"    : frb_dict if 'frb_dict' in locals() else None,
 						"out_dir"     : data_directory,
 						"save"        : args.save_plots,

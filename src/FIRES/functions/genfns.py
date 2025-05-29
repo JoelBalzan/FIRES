@@ -168,6 +168,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     band_width_mhz  = gdict['band_width_mhz']
 
     num_main_gauss = len(t0) 
+    if len(num_micro_gauss) != num_main_gauss:
+        raise ValueError(f"Number of main Gaussians ({num_main_gauss}) does not match number of micro-Gaussians ({len(num_micro_gauss)})")
 
 
     if microvar is not None:
@@ -194,7 +196,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     for g in range(num_main_gauss):
         for _ in range(num_micro_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
-            var_peak_amp        = peak_amp[g] + np.random.normal(0, peak_amp_var * peak_amp[g])
+            var_peak_amp        = (peak_amp[g] + np.random.normal(0, peak_amp_var * peak_amp[g])) / num_micro_gauss[g]
             # Sample the micro width as a percentage of the main width
             var_width_ms        = width_ms[g] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
             var_t0              = np.random.normal(loc=t0[g], scale=width_ms[g])
@@ -252,9 +254,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
             # Accumulate the contributions from the current micro-shot
             dynspec += temp_dynspec
     
-    # Normalize dynspec so its maximum matches the intended envelope peak
-    if np.nanmax(dynspec[0]) > 0 and np.nanmax(peak_amp) > 0:
-        dynspec *= np.nanmax(peak_amp) / np.nanmax(dynspec[0])
+
 
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
