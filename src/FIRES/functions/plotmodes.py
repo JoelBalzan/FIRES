@@ -56,12 +56,12 @@ class PlotMode:
 		self.plot_func = plot_func
 		self.requires_multiple_frb = requires_multiple_frb
 		
-def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, scatter_ms, show_plots):
+def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, show_plots):
 
 	ds_data = frb_data
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
-		ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, gdict
+		ds_data.dynamic_spectrum, ds_data.freq_mhz, ds_data.time_ms, gdict, tau_ms
 	)
 
 	iquvt = ts_data.iquvt
@@ -69,14 +69,14 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, scatter_ms
 	freq_mhz = ds_data.freq_mhz
 
 	if mode == "all":
-		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
+		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
 		estimate_rm(ds_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots)
 	elif mode == "lvpa":
-		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, scatter_ms, show_plots)
+		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots)
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots)
 	elif mode == "RM":
@@ -159,7 +159,7 @@ def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="al
 
 def is_multi_run_dict(frb_dict):
 	"""
-	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'scatter_ms' keys).
+	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'tau_ms' keys).
 	"""
 	return all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
 
@@ -246,13 +246,13 @@ def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
 	return x, xvar
 
 
-def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
+def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
 	
 	slc = get_freq_window_indices(freq_mhz, freq_window)
 	freq_mhz = freq_mhz[slc]
 	dspec = dspec[:, slc, :]
 		
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict, tau_ms)
 	
 	peak_index = np.argmax(ts_data.iquvt[0])
 	phase_slc = get_phase_window_indices(phase_window, peak_index)
@@ -341,7 +341,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		print(f"Saved figure to {name}  \n")
 
 
-def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
+def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
 	
 	freq_slc = get_freq_window_indices(freq_mhz, freq_window)
 	
@@ -352,7 +352,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	time_ms = time_ms[phase_slc]
 	dspec = dspec[:, freq_slc, phase_slc]
 	
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict, tau_ms)
  
 	iquvt = ts_data.iquvt
 	I = ts_data.iquvt[0]
@@ -390,12 +390,12 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			color = cmap(idx % cmap.N)
 			#linestyle = linestyles[idx % len(linestyles)]
    
-			scatter_ms = np.array(subdict["scatter_ms"])
+			tau_ms = np.array(subdict["tau_ms"])
 			yvals = subdict["yvals"]
 			errs = subdict["errs"]
 			width_ms = np.array(subdict["width_ms"])[0]
 			
-			med_vals, percentile_errs = median_percentiles(yvals, scatter_ms)
+			med_vals, percentile_errs = median_percentiles(yvals, tau_ms)
 			x, xvar = get_x_and_xvar(subdict, width_ms, plot_type="lfrac")
 			
 			lower = np.array([lower for (lower, upper) in percentile_errs])
@@ -419,12 +419,12 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		return
 
 	# Otherwise, plot as usual (single job)
-	scatter_ms = frb_dict["scatter_ms"]
+	tau_ms = frb_dict["tau_ms"]
 	yvals = frb_dict["yvals"]
 	errs = frb_dict["errs"]
 	width_ms = frb_dict["width_ms"]
  
-	med_vals, percentile_errs = median_percentiles(yvals, scatter_ms)
+	med_vals, percentile_errs = median_percentiles(yvals, tau_ms)
 	x, xvar = get_x_and_xvar(frb_dict, width_ms, plot_type="lfrac")
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])

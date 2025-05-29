@@ -271,7 +271,7 @@ def main():
    
 			frb_dict = generate_frb(
 				data         = args.data,
-				scatter_ms   = args.scattering_timescale_ms,
+				tau_ms   = args.scattering_timescale_ms,
 				frb_id       = args.frb_identifier,
 				obs_file     = obs_params_path,
 				gauss_file   = gauss_params_path,
@@ -292,7 +292,7 @@ def main():
 		else:
 			FRB, noisespec, gdict = generate_frb(
 				data         = args.data,
-				scatter_ms   = args.scattering_timescale_ms,
+				tau_ms   = args.scattering_timescale_ms,
 				frb_id       = args.frb_identifier,
 				obs_file     = obs_params_path,
 				gauss_file   = gauss_params_path,
@@ -350,7 +350,7 @@ def main():
 						"out_dir"     : data_directory,
 						"save"        : args.save_plots,
 						"figsize"     : args.figsize,
-						"scatter_ms"  : args.scattering_timescale_ms,
+						"tau_ms"  : args.scattering_timescale_ms,
 						"show_plots"  : args.show_plots,
 						"scale"       : args.plot_scale,
 						"phase_window": args.phase_window,

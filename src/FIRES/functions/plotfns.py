@@ -238,7 +238,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
 	axs[0].set_ylabel("PA (degrees)")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
-	axs[0].tick_params(axis='x', direction='in')  # Make x-ticks stick up
+	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	
 	# Plot the mean across all frequency channels (axis 0)
 	axs[1].plot(time_ms, np.nansum(dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
@@ -254,7 +254,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].legend(loc='upper right')
 	axs[1].set_ylabel("Flux Density (arb.)")
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
-	axs[1].tick_params(axis='x', direction='in')  # Make x-ticks stick up
+	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	axs[1].text(
 		0.80, 0.95,  # x, y in axes fraction coordinates (adjust y as needed)
 		r"$\tau = %.2f$ ms" % scatter[0],
