@@ -141,7 +141,6 @@ def est_profiles(dynspec, time_ms, noise_stokes, width_ms):
 		- frb_time_series: Object containing time profiles
 	"""
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
-		print(noise_stokes)
 
 		iquvt = np.nansum(dynspec, axis=1)
   	
