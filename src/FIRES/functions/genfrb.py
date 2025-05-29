@@ -186,9 +186,9 @@ def load_multiple_data(data):
 
 	for file_name in sorted(file_names):
 		with open(file_name, "rb") as f:
-			scatter_ms, yvals, errs, width, var_PA_microshots = pkl.load(f)
+			tau_ms, yvals, errs, width, var_PA_microshots = pkl.load(f)
 
-		for s_val in scatter_ms:
+		for s_val in tau_ms:
 			if s_val not in all_vals:
 				all_vals[s_val] = []
 				all_errs[s_val] = []
@@ -198,7 +198,7 @@ def load_multiple_data(data):
 			all_errs[s_val].extend(errs[s_val])
 			all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
 
-		all_scatter_ms.extend(scatter_ms)
+		all_scatter_ms.extend(tau_ms)
 		all_widths.append(width)
 
 	return all_scatter_ms, all_vals, all_errs, all_widths, all_var_PA_microshots
@@ -318,7 +318,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 	return var, xvals, result_err, PA_microshot
 
 
-def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
+def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
 				 obs_file, gauss_file, snr, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
@@ -383,7 +383,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		seed            = seed,
 		nseed           = nseed,
 		snr             = snr,
-		tau_ms          = scatter_ms,
+		tau_ms          = tau_ms,
 		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
 		num_micro_gauss = n_gauss,
@@ -392,8 +392,8 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		freq_window     = freq_window,
 	)
  
-	if np.any(gauss_params[-1,:] != 0.0) and len(scatter_ms) > 1:
-		print("WARNING: The last row of gauss_params is not all zeros, but scatter_ms has more than one value.")
+	if np.any(gauss_params[-1,:] != 0.0) and len(tau_ms) > 1:
+		print("WARNING: The last row of gauss_params is not all zeros, but tau_ms has more than one value.")
 		print("Please pick only one.")
 		sys.exit(1)
   
@@ -409,8 +409,8 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)
-			if scatter_ms > 0:
-				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, scatter_ms, scatter_idx, ref_freq)
+			if tau_ms > 0:
+				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, scatter_idx, ref_freq)
 			if snr > 0:
 				width_ds = gdict['width_ms'][1] / t_res
 				if band_width_mhz[1] == 0.:
@@ -426,12 +426,12 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			plot_multiple_frb=False,
 			**dspec_params._asdict()
 		)
-		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, gdict)
+		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, gdict, tau_ms)
 		frb_data = simulated_frb(
-			frb_id, freq_mhz, time_ms, scatter_ms, scatter_idx, gauss_params, obs_params, dspec
+			frb_id, freq_mhz, time_ms, tau_ms, scatter_idx, gauss_params, obs_params, dspec
 		)
 		if save:
-			tau = f"{scatter_ms:.2f}"
+			tau = f"{tau_ms:.2f}"
 			if mode == 'gauss':
 				out_file = (
 					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
@@ -458,7 +458,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 		else:
 			if np.all(gauss_params[-1,:] == 0.0):
 				# Create a list of tasks (timescale, realization)
-				tasks = list(product(scatter_ms, range(nseed)))
+				tasks = list(product(tau_ms, range(nseed)))
 				xname = 'tau_ms'
 
 				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
@@ -509,7 +509,7 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 						# Aggregate results by timescale
 			   # Determine the correct set of keys for aggregation
 			if 'tau_ms' in xname or np.all(gauss_params[-1,:] == 0.0):
-				xvals = scatter_ms
+				xvals = tau_ms
 			
 			yvals = {s_val: [] for s_val in xvals}
 			errs = {s_val: [] for s_val in xvals}
@@ -534,10 +534,10 @@ def generate_frb(data, scatter_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, 
 			
 		if save:
 			# Create a descriptive filename
-			if len(scatter_ms) > 1:
-				tau = f"{scatter_ms[0]:.2f}-{scatter_ms[-1]:.2f}"
+			if len(tau_ms) > 1:
+				tau = f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}"
 			else:
-				tau = f"{scatter_ms[0]:.2f}"
+				tau = f"{tau_ms[0]:.2f}"
 				
 			out_file = (
 				f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
