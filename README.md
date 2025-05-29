@@ -7,7 +7,7 @@ FIRES is a Python package designed to simulate Fast Radio Bursts (FRBs) with sca
 - **Customizable FRB Simulations**:
   - Simulate FRBs with adjustable scattering timescales.
   - Generate Gaussian or micro-shot pulse distributions.
-  - Add noise and apply scattering effects.
+  - Add snr and apply scattering effects.
 
 - **Data Output**:
   - Save simulated FRB data to disk in `.pkl` format.
@@ -75,7 +75,7 @@ The `FIRES` command-line tool provides several options to customize the simulati
 | `--n-gauss`               | `int`      | **Required**      | Number of micro-shots for each main Gaussian (required if `--mode` is `mgauss`).                 |
 | `--seed`                  | `int`      | `None`            | Seed for repeatability in `mgauss` mode.                                                           |
 | `--sg-width`              | `float`    | `[10, 50]`        | Min and max percentage of the main Gaussian width for micro-shots.                               |
-| `--noise`                 | `float`    | `0`               | Noise scale in the dynamic spectrum.                                                               |
+| `--snr`                 | `float`    | `0`               | Noise scale in the dynamic spectrum.                                                               |
 | `--scatter`               | `flag`     | `True`            | Enable scattering.                                                                                 |
 | `--no-scatter`            | `flag`     | `False`           | Disable scattering. Overrides `--scatter`.                                                        |
 | `--figsize`               | `float`    | `[6, 10]`         | Figure size for plots (width and height in inches).                                                |
@@ -85,7 +85,7 @@ The `FIRES` command-line tool provides several options to customize the simulati
 #### Basic Simulation
 1. Simulate an FRB with a scattering timescale of 0.5 ms:
     ```bash
-    FIRES -t 0.5 --mode gauss --noise 2
+    FIRES -t 0.5 --mode gauss --snr 2
     ```
 
 2. Simulate an FRB with micro-shots:
