@@ -350,7 +350,7 @@ def main():
 						"out_dir"     : data_directory,
 						"save"        : args.save_plots,
 						"figsize"     : args.figsize,
-						"tau_ms"  : args.tau_ms,
+						"tau_ms"  	  : args.tau_ms,
 						"show_plots"  : args.show_plots,
 						"scale"       : args.plot_scale,
 						"phase_window": args.phase_window,
