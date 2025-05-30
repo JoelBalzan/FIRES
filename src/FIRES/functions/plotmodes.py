@@ -38,7 +38,7 @@ plt.rcParams['xtick.labelsize'] = 14
 plt.rcParams['ytick.labelsize'] = 14
 plt.rcParams['text.usetex'] 	= True
 
-#colour blind friendly
+#colour blind friendly: https://gist.github.com/thriveth/8560036
 colours = {
     'purple':  '#984ea3',
     'red':     '#e41a1c',
