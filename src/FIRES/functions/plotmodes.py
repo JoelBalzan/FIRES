@@ -38,6 +38,18 @@ plt.rcParams['xtick.labelsize'] = 14
 plt.rcParams['ytick.labelsize'] = 14
 plt.rcParams['text.usetex'] 	= True
 
+#colour blind friendly
+colours = {
+    'purple':  '#984ea3',
+    'red':     '#e41a1c',
+    'blue':    '#377eb8', 
+    'green':   '#4daf4a',
+    'pink':    '#f781bf',
+    'brown':   '#a65628',
+    'orange':  '#ff7f00',
+    'gray':    '#999999',
+    'yellow':  '#dede00'
+} 
 
 
 class PlotMode:
@@ -275,10 +287,10 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	yvar = r"\mathcal{R}_\psi"
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		cmap = plt.get_cmap('Set1')
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
+		colour_list = list(colours.values())
 		for idx, (run, subdict) in enumerate(frb_dict.items()):
-			color = cmap(idx % cmap.N)
+			colour = colour_list[idx % len(colour_list)]
 			#linestyle = linestyles[idx % len(linestyles)]
 			
 			xvals = np.array(subdict["xvals"])
@@ -294,10 +306,10 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
-			ax.plot(x, med_vals, label=run, color=color, linewidth=2)#, linestyle=linestyle)
-			ax.fill_between(x, lower, upper, color=color, alpha=0.1)
+			ax.plot(x, med_vals, label=run, color=colour, linewidth=2)#, linestyle=linestyle)
+			ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
 			if fit is not None:
-				fit_and_plot(ax, x, med_vals, fit, label=None, color=color)
+				fit_and_plot(ax, x, med_vals, fit, label=None, color=colour)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
@@ -384,13 +396,13 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	# If frb_dict contains multiple job IDs, plot each on the same axes
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		cmap = plt.get_cmap('Set1')
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
-		for idx, (run, subdict) in frb_dict.items():
-			color = cmap(idx % cmap.N)
+		colour_list = list(colours.values())
+		for idx, (run, subdict) in enumerate(frb_dict.items()):
+			colour = colour_list[idx % len(colour_list)]
 			#linestyle = linestyles[idx % len(linestyles)]
    
-			tau_ms = np.array(subdict["tau_ms"])
+			tau_ms = np.array(subdict["xvals"])
 			yvals = subdict["yvals"]
 			errs = subdict["errs"]
 			width_ms = np.array(subdict["width_ms"])[0]
@@ -401,8 +413,8 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
-			ax.plot(x, med_vals, label=run, color=color)#, linestyle=linestyle)
-			ax.fill_between(x, lower, upper, alpha=0.2, color=color)
+			ax.plot(x, med_vals, label=run, color=colour)#, linestyle=linestyle)
+			ax.fill_between(x, lower, upper, alpha=0.2, color=colour)
 			if fit is not None:
 				fit_and_plot(ax, x, med_vals, fit, label=None)
 		ax.grid(True, linestyle='--', alpha=0.6)
