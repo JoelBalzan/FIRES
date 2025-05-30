@@ -85,7 +85,6 @@ The `FIRES` command-line tool provides several options to customize the simulati
 | `--snr`                   | `float`    | `0`               | Signal-to-noise ratio (SNR) for the simulated FRB. Set to `0` for no noise.                         |
 | `--scatter`               | `flag`     | `True`            | Enable scattering.                                                                                  |
 | `--no-scatter`            | `flag`     | `False`           | Disable scattering. Overrides `--scatter`.                                                          |
-| `--ncpu`                  | `int`      | `1`               | Number of CPUs to use for parallel processing.                                                      |
 | `--chi2-fit`              | `flag`     | `False`           | Enable chi-squared fitting on the final profiles.                                                   |
 | `--data`                  | `str`      | `None`            | Path to data file. Use existing data instead of generating new.                                     |
 
