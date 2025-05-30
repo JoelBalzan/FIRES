@@ -236,7 +236,7 @@ def main():
 
 	# Parse scattering timescale(s)
 	scattering_timescales = np.array([])
-	for value in args.scattering_timescale_ms:
+	for value in args.tau_ms:
 		if value.startswith("(") and value.endswith(")"):  # Check if it's a range
 			try:
 				start, stop, step = map(float, value.strip("()").split(","))
@@ -247,9 +247,9 @@ def main():
 		else:
 			scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
 
-	args.scattering_timescale_ms = scattering_timescales
+	args.tau_ms = scattering_timescales
 
-	print(f"Scattering timescales: {args.scattering_timescale_ms} ms \n")
+	print(f"Scattering timescales: {args.tau_ms} ms \n")
 
 	# Set the global data directory variable
 	global data_directory
@@ -271,7 +271,7 @@ def main():
    
 			frb_dict = generate_frb(
 				data         = args.data,
-				tau_ms   = args.scattering_timescale_ms,
+				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
 				obs_file     = obs_params_path,
 				gauss_file   = gauss_params_path,
@@ -292,7 +292,7 @@ def main():
 		else:
 			FRB, noisespec, gdict = generate_frb(
 				data         = args.data,
-				tau_ms   = args.scattering_timescale_ms,
+				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
 				obs_file     = obs_params_path,
 				gauss_file   = gauss_params_path,
@@ -350,7 +350,7 @@ def main():
 						"out_dir"     : data_directory,
 						"save"        : args.save_plots,
 						"figsize"     : args.figsize,
-						"tau_ms"  : args.scattering_timescale_ms,
+						"tau_ms"  : args.tau_ms,
 						"show_plots"  : args.show_plots,
 						"scale"       : args.plot_scale,
 						"phase_window": args.phase_window,
