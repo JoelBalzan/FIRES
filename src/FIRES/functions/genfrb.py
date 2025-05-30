@@ -171,39 +171,6 @@ def load_data(data, freq_mhz, time_ms):
 	return dspec, freq_mhz, time_ms
 
 
-def load_multiple_data(data):
-	# store aggregated data
-	all_scatter_ms        = []
-	all_vals              = {}
-	all_errs              = {}
-	all_var_PA_microshots = {}
-	all_widths            = []
-
-	file_names = [file_name for file_name in sorted(os.listdir(data)) if file_name.endswith(".pkl")]
-
-	# Sort file_names by the number after the first '_'
-	file_names.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
-
-	for file_name in sorted(file_names):
-		with open(file_name, "rb") as f:
-			tau_ms, yvals, errs, width, var_PA_microshots = pkl.load(f)
-
-		for s_val in tau_ms:
-			if s_val not in all_vals:
-				all_vals[s_val] = []
-				all_errs[s_val] = []
-				all_var_PA_microshots[s_val] = []
-
-			all_vals[s_val].extend(yvals[s_val])
-			all_errs[s_val].extend(errs[s_val])
-			all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
-
-		all_scatter_ms.extend(tau_ms)
-		all_widths.append(width)
-
-	return all_scatter_ms, all_vals, all_errs, all_widths, all_var_PA_microshots
-
-
 def load_multiple_data_grouped(data):
     """
     Group simulation outputs by prefix (everything before the first underscore).
@@ -225,6 +192,7 @@ def load_multiple_data_grouped(data):
         all_var_PA_microshots = {}
         all_widths            = []
         xname                 = None
+        dspec_params          = None  # <-- Add this line
 
         for file_name in files:
             with open(os.path.join(data, file_name), "rb") as f:
@@ -236,6 +204,7 @@ def load_multiple_data_grouped(data):
             errs              = obj["errs"]
             width             = obj["width_ms"]
             var_PA_microshots = obj["var_PA_microshots"]
+            dspec_params 	  = obj["dspec_params"]
 
             for s_val in xvals:
                 if s_val not in all_yvals:
@@ -256,6 +225,7 @@ def load_multiple_data_grouped(data):
             'errs'             : all_errs,
             'width_ms'         : all_widths,
             'var_PA_microshots': all_var_PA_microshots,
+            'dspec_params'     : dspec_params,  # <-- Add this line
         }
 
     return all_results
@@ -528,8 +498,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 				"errs"             : errs,
 				"width_ms"         : gdict['width_ms'],
 				"var_PA_microshots": var_PA_microshots,
-				#"seed": seed,
-				#"nseed": nseed
+				"dspec_params"	   : dspec_params
 			}
 			
 		if save:
