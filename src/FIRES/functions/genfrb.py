@@ -15,6 +15,7 @@
 import os
 import sys
 import inspect
+import functools
 
 import numpy as np
 import pickle as pkl
@@ -22,6 +23,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from itertools import product
+from concurrent.futures import ProcessPoolExecutor
 
 from FIRES.functions.basicfns import scatter_stokes_chan, add_noise_to_dynspec
 from FIRES.functions.genfns import *
@@ -170,63 +172,63 @@ def load_data(data, freq_mhz, time_ms):
 
 
 def load_multiple_data_grouped(data):
-	"""
-	Group simulation outputs by prefix (everything before the first underscore).
-	Returns a dictionary: {prefix: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
-	"""
-	from collections import defaultdict
+    """
+    Group simulation outputs by prefix (everything before the first underscore).
+    Returns a dictionary: {prefix: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
+    """
+    from collections import defaultdict
 
-	file_names = [f for f in sorted(os.listdir(data)) if f.endswith(".pkl")]
-	groups = defaultdict(list)
-	for fname in file_names:
-		prefix = fname.split('_')[0]
-		groups[prefix].append(fname)
+    file_names = [f for f in sorted(os.listdir(data)) if f.endswith(".pkl")]
+    groups = defaultdict(list)
+    for fname in file_names:
+        prefix = fname.split('_')[0]
+        groups[prefix].append(fname)
 
-	all_results = {}
-	for prefix, files in groups.items():
-		all_xvals             = []
-		all_yvals             = {}
-		all_errs              = {}
-		all_var_PA_microshots = {}
-		all_widths            = []
-		xname                 = None
-		dspec_params          = None  # <-- Add this line
+    all_results = {}
+    for prefix, files in groups.items():
+        all_xvals             = []
+        all_yvals             = {}
+        all_errs              = {}
+        all_var_PA_microshots = {}
+        all_widths            = []
+        xname                 = None
+        dspec_params          = None  # <-- Add this line
 
-		for file_name in files:
-			with open(os.path.join(data, file_name), "rb") as f:
-				obj = pkl.load(f)
-			if xname is None:
-				xname = obj.get("xname", "unknown")
-			xvals             = obj["xvals"]
-			yvals             = obj["yvals"]
-			errs              = obj["errs"]
-			width             = obj["width_ms"]
-			var_PA_microshots = obj["var_PA_microshots"]
-			dspec_params 	  = obj["dspec_params"]
+        for file_name in files:
+            with open(os.path.join(data, file_name), "rb") as f:
+                obj = pkl.load(f)
+            if xname is None:
+                xname = obj.get("xname", "unknown")
+            xvals             = obj["xvals"]
+            yvals             = obj["yvals"]
+            errs              = obj["errs"]
+            width             = obj["width_ms"]
+            var_PA_microshots = obj["var_PA_microshots"]
+            dspec_params 	  = obj["dspec_params"]
 
-			for s_val in xvals:
-				if s_val not in all_yvals:
-					all_yvals[s_val] = []
-					all_errs[s_val] = []
-					all_var_PA_microshots[s_val] = []
-				all_yvals[s_val].extend(yvals[s_val])
-				all_errs[s_val].extend(errs[s_val])
-				all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+            for s_val in xvals:
+                if s_val not in all_yvals:
+                    all_yvals[s_val] = []
+                    all_errs[s_val] = []
+                    all_var_PA_microshots[s_val] = []
+                all_yvals[s_val].extend(yvals[s_val])
+                all_errs[s_val].extend(errs[s_val])
+                all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
 
-			all_xvals.extend(xvals)
-			all_widths.append(width)
+            all_xvals.extend(xvals)
+            all_widths.append(width)
 
-		all_results[prefix] = {
-			'xname'            : xname,
-			'xvals'            : all_xvals,
-			'yvals'            : all_yvals,
-			'errs'             : all_errs,
-			'width_ms'         : all_widths,
-			'var_PA_microshots': all_var_PA_microshots,
-			'dspec_params'     : dspec_params,  # <-- Add this line
-		}
+        all_results[prefix] = {
+            'xname'            : xname,
+            'xvals'            : all_xvals,
+            'yvals'            : all_yvals,
+            'errs'             : all_errs,
+            'width_ms'         : all_widths,
+            'var_PA_microshots': all_var_PA_microshots,
+            'dspec_params'     : dspec_params,  # <-- Add this line
+        }
 
-	return all_results
+    return all_results
 
 
 def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
@@ -279,17 +281,15 @@ def process_task(task, xname, mode, plot_mode, **params):
 	# Always provide dspec as the first argument
 	process_func_args = {'dspec': dspec}
 	# Add other allowed arguments from params if present
-	process_func_args.update({
-	    k: (var if k == "tau_ms" else params[k])
-	    for k in allowed_args if k in params and k != 'dspec'
-	})
+	process_func_args.update({k: params[k] for k in allowed_args if k in params and k != 'dspec'})
+
 	xvals, result_err = process_func(**process_func_args)
 
 	return var, xvals, result_err, PA_microshot
 
 
 def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
-				 obs_file, gauss_file, snr, plot_mode, phase_window, freq_window):
+				 obs_file, gauss_file, snr, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -430,19 +430,20 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 				# Create a list of tasks (timescale, realization)
 				tasks = list(product(tau_ms, range(nseed)))
 				xname = 'tau_ms'
-			
-				# SERIAL EXECUTION (no ProcessPoolExecutor)
-				results = []
-				for task in tqdm(tasks, total=len(tasks), desc="Processing scattering timescales and realisations"):
-					result = process_task(
-						task,
+
+				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+					partial_func = functools.partial(
+						process_task,
 						xname=xname,
 						mode=mode,
 						plot_mode=plot_mode,
 						**dspec_params._asdict()
 					)
-					results.append(result)
-			else:
+
+					results = list(tqdm(executor.map(partial_func, tasks),
+										total=len(tasks),
+										desc="Processing scattering timescales and realisations"))
+			else:			
 				if np.count_nonzero(gauss_params[-1, :]) > 1:
 					print("More than one value in the last row of gauss_params is not 0:")
 					print(gauss_params[-1, :])
@@ -455,27 +456,28 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 					step = gauss_params[-1, col_idx]
 					# Ensure inclusion of the final point
 					xvals = np.arange(start, stop + step/2, step)
-			
+
 					# Find the corresponding key in gdict for col_idx
 					gdict_keys = list(gdict.keys())
 					xname = gdict_keys[col_idx] + '_var'
-			
+	 
 					tasks = list(product(xvals, range(nseed)))
-			
-					# SERIAL EXECUTION (no ProcessPoolExecutor)
-					results = []
-					for task in tqdm(tasks, total=len(tasks), desc=f"Processing {xname} variance and realisations"):
-						result = process_task(
-							task,
+
+					with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+						partial_func = functools.partial(
+							process_task,
 							xname=xname,
 							mode=mode,
 							plot_mode=plot_mode,
 							**dspec_params._asdict()
-						)
-						results.append(result)
+						)					
+	  
+						results = list(tqdm(executor.map(partial_func, tasks),
+											total=len(tasks),
+											desc=f"Processing {xname} variance and realisations"))
 
-			# Aggregate results by timescale
-			# Determine the correct set of keys for aggregation
+						# Aggregate results by timescale
+			   # Determine the correct set of keys for aggregation
 			if 'tau_ms' in xname or np.all(gauss_params[-1,:] == 0.0):
 				xvals = tau_ms
 			
