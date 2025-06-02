@@ -218,6 +218,13 @@ def main():
 		help="Signal-to-noise ratio (SNR) for the simulated FRB. Default is 0 (no snr)."
 	)
 	parser.add_argument(
+		"--ncpu",
+		type=int,
+		default=1,
+		metavar="",
+		help="Number of CPUs to use for parallel processing. Default is 1 (single-threaded)."
+	)
+	parser.add_argument(
 		"--chi2-fit",
 		action="store_true",
 		help="Enable chi-squared fitting on the final profiles (plot!=pa_var)."
@@ -260,6 +267,8 @@ def main():
 	
 	try:
 		if selected_plot_mode.requires_multiple_frb:
+			print(f"Processing with {args.ncpu} threads. \n")
+   
 			frb_dict = generate_frb(
 				data         = args.data,
 				tau_ms   	 = args.tau_ms,
@@ -274,6 +283,7 @@ def main():
 				nseed        = args.nseed,
 				width_range  = args.mg_width,
 				snr          = args.snr,
+				n_cpus       = args.ncpu,
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
 				freq_window  = args.freq_window,
@@ -294,6 +304,7 @@ def main():
 				nseed        = None,
 				width_range  = args.mg_width,
 				snr          = args.snr,
+				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
 				freq_window  = None,
