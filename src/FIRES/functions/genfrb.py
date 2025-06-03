@@ -190,42 +190,48 @@ def load_multiple_data_grouped(data):
         all_yvals             = {}
         all_errs              = {}
         all_var_PA_microshots = {}
-        all_widths            = []
+        all_dspecs            = {}
         xname                 = None
-        dspec_params          = None  # <-- Add this line
+        dspec_params          = None
+        plot_mode             = None
 
         for file_name in files:
             with open(os.path.join(data, file_name), "rb") as f:
                 obj = pkl.load(f)
             if xname is None:
                 xname = obj.get("xname", "unknown")
+            if plot_mode is None:
+                plot_mode = obj.get("plot_mode", None)
             xvals             = obj["xvals"]
             yvals             = obj["yvals"]
             errs              = obj["errs"]
-            width             = obj["width_ms"]
             var_PA_microshots = obj["var_PA_microshots"]
-            dspec_params 	  = obj["dspec_params"]
+            dspec_params      = obj["dspec_params"]
+            dspecs            = obj.get("dspecs", None)
 
             for s_val in xvals:
                 if s_val not in all_yvals:
                     all_yvals[s_val] = []
                     all_errs[s_val] = []
                     all_var_PA_microshots[s_val] = []
+                    all_dspecs[s_val] = []
                 all_yvals[s_val].extend(yvals[s_val])
                 all_errs[s_val].extend(errs[s_val])
                 all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+                if dspecs is not None:
+                    all_dspecs[s_val].extend(dspecs[s_val])
 
             all_xvals.extend(xvals)
-            all_widths.append(width)
 
         all_results[prefix] = {
             'xname'            : xname,
             'xvals'            : all_xvals,
             'yvals'            : all_yvals,
             'errs'             : all_errs,
-            'width_ms'         : all_widths,
             'var_PA_microshots': all_var_PA_microshots,
-            'dspec_params'     : dspec_params,  # <-- Add this line
+            'dspec_params'     : dspec_params,
+            'plot_mode'        : plot_mode,
+            'dspecs'           : all_dspecs,
         }
 
     return all_results
@@ -288,7 +294,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 
 	xvals, result_err = process_func(**process_func_args)
 
-	return var, xvals, result_err, PA_microshot
+	return dspec, var, xvals, result_err, PA_microshot
 
 
 def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -482,12 +488,14 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			# Aggregate results by timescale
 			if 'tau_ms' in xname or np.all(gauss_params[-1,:] == 0.0):
 				xvals = tau_ms
-			
+
+			dspecs            = {s_val: [] for s_val in xvals}
 			yvals             = {s_val: [] for s_val in xvals}
 			errs              = {s_val: [] for s_val in xvals}
 			var_PA_microshots = {s_val: [] for s_val in xvals}
 			
-			for var, val, err, PA_microshot in results:
+			for dspec, var, val, err, PA_microshot in results:
+				dspecs[var].append(dspec)
 				yvals[var].append(val)
 				errs[var].append(err)
 				var_PA_microshots[var].append(PA_microshot)
@@ -496,23 +504,25 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			frb_dict = {
 				"xname"            : xname,
 				"xvals"            : xvals,
+				"plot_mode"        : plot_mode,
 				"yvals"            : yvals,
 				"errs"             : errs,
 				"var_PA_microshots": var_PA_microshots,
-				"dspec_params"	   : dspec_params
+				"dspec_params"     : dspec_params
 			}
 			
 		if save:
 			# Create a descriptive filename
-			if len(tau_ms) > 1:
-				tau = f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}"
+			if xname == 'tau_ms':
+				xvals = f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}" if len(tau_ms) > 1 else f"{tau_ms[0]:.2f}"
 			else:
-				tau = f"{tau_ms[0]:.2f}"
+				xvals = f"{xvals[0]:.2f}-{xvals[-1]:.2f}" if len(xvals) > 1 else f"{xvals[0]:.2f}"
+
+			tau = f"{tau_ms[0]:.2f}" if len(tau_ms) == 1 else f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}"
 				
 			out_file = (
-				f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
-				f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
-				f"gauss_{n_gauss[0]}_seed_{seed}_nseed_{nseed}_PA_{gdict['PA'][-1]:.2f}.pkl"
+				f"{out_dir}{frb_id}_plot_{plot_mode}_xname_{xname}_xvals_{xvals}_mode_{mode}_sc_{tau}_"
+				f"freq_{freq_window}_phase_{phase_window}.pkl"
 			)
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump((frb_dict), frb_file)
