@@ -281,7 +281,10 @@ def process_task(task, xname, mode, plot_mode, **params):
 	# Always provide dspec as the first argument
 	process_func_args = {'dspec': dspec}
 	# Add other allowed arguments from params if present
-	process_func_args.update({k: params[k] for k in allowed_args if k in params and k != 'dspec'})
+	process_func_args.update({
+    	k: (var if k == "tau_ms" else params[k])
+    	for k in allowed_args if k in params and k != 'dspec'
+	})
 
 	xvals, result_err = process_func(**process_func_args)
 
