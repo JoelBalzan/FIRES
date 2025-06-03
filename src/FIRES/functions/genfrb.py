@@ -288,7 +288,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 
 	xvals, result_err = process_func(**process_func_args)
 
-	return var, xvals, result_err, PA_microshot
+	return dspec, var, xvals, result_err, PA_microshot
 
 
 def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -484,11 +484,13 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			if 'tau_ms' in xname or np.all(gauss_params[-1,:] == 0.0):
 				xvals = tau_ms
 			
+			dspecs = {s_val: [] for s_val in xvals}
 			yvals = {s_val: [] for s_val in xvals}
 			errs = {s_val: [] for s_val in xvals}
 			var_PA_microshots = {s_val: [] for s_val in xvals}
 			
-			for var, val, err, PA_microshot in results:
+			for dspec, var, val, err, PA_microshot in results:
+				dspecs[var].append(dspec)
 				yvals[var].append(val)
 				errs[var].append(err)
 				var_PA_microshots[var].append(PA_microshot)
@@ -496,6 +498,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 	
 			frb_dict = {
 				"xname"            : xname,
+				"dspecs"           : dspecs,
 				"xvals"            : xvals,
 				"yvals"            : yvals,
 				"errs"             : errs,
