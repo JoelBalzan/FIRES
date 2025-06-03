@@ -479,13 +479,12 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 											total=len(tasks),
 											desc=f"Processing {xname} variance and realisations"))
 
-						# Aggregate results by timescale
-			   # Determine the correct set of keys for aggregation
+			# Aggregate results by timescale
 			if 'tau_ms' in xname or np.all(gauss_params[-1,:] == 0.0):
 				xvals = tau_ms
 			
-			yvals = {s_val: [] for s_val in xvals}
-			errs = {s_val: [] for s_val in xvals}
+			yvals             = {s_val: [] for s_val in xvals}
+			errs              = {s_val: [] for s_val in xvals}
 			var_PA_microshots = {s_val: [] for s_val in xvals}
 			
 			for var, val, err, PA_microshot in results:
