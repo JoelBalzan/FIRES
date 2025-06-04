@@ -14,28 +14,12 @@
 
 import os
 
-import matplotlib as mpl
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from matplotlib.lines import Line2D
-import numpy as np
+
 from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
-
-
-
-#	--------------------------	Set plot parameters	---------------------------
-plt.rcParams['pdf.fonttype']	= 42
-plt.rcParams['ps.fonttype'] 	= 42
-plt.rcParams['savefig.dpi'] 	= 600
-plt.rcParams['font.size'] 		= 14  
-plt.rcParams['font.family']		= 'sans-serif'  
-plt.rcParams['axes.labelsize']  = 16    
-plt.rcParams['axes.titlesize']  = 18    
-plt.rcParams['legend.fontsize'] = 12   
-plt.rcParams['xtick.labelsize'] = 12   
-plt.rcParams['ytick.labelsize'] = 12   
-plt.rcParams['text.usetex'] 	= True
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -219,15 +203,15 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	# Linear polarisation
 	I = np.nansum(dspec[0,:], axis=0)  # Stokes I
 	L = np.sqrt(np.nansum(dspec[1,:], axis=0)**2 + np.nansum(dspec[2,:], axis=0)**2)
+	Q = np.nansum(dspec[1,:], axis=0)  # Stokes Q
+	U = np.nansum(dspec[2,:], axis=0)  # Stokes U
 	V = np.nansum(dspec[3,:], axis=0)  # Stokes V
 	
 	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(figsize[0], figsize[1]))
 	fig.subplots_adjust(hspace=0.)
 
-	
-
 	# Plot polarisation angle
-	#axs[0].errorbar(time_ms, tsdata.phits, tsdata.dphits, c='black', marker="*", markersize=1, lw=0.5, capsize=1, zorder=8)
+	#axs[0].errorbar(time_ms, phits, yerr = dphits, c='black', markersize=1, lw=0.5, capsize=1, zorder=8)
 	axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
 	axs[0].fill_between(
 		time_ms, 
@@ -238,16 +222,16 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		label='Error'
 	)
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
-	axs[0].set_ylabel("PA (degrees)")
+	axs[0].set_ylabel("PA [deg.]")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
+	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	
 	# Plot the mean across all frequency channels (axis 0)
 	axs[1].plot(time_ms, I, markersize=2 ,label='I', color='Black')
-	#axs[1].plot(time_ms, np.nansum(np.sqrt(dspec[1,:]**2 + dspec[2,:]**2) + dspec[3,:]**2, axis=0))
 	axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
-	#axs[1].plot(time_ms, np.nansum(dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
-	#axs[1].plot(time_ms, np.nansum(dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
+	#axs[1].plot(time_ms, Q, markersize=2, label='Q', color='Green')
+	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
 	axs[1].plot(time_ms, V, markersize=2, label='V', color='Blue')
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
@@ -265,7 +249,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		r"$\tau = %.2f$ ms" % tau_ms[0],
 		ha='right', va='top',
 		transform=axs[1].transAxes,
-		fontsize=12, color='black',
+		color='black',
 		bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.2')
 	)
 
@@ -280,8 +264,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[2].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
 		vmin=vmin, vmax=vmax, 
   		extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
-	axs[2].set_xlabel("Time (ms)")
-	axs[2].set_ylabel("Frequency (MHz)")
+	axs[2].set_xlabel("Time [ms]")
+	axs[2].set_ylabel("Freq. [MHz]")
 	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
 
 
