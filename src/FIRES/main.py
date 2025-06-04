@@ -264,7 +264,6 @@ def main():
 		raise ValueError(f"Invalid plot mode: {args.plot[0]}")
 	selected_plot_mode = plot_modes[args.plot[0]]
 
-	print(args.save_plots, args.show_plots)
 	
 	try:
 		if selected_plot_mode.requires_multiple_frb:
