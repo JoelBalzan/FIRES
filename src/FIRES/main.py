@@ -130,7 +130,7 @@ def main():
 	parser.add_argument(
 		"-s", "--save-plots",
 		action="store_true",
-		help="Save plots to disk. Default is False."
+		help="Save plots to disk."
 	)
 	parser.add_argument(
 		"--show-plots",
@@ -264,6 +264,7 @@ def main():
 		raise ValueError(f"Invalid plot mode: {args.plot[0]}")
 	selected_plot_mode = plot_modes[args.plot[0]]
 
+	print(args.save_plots, args.show_plots)
 	
 	try:
 		if selected_plot_mode.requires_multiple_frb:
@@ -333,7 +334,7 @@ def main():
 		print(f"Simulation completed. \n")
 
 		# Call the plotting function if required
-		if args.plot != 'None':
+		if args.plot != 'None' and args.save_plots == True and args.show_plots == True:
 			for plot_mode in args.plot:
 				try:
 					plot_mode_obj = plot_modes.get(plot_mode)
@@ -368,7 +369,8 @@ def main():
 				except Exception as e:
 					print(f"An error occurred while plotting '{plot_mode}': {e} \n")
 					traceback.print_exc()
-
+		else:
+			print("No plots generated. \n")
 	except Exception as e:
 		print(f"An error occurred during the simulation: {e} \n")
 		traceback.print_exc()
