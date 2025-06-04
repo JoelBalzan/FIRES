@@ -40,15 +40,15 @@ plt.rcParams['text.usetex'] 	= True
 
 #colour blind friendly: https://gist.github.com/thriveth/8560036
 colours = {
-    'purple':  '#984ea3',
-    'red':     '#e41a1c',
-    'blue':    '#377eb8', 
-    'green':   '#4daf4a',
-    'pink':    '#f781bf',
-    'brown':   '#a65628',
-    'orange':  '#ff7f00',
-    'gray':    '#999999',
-    'yellow':  '#dede00'
+	'purple':  '#984ea3',
+	'red':     '#e41a1c',
+	'blue':    '#377eb8', 
+	'green':   '#4daf4a',
+	'pink':    '#f781bf',
+	'brown':   '#a65628',
+	'orange':  '#ff7f00',
+	'gray':    '#999999',
+	'yellow':  '#dede00'
 } 
 
 
@@ -121,39 +121,39 @@ def get_phase_window_indices(phase_window, peak_index):
 
 
 def set_scale_and_labels(ax, scale, xvar, yvar, x=None):
-    """
-    Set axis scales and labels for the plot based on the scale argument.
-    Optionally set x-limits using the provided x array.
-    """
-    if scale == "linear":
-        ax.set_yscale('linear')
-        ax.set_xlabel(rf"${xvar}$")
-        ax.set_ylabel(rf"${yvar}$")
-        if x is not None:
-            ax.set_xlim(x[0], x[-1])
-    elif scale == "logx":
-        ax.set_xscale('log')
-        ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
-        ax.set_ylabel(rf"${yvar}$")
-        if x is not None:
-            x_positive = x[x > 0]
-            if len(x_positive) > 0:
-                ax.set_xlim(x_positive[0], x_positive[-1])
-    elif scale == "logy":
-        ax.set_yscale('log')
-        ax.set_xlabel(rf"${xvar}$")
-        ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
-        if x is not None:
-            ax.set_xlim(x[0], x[-1])
-    elif scale == "loglog":
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
-        ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
-        if x is not None:
-            x_positive = x[x > 0]
-            if len(x_positive) > 0:
-                ax.set_xlim(x_positive[0], x_positive[-1])
+	"""
+	Set axis scales and labels for the plot based on the scale argument.
+	Optionally set x-limits using the provided x array.
+	"""
+	if scale == "linear":
+		ax.set_yscale('linear')
+		ax.set_xlabel(rf"${xvar}$")
+		ax.set_ylabel(rf"${yvar}$")
+		if x is not None:
+			ax.set_xlim(x[0], x[-1])
+	elif scale == "logx":
+		ax.set_xscale('log')
+		ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
+		ax.set_ylabel(rf"${yvar}$")
+		if x is not None:
+			x_positive = x[x > 0]
+			if len(x_positive) > 0:
+				ax.set_xlim(x_positive[0], x_positive[-1])
+	elif scale == "logy":
+		ax.set_yscale('log')
+		ax.set_xlabel(rf"${xvar}$")
+		ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
+		if x is not None:
+			ax.set_xlim(x[0], x[-1])
+	elif scale == "loglog":
+		ax.set_xscale('log')
+		ax.set_yscale('log')
+		ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
+		ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
+		if x is not None:
+			x_positive = x[x > 0]
+			if len(x_positive) > 0:
+				ax.set_xlim(x_positive[0], x_positive[-1])
 
 
 def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -296,7 +296,13 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			xvals = np.array(subdict["xvals"])
 			yvals = subdict["yvals"]
 			var_PA_microshots = subdict["var_PA_microshots"]
-			width_ms = np.array(subdict["dspec_params"]["gdict"]["width_ms"])[0]
+			dspec_params = subdict["dspec_params"]
+			if isinstance(dspec_params, dict):
+				width_ms = np.array(dspec_params["gdict"]["width_ms"])[0]
+			elif isinstance(dspec_params, tuple):
+				width_ms = np.array(dspec_params[0]["width_ms"])[0]
+			else:
+				raise TypeError("dspec_params is not a dict or tuple")
 			
 			yvals = weight_dict(xvals, yvals, var_PA_microshots)
 			med_vals, percentile_errs = median_percentiles(yvals, xvals)
@@ -405,7 +411,13 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			tau_ms = np.array(subdict["xvals"])
 			yvals = subdict["yvals"]
 			errs = subdict["errs"]
-			width_ms = np.array(subdict["dspec_params"]["gdict"]["width_ms"])[0]
+			dspec_params = subdict["dspec_params"]
+			if isinstance(dspec_params, dict):
+				width_ms = np.array(dspec_params["gdict"]["width_ms"])[0]
+			elif isinstance(dspec_params, tuple):
+				width_ms = np.array(dspec_params[0]["width_ms"])[0]
+			else:
+				raise TypeError("dspec_params is not a dict or tuple")
 			
 			med_vals, percentile_errs = median_percentiles(yvals, tau_ms)
 			x, xvar = get_x_and_xvar(subdict, width_ms, plot_type="lfrac")
