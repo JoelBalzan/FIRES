@@ -172,69 +172,78 @@ def load_data(data, freq_mhz, time_ms):
 
 
 def load_multiple_data_grouped(data):
-    """
-    Group simulation outputs by prefix (everything before the first underscore).
-    Returns a dictionary: {prefix: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
-    """
-    from collections import defaultdict
+	"""
+	Group simulation outputs by prefix (everything before the first underscore).
+	Returns a dictionary: {prefix: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
+	"""
+	from collections import defaultdict
+	import re
 
-    file_names = [f for f in sorted(os.listdir(data)) if f.endswith(".pkl")]
-    groups = defaultdict(list)
-    for fname in file_names:
-        prefix = fname.split('_')[0]
-        groups[prefix].append(fname)
+	def extract_sc_value(fname):
+		# Match _sc_<number> or _sc_<number>-<number>
+		m = re.search(r'_sc_([0-9.]+)(?:-([0-9.]+))?', fname)
+		if m:
+			return float(m.group(1))
+		return float('inf')  # Put files without _sc_ at the end
+	
+	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
+	file_names = sorted(file_names, key=extract_sc_value)
+	groups = defaultdict(list)
+	for fname in file_names:
+		prefix = fname.split('_')[0]
+		groups[prefix].append(fname)
 
-    all_results = {}
-    for prefix, files in groups.items():
-        all_xvals             = []
-        all_yvals             = {}
-        all_errs              = {}
-        all_var_PA_microshots = {}
-        all_dspecs            = {}
-        xname                 = None
-        dspec_params          = None
-        plot_mode             = None
+	all_results = {}
+	for prefix, files in groups.items():
+		all_xvals             = []
+		all_yvals             = {}
+		all_errs              = {}
+		all_var_PA_microshots = {}
+		all_dspecs            = {}
+		xname                 = None
+		dspec_params          = None
+		plot_mode             = None
 
-        for file_name in files:
-            with open(os.path.join(data, file_name), "rb") as f:
-                obj = pkl.load(f)
-            if xname is None:
-                xname = obj.get("xname", "unknown")
-            if plot_mode is None:
-                plot_mode = obj.get("plot_mode", None)
-            xvals             = obj["xvals"]
-            yvals             = obj["yvals"]
-            errs              = obj["errs"]
-            var_PA_microshots = obj["var_PA_microshots"]
-            dspec_params      = obj["dspec_params"]
-            dspecs            = obj.get("dspecs", None)
+		for file_name in files:
+			with open(os.path.join(data, file_name), "rb") as f:
+				obj = pkl.load(f)
+			if xname is None:
+				xname = obj.get("xname", "unknown")
+			if plot_mode is None:
+				plot_mode = obj.get("plot_mode", None)
+			xvals             = obj["xvals"]
+			yvals             = obj["yvals"]
+			errs              = obj["errs"]
+			var_PA_microshots = obj["var_PA_microshots"]
+			dspec_params      = obj["dspec_params"]
+			dspecs            = obj.get("dspecs", None)
 
-            for s_val in xvals:
-                if s_val not in all_yvals:
-                    all_yvals[s_val] = []
-                    all_errs[s_val] = []
-                    all_var_PA_microshots[s_val] = []
-                    all_dspecs[s_val] = []
-                all_yvals[s_val].extend(yvals[s_val])
-                all_errs[s_val].extend(errs[s_val])
-                all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
-                if dspecs is not None:
-                    all_dspecs[s_val].extend(dspecs[s_val])
+			for s_val in xvals:
+				if s_val not in all_yvals:
+					all_yvals[s_val] = []
+					all_errs[s_val] = []
+					all_var_PA_microshots[s_val] = []
+					all_dspecs[s_val] = []
+				all_yvals[s_val].extend(yvals[s_val])
+				all_errs[s_val].extend(errs[s_val])
+				all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+				if dspecs is not None:
+					all_dspecs[s_val].extend(dspecs[s_val])
 
-            all_xvals.extend(xvals)
+			all_xvals.extend(xvals)
 
-        all_results[prefix] = {
-            'xname'            : xname,
-            'xvals'            : all_xvals,
-            'yvals'            : all_yvals,
-            'errs'             : all_errs,
-            'var_PA_microshots': all_var_PA_microshots,
-            'dspec_params'     : dspec_params,
-            'plot_mode'        : plot_mode,
-            'dspecs'           : all_dspecs,
-        }
+		all_results[prefix] = {
+			'xname'            : xname,
+			'xvals'            : all_xvals,
+			'yvals'            : all_yvals,
+			'errs'             : all_errs,
+			'var_PA_microshots': all_var_PA_microshots,
+			'dspec_params'     : dspec_params,
+			'plot_mode'        : plot_mode,
+			'dspecs'           : all_dspecs,
+		}
 
-    return all_results
+	return all_results
 
 
 def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
@@ -288,8 +297,8 @@ def process_task(task, xname, mode, plot_mode, **params):
 	process_func_args = {'dspec': dspec}
 	# Add other allowed arguments from params if present
 	process_func_args.update({
-    	k: (var if k == "tau_ms" else params[k])
-    	for k in allowed_args if k in params and k != 'dspec'
+		k: (var if k == "tau_ms" else params[k])
+		for k in allowed_args if k in params and k != 'dspec'
 	})
 
 	xvals, result_err = process_func(**process_func_args)
