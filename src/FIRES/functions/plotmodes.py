@@ -29,13 +29,13 @@ from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estim
 plt.rcParams['pdf.fonttype']	= 42
 plt.rcParams['ps.fonttype'] 	= 42
 plt.rcParams['savefig.dpi'] 	= 600
-plt.rcParams['font.size'] 		= 18
+plt.rcParams['font.size'] 		= 14
 plt.rcParams['font.family']		= 'sans-serif'  
-plt.rcParams['axes.labelsize']  = 20
-plt.rcParams['axes.titlesize']  = 18
+plt.rcParams['axes.labelsize']  = 14
+plt.rcParams['axes.titlesize']  = 14
 plt.rcParams['legend.fontsize'] = 12
-plt.rcParams['xtick.labelsize'] = 14
-plt.rcParams['ytick.labelsize'] = 14
+plt.rcParams['xtick.labelsize'] = 12
+plt.rcParams['ytick.labelsize'] = 12
 plt.rcParams['text.usetex'] 	= True
 
 #colour blind friendly: https://gist.github.com/thriveth/8560036
