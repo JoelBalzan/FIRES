@@ -164,7 +164,6 @@ def load_data(data, freq_mhz, time_ms):
 	else:
 		raise ValueError("Unsupported data type for 'data'")
 
-	#start, stop = find_offpulse_window(np.nansum(dspec[0], axis=0), window_frac=0.2)
 	start, stop = select_offpulse_window(np.nansum(dspec[0], axis=0))
 	dspec = subtract_baseline_offpulse(dspec, start, stop, axis=-1, method='mean')
 
