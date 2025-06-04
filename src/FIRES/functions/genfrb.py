@@ -518,7 +518,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 				"var_PA_microshots": var_PA_microshots,
 				"dspec_params"     : dspec_params
 			}
-			
+
 		if save:
 			# Create a descriptive filename
 			if xname == 'tau_ms':
@@ -529,7 +529,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			tau = f"{tau_ms[0]:.2f}" if len(tau_ms) == 1 else f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}"
 				
 			out_file = (
-				f"{out_dir}{frb_id}_plot_{plot_mode}_xname_{xname}_xvals_{xvals}_mode_{mode}_sc_{tau}_"
+				f"{out_dir}{frb_id}_plot_{plot_mode.name}_xname_{xname}_xvals_{xvals}_mode_{mode}_sc_{tau}_"
 				f"freq_{freq_window}_phase_{phase_window}.pkl"
 			)
 			with open(out_file, 'wb') as frb_file:
