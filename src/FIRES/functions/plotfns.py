@@ -199,7 +199,7 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, scatter, show_plots):
+def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -217,12 +217,14 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	dphits = tsdata.dphits
  
 	# Linear polarisation
+	I = np.nansum(dspec[0,:], axis=0)  # Stokes I
 	L = np.sqrt(np.nansum(dspec[1,:], axis=0)**2 + np.nansum(dspec[2,:], axis=0)**2)
-
+	V = np.nansum(dspec[3,:], axis=0)  # Stokes V
 	
 	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(figsize[0], figsize[1]))
 	fig.subplots_adjust(hspace=0.)
 
+	
 
 	# Plot polarisation angle
 	#axs[0].errorbar(time_ms, tsdata.phits, tsdata.dphits, c='black', marker="*", markersize=1, lw=0.5, capsize=1, zorder=8)
@@ -241,23 +243,26 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	
 	# Plot the mean across all frequency channels (axis 0)
-	axs[1].plot(time_ms, np.nansum(dspec[0,:], axis=0), markersize=2 ,label='I', color='Black')
+	axs[1].plot(time_ms, I, markersize=2 ,label='I', color='Black')
 	#axs[1].plot(time_ms, np.nansum(np.sqrt(dspec[1,:]**2 + dspec[2,:]**2) + dspec[3,:]**2, axis=0))
 	axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
 	#axs[1].plot(time_ms, np.nansum(dspec[1,:], axis=0), markersize=2, label='Q', color='Green')
 	#axs[1].plot(time_ms, np.nansum(dspec[2,:], axis=0), markersize=2, label='U', color='Orange')
-	axs[1].plot(time_ms, np.nansum(dspec[3,:], axis=0), markersize=2, label='V', color='Blue')
+	axs[1].plot(time_ms, V, markersize=2, label='V', color='Blue')
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
- 
+
+	w95_ms, left, right = boxcar_width_w95(I, time_ms, frac=0.95)
+	axs[1].axvspan(time_ms[left], time_ms[right], color='lightskyblue', alpha=0.2, zorder=0)
+
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 	axs[1].legend(loc='upper right')
 	axs[1].set_ylabel("Flux Density (arb.)")
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	axs[1].text(
-		0.80, 0.95,  # x, y in axes fraction coordinates (adjust y as needed)
-		r"$\tau = %.2f$ ms" % scatter[0],
+		0.80, 0.95,  # x, y in axes fraction coordinates 
+		r"$\tau = %.2f$ ms" % tau_ms[0],
 		ha='right', va='top',
 		transform=axs[1].transAxes,
 		fontsize=12, color='black',
@@ -265,11 +270,9 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	)
 
 
-	# Plot the 2D scattered dynamic spectrum
-	## Calculate the mean and standard deviation of the dynamic spectrum
 	mn = np.mean(dspec[0])
 	std = np.std(dspec[0])
-	## Set appropriate minimum and maximum values for imshow (Thanks to Dr. M. Lower)
+
 	#vmin = mn - 3*std
 	#vmax = mn + 7*std
 	vmin = np.nanpercentile(dspec[0], 1)
@@ -286,8 +289,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + f"_{scatter[0]}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{scatter[0]}" + "_dynspec.pdf")))
+		fig.savefig(os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec.pdf")))
 
 
 	#	----------------------------------------------------------------------------------------------------------

@@ -71,20 +71,16 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 	Returns:
 		- res_rmtool: List containing RM, RM error, polarization angle, and polarization angle error
 	"""
-	
-	windows = find_onpulse_matched_filter(np.nansum(dynspec[0], axis=0), width_bins=10, snr_thresh=3)
-	if not windows:
-		raise ValueError("No on-pulse window found for RM estimation.")
-	left_window, right_window = windows[0]
-		
-   
+
+	w95_ms, left, right = boxcar_width_w95(np.nansum(dynspec[0], axis=0), time_ms, frac=0.95)
+
 	# Calculate the mean spectra for each Stokes parameter
-	ispec   = np.nansum(dynspec[0, :, left_window:right_window], axis=1)
-	vspec   = np.nansum(dynspec[3, :, left_window:right_window], axis=1)
-	qspec0  = np.nansum(dynspec[1, :, left_window:right_window], axis=1)
-	uspec0  = np.nansum(dynspec[2, :, left_window:right_window], axis=1)
-	noispec = noisespec / np.sqrt(float(right_window + 1 - left_window))
-		
+	ispec   = np.nansum(dynspec[0, :, left:right], axis=1)
+	vspec   = np.nansum(dynspec[3, :, left:right], axis=1)
+	qspec0  = np.nansum(dynspec[1, :, left:right], axis=1)
+	uspec0  = np.nansum(dynspec[2, :, left:right], axis=1)
+	noispec = noisespec / np.sqrt(float(right + 1 - left))
+
 
 	iquv  = (ispec, qspec0, uspec0, vspec)
 	eiquv = (noispec[0], noispec[1], noispec[2], noispec[3])
@@ -127,7 +123,7 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	return new_dynspec
 
 
-def est_profiles(dynspec, time_ms, noise_stokes, width_ms, tau_ms):
+def est_profiles(dynspec, time_ms, noise_stokes):
 	"""
 	Estimate time profiles.
 	Inputs:
@@ -149,10 +145,10 @@ def est_profiles(dynspec, time_ms, noise_stokes, width_ms, tau_ms):
 		threshold = 0.05 * np.nanmax(I)
 		mask = I <= threshold
   
-		itsub = np.where(mask, np.nan, iquvt[0])
-		qtsub = np.where(mask, np.nan, iquvt[1])
-		utsub = np.where(mask, np.nan, iquvt[2])
-		vtsub = np.where(mask, np.nan, iquvt[3])
+		itsub = iquvt[0]
+		qtsub = iquvt[1]
+		utsub = iquvt[2]
+		vtsub = iquvt[3]
 		
 		# Calculate the linear polarization intensity
 		lts  = np.sqrt(utsub ** 2 + qtsub ** 2)			
@@ -189,28 +185,11 @@ def est_profiles(dynspec, time_ms, noise_stokes, width_ms, tau_ms):
 		dphits[invalid_pa] = np.nan
   
 		# Mask PA outside all signal windows using on-pulse finder
-		try:
-			t_res = time_ms[1] - time_ms[0]
-			# Support width_ms as scalar or list/array
-			if isinstance(width_ms, (list, np.ndarray)):
-				windows = []
-				for w in width_ms:
-					observed_width = np.sqrt(float(w)**2 + float(tau_ms)**2)
-					width_bins = int(np.round(observed_width / t_res))
-					windows.extend(find_onpulse_matched_filter(I, width_bins=width_bins, snr_thresh=1))
-			else:
-				observed_width = np.sqrt(float(width_ms)**2 + float(tau_ms)**2)
-				width_bins = int(np.round(observed_width / t_res))
-				windows = find_onpulse_matched_filter(I, width_bins=width_bins, snr_thresh=1)
-			pa_mask = np.zeros_like(phits, dtype=bool)
-			for left, right in windows:
-				pa_mask[left:right+1] = True
-			phits[~pa_mask] = np.nan
-			dphits[~pa_mask] = np.nan
-		except Exception as e:
-			print(f"Warning: find_onpulse_matched_filter failed: {e}")
-			phits[:] = np.nan
-			dphits[:] = np.nan
+		w95_ms, left, right = boxcar_width_w95(I, time_ms, frac=0.95)
+		pa_mask = np.zeros_like(phits, dtype=bool)
+		pa_mask[left:right+1] = True
+		phits[~pa_mask] = np.nan
+		dphits[~pa_mask] = np.nan
 	
 		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
 		eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
@@ -280,69 +259,64 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 
 
 
-def process_dynspec(dynspec, frequency_mhz_array, time_ms_array, gdict, tau_ms):
+def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
+    """
+    Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
+    """
+    RM = gdict["RM"]
+    width_ms = gdict["width_ms"]
+
+    max_rm = RM[np.argmax(np.abs(RM))]
+    corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
+
+    # Use Stokes I to find the on-pulse window
+    I = np.nansum(corrdspec[0], axis=0)
+    w95_ms, left, right = boxcar_width_w95(I, time_ms, frac=0.95)
+
+    # Estimate noise in each Stokes parameter using off-pulse region
+    offpulse_mask = np.ones(I.shape, dtype=bool)
+    offpulse_mask[left:right+1] = False  # Exclude on-pulse region
+
+    nstokes, nchan, ntime = corrdspec.shape
+    noistks = np.zeros(nstokes)
+    for s in range(nstokes):
+        # For each channel, get stddev over off-pulse bins, then average over channels
+        noise_per_chan = [np.nanstd(corrdspec[s, ch, offpulse_mask]) for ch in range(nchan)]
+        noistks[s] = np.nanmean(noise_per_chan)
+
+    noisespec = np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
+
+    tsdata = est_profiles(corrdspec, time_ms, noistks)
+
+    return tsdata, corrdspec, noisespec, noistks
+
+
+
+def boxcar_width_w95(profile, time_ms, frac=0.95):
 	"""
-	Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
+	Find the smallest contiguous window (box-car) that encloses at least `frac` (default 95%) 
+	of the total burst fluence.
+	Returns the width in ms and the (start, end) indices.
 	"""
-	RM = gdict["RM"]
-	width_ms = gdict["width_ms"]
+	prof = np.nan_to_num(profile)
+	total = np.sum(prof)
+	n = len(prof)
+	min_width = n
+	best_start, best_end = 0, n-1
 
-	max_rm = RM[np.argmax(np.abs(RM))]
-	corrdspec = rm_correct_dynspec(dynspec, frequency_mhz_array, max_rm)
+	for start in range(n):
+		cumsum = 0.0
+		for end in range(start, n):
+			cumsum += prof[end]
+			if cumsum >= frac * total:
+				width = end - start + 1
+				if width < min_width:
+					min_width = width
+					best_start, best_end = start, end
+				break  # No need to check longer windows from this start
 
-	# Use Stokes I to find the off-pulse window
-	I = np.nansum(corrdspec[0], axis=0)
-	off_start_frac, off_end_frac = find_offpulse_window(I, window_frac=0.2)
-	nbin = len(I)
-	off_start = int(off_start_frac * nbin)
-	off_end = int(off_end_frac * nbin)
-
-	# Estimate noise in each Stokes parameter using the off-pulse window
-	noisespec = np.zeros(corrdspec.shape[:1] + (corrdspec.shape[1],))
-	for s in range(4):
-		# shape: (nchan, ntime)
-		noisespec[s] = np.nanstd(corrdspec[s, :, off_start:off_end], axis=1)
-	noistks = np.sqrt(np.nanmean(noisespec**2, axis=1))
-
-	tsdata = est_profiles(corrdspec, time_ms_array, noistks, width_ms=width_ms, tau_ms=tau_ms)
-
-	return tsdata, corrdspec, noisespec, noistks
-
-
-def find_onpulse_matched_filter(I, width_bins, snr_thresh=3):
-	"""
-	Find on-pulse windows using matched filtering and SNR threshold.
-	Returns a list of (left, right) index tuples for all detected bursts.
-	"""
-
-	I = np.nan_to_num(I)
-	# Smooth to suppress noise
-	smoothed = gaussian_filter1d(I, sigma=width_bins/2)
-	# Estimate noise from off-pulse
-	off_start_frac, off_end_frac = find_offpulse_window(smoothed, window_frac=0.2)
-	nbin = len(smoothed)
-	off_start = int(off_start_frac * nbin)
-	off_end = int(off_end_frac * nbin)
-	noise = np.std(smoothed[off_start:off_end])
-
-	snr = (smoothed - np.median(smoothed)) / (noise if noise > 0 else 1)
-	above = snr > snr_thresh
-
-
-	# Find contiguous regions above threshold
-	windows = []
-	in_burst = False
-	for i, val in enumerate(above):
-		if val and not in_burst:
-			start = i
-			in_burst = True
-		elif not val and in_burst:
-			end = i - 1
-			windows.append((start, end))
-			in_burst = False
-	if in_burst:
-		windows.append((start, len(above) - 1))
-	return windows
+	width_ms = time_ms[best_end] - time_ms[best_start] if min_width < n else 0.0
+	return width_ms, best_start, best_end
 
 
 def median_percentiles(yvals, x, ndigits=3):
@@ -465,8 +439,8 @@ def add_noise_to_dynspec(data, desired_snr, bandwidth_mhz, width_ds,
 	radiometer_noise = tsys_k / (np.sqrt(bandwidth_mhz * width_ds))
 	
 	# Calculate required noise for target SNR (as before)
-	stokes_i_profile = np.sum(data[0], axis=0)
-	signal_peak_profile = np.max(stokes_i_profile)
+	I = np.sum(data[0], axis=0)
+	signal_peak_profile = np.max(I)
 	signal_peak_per_channel = signal_peak_profile / nchan
 	
 	snr_per_channel_needed = desired_snr / np.sqrt(nchan)
@@ -486,42 +460,8 @@ def add_noise_to_dynspec(data, desired_snr, bandwidth_mhz, width_ds,
 	noisy_profile = np.sum(noisy_data[0], axis=0)
 	peak = np.nanmax(noisy_profile)
 
-	# Use find_offpulse_window to estimate noise from the off-pulse region
-	off_start_frac, off_end_frac = find_offpulse_window(noisy_profile, window_frac=0.2)
-	nbin = len(noisy_profile)
-	off_start = int(off_start_frac * nbin)
-	off_end = int(off_end_frac * nbin)
-	noise_est = np.std(noisy_profile[off_start:off_end])
-
-	profile_snr_achieved = peak / noise_est if noise_est > 0 else np.nan
-
-	print(f"add_noise_to_dynspec: Achieved SNR in profile = {profile_snr_achieved:.2f}")
-
-
-	
 	return noisy_data
 
 
 
-def find_offpulse_window(profile, window_frac=0.2):
-	"""
-	Find the off-pulse window in a 1D profile by sliding a window and finding the minimum mean.
-	Args:
-		profile: 1D numpy array (summed over frequency and Stokes if needed)
-		window_frac: Fractional width of the window (e.g., 0.2 for 20%)
-	Returns:
-		off_start_frac, off_end_frac: Start and end as fractions (0-1)
-	"""
-	nbin = len(profile)
-	win_size = int(window_frac * nbin)
-	min_mean = np.inf
-	min_start = 0
-	for i in range(nbin - win_size + 1):
-		win_mean = np.mean(profile[i:i+win_size])
-		if win_mean < min_mean:
-			min_mean = win_mean
-			min_start = i
-	off_start_frac = min_start / nbin
-	off_end_frac = (min_start + win_size) / nbin
-	return off_start_frac, off_end_frac
 
