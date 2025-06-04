@@ -332,7 +332,8 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	xvals = frb_dict["xvals"]
 	yvals = frb_dict["yvals"]
 	var_PA_microshots = frb_dict["var_PA_microshots"]
-	width_ms = frb_dict["dspec_params"]["gdict"]["width_ms"]
+	dspec_params = frb_dict["dspec_params"]
+	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
 	yvals = weight_dict(xvals, yvals, var_PA_microshots)
 	med_vals, percentile_errs = median_percentiles(yvals, xvals)
@@ -446,7 +447,8 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	tau_ms = frb_dict["tau_ms"]
 	yvals = frb_dict["yvals"]
 	errs = frb_dict["errs"]
-	width_ms = frb_dict["dspec_params"]["gdict"]["width_ms"]
+	dspec_params = frb_dict["dspec_params"]
+	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
 	med_vals, percentile_errs = median_percentiles(yvals, tau_ms)
 	x, xvar = get_x_and_xvar(frb_dict, width_ms, plot_type="lfrac")
