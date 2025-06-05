@@ -224,6 +224,25 @@ def fit_and_plot(ax, x, y, fit, label=None, color='black'):
 			popt, _ = curve_fit(exponential, x_fit, y_fit, p0=[np.max(y_fit), -1])
 			y_model = exponential(x_fit, *popt)
 			fit_label = f"Fit: $a e^{{b x}}$\n($b$={popt[1]:.2f})"
+		elif fit_type == "linear":
+			popt = np.polyfit(x_fit, y_fit, 1)
+			y_model = np.polyval(popt, x_fit)
+			fit_label = f"Fit: $y = mx + c$\n($m$={popt[0]:.2f}, $c$={popt[1]:.2f})"
+		elif fit_type == "constant":
+			popt = np.mean(y_fit)
+			y_model = np.full_like(x_fit, popt)
+			fit_label = f"Fit: $y = {popt:.2f}$"
+		elif fit_type == "poly":
+			popt = np.polyfit(x_fit, y_fit, fit_degree)
+			y_model = np.polyval(popt, x_fit)
+			fit_label = f"Fit: $y = {' + '.join([f'{coef:.2f}x^{i}' for i, coef in enumerate(popt)])}$"
+		elif fit_type == "log":
+			if np.any(x_fit <= 0):
+				print("Log fit requires positive x values. Skipping fit.")
+				return
+			popt = np.polyfit(np.log10(x_fit), y_fit, 1)
+			y_model = np.polyval(popt, np.log10(x_fit))
+			fit_label = f"Fit: $y = {popt[0]:.2f} \log_{{10}}(x) + {popt[1]:.2f}$"
 		else:
 			print(f"Unknown fit type: {fit_type}")
 			return
@@ -315,7 +334,11 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			ax.plot(x, med_vals, label=run, color=colour, linewidth=2)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
 			if fit is not None:
-				fit_and_plot(ax, x, med_vals, fit, label=None, color=colour)
+				if len(fit) != len(frb_dict):
+					print(f"Warning: fit length {len(fit)} does not match number of runs {len(frb_dict)}. Using first fit only.")
+					fit_and_plot(ax, x, med_vals, fit[0], label=None, color=colour)
+				else:
+					fit_and_plot(ax, x, med_vals, fit[idx], label=None, color=colour)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
@@ -429,7 +452,11 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			ax.plot(x, med_vals, label=run, color=colour)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, alpha=0.2, color=colour)
 			if fit is not None:
-				fit_and_plot(ax, x, med_vals, fit, label=None)
+				if len(fit) != len(frb_dict):
+					print(f"Warning: fit length {len(fit)} does not match number of runs {len(frb_dict)}. Using first fit only.")
+					fit_and_plot(ax, x, med_vals, fit[0], label=None, color=colour)
+				else:
+					fit_and_plot(ax, x, med_vals, fit[idx], label=None, color=colour)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
