@@ -161,9 +161,9 @@ def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="al
 	Generate a plot filename with freq/phase window at the front if not 'all'.
 	"""
 	parts = []
-	if freq_window != "all":
+	if freq_window != "full-band":
 		parts.append(f"freq_{freq_window}")
-	if phase_window != "all":
+	if phase_window != "total":
 		parts.append(f"phase_{phase_window}")
 	parts.extend([plot_type, scale, fname])
 	return "_".join(parts)
@@ -179,7 +179,6 @@ def is_multi_run_dict(frb_dict):
 def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'):
 	"""
 	Fit the data (x, y) with the specified function and plot the fit on ax.
-	fit: list or tuple, e.g. ['power'], ['exp'], or ['power', '3']
 	"""
 
 	x = np.asarray(x)
@@ -198,50 +197,48 @@ def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black')
 	def fit_power_fixed_n(x_fit, y_fit):
 		popt, _ = curve_fit(power_fixed_n, x_fit, y_fit, p0=[np.max(y_fit)])
 		y_model = power_fixed_n(x_fit, *popt)
-		return y_model, f"Fit: $a x^{fit_degree}$"
-
+		return y_model, f"Power (n={fit_degree})"
+	
 	def fit_power_law(x_fit, y_fit):
 		popt, _ = curve_fit(power_law, x_fit, y_fit, p0=[np.max(y_fit), 1])
 		y_model = power_law(x_fit, *popt)
-		return y_model, f"Fit: $a x^n$\n($n$={popt[1]:.2f})"
-
+		return y_model, f"Power (n={popt[1]:.2f})"
+	
 	def fit_exponential(x_fit, y_fit):
 		popt, _ = curve_fit(exponential, x_fit, y_fit, p0=[np.max(y_fit), -1])
 		y_model = exponential(x_fit, *popt)
-		return y_model, f"Fit: $a e^{{b x}}$\n($b$={popt[1]:.2f})"
-
+		return y_model, f"Exp (b={popt[1]:.2f})"
+	
 	def fit_linear(x_fit, y_fit):
 		popt = np.polyfit(x_fit, y_fit, 1)
 		y_model = np.polyval(popt, x_fit)
-		return y_model, f"Fit: $y = mx + c$\n($m$={popt[0]:.2f}, $c$={popt[1]:.2f})"
-
+		return y_model, f"Linear (m={popt[0]:.2f})"
+	
 	def fit_constant(x_fit, y_fit):
 		popt = np.mean(y_fit)
 		y_model = np.full_like(x_fit, popt)
-		return y_model, f"Fit: $y = {popt:.2f}$"
-
+		return y_model, f"Const ({popt:.2f})"
+	
 	def fit_poly(x_fit, y_fit):
 		popt = np.polyfit(x_fit, y_fit, fit_degree)
 		y_model = np.polyval(popt, x_fit)
-		terms = ' + '.join([f'{coef:.2f}x^{i}' for i, coef in enumerate(popt)])
-		return y_model, f"Fit: $y = {terms}$"
-
+		return y_model, f"Poly (deg={fit_degree})"
+	
 	def fit_log(x_fit, y_fit):
 		if np.any(x_fit <= 0):
 			print("Log fit requires positive x values. Skipping fit.")
 			return None, None
 		popt = np.polyfit(np.log10(x_fit), y_fit, 1)
 		y_model = np.polyval(popt, np.log10(x_fit))
-		return y_model, f"Fit: $y = {popt[0]:.2f} \log_{{10}}(x) + {popt[1]:.2f}$"
-
+		return y_model, f"Log (m={popt[0]:.2f})"
+	
 	def fit_broken_power_law(x_fit, y_fit):
-		# Initial guess: a=max(y), n1=1, n2=0, x_break=median(x)
 		p0 = [np.max(y_fit), 1, 0, np.median(x_fit)]
 		bounds = ([0, -np.inf, -np.inf, np.min(x_fit)], [np.inf, np.inf, np.inf, np.max(x_fit)])
 		popt, _ = curve_fit(broken_power_law, x_fit, y_fit, p0=p0, bounds=bounds)
 		y_model = broken_power_law(x_fit, *popt)
-		return y_model, (r"Broken power: $a x^{n_1}$ ($x<x_b$), $a x_b^{n_1-n_2} x^{n_2}$ ($x\geq x_b$)"
-					 	f"\n($n_1$={popt[1]:.2f}, $n_2$={popt[2]:.2f}, $x_b$={popt[3]:.2f})")
+		return y_model, (f"Broken power\n"
+				  		 r"$(n_1={:.2f},\ n_2={:.2f},\ x_b={:.2f})$".format(popt[1], popt[2], popt[3]))
 
 	fit_handlers = {
 		"power_fixed_n": fit_power_fixed_n,

@@ -51,8 +51,8 @@ def main():
 		default=[0.0],
 		metavar="",
 		help=("Scattering time scale(s) in milliseconds.\n"
-        	  "Provide one or more values. Use '(start,stop,step)' for ranges. Default is 0.0 ms."
-           )
+			  "Provide one or more values. Use '(start,stop,step)' for ranges. Default is 0.0 ms."
+		   )
 	)
 	parser.add_argument(
 		"-f", "--frb_identifier",
@@ -93,21 +93,26 @@ def main():
 		"--phase-window",
 		type=str,
 		default="all",
-		choices=['first', 'last', 'all'],
+		choices=['first', 'last', 'all',
+	  			'leading', 'trailing', 'total'
+		],
 		metavar="",
 		help=("Window for plotting PA variance and L fraction.\n"
-  			 "Choose 'first', 'last', or 'all'. Default is 'all'."
-      )
+  			 "Choose 'leading', 'trailing', or 'total'. Default is 'total'."
+	  )
 	)
 	parser.add_argument(
 		"--freq-window",
 		type=str,
 		default="all",
-		choices=['1q', '2q', '3q', '4q', 'all'],
+		choices=[
+			'1q', '2q', '3q', '4q', 'all\n',  # abbreviated
+			'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', 'full-band'  # long
+   		],
 		metavar="",
-		help=("Frequency window for plotting PA variance and L fraction.\n"
-  			  "Choose '1q', '2q', '3q', '4q', or 'all'. Default is 'all'."
-      )
+		help=("Frequency window for plotting PA variance and L/I.\n"
+  			  "Choose 'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', or 'full-band'. Default is 'full-band'."
+	  )
 	)
 	# Plotting Options
 	parser.add_argument(
@@ -159,7 +164,9 @@ def main():
 		nargs="+",
 		default=None,
 		metavar="",
-		help="Fit function for pa_var and lfrac plots. Options: 'power', 'exp', or 'power N' for power law of degree N."
+		help=("Fit function for pa_var and lfrac plots.\n"
+  			 "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
+	  		)
 	)
 	# Simulation Options
 	parser.add_argument(
@@ -176,8 +183,8 @@ def main():
 		choices=['gauss', 'mgauss'],
 		metavar="",
 		help=("Mode for generating pulses: 'gauss' or 'mgauss'. Default is 'gauss.'\n"
-        	  "'mgauss' will generate a gaussian distribution of gaussian micro-shots."
-           )
+			  "'mgauss' will generate a gaussian distribution of gaussian micro-shots."
+		   )
 	)
 	parser.add_argument(
 		"--n-gauss",
@@ -208,7 +215,7 @@ def main():
 		metavar=("MIN_WIDTH", "MAX_WIDTH"),
 		help=("Minimum and maximum percentage of the main gaussian width to generate micro-gaussians.\n"
   			  "Only if --mode mgauss is set. Default is [10, 50] percent of the main gaussian width."
-     )
+	 )
 	)
 	parser.add_argument(
 		"--snr",
@@ -233,6 +240,31 @@ def main():
 
 	args = parser.parse_args()
 
+	# Map long freq-window names to abbreviated forms
+	freq_window_map = {
+		'1q': 'lowest-quarter',
+		'2q': 'lower-mid-quarter',
+		'3q': 'upper-mid-quarter',
+		'4q': 'highest-quarter',
+		'all': 'full-band',
+		'lowest-quarter': 'lowest-quarter',
+		'lower-mid-quarter': 'lower-mid-quarter',
+		'upper-mid-quarter': 'upper-mid-quarter',
+		'highest-quarter': 'highest-quarter',
+		'full-band': 'full-band'
+	}
+
+	args.freq_window = freq_window_map[args.freq_window]
+
+	phase_window_map = {
+		'first': 'leading',
+		'last': 'trailing',
+		'all': 'total',
+		'leading': 'leading',
+		'trailing': 'trailing',
+		'total': 'total'
+	}
+	args.phase_window = phase_window_map[args.phase_window]
 
 	# Parse scattering timescale(s)
 	scattering_timescales = np.array([])
