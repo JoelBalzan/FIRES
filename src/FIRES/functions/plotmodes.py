@@ -100,11 +100,11 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, sh
 def get_freq_window_indices(freq_mhz, freq_window):
 	q = int(len(freq_mhz) / 4)
 	windows = {
-		"1q": slice(0, q),
-		"2q": slice(q, 2*q),
-		"3q": slice(2*q, 3*q),
-		"4q": slice(3*q, None),
-		"all": slice(None)
+		"lowest-quarter": slice(0, q),
+		"lower-mid-quarter": slice(q, 2*q),
+		"upper-mid-quarter": slice(2*q, 3*q),
+		"highest-quarter": slice(3*q, None),
+		"full-band": slice(None)
 	}
 	return windows.get(freq_window, None)
 
@@ -113,9 +113,9 @@ def get_phase_window_indices(phase_window, peak_index):
 	Returns a slice object for the desired phase window.
 	"""
 	phase_slices = {
-		"first": slice(0, peak_index),
-		"last": slice(peak_index, None),
-		"all": slice(None)
+		"leading": slice(0, peak_index),
+		"trailing": slice(peak_index, None),
+		"total": slice(None)
 	}
 	return phase_slices.get(phase_window, None)
 
@@ -176,80 +176,104 @@ def is_multi_run_dict(frb_dict):
 	return all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
 
 
-def fit_and_plot(ax, x, y, fit, label=None, color='black'):
+def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'):
 	"""
 	Fit the data (x, y) with the specified function and plot the fit on ax.
 	fit: list or tuple, e.g. ['power'], ['exp'], or ['power', '3']
 	"""
-	if fit is None:
-		return
-	
+
 	x = np.asarray(x)
 	y = np.asarray(y)
-
-	# Parse fit argument
-	if isinstance(fit, str):
-		fit = [fit]
-	fit_type = fit[0].lower()
-	fit_degree = int(fit[1]) if len(fit) > 1 and fit_type == "power" else None
-
-	# Define fit functions
-	def power_law(x, a, n):
+	
+	
+	def power_law(x, a, n): 
 		return a * x**n
-
-	def power_fixed_n(x, a):
+	def power_fixed_n(x, a): 
 		return a * x**fit_degree
-
-	def exponential(x, a, b):
+	def broken_power_law(x, a, n1, n2, x_break): 
+		return np.where(x < x_break, a * x**n1, a * x_break**(n1-n2) * x**n2)
+	def exponential(x, a, b): 
 		return a * np.exp(b * x)
+
+	def fit_power_fixed_n(x_fit, y_fit):
+		popt, _ = curve_fit(power_fixed_n, x_fit, y_fit, p0=[np.max(y_fit)])
+		y_model = power_fixed_n(x_fit, *popt)
+		return y_model, f"Fit: $a x^{fit_degree}$"
+
+	def fit_power_law(x_fit, y_fit):
+		popt, _ = curve_fit(power_law, x_fit, y_fit, p0=[np.max(y_fit), 1])
+		y_model = power_law(x_fit, *popt)
+		return y_model, f"Fit: $a x^n$\n($n$={popt[1]:.2f})"
+
+	def fit_exponential(x_fit, y_fit):
+		popt, _ = curve_fit(exponential, x_fit, y_fit, p0=[np.max(y_fit), -1])
+		y_model = exponential(x_fit, *popt)
+		return y_model, f"Fit: $a e^{{b x}}$\n($b$={popt[1]:.2f})"
+
+	def fit_linear(x_fit, y_fit):
+		popt = np.polyfit(x_fit, y_fit, 1)
+		y_model = np.polyval(popt, x_fit)
+		return y_model, f"Fit: $y = mx + c$\n($m$={popt[0]:.2f}, $c$={popt[1]:.2f})"
+
+	def fit_constant(x_fit, y_fit):
+		popt = np.mean(y_fit)
+		y_model = np.full_like(x_fit, popt)
+		return y_model, f"Fit: $y = {popt:.2f}$"
+
+	def fit_poly(x_fit, y_fit):
+		popt = np.polyfit(x_fit, y_fit, fit_degree)
+		y_model = np.polyval(popt, x_fit)
+		terms = ' + '.join([f'{coef:.2f}x^{i}' for i, coef in enumerate(popt)])
+		return y_model, f"Fit: $y = {terms}$"
+
+	def fit_log(x_fit, y_fit):
+		if np.any(x_fit <= 0):
+			print("Log fit requires positive x values. Skipping fit.")
+			return None, None
+		popt = np.polyfit(np.log10(x_fit), y_fit, 1)
+		y_model = np.polyval(popt, np.log10(x_fit))
+		return y_model, f"Fit: $y = {popt[0]:.2f} \log_{{10}}(x) + {popt[1]:.2f}$"
+
+	def fit_broken_power_law(x_fit, y_fit):
+		# Initial guess: a=max(y), n1=1, n2=0, x_break=median(x)
+		p0 = [np.max(y_fit), 1, 0, np.median(x_fit)]
+		bounds = ([0, -np.inf, -np.inf, np.min(x_fit)], [np.inf, np.inf, np.inf, np.max(x_fit)])
+		popt, _ = curve_fit(broken_power_law, x_fit, y_fit, p0=p0, bounds=bounds)
+		y_model = broken_power_law(x_fit, *popt)
+		return y_model, (r"Broken power: $a x^{n_1}$ ($x<x_b$), $a x_b^{n_1-n_2} x^{n_2}$ ($x\geq x_b$)"
+					 	f"\n($n_1$={popt[1]:.2f}, $n_2$={popt[2]:.2f}, $x_b$={popt[3]:.2f})")
+
+	fit_handlers = {
+		"power_fixed_n": fit_power_fixed_n,
+		"power": fit_power_law if fit_degree is None else fit_power_fixed_n,
+		"exp": fit_exponential,
+		"linear": fit_linear,
+		"constant": fit_constant,
+		"poly": fit_poly,
+		"log": fit_log,
+		"broken-power": fit_broken_power_law
+	}
 
 	# Remove NaNs and non-positive x for log fits
 	mask = np.isfinite(x) & np.isfinite(y)
-	if fit_type in ("power",) and fit_degree is None:
+	if fit_type in ("power", "broken-power", "power_fixed_n") and (fit_degree is None or fit_type == "broken-power"):
+		mask &= (x > 0)
+	if fit_type == "log":
 		mask &= (x > 0)
 	x_fit = x[mask]
 	y_fit = y[mask]
 
-	# Choose and fit the model
 	try:
-		if fit_type == "power" and fit_degree is not None:
-			popt, _ = curve_fit(power_fixed_n, x_fit, y_fit, p0=[np.max(y_fit)])
-			y_model = power_fixed_n(x_fit, *popt)
-			fit_label = f"Fit: $a x^{fit_degree}$"
-		elif fit_type == "power":
-			popt, _ = curve_fit(power_law, x_fit, y_fit, p0=[np.max(y_fit), 1])
-			y_model = power_law(x_fit, *popt)
-			fit_label = f"Fit: $a x^n$\n($n$={popt[1]:.2f})"
-		elif fit_type == "exp":
-			popt, _ = curve_fit(exponential, x_fit, y_fit, p0=[np.max(y_fit), -1])
-			y_model = exponential(x_fit, *popt)
-			fit_label = f"Fit: $a e^{{b x}}$\n($b$={popt[1]:.2f})"
-		elif fit_type == "linear":
-			popt = np.polyfit(x_fit, y_fit, 1)
-			y_model = np.polyval(popt, x_fit)
-			fit_label = f"Fit: $y = mx + c$\n($m$={popt[0]:.2f}, $c$={popt[1]:.2f})"
-		elif fit_type == "constant":
-			popt = np.mean(y_fit)
-			y_model = np.full_like(x_fit, popt)
-			fit_label = f"Fit: $y = {popt:.2f}$"
-		elif fit_type == "poly":
-			popt = np.polyfit(x_fit, y_fit, fit_degree)
-			y_model = np.polyval(popt, x_fit)
-			fit_label = f"Fit: $y = {' + '.join([f'{coef:.2f}x^{i}' for i, coef in enumerate(popt)])}$"
-		elif fit_type == "log":
-			if np.any(x_fit <= 0):
-				print("Log fit requires positive x values. Skipping fit.")
-				return
-			popt = np.polyfit(np.log10(x_fit), y_fit, 1)
-			y_model = np.polyval(popt, np.log10(x_fit))
-			fit_label = f"Fit: $y = {popt[0]:.2f} \log_{{10}}(x) + {popt[1]:.2f}$"
-		else:
+		handler = fit_handlers.get(fit_type)
+		if handler is None:
 			print(f"Unknown fit type: {fit_type}")
 			return
-		# Plot the fit
-		ax.plot(x_fit, y_model, '--', color = color, label=fit_label if label is None else label)
+		y_model, fit_label = handler(x_fit, y_fit)
+		if y_model is not None:
+			ax.plot(x_fit, y_model, '--', color=color, label=fit_label if label is None else label)
 	except Exception as e:
 		print(f"Fit failed: {e}")
+
 
 
 def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
@@ -275,6 +299,42 @@ def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
 		else:
 			raise ValueError(f"Unknown xname: {frb_dict['xname']}")
 	return x, xvar
+
+
+def parse_fit_arg(fit_item):
+	"""
+	Parse a fit argument string like 'poly,2' or 'poly' into (fit_type, fit_degree).
+	"""
+	if isinstance(fit_item, (list, tuple)):
+		fit_type = fit_item[0]
+		fit_degree = None
+		if len(fit_item) > 1 and fit_item[1] is not None and str(fit_item[1]).strip() != "":
+			try:
+				fit_degree = int(fit_item[1])
+			except Exception:
+				fit_degree = None
+		if fit_type == "poly" and fit_degree is None:
+			print("Warning: 'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
+		return fit_type, fit_degree
+	elif isinstance(fit_item, str):
+		if ',' in fit_item:
+			parts = fit_item.split(',', 1)
+			fit_type = parts[0]
+			fit_degree = None
+			if len(parts) > 1 and parts[1] is not None and parts[1].strip() != "":
+				try:
+					fit_degree = int(parts[1])
+				except Exception:
+					fit_degree = None
+			if fit_type == "poly" and fit_degree is None:
+				print("Warning: 'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
+			return fit_type, fit_degree
+		else:
+			if fit_item == "poly":
+				print("Warning: 'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
+			return fit_item, None
+	else:
+		return None, None
 
 
 def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
@@ -334,11 +394,15 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			ax.plot(x, med_vals, label=run, color=colour, linewidth=2)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
 			if fit is not None:
-				if len(fit) != len(frb_dict):
-					print(f"Warning: fit length {len(fit)} does not match number of runs {len(frb_dict)}. Using first fit only.")
-					fit_and_plot(ax, x, med_vals, fit[0], label=None, color=colour)
+				# Accept fit as a list of strings like ['poly,1', 'poly,2', 'poly,3'] or just ['poly', 'poly,2', 'poly']
+				if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
+					fit_type, fit_degree = parse_fit_arg(fit[idx])
 				else:
-					fit_and_plot(ax, x, med_vals, fit[idx], label=None, color=colour)
+					fit_type, fit_degree = parse_fit_arg(fit)
+				fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
+			else:
+				print("No fit provided, skipping fit plotting.")
+		
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
@@ -452,11 +516,14 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			ax.plot(x, med_vals, label=run, color=colour)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, alpha=0.2, color=colour)
 			if fit is not None:
-				if len(fit) != len(frb_dict):
-					print(f"Warning: fit length {len(fit)} does not match number of runs {len(frb_dict)}. Using first fit only.")
-					fit_and_plot(ax, x, med_vals, fit[0], label=None, color=colour)
+				# Accept fit as a list of strings like ['poly,1', 'poly,2', 'poly,3'] or just ['poly', 'poly,2', 'poly']
+				if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
+					fit_type, fit_degree = parse_fit_arg(fit[idx])
 				else:
-					fit_and_plot(ax, x, med_vals, fit[idx], label=None, color=colour)
+					fit_type, fit_degree = parse_fit_arg(fit)
+				fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
+			else:
+				print("No fit provided, skipping fit plotting.")
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
