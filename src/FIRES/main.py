@@ -106,7 +106,7 @@ def main():
 		type=str,
 		default="all",
 		choices=[
-			'1q', '2q', '3q', '4q', 'all\n',  # abbreviated
+			'1q', '2q', '3q', '4q', 'all',  # abbreviated
 			'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', 'full-band'  # long
    		],
 		metavar="",
