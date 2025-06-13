@@ -20,7 +20,7 @@ import traceback
 from inspect import signature
 
 from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
-from FIRES.utils.utils import chi2_fit, gaussian_model
+from FIRES.utils.utils import chi2_fit, gaussian_model, window_map
 from FIRES.functions.plotmodes import plot_modes
 
 
@@ -104,9 +104,9 @@ def main():
 	parser.add_argument(
 		"--freq-window",
 		type=str,
-		default="all",
+		default="full",
 		choices=[
-			'1q', '2q', '3q', '4q', 'all',  # abbreviated
+			'1q', '2q', '3q', '4q', 'full',  # abbreviated
 			'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', 'full-band'  # long
    		],
 		metavar="",
@@ -241,30 +241,8 @@ def main():
 	args = parser.parse_args()
 
 	# Map long freq-window names to abbreviated forms
-	freq_window_map = {
-		'1q': 'lowest-quarter',
-		'2q': 'lower-mid-quarter',
-		'3q': 'upper-mid-quarter',
-		'4q': 'highest-quarter',
-		'all': 'full-band',
-		'lowest-quarter': 'lowest-quarter',
-		'lower-mid-quarter': 'lower-mid-quarter',
-		'upper-mid-quarter': 'upper-mid-quarter',
-		'highest-quarter': 'highest-quarter',
-		'full-band': 'full-band'
-	}
-
-	args.freq_window = freq_window_map[args.freq_window]
-
-	phase_window_map = {
-		'first': 'leading',
-		'last': 'trailing',
-		'all': 'total',
-		'leading': 'leading',
-		'trailing': 'trailing',
-		'total': 'total'
-	}
-	args.phase_window = phase_window_map[args.phase_window]
+	args.freq_window = window_map[args.freq_window]
+	args.phase_window = window_map[args.phase_window]
 
 	# Parse scattering timescale(s)
 	scattering_timescales = np.array([])
@@ -365,7 +343,7 @@ def main():
 		print(f"Simulation completed. \n")
 
 		# Call the plotting function if required
-		if args.plot != 'None' and args.save_plots == True and args.show_plots == True:
+		if args.plot != 'None' and args.save_plots == True:
 			for plot_mode in args.plot:
 				try:
 					plot_mode_obj = plot_modes.get(plot_mode)
