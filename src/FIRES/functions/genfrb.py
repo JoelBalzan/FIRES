@@ -177,7 +177,7 @@ def load_multiple_data_grouped(data):
 	"""
 	from collections import defaultdict
 	import re
-
+ 
 	def extract_sc_value(fname):
 		# Match _sc_<number> or _sc_<number>-<number>
 		m = re.search(r'_sc_([0-9.]+)(?:-([0-9.]+))?', fname)
@@ -190,6 +190,7 @@ def load_multiple_data_grouped(data):
 	groups = defaultdict(list)
 	for fname in file_names:
 		prefix = fname.split('_')[0]
+		prefix = window_map[prefix] if prefix in window_map else prefix
 		groups[prefix].append(fname)
 
 	all_results = {}
