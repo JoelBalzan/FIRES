@@ -73,7 +73,25 @@ def gaussian_model(x, amp, mean, stddev):
     return amp * np.exp(-((x - mean) ** 2) / (2 * stddev ** 2))
 
 
+window_map = {
+	'1q': 'lowest-quarter',
+	'2q': 'lower-mid-quarter',
+	'3q': 'upper-mid-quarter',
+	'4q': 'highest-quarter',
+	'full': 'full-band',
+	'lowest-quarter': 'lowest-quarter',
+	'lower-mid-quarter': 'lower-mid-quarter',
+	'upper-mid-quarter': 'upper-mid-quarter',
+	'highest-quarter': 'highest-quarter',
+	'full-band': 'full-band',
 
+	'first': 'leading',
+	'last': 'trailing',
+	'all': 'total',
+	'leading': 'leading',
+	'trailing': 'trailing',
+	'total': 'total'
+}
 
 # Universal constants 
 gravitational_constant_cgs	=	6.67430e-8					#	Universal gravitational constant in CGS
