@@ -39,17 +39,29 @@ plt.rcParams['ytick.labelsize'] = 12
 plt.rcParams['text.usetex'] 	= True
 
 #colour blind friendly: https://gist.github.com/thriveth/8560036
+
 colours = {
-	'purple':  '#984ea3',
-	'red':     '#e41a1c',
-	'blue':    '#377eb8', 
-	'green':   '#4daf4a',
-	'pink':    '#f781bf',
-	'brown':   '#a65628',
-	'orange':  '#ff7f00',
-	'gray':    '#999999',
-	'yellow':  '#dede00'
+    'red'   : '#e41a1c',
+    'blue'  : '#377eb8',
+    'purple': '#984ea3',
+    'orange': '#ff7f00',
+    'green' : '#4daf4a',
+    'pink'  : '#f781bf',
+    'brown' : '#a65628',
+    'gray'  : '#999999',
+    'yellow': '#dede00'
 } 
+
+colour_map = {
+    'lowest-quarter'   : '#e41a1c',
+    'highest-quarter'  : '#377eb8',
+    'full-band'        : '#984ea3',
+    'leading'          : '#ff7f00',
+    'trailing'         : '#4daf4a',
+    'total'            : '#f781bf',
+    'lower-mid-quarter': '#a65628',
+    'upper-mid-quarter': '#999999',
+}
 
 
 class PlotMode:
@@ -360,13 +372,13 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	Supports plotting multiple run groups for comparison.
 	"""
 	# If frb_dict contains multiple runs, plot each on the same axes
-	yvar = r"\mathcal{R}_\psi"
+	yvar = r"\mathcal{R}_{\mathrm{PA}}"
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
 		colour_list = list(colours.values())
 		for idx, (run, subdict) in enumerate(frb_dict.items()):
-			colour = colour_list[idx % len(colour_list)]
+			colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
 			#linestyle = linestyles[idx % len(linestyles)]
 			
 			xvals = np.array(subdict["xvals"])
