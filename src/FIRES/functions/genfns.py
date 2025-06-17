@@ -183,7 +183,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     lin_pol_frac_var    = var_dict['lfrac_var'][0]
     circ_pol_frac_var   = var_dict['vfrac_var'][0]
     delta_pol_angle_var = var_dict['dPA_var'][0]
+    dm_var              = var_dict['DM_var'][0]
     rm_var              = var_dict['RM_var'][0]
+    band_centre_mhz_var = var_dict['band_centre_mhz_var'][0]
+    band_width_mhz_var  = var_dict['band_width_mhz_var'][0]
 
     if lin_pol_frac_var > 0.0 and circ_pol_frac_var > 0.0:
         input("Linear and circular polarisation variations are both > 0.0. Choose one to vary (l/c).")
@@ -204,7 +207,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
             var_lfrac           = lfrac[g] + np.random.normal(0, lin_pol_frac_var * lfrac[g])
             var_vfrac           = vfrac[g] + np.random.normal(0, circ_pol_frac_var * vfrac[g])
             var_dPA             = dPA[g] + np.random.normal(0, delta_pol_angle_var * np.abs(dPA[g]))
+            var_DM              = DM[g] + np.random.normal(0, dm_var)
             var_RM              = RM[g] + np.random.normal(0, rm_var)
+            var_band_centre_mhz = band_centre_mhz[g] + np.random.normal(0, band_centre_mhz_var)
+            var_band_width_mhz  = band_width_mhz[g] + np.random.normal(0, band_width_mhz_var)
 
             if circ_pol_frac_var > 0.0:
                 var_vfrac = np.clip(var_vfrac, 0.0, 1.0)
@@ -226,10 +232,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
             if band_width_mhz[g] != 0.:
                 if band_centre_mhz[g] == 0.:
                     band_centre_mhz[g] = np.median(freq_mhz)
-                spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g]) ** 2) / (2 * (band_width_mhz[g] / 2.355) ** 2)) #2.355 is the FWHM factor
+                spectral_profile = np.exp(-((freq_mhz - var_band_centre_mhz) ** 2) / (2 * (var_band_width_mhz / 2.355) ** 2)) #2.355 is the FWHM factor
                 norm_amp *= spectral_profile
 
-            pol_angle_arr = var_PA + (time_ms - var_t0) * dPA[g]
+            pol_angle_arr = var_PA + (time_ms - var_t0) * var_dPA
 
             for c in range(len(freq_mhz)):
                 # Apply Faraday rotation
@@ -239,7 +245,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 
                 # Calculate the dispersion delay
                 if int(DM[g]) != 0:
-                    disp_delay_ms = calculate_dispersion_delay(DM[g], freq_mhz[c], ref_freq_mhz)
+                    disp_delay_ms = calculate_dispersion_delay(var_DM, freq_mhz[c], ref_freq_mhz)
                     temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 
                 # Apply scattering if enabled
