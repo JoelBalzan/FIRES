@@ -343,7 +343,7 @@ def main():
 		print(f"Simulation completed. \n")
 
 		# Call the plotting function if required
-		if args.plot != 'None' and args.save_plots == True:
+		if args.plot != 'None' and (args.save_plots == True or args.show_plots == True):
 			for plot_mode in args.plot:
 				try:
 					plot_mode_obj = plot_modes.get(plot_mode)
