@@ -107,12 +107,12 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, snr, ta
         if band_width_mhz[g] != 0.:
             if band_centre_mhz[g] == 0.:
                 band_centre_mhz[g] = np.median(freq_mhz)
-            spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g]) ** 2) / (2 * (band_width_mhz[g] / 2.355) ** 2)) #2.355 is the FWHM factor
+            spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g]) ** 2) / (2 * (band_width_mhz[g] / 4.29193) ** 2)) #2.355 is the FWHM factor
             norm_amp *= spectral_profile
 
         for c in range(len(freq_mhz)):
             faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, RM[g], lambda_sq[c], median_lambda_sq)
-            temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], t0[g], width_ms[g])
+            temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], t0[g], width_ms[g] / 4.29193)
             
             if int(DM[g]) != 0:
                 disp_delay_ms = calculate_dispersion_delay(DM[g], freq_mhz[c], ref_freq_mhz)
@@ -241,7 +241,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
                 # Apply Faraday rotation
                 faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, var_RM, lambda_sq[c], median_lambda_sq)
                 # Add the Gaussian pulse to the temporary dynamic spectrum
-                temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_t0, var_width_ms)
+                temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_t0, var_width_ms / 4.29193)
 
                 # Calculate the dispersion delay
                 if int(var_DM) != 0:
