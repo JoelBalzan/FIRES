@@ -199,18 +199,18 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     for g in range(num_main_gauss):
         for _ in range(num_micro_gauss[g]):
             # Generate random variations for the micro-Gaussian parameters
-            var_peak_amp        = (peak_amp[g] + np.random.normal(0, peak_amp_var * peak_amp[g])) / num_micro_gauss[g]
+            var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var * peak_amp[g]) / num_micro_gauss[g]
             # Sample the micro width as a percentage of the main width
             var_width_ms        = width_ms[g] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
-            var_t0              = np.random.normal(loc=t0[g], scale=width_ms[g])
-            var_PA              = PA[g] + np.random.normal(0, pol_angle_var)
-            var_lfrac           = lfrac[g] + np.random.normal(0, lin_pol_frac_var * lfrac[g])
-            var_vfrac           = vfrac[g] + np.random.normal(0, circ_pol_frac_var * vfrac[g])
-            var_dPA             = dPA[g] + np.random.normal(0, delta_pol_angle_var * np.abs(dPA[g]))
-            var_DM              = DM[g] + np.random.normal(0, dm_var)
-            var_RM              = RM[g] + np.random.normal(0, rm_var)
-            var_band_centre_mhz = band_centre_mhz[g] + np.random.normal(0, band_centre_mhz_var)
-            var_band_width_mhz  = band_width_mhz[g] + np.random.normal(0, band_width_mhz_var)
+            var_t0              = np.random.normal(t0[g], width_ms[g])
+            var_PA              = np.random.normal(PA[g], pol_angle_var)
+            var_lfrac           = np.random.normal(lfrac[g], lin_pol_frac_var * lfrac[g])
+            var_vfrac           = np.random.normal(vfrac[g], circ_pol_frac_var * vfrac[g])
+            var_dPA             = np.random.normal(dPA[g], delta_pol_angle_var * np.abs(dPA[g]))
+            var_DM              = np.random.normal(DM[g], dm_var)
+            var_RM              = np.random.normal(RM[g], rm_var)
+            var_band_centre_mhz = np.random.normal(band_centre_mhz[g], band_centre_mhz_var)
+            var_band_width_mhz  = np.random.normal(band_width_mhz[g], band_width_mhz_var)
 
             if circ_pol_frac_var > 0.0:
                 var_vfrac = np.clip(var_vfrac, 0.0, 1.0)
