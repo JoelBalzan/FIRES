@@ -1,5 +1,5 @@
-matplotlib==3.10.1
-numpy==2.2.5
+matplotlib==3.9.0
+numpy==1.26.4
 RM_Tools==1.4.8
 scipy==1.15.2
 tqdm==4.67.1
