@@ -100,12 +100,12 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_plots):
+def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, show_plots):
 	"""
 	Plot PA profile and dPA/dt.
 	Inputs:
 		- fname, outdir: Directory to save the plot
-		- noistks: Noise levels for each Stokes parameter
+		- noise_stokes: Noise levels for each Stokes parameter
 		- frbdat: FRB data object
 		- tmsarr: Time array in ms
 		- fsize: Figure size
@@ -125,8 +125,8 @@ def plot_dpa(fname, outdir, noistks, frbdat, tmsarr, ntp, save, figsize, show_pl
 	dpadt[-ntp:] = np.nan
 	edpadt[-ntp:] = np.nan
 	
-	phits[iquvt[0] < 10.0 * noistks[0]] = np.nan
-	dphits[iquvt[0] < 10.0 * noistks[0]] = np.nan
+	phits[iquvt[0] < 10.0 * noise_stokes[0]] = np.nan
+	dphits[iquvt[0] < 10.0 * noise_stokes[0]] = np.nan
 	
 	for ti in range(ntp, len(phits) - ntp):
 		phi3 = phits[ti - ntp:ti + ntp + 1]
@@ -194,7 +194,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			- fname: Filename for saving the plot
 			- outdir: Output directory for saving the plot
 			- tsdata: Time series data object
-			- noistks: Noise levels for each Stokes parameter
+			- noise_stokes: Noise levels for each Stokes parameter
 	"""
 
 	phits  = tsdata.phits
