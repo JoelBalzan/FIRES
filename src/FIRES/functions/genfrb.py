@@ -265,7 +265,11 @@ def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 		k: v for k, v in params.items()
 		if k in allowed_args and k not in ("xname")
 	}
-	return dynspec_func(**params_filtered, microvar=var, xname=xname)
+ 
+	if mode == 'mgauss':
+		return m_gauss_dynspec(**params_filtered, microvar=var, xname=xname)
+	elif mode == 'gauss':
+		return gauss_dynspec(**params_filtered)
 
 
 def process_task(task, xname, mode, plot_mode, **params):
