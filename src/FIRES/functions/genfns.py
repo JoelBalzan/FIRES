@@ -53,7 +53,7 @@ def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, snr, tau_ms, sc_idx, ref_freq_mhz):
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, snr, tau_ms, sc_idx, ref_freq_mhz):
     """
     Generate dynamic spectrum for Gaussian pulses.
     Inputs:
@@ -107,7 +107,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, snr, ta
         if band_width_mhz[g] != 0.:
             if band_centre_mhz[g] == 0.:
                 band_centre_mhz[g] = np.median(freq_mhz)
-            spectral_profile = np.exp(-((freq_mhz - band_centre_mhz[g]) ** 2) / (2 * (band_width_mhz[g] / 4.29193) ** 2)) #2.355 is the FWHM factor
+            spectral_profile = gaussian_model(freq_mhz, 1.0, band_centre_mhz[g], band_width_mhz[g] / 4.29193)
             norm_amp *= spectral_profile
 
         for c in range(len(freq_mhz)):
@@ -184,7 +184,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     circ_pol_frac_var   = var_dict['vfrac_var'][0]
     delta_pol_angle_var = var_dict['dPA_var'][0]
     rm_var              = var_dict['RM_var'][0]
-    dm_var             = var_dict['DM_var'][0]
+    dm_var              = var_dict['DM_var'][0]
     band_centre_mhz_var = var_dict['band_centre_mhz_var'][0]
     band_width_mhz_var  = var_dict['band_width_mhz_var'][0]
 
@@ -232,7 +232,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
             if band_width_mhz[g] != 0.:
                 if band_centre_mhz[g] == 0.:
                     band_centre_mhz[g] = np.median(freq_mhz)
-                spectral_profile = np.exp(-((freq_mhz - var_band_centre_mhz) ** 2) / (2 * (var_band_width_mhz / 4.29193) ** 2))  # 4.29193 is the FWTM factor for Gaussian
+                spectral_profile = gaussian_model(freq_mhz, 1.0, var_band_centre_mhz, var_band_width_mhz / 4.29193)  # 4.29193 is the FWTM factor for Gaussian
                 norm_amp *= spectral_profile
 
             pol_angle_arr = var_PA + (time_ms - var_t0) * var_dPA
