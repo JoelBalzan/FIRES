@@ -320,24 +320,20 @@ def main():
 				freq_window  = None,
 			)
 			if args.chi2_fit:
-				if args.snr == 0:
-					print("No noise added to the dynamic spectrum. Skipping chi-squared fitting. \n")
+				print("Performing chi-squared fitting on the final profiles... \n")
+				# Fit a Gaussian to the Stokes I profile
+				x_data = FRB.time_ms_array  # Replace with the appropriate x-axis data
+				y_data = FRB.dynamic_spectrum[0].mean(axis=0)  # Mean Stokes I profile
+				y_err = noisespec[0].mean(axis=0)  
+
+				initial_guess = [np.max(y_data), np.mean(x_data), np.std(x_data)]  # Initial guess for Gaussian parameters
+				popt, chi2 = chi2_fit(x_data, y_data, y_err, gaussian_model, initial_guess)
+
+				if popt is not None:
+					print(f"Best-fit parameters: {popt}")
+					print(f"Chi-squared value: {chi2} \n")
 				else:
-					print("Performing chi-squared fitting on the final profiles... \n")
-
-					# Fit a Gaussian to the Stokes I profile
-					x_data = FRB.time_ms_array  # Replace with the appropriate x-axis data
-					y_data = FRB.dynamic_spectrum[0].mean(axis=0)  # Mean Stokes I profile
-					y_err = noisespec[0].mean(axis=0)  
-
-					initial_guess = [np.max(y_data), np.mean(x_data), np.std(x_data)]  # Initial guess for Gaussian parameters
-					popt, chi2 = chi2_fit(x_data, y_data, y_err, gaussian_model, initial_guess)
-
-					if popt is not None:
-						print(f"Best-fit parameters: {popt}")
-						print(f"Chi-squared value: {chi2} \n")
-					else:
-						print("Chi-squared fitting failed. \n")
+					print("Chi-squared fitting failed. \n")
 
 		# Print simulation status
 		print(f"Simulation completed. \n")
