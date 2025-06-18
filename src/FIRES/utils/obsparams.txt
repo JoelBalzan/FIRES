@@ -14,9 +14,9 @@
 f0    = 1463.5          
 f1    = 1799.5          
 f_res = 1               
-t0    = -10             
-t1    = 2               
-t_res = 0.01            
+t0    = -6.5             
+t1    = 0               
+t_res = 0.001            
 ########################
 scattering_index = -4   
 reference_freq   = 1000 
