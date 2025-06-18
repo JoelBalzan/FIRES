@@ -1,10 +1,10 @@
 #	Parameters for Gaussian components	
 #
-#	Each row represents a Gaussian components
+#	Each row represents a Gaussian component --- add as many as you like --- EXCEPT:
 #   
 #   THE THIRD LAST ROW REPRESENTS THE FACTORS TO MODULATE THE GAUSSIAN PARAMETERS BY (ONLY FOR THE MGAUSS MODE)
 #   THE SECOND LAST ROW REPRESENTS A VARIANCE RANGE FROM THIRD LAST ROW FOR PLOTTING 
-#   THE LAST ROW IS THE STEP SIZE
+#   THE LAST ROW IS THE STEP SIZE BETWEEN THIRD AND SECOND LAST ROWS
 #       - only one value can be varied --- make sure only one value in the final row is != 0
 #
 #	Columns:
@@ -20,12 +20,15 @@
 #	dpadt(rad/ms) - Change in polarization angle with time in rad/ms
 #	Other 		  - Placeholder for any additional parameters
 
-
-#t0(ms) width_ms	peak_amp	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	        band_centre_mhz    band_width_mhz       Other 	
-#                                                           (rad)                   (rad/ms)
--8.0    0.25 	    10.0 	    0.0 	    0.0		0.0		0.5 	1.0 	0.0 	0.0             0.0                 0.0                 0.0     #gausssian
-0.0	    0.0         0.01	    0.0		    0.0		0.0		0.2     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #mgauss var factor
-0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.3     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var range
-0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.0     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var step
+#######################################################################################################################################################################
+#t0(ms) width_ms	peak_amp	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	        band_centre_mhz    band_width_mhz       Other 	                      #
+#                                                           (rad)                   (rad/ms)                                                                          #
+#######################################################################################################################################################################
+-8.0    0.25 	    10.0 	    0.0 	    0.0		0.0		0.5 	1.0 	0.0 	0.0             0.0                 0.0                 0.0     #gausssian        #
+#######################################################################################################################################################################
+0.0	    0.0         0.01	    0.0		    0.0		0.0		0.2     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #mgauss var factor#
+0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.3     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var range   #
+0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.0     0.0		0.0 	0.0		        0.0                 0.0                 0.0     #plot var step    #
+#######################################################################################################################################################################
 
 
