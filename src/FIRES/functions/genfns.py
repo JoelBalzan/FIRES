@@ -50,8 +50,6 @@ def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 
 
 
-
-
 # -------------------------- FRB generator functions ---------------------------
 def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, snr, tau_ms, sc_idx, ref_freq_mhz):
     """
@@ -138,7 +136,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, snr, tau_ms, sc_i
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict, var_dict,
-                      width_range, snr, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None):
+                      width_range, snr, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None, auto_time_window=True):
     """
     Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
     Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -146,10 +144,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     # Set the random seed for reproducibility
     if seed is not None:
         np.random.seed(seed)
-
-    dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
-    lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
-    median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
     
     t0              = gdict['t0']
     width_ms        = gdict['width_ms']
@@ -166,9 +160,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 
     num_main_gauss = len(t0) 
     if len(num_micro_gauss) != num_main_gauss:
-        raise ValueError(f"Number of main Gaussians ({num_main_gauss}) does not match number of micro-Gaussians ({len(num_micro_gauss)})")
+        raise ValueError(f"Number of main Gaussians ({num_main_gauss}) does not match number of sets of micro-Gaussians ({len(num_micro_gauss)}) \n"
+                         "Check --n-gauss and/or gparams.txt")
 
-
+    # check if varying scattering time scale or variable from gparams.txt
     if microvar is not None:
         if xname in var_dict:
             var_dict[xname][0] = microvar
@@ -191,6 +186,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
             circ_pol_frac_var = 0.0
         else:
             lin_pol_frac_var = 0.0
+            
+    dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
+    lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
+    median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
     all_pol_angles = []  
     for g in range(num_main_gauss):
@@ -199,7 +198,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
             var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var * peak_amp[g]) / num_micro_gauss[g]
             # Sample the micro width as a percentage of the main width
             var_width_ms        = width_ms[g] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
-            var_t0              = np.random.normal(t0[g], width_ms[g])
+            # Calculate the maximum allowed offset so microshots stay within the main Gaussian width
+            var_t0              = np.random.normal(t0[g], width_ms[g] / 4.29193) # 4.29193 is the FWTM factor for Gaussian
             var_PA              = np.random.normal(PA[g], pol_angle_var)
             var_lfrac           = np.random.normal(lfrac[g], lin_pol_frac_var * lfrac[g])
             var_vfrac           = np.random.normal(vfrac[g], circ_pol_frac_var * vfrac[g])
