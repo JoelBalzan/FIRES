@@ -139,12 +139,7 @@ def est_profiles(dynspec, time_ms, noise_stokes):
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
 		iquvt = np.nansum(dynspec, axis=1)
-  	
-		I = iquvt[0]
-  
-		threshold = 0.05 * np.nanmax(I)
-		mask = I <= threshold
-  
+
 		itsub = iquvt[0]
 		qtsub = iquvt[1]
 		utsub = iquvt[2]
@@ -173,6 +168,14 @@ def est_profiles(dynspec, time_ms, noise_stokes):
 		lfrac = lts / itsub
 		pfrac = pts / itsub		
   
+		# Calculate the errors in fractional polarizations
+		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
+		eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
+		eufrac = np.abs(ufrac) * np.sqrt((noise_stokes[2] / utsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
+		elfrac = np.abs(lfrac) * np.sqrt((elts / lts) ** 2 + (noise_stokes[0] / itsub) ** 2)
+		epfrac = np.abs(pfrac) * np.sqrt((epts / pts) ** 2 + (noise_stokes[0] / itsub) ** 2)  
+  
+  
 		# Set large errors to NaN
 		mask = iquvt[0] < noise_stokes[0]
 		phits[mask]  = np.nan
@@ -185,18 +188,13 @@ def est_profiles(dynspec, time_ms, noise_stokes):
 		dphits[invalid_pa] = np.nan
   
 		# Mask PA outside all signal windows using on-pulse finder
+		I = np.nansum(dynspec[0], axis=0)
 		w95_ms, left, right = boxcar_width_w95(I, time_ms, frac=0.95)
 		pa_mask = np.zeros_like(phits, dtype=bool)
 		pa_mask[left:right+1] = True
 		phits[~pa_mask] = np.nan
 		dphits[~pa_mask] = np.nan
-	
-		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		eufrac = np.abs(ufrac) * np.sqrt((noise_stokes[2] / utsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		elfrac = np.abs(lfrac) * np.sqrt((elts / lts) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		epfrac = np.abs(pfrac) * np.sqrt((epts / pts) ** 2 + (noise_stokes[0] / itsub) ** 2)
-			
+
 		# Return the time profiles as a frb_time_series object
 	return frb_time_series(iquvt, lts, elts, pts, epts, phits, dphits, psits, dpsits, qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac)
 
@@ -264,7 +262,6 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
     Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
     """
     RM = gdict["RM"]
-    width_ms = gdict["width_ms"]
 
     max_rm = RM[np.argmax(np.abs(RM))]
     corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
@@ -278,17 +275,17 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
     offpulse_mask[left:right+1] = False  # Exclude on-pulse region
 
     nstokes, nchan, ntime = corrdspec.shape
-    noistks = np.zeros(nstokes)
+    noise_stokes = np.zeros(nstokes)
     for s in range(nstokes):
         # For each channel, get stddev over off-pulse bins, then average over channels
         noise_per_chan = [np.nanstd(corrdspec[s, ch, offpulse_mask]) for ch in range(nchan)]
-        noistks[s] = np.nanmean(noise_per_chan)
+        noise_stokes[s] = np.nanmean(noise_per_chan)
 
     noisespec = np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
 
-    tsdata = est_profiles(corrdspec, time_ms, noistks)
+    tsdata = est_profiles(corrdspec, time_ms, noise_stokes)
 
-    return tsdata, corrdspec, noisespec, noistks
+    return tsdata, corrdspec, noisespec, noise_stokes
 
 
 
