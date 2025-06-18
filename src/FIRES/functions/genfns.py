@@ -94,14 +94,12 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, snr, tau_ms, sc_i
     dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # [I, Q, U, V]
     lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
     median_lambda_sq = np.nanmedian(lambda_sq)
-    num_gauss = len(spec_idx) - 2
+    num_gauss = len(t0) 
 
-    all_pol_angles = []  
     for g in range(num_gauss):
         temp_dynspec = np.zeros_like(dynspec)
         norm_amp = peak_amp[g] * (freq_mhz / ref_freq_mhz) ** spec_idx[g]
         pol_angle_arr = PA[g] + (time_ms - t0[g]) * dPA[g]
-        all_pol_angles.append(PA)
 
         # Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
         if band_width_mhz[g] != 0.:
@@ -127,15 +125,14 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, snr, tau_ms, sc_i
             )  # Stokes Q, U, V
 
         dynspec += temp_dynspec
-    var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
     if snr > 0:
         width_ds = width_ms[0] / time_res_ms
         if band_width_mhz[0] == 0.:
             band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-        dynspec = add_noise_to_dynspec(dynspec, snr, seed, band_width_mhz, width_ds)
+        dynspec = add_noise_to_dynspec(dynspec, snr, band_width_mhz, width_ds)
 
-    return dynspec, var_pol_angles
+    return dynspec, None
 
 
 
@@ -268,6 +265,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
         width_ds = width_ms[0] / time_res_ms
         if band_width_mhz[0] == 0.:
             band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-        dynspec = add_noise_to_dynspec(dynspec, snr, seed, band_width_mhz, width_ds)
+        dynspec = add_noise_to_dynspec(dynspec, snr, band_width_mhz, width_ds)
     
     return dynspec, var_pol_angles
