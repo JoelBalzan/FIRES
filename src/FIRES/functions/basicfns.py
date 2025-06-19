@@ -579,7 +579,7 @@ def add_noise(dynspec, time_ms, target_snr, boxcar_frac=0.95):
 	clean_I = np.mean(dynspec[0], axis=0)  # Average Stokes I over frequency
 	
 	# Step 2: Find boxcar containing specified fraction of signal
-	width_ms, start_idx, end_idx = boxcar_width(clean_I, time_ms, frac=boxcar_frac)
+	_, start_idx, end_idx = boxcar_width(clean_I, time_ms, frac=boxcar_frac)
 	boxcar_width_samples = end_idx - start_idx + 1
 	
 	# Step 3: Apply boxcar optimization within the boxcar region
