@@ -531,7 +531,7 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 
 
 
-def add_noise(dynspec, t_sys, bandwidth, tint, time_ms, n_pol=2):
+def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=2):
 	"""
 	Add Gaussian noise to a clean Stokes IQUV dynamic spectrum based on the radiometer equation.
 
@@ -541,10 +541,12 @@ def add_noise(dynspec, t_sys, bandwidth, tint, time_ms, n_pol=2):
 		3D array with shape (4, nchan, ntime), clean dynamic spectrum [I, Q, U, V]
 	t_sys : float
 		System temperature (or equivalent noise level) in arbitrary units
-	bandwidth : float
-		Channel bandwidth in Hz
-	tint : float
-		Integration time per time sample in seconds
+	f_res : float
+		Frequency resolution in Hz
+	t_res : float
+		Time resolution in seconds
+	time_ms : np.ndarray
+		Time array in milliseconds
 	n_pol : int
 		Number of polarizations (default 2 for Stokes I)
 	
@@ -555,7 +557,7 @@ def add_noise(dynspec, t_sys, bandwidth, tint, time_ms, n_pol=2):
 	"""
 
 	# Calculate RMS noise using the radiometer equation
-	sigma = t_sys / np.sqrt(n_pol * bandwidth * tint)
+	sigma = t_sys / np.sqrt(n_pol * f_res * t_res)
 
 	npol = dynspec.shape[0]  # Number of polarizations (should be 4 for IQUV)
 	noise = np.random.normal(0.0, sigma, dynspec.shape)
