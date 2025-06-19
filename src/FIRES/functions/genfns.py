@@ -125,10 +125,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, snr, tau_ms, sc_i
         dynspec += temp_dynspec
     
     if snr > 0:
-        width_ds = width_ms[0] / time_res_ms
-        if band_width_mhz[0] == 0.:
-            band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-        dynspec = add_noise_to_dynspec(dynspec, snr, band_width_mhz, width_ds)
+        dynspec = add_noise(dynspec, time_ms, snr, boxcar_frac=0.95)
 
     return dynspec, None
 
@@ -262,9 +259,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
     var_pol_angles = np.nanvar(np.array(all_pol_angles))
     
     if snr > 0:
-        width_ds = width_ms[0] / time_res_ms
-        if band_width_mhz[0] == 0.:
-            band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-        dynspec = add_noise_to_dynspec(dynspec, snr, band_width_mhz, width_ds)
-    
+        dynspec = add_noise(dynspec, time_ms, snr, boxcar_frac=0.95)
+
     return dynspec, var_pol_angles

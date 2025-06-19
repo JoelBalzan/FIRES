@@ -25,7 +25,7 @@ from tqdm import tqdm
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor
 
-from FIRES.functions.basicfns import scatter_stokes_chan, add_noise_to_dynspec
+from FIRES.functions.basicfns import scatter_stokes_chan, add_noise
 from FIRES.functions.genfns import *
 from FIRES.utils.utils import *
 
@@ -370,6 +370,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 		gdict           = gdict,
 		var_dict        = var_dict,
 		freq_mhz        = freq_mhz,
+		freq_res_mhz    = f_res,
 		time_ms         = time_ms,
 		time_res_ms     = t_res,
 		seed            = seed,
@@ -407,9 +408,9 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 				width_ds = gdict['width_ms'][1] / t_res
 				if band_width_mhz[1] == 0.:
 					band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-				dynspec = add_noise_to_dynspec(dynspec, snr, seed, band_width_mhz, width_ds)
-	
-	
+				dynspec = add_noise(dynspec, time_ms, snr, boxcar_frac=0.95)
+
+
 		else:
 			dspec, _ = generate_dynspec(
 			xname=None,

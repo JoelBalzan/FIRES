@@ -27,13 +27,37 @@ from FIRES.utils.utils import *
 
 def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 	"""
-	Determine RM using RM synthesis with RMtool.
-	Inputs:
-		- freq_ghz: Frequencies in GHz
-		- iquv: I Q U V spectrum
-		- diquv: I Q U V noise spectrum
+	Perform rotation measure (RM) synthesis using RMtools to determine the RM and polarization properties.
+
+	Parameters:
+	-----------
+	freq_ghz : array_like
+		Observation frequencies in GHz
+	iquv : tuple of arrays
+		Stokes parameters (I, Q, U, V) spectra in flux density units
+	diquv : tuple of arrays  
+		Uncertainties/noise in Stokes parameters (dI, dQ, dU, dV) spectra
+	outdir : str
+		Output directory path for saving results and plots
+	save : bool
+		Whether to save output figures and data files
+	show_plots : bool
+		Whether to display plots during processing
+		
 	Returns:
-		- res: List containing RM, RM error, polarization angle, and polarization angle error
+	--------
+	list
+		Four-element list containing:
+		[0] RM value in rad/m²
+		[1] RM uncertainty in rad/m²
+		[2] Intrinsic polarization angle at λ²=0 in degrees
+		[3] Uncertainty in polarization angle in degrees
+		
+	Notes:
+	------
+	- Uses polynomial order 3 for fitting
+	- Searches RM space up to ±1000 rad/m² with 1 rad/m² resolution
+	- Applies RM CLEAN with 0.1 threshold to remove sidelobes
 	"""
 	
 	# Prepare the data for RM synthesis
@@ -56,23 +80,41 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 
 def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, save, show_plots):
 	"""
-	Estimate rotation measure.
-	Inputs:
-		- dynspec: Dynamic spectrum array
-		- freq_mhz: Frequency array in MHz
-		- time_ms: Time array in ms
-		- noisespec: Noise spectrum
-		- left_window_ms: Left window in ms for RM estimation
-		- right_window_ms: Right window in ms for RM estimation
-		- phi_range: Range of RM values to search
-		- dphi: Step size for RM search
-		- start_chan: Starting channel index
-		- end_chan: Ending channel index
+	Estimate the rotation measure (RM) of an FRB from its dynamic spectrum using RM synthesis.
+
+	Parameters:
+	-----------
+	dynspec : ndarray, shape (4, n_freq, n_time)
+		4D dynamic spectrum array with Stokes I, Q, U, V
+	freq_mhz : array_like
+		Frequency channels in MHz
+	time_ms : array_like  
+		Time samples in milliseconds
+	noisespec : array_like, shape (4, n_freq)
+		Noise levels for each Stokes parameter and frequency channel
+	phi_range : float
+		Maximum RM range to search (±phi_range rad/m²) - currently unused
+	dphi : float
+		RM step size for search grid - currently unused  
+	outdir : str
+		Output directory for saving RM synthesis results
+	save : bool
+		Whether to save diagnostic plots and data
+	show_plots : bool
+		Whether to display plots during processing
+		
 	Returns:
-		- res_rmtool: List containing RM, RM error, polarization angle, and polarization angle error
+	--------
+	list
+		RM synthesis results: [RM, dRM, pol_angle_0, dpol_angle_0]
+		- RM: Rotation measure in rad/m²
+		- dRM: Uncertainty in RM in rad/m²  
+		- pol_angle_0: Intrinsic polarization angle in degrees
+		- dpol_angle_0: Uncertainty in polarization angle in degrees
 	"""
 
-	w95_ms, left, right = boxcar_width_w95(np.nansum(dynspec[0], axis=0), time_ms, frac=0.95)
+
+	w95_ms, left, right = boxcar_width(np.nansum(dynspec[0], axis=0), time_ms, frac=0.95)
 
 	# Calculate the mean spectra for each Stokes parameter
 	ispec   = np.nansum(dynspec[0, :, left:right], axis=1)
@@ -96,14 +138,25 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 
 def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	"""
-	Generate RM corrected dynamic spectrum.
-	Inputs:
-		- dynspec: Dynamic spectrum array
-		- freq_mhz: Frequency array in MHz
-		- rm0: Rotation measure to correct for
+	Apply rotation measure correction to remove Faraday rotation from a dynamic spectrum.
+ 
+	Parameters:
+	-----------
+	dynspec : ndarray, shape (4, n_freq, n_time)
+		Input dynamic spectrum with Stokes I, Q, U, V
+	freq_mhz : array_like
+		Frequency channels in MHz
+	rm0 : float
+		Rotation measure to correct for in rad/m²
+		
 	Returns:
-		- new_dynspec: RM corrected dynamic spectrum
+	--------
+	ndarray, shape (4, n_freq, n_time)
+		RM-corrected dynamic spectrum where:
+		- Stokes I and V are unchanged (not affected by Faraday rotation)
+		- Stokes Q and U are rotated to remove Faraday rotation effects
 	"""
+
 	
 	# Initialize the new dynamic spectrum
 	new_dynspec    = np.zeros(dynspec.shape, dtype=float)
@@ -125,17 +178,29 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 
 def est_profiles(dynspec, time_ms, noise_stokes):
 	"""
-	Estimate time profiles.
-	Inputs:
-		- dynspec: Dynamic spectrum array
-		- freq_mhz: Frequency array in MHz
-		- time_ms: Time array in ms
-		- noisespec: Noise spectrum
-		- start_chan: Starting channel index
-		- end_chan: Ending channel index
+	Extract and analyze time-resolved polarization profiles from a dynamic spectrum.
+	
+	Parameters:
+	-----------
+	dynspec : ndarray, shape (4, n_freq, n_time)  
+		Dynamic spectrum with Stokes I, Q, U, V
+	time_ms : array_like
+		Time axis in milliseconds
+	noise_stokes : array_like, shape (4,)
+		RMS noise levels for each Stokes parameter
+		
 	Returns:
-		- frb_time_series: Object containing time profiles
+	--------
+	frb_time_series
+		Object containing time-resolved polarization measurements:
+		- iquvt: Time series of I, Q, U, V
+		- lts, elts: Linear polarization intensity and error
+		- pts, epts: Total polarization intensity and error  
+		- phits, dphits: Linear polarization angle and error (degrees)
+		- psits, dpsits: Circular polarization angle and error (degrees)
+		- Fractional polarizations: qfrac, ufrac, vfrac, lfrac, pfrac with errors
 	"""
+
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
 		iquvt = np.nansum(dynspec, axis=1)
@@ -189,7 +254,7 @@ def est_profiles(dynspec, time_ms, noise_stokes):
   
 		# Mask PA outside all signal windows using on-pulse finder
 		I = np.nansum(dynspec[0], axis=0)
-		w95_ms, left, right = boxcar_width_w95(I, time_ms, frac=0.95)
+		w95_ms, left, right = boxcar_width(I, time_ms, frac=0.95)
 		pa_mask = np.zeros_like(phits, dtype=bool)
 		pa_mask[left:right+1] = True
 		phits[~pa_mask] = np.nan
@@ -201,16 +266,30 @@ def est_profiles(dynspec, time_ms, noise_stokes):
 
 def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 	"""
-	Estimate spectra.
-	Inputs:
-		- dynspec: Dynamic spectrum array
-		- freq_mhz: Frequency array in MHz
-		- time_ms: Time array in ms
-		- noisespec: Noise spectrum
-		- left_window_ms: Left window in ms for spectra estimation
-		- right_window_ms: Right window in ms for spectra estimation
+	Extract frequency-resolved polarization spectra by integrating over a specified time window.
+
+	Parameters:
+	-----------
+	dynspec : ndarray, shape (4, n_freq, n_time)
+		Dynamic spectrum containing Stokes I, Q, U, V  
+	noisespec : array_like, shape (4, n_freq)
+		Noise spectrum for each Stokes parameter and frequency channel
+	left_window_ms : int
+		Starting time bin index for integration window
+	right_window_ms : int  
+		Ending time bin index for integration window
+		
 	Returns:
-		- frb_spectrum: Object containing spectra
+	--------
+	frb_spectrum
+		Object containing frequency-resolved polarization measurements:
+		- iquvspec: Integrated Stokes I, Q, U, V spectra
+		- noispec0: Noise spectra scaled for integration time
+		- lspec, dlspec: Linear polarization intensity and error vs frequency
+		- pspec, dpspec: Total polarization intensity and error vs frequency
+		- Fractional polarization spectra with errors: qfracspec, ufracspec, etc.
+		- phispec, dphispec: Linear polarization angle and error vs frequency  
+		- psispec, dpsispec: Circular polarization angle and error vs frequency
 	"""
 	 
 	# Average the dynamic spectrum over the specified time range
@@ -258,42 +337,80 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 
 
 def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
-    """
-    Process the dynamic spectrum: RM correction, noise estimation, and profile extraction.
-    """
-    RM = gdict["RM"]
-
-    max_rm = RM[np.argmax(np.abs(RM))]
-    corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
-
-    # Use Stokes I to find the on-pulse window
-    I = np.nansum(corrdspec[0], axis=0)
-    w95_ms, left, right = boxcar_width_w95(I, time_ms, frac=0.95)
-
-    # Estimate noise in each Stokes parameter using off-pulse region
-    offpulse_mask = np.ones(I.shape, dtype=bool)
-    offpulse_mask[left:right+1] = False  # Exclude on-pulse region
-
-    nstokes, nchan, ntime = corrdspec.shape
-    noise_stokes = np.zeros(nstokes)
-    for s in range(nstokes):
-        # For each channel, get stddev over off-pulse bins, then average over channels
-        noise_per_chan = [np.nanstd(corrdspec[s, ch, offpulse_mask]) for ch in range(nchan)]
-        noise_stokes[s] = np.nanmean(noise_per_chan)
-
-    noisespec = np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
-
-    tsdata = est_profiles(corrdspec, time_ms, noise_stokes)
-
-    return tsdata, corrdspec, noisespec, noise_stokes
-
-
-
-def boxcar_width_w95(profile, time_ms, frac=0.95):
 	"""
-	Find the smallest contiguous window (box-car) that encloses at least `frac` (default 95%) 
-	of the total burst fluence.
-	Returns the width in ms and the (start, end) indices.
+	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
+	
+	Parameters:
+	-----------
+	dynspec : ndarray, shape (4, n_freq, n_time)
+		Input dynamic spectrum with Stokes I, Q, U, V
+	freq_mhz : array_like
+		Frequency channels in MHz
+	time_ms : array_like
+		Time samples in milliseconds  
+	gdict : dict
+		Dictionary containing analysis parameters, must include:
+		- "RM": array of rotation measure values (rad/m²)
+	tau_ms : float
+		Pulse width parameter (currently unused in this function)
+		
+	Returns:
+	--------
+	tuple
+		Four-element tuple containing:
+		- tsdata: frb_time_series object with time-resolved polarization profiles
+		- corrdspec: RM-corrected dynamic spectrum  
+		- noisespec: Noise spectrum for each Stokes parameter and frequency
+		- noise_stokes: Average noise levels for each Stokes parameter
+	"""
+	RM = gdict["RM"]
+
+	max_rm = RM[np.argmax(np.abs(RM))]
+	corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
+
+	# Use Stokes I to find the on-pulse window
+	I = np.nansum(corrdspec[0], axis=0)
+	w95_ms, left, right = boxcar_width(I, time_ms, frac=0.95)
+
+	# Estimate noise in each Stokes parameter using off-pulse region
+	offpulse_mask = np.ones(I.shape, dtype=bool)
+	offpulse_mask[left:right+1] = False  # Exclude on-pulse region
+
+	nstokes, nchan, ntime = corrdspec.shape
+	noise_stokes = np.zeros(nstokes)
+	for s in range(nstokes):
+		# For each channel, get stddev over off-pulse bins, then average over channels
+		noise_per_chan = [np.nanstd(corrdspec[s, ch, offpulse_mask]) for ch in range(nchan)]
+		noise_stokes[s] = np.nanmean(noise_per_chan)
+
+	noisespec = np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
+
+	tsdata = est_profiles(corrdspec, time_ms, noise_stokes)
+
+	return tsdata, corrdspec, noisespec, noise_stokes
+
+
+
+def boxcar_width(profile, time_ms, frac=0.95):
+	"""
+	Find the minimum contiguous time window that contains a specified fraction of the total burst energy.
+	
+	Parameters:
+	-----------
+	profile : array_like
+		1D intensity profile (typically integrated over frequency)
+	time_ms : array_like  
+		Time axis corresponding to profile bins, in milliseconds
+	frac : float, optional
+		Fraction of total flux to enclose (default: 0.95 for 95%)
+		
+	Returns:
+	--------
+	tuple
+		Three-element tuple containing:
+		- width_ms: Width of optimal window in milliseconds
+		- best_start: Starting index of optimal window  
+		- best_end: Ending index of optimal window
 	"""
 	prof = np.nan_to_num(profile)
 	total = np.sum(prof)
@@ -317,6 +434,26 @@ def boxcar_width_w95(profile, time_ms, frac=0.95):
 
 
 def median_percentiles(yvals, x, ndigits=3):
+	"""
+	Calculate median values and percentile-based error bars from grouped data.
+
+	Parameters:
+	-----------
+	yvals : dict
+		Dictionary where keys are parameter values and values are lists/arrays of measurements
+	x : array_like
+		Array of parameter values for which to compute statistics  
+	ndigits : int, optional
+		Number of decimal places for rounding keys during lookup (default: 3)
+		
+	Returns:
+	--------
+	tuple
+		Two-element tuple containing:
+		- med_vals: List of median values for each x value
+		- percentile_errs: List of (lower_percentile, upper_percentile) tuples
+	"""
+ 
 	med_vals = []
 	percentile_errs = []
 	# Round all keys in yvals for consistent lookup
@@ -352,20 +489,24 @@ def weight_dict(x, yvals, weights_dict, ndigits=3):
  
 def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 	"""
-	Apply scattering to chan using a causal exponential IRF,
-	with padding to prevent boundary artifacts.
-
-	Inputs:
-		- stokes_I: 1D array of chan (len(time_ms))
-		- freq_mhz: Channel frequency in MHz
-		- time_ms: 1D array of time values in ms (uniformly spaced)
-		- tau_ms: Reference scattering timescale (ms) at ref_freq_mhz
-		- sc_idx: Scattering index (e.g. -4)
-		- ref_freq_mhz: Reference frequency in MHz
-
+	Normalize grouped measurement data by corresponding weight factors.
+	
+	Parameters:
+	-----------
+	x : array_like
+		Parameter values for which to perform normalization
+	yvals : dict  
+		Dictionary with parameter values as keys and measurement lists as values
+	weights_dict : dict
+		Dictionary with parameter values as keys and weight factor lists as values
+	ndigits : int, optional
+		Number of decimal places for rounding keys during lookup (default: 3)
+		
 	Returns:
-		- sc_stokes_I: Scattered chan (same shape as input)
-		- tau_cms: Scattering timescale at freq_mhz
+	--------
+	dict
+		Dictionary with same keys as input, containing normalized values:
+		normalized_value = original_value / weight_factor
 	"""
 	# Calculate frequency-dependent scattering timescale
 	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
@@ -390,75 +531,152 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 
 
 
-def add_noise_to_dynspec(data, desired_snr, bandwidth_mhz, width_ds,
-									 tsys_k=75.0, gain_k_jy=0.3, npol=2, 
-									 use_radiometer_floor=True):
+def add_noise(dynspec, time_ms, target_snr, boxcar_frac=0.95):
 	"""
-	Add noise with optional radiometer equation floor constraint.
+	Add noise to Stokes IQUV dynamic spectrum using combined boxcar + boxcar approach.
+	
+	1. Create intensity profile from clean data
+	2. Use boxcar_width to find signal region containing specified fraction
+	3. Use boxcar method within that region to optimize S/N
+	4. Calculate required noise level and distribute across 2D spectrum
 	
 	Parameters:
 	-----------
-	data : ndarray, shape (4, nchan, ntime)
-		Input IQUV dynamic spectrum data
-	desired_snr : float
-		Desired SNR in the final pulse profile
-	bandwidth_mhz : float
-		Total bandwidth in MHz
-	width_ds : float
-		Time width of first gaussian envelope in bins
-	tsys_k : float, optional
-		System temperature in Kelvin
-	gain_k_jy : float, optional
-		System gain in K/Jy
-	npol : int, optional
-		Number of polarizations
-	use_radiometer_floor : bool, optional
-		If True, ensures noise is at least as high as radiometer equation predicts
-	
+	dynspec : array_like, shape (4, n_freq, n_time)
+		Input Stokes parameters [I, Q, U, V] dynamic spectrum (noise-free)
+	dt : float
+		Time resolution (seconds)
+	df : float  
+		Frequency resolution (Hz)
+	target_snr : float
+		Desired signal-to-noise ratio using boxcar's optimal boxcar
+	boxcar_frac : float, optional
+		Fraction of signal to include in initial boxcar (default 0.95)
+	system_temp : float, optional
+		System temperature (K), default 100.0
+	gain : float, optional
+		System gain, default 1.0  
+	efficiency : float, optional
+		System efficiency, default 1.0
+		
 	Returns:
 	--------
-	noisy_data : ndarray, shape (4, nchan, ntime)
-		IQUV data with added noise
-	profile_snr_achieved : float
-		Actual SNR achieved in the summed profile
-	noise_std_used : float
-		Actual noise standard deviation used per channel
-	radiometer_noise : float
-		Theoretical noise from radiometer equation
+	noisy_stokes : ndarray, shape (4, n_freq, n_time)
+		Stokes parameters with added noise
+	boxcar_info : dict
+		Information about the boxcar and optimal parameters
+	actual_snr : float
+		Achieved S/N ratio using boxcar method
 	"""
 	
-	nstokes, nchan, ntime = data.shape
+	dynspec = np.asarray(dynspec)
+	if dynspec.shape[0] != 4:
+		raise ValueError("First dimension must be 4 for Stokes [I,Q,U,V]")
+
+	npol, nchan, nbin = dynspec.shape
+
+	# Step 1: Create clean intensity profile
+	clean_I = np.mean(dynspec[0], axis=0)  # Average Stokes I over frequency
 	
-	# Calculate radiometer noise per channel
-
-	bandwidth_mhz = bandwidth_mhz * 1e6  # Convert MHz to Hz
-	#radiometer_noise = tsys_k / (gain_k_jy * np.sqrt(npol * bandwidth_mhz * width_ds))
-	radiometer_noise = tsys_k / (np.sqrt(bandwidth_mhz * width_ds))
+	# Step 2: Find boxcar containing specified fraction of signal
+	width_ms, start_idx, end_idx = boxcar_width(clean_I, time_ms, frac=boxcar_frac)
+	boxcar_width_samples = end_idx - start_idx + 1
 	
-	# Calculate required noise for target SNR (as before)
-	I = np.sum(data[0], axis=0)
-	signal_peak_profile = np.max(I)
-	signal_peak_per_channel = signal_peak_profile / nchan
+	# Step 3: Apply boxcar optimization within the boxcar region
+	boxcar_signal = clean_I[start_idx:end_idx+1]
+	boxcar_snr_raw = np.sum(boxcar_signal) / np.sqrt(boxcar_width_samples)
 	
-	snr_per_channel_needed = desired_snr / np.sqrt(nchan)
-	noise_from_snr = signal_peak_per_channel / snr_per_channel_needed
+	# Step 4: Calculate required noise level for target S/N
+	# boxcar S/N = sum(signal) / sqrt(width) / noise_rms
+	# Therefore: noise_rms = sum(signal) / sqrt(width) / target_snr
+	noise_level_needed = boxcar_snr_raw / target_snr
 	
-	# Use the higher of the two noise levels
-	if use_radiometer_floor:
-		noise_std_used = max(noise_from_snr, radiometer_noise)
-	else:
-		noise_std_used = noise_from_snr
+	# Step 5: Generate 2D noise that sums to the required 1D noise profile
+	noise_2d = generate_consistent_2d_noise(nchan, nbin, noise_level_needed)
 	
-	# Generate and add noise
-	noise = np.random.normal(0, noise_std_used, data.shape)
-	noisy_data = data + noise
- 
-	# Calculate achieved SNR in the final profile
-	noisy_profile = np.sum(noisy_data[0], axis=0)
-	peak = np.nanmax(noisy_profile)
+	# Step 6: Add noise to all Stokes parameters
+	noisy_stokes = dynspec.copy()
+	for pol in range(npol):
+		noisy_stokes[pol] += noise_2d
+	
+	# Step 7: Verify the achieved S/N using boxcar method
+	noisy_I = np.mean(noisy_stokes[0], axis=0)
+	actual_snr, _ = boxcar_snr(noisy_I, noise_level_needed)
+	
+	print(f"Target SNR: {target_snr}, Achieved SNR: {actual_snr:.2f}")
 
-	return noisy_data
+	
+	return noisy_stokes
+
+
+def boxcar_snr(ys, rms):
+	"""
+	Calculates "max boxcar S/N" using boxcar's method.
+	
+	Parameters:
+	-----------
+	ys : array_like
+		Input signal profile
+	rms : float
+		RMS noise level
+	plot : bool, optional
+		Whether to show the diagnostic plot
+		
+	Returns:
+	--------
+	global_maxSNR_normalized : float
+		Maximum S/N ratio (normalized by RMS)
+	boxcarw : int
+		Optimal boxcar width
+	"""
+	
+	ys = np.asarray(ys)
+	maxSNR = np.zeros(ys.size)
+	wmax = np.zeros(ys.size, dtype=int)
+	
+	for i1 in range(ys.size):
+		n2 = int(ys.size - i1)
+		
+		for i2 in range(n2):
+			w = i2 + 1
+			SNR = np.sum(ys[i1:i1+w]) / w**0.5
+			
+			if SNR > maxSNR[i1]:
+				maxSNR[i1] = SNR
+				wmax[i1] = w
+				
+	global_maxSNR = np.max(maxSNR)
+	boxcarw = wmax[np.argmax(maxSNR)]
+
+	return (global_maxSNR/rms, boxcarw)
 
 
 
-
+def generate_consistent_2d_noise(nchan, nbin, target_noise_rms):
+	"""
+	Generate 2D noise array that when summed over frequency gives
+	the desired 1D noise level.
+	
+	Parameters:
+	-----------
+	nchan : int
+		Number of frequency channels
+	nbin : int
+		Number of time bins
+	target_noise_rms : float
+		Target RMS noise level in 1D profile after averaging
+		
+	Returns:
+	--------
+	noise_2d : ndarray, shape (nchan, nbin)
+		2D noise array
+	"""
+	
+	# When we average over nchan channels, the noise reduces by sqrt(nchan)
+	# So we need the 2D noise to have RMS = target_noise_rms * sqrt(nchan)
+	noise_2d_rms = target_noise_rms * np.sqrt(nchan)
+	
+	# Generate independent noise for each channel
+	noise_2d = np.random.normal(0, noise_2d_rms, (nchan, nbin))
+	
+	return noise_2d
