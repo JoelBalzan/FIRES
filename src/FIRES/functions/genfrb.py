@@ -408,7 +408,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 				width_ds = gdict['width_ms'][1] / t_res
 				if band_width_mhz[1] == 0.:
 					band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-				dynspec = add_noise(dynspec, 100, f_res*1e6, (t_res)/1000, 1)
+				dynspec = dynspec = add_noise(dynspec, 100, f_res, t_res, time_ms)
 
 
 		else:
