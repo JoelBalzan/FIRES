@@ -124,6 +124,7 @@ class DynspecParams(NamedTuple):
     gdict          : dict
     var_dict       : dict
     freq_mhz       : np.ndarray
+    freq_res_mhz   : float
     time_ms        : np.ndarray
     time_res_ms    : float
     seed           : int
