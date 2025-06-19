@@ -218,11 +218,9 @@ def main():
 	 )
 	)
 	parser.add_argument(
-		"--snr",
-		type=float,
-		default=0,
-		metavar="",
-		help="Signal-to-noise ratio (SNR) for the simulated FRB. Default is 0 (no snr)."
+		"--noise",
+		action="store_true",
+		help="Add radiometric noise to the simulated FRB."
 	)
 	parser.add_argument(
 		"--ncpu",
@@ -292,7 +290,7 @@ def main():
 				seed         = args.seed,
 				nseed        = args.nseed,
 				width_range  = args.mg_width,
-				snr          = args.snr,
+				noise          = args.noise,
 				n_cpus       = args.ncpu,
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
@@ -313,7 +311,7 @@ def main():
 				seed         = args.seed,
 				nseed        = None,
 				width_range  = args.mg_width,
-				snr          = args.snr,
+				noise          = args.noise,
 				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
 				phase_window = None,

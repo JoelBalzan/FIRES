@@ -211,16 +211,11 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	fig.subplots_adjust(hspace=0.)
 
 	# Plot polarisation angle
-	axs[0].errorbar(time_ms, phits, yerr = dphits, c='black', markersize=1, lw=0.5, capsize=1, zorder=8)
+	axs[0].scatter(time_ms, phits, c='black', s=6, zorder=8)
+	axs[0].errorbar(time_ms, phits, yerr=dphits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
+ 
 	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
-	axs[0].fill_between(
-		time_ms, 
-		phits - dphits,  # Lower bound of the error
-		phits + dphits,  # Upper bound of the error
-		color='gray', 
-		alpha=0.3,  # Transparency level
-		label='Error'
-	)
+	#axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
 	axs[0].set_ylabel("PA [deg.]")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
@@ -243,6 +238,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].legend(loc='upper right')
 	axs[1].set_ylabel("Flux Density (arb.)")
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
+	axs[1].set_yticklabels([]) 
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	axs[1].text(
 		0.80, 0.95,  # x, y in axes fraction coordinates 

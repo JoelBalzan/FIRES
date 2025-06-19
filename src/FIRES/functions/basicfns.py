@@ -531,82 +531,53 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 
 
 
-def add_noise(dynspec, time_ms, target_snr, boxcar_frac=0.95):
+def add_noise(dynspec, t_sys, bandwidth, tint, time_ms, n_pol=2):
 	"""
-	Add noise to Stokes IQUV dynamic spectrum using combined boxcar + boxcar approach.
+	Add Gaussian noise to a clean Stokes IQUV dynamic spectrum based on the radiometer equation.
+
+	Parameters
+	----------
+	dynspec : np.ndarray
+		3D array with shape (4, nchan, ntime), clean dynamic spectrum [I, Q, U, V]
+	t_sys : float
+		System temperature (or equivalent noise level) in arbitrary units
+	bandwidth : float
+		Channel bandwidth in Hz
+	tint : float
+		Integration time per time sample in seconds
+	n_pol : int
+		Number of polarizations (default 2 for Stokes I)
 	
-	1. Create intensity profile from clean data
-	2. Use boxcar_width to find signal region containing specified fraction
-	3. Use boxcar method within that region to optimize S/N
-	4. Calculate required noise level and distribute across 2D spectrum
-	
-	Parameters:
-	-----------
-	dynspec : array_like, shape (4, n_freq, n_time)
-		Input Stokes parameters [I, Q, U, V] dynamic spectrum (noise-free)
-	dt : float
-		Time resolution (seconds)
-	df : float  
-		Frequency resolution (Hz)
-	target_snr : float
-		Desired signal-to-noise ratio using boxcar's optimal boxcar
-	boxcar_frac : float, optional
-		Fraction of signal to include in initial boxcar (default 0.95)
-	system_temp : float, optional
-		System temperature (K), default 100.0
-	gain : float, optional
-		System gain, default 1.0  
-	efficiency : float, optional
-		System efficiency, default 1.0
-		
 	Returns:
-	--------
-	noisy_stokes : ndarray, shape (4, n_freq, n_time)
-		Stokes parameters with added noise
-	boxcar_info : dict
-		Information about the boxcar and optimal parameters
-	actual_snr : float
-		Achieved S/N ratio using boxcar method
+	-------
+	noisy_dynspec : np.ndarray
+		Noisy Stokes IQUV dynamic spectrum
 	"""
-	
-	dynspec = np.asarray(dynspec)
-	if dynspec.shape[0] != 4:
-		raise ValueError("First dimension must be 4 for Stokes [I,Q,U,V]")
 
-	npol, nchan, nbin = dynspec.shape
+	# Calculate RMS noise using the radiometer equation
+	sigma = t_sys / np.sqrt(n_pol * bandwidth * tint)
 
-	# Step 1: Create clean intensity profile
-	clean_I = np.mean(dynspec[0], axis=0)  # Average Stokes I over frequency
+	npol = dynspec.shape[0]  # Number of polarizations (should be 4 for IQUV)
+	noise = np.random.normal(0.0, sigma, dynspec.shape)
 	
-	# Step 2: Find boxcar containing specified fraction of signal
-	_, start_idx, end_idx = boxcar_width(clean_I, time_ms, frac=boxcar_frac)
-	boxcar_width_samples = end_idx - start_idx + 1
-	
-	# Step 3: Apply boxcar optimization within the boxcar region
-	boxcar_signal = clean_I[start_idx:end_idx+1]
-	boxcar_snr_raw = np.sum(boxcar_signal) / np.sqrt(boxcar_width_samples)
-	
-	# Step 4: Calculate required noise level for target S/N
-	# boxcar S/N = sum(signal) / sqrt(width) / noise_rms
-	# Therefore: noise_rms = sum(signal) / sqrt(width) / target_snr
-	noise_level_needed = boxcar_snr_raw / target_snr
-	
-	# Step 5: Generate 2D noise that sums to the required 1D noise profile
-	noise_2d = generate_consistent_2d_noise(nchan, nbin, noise_level_needed)
-	
-	# Step 6: Add noise to all Stokes parameters
-	noisy_stokes = dynspec.copy()
-	for pol in range(npol):
-		noisy_stokes[pol] += noise_2d
-	
-	# Step 7: Verify the achieved S/N using boxcar method
-	noisy_I = np.mean(noisy_stokes[0], axis=0)
-	actual_snr, _ = boxcar_snr(noisy_I, noise_level_needed)
-	
-	print(f"Target SNR: {target_snr}, Achieved SNR: {actual_snr:.2f}")
+	noisy_dynspec = np.zeros_like(dynspec, dtype=float)
+	# Add noise to each Stokes parameter
+	for i in range(npol):
+		# Add noise to Stokes I, Q, U, V
+		if i == 0:  # Stokes I
+			noisy_dynspec[i] = dynspec[i] + noise[i]
+		else:  # Stokes Q, U, V
+			noisy_dynspec[i] = dynspec[i] + noise[i] * np.sqrt(2)  # Scale noise for Q, U, V to maintain polarization properties
 
 	
-	return noisy_stokes
+	snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
+	print(f"Stokes I SNR (boxcar method): {snr:.2f}")
+ 
+	snr, _, _ = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), time_ms, frac=0.95)
+	print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
+
+	return noisy_dynspec
+
 
 
 def boxcar_snr(ys, rms):
@@ -651,32 +622,19 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-
-def generate_consistent_2d_noise(nchan, nbin, target_noise_rms):
-	"""
-	Generate 2D noise array that when summed over frequency gives
-	the desired 1D noise level.
-	
-	Parameters:
-	-----------
-	nchan : int
-		Number of frequency channels
-	nbin : int
-		Number of time bins
-	target_noise_rms : float
-		Target RMS noise level in 1D profile after averaging
-		
-	Returns:
-	--------
-	noise_2d : ndarray, shape (nchan, nbin)
-		2D noise array
-	"""
-	
-	# When we average over nchan channels, the noise reduces by sqrt(nchan)
-	# So we need the 2D noise to have RMS = target_noise_rms * sqrt(nchan)
-	noise_2d_rms = target_noise_rms * np.sqrt(nchan)
-	
-	# Generate independent noise for each channel
-	noise_2d = np.random.normal(0, noise_2d_rms, (nchan, nbin))
-	
-	return noise_2d
+def snr_onpulse(profile, time_ms, frac=0.95):
+    """
+    Calculate S/N using the on-pulse window and off-pulse RMS.
+    """
+    # Find on-pulse window
+    _, left, right = boxcar_width(profile, time_ms, frac=frac)
+    onpulse = profile[left:right+1]
+    # Off-pulse mask
+    mask = np.ones_like(profile, dtype=bool)
+    mask[left:right+1] = False
+    offpulse = profile[mask]
+    # Estimate RMS from off-pulse
+    rms = np.nanstd(offpulse)
+    # S/N calculation
+    snr = np.nansum(onpulse) / (rms * np.sqrt(len(onpulse)))
+    return snr, left, right

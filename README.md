@@ -82,7 +82,7 @@ The `FIRES` command-line tool provides several options to customize the simulati
 | `--seed`                  | `int`      | `None`            | Seed for repeatability in `mgauss` mode.                                                            |
 | `--nseed`                 | `int`      | `1`               | Number of realizations to generate at each scattering timescale for `mgauss` mode.                  |
 | `--mg-width`              | `float`    | `[10, 50]`        | Min and max percentage of the main Gaussian width for micro-shots.                                  |
-| `--snr`                   | `float`    | `0`               | Signal-to-noise ratio (SNR) for the simulated FRB. Set to `0` for no noise.                         |
+| `--noise`                   | `float`    | `0`               | Signal-to-noise ratio (noise) for the simulated FRB. Set to `0` for no noise.                         |
 | `--scatter`               | `flag`     | `True`            | Enable scattering.                                                                                  |
 | `--no-scatter`            | `flag`     | `False`           | Disable scattering. Overrides `--scatter`.                                                          |
 | `--ncpu`                  | `int`      | `1`               | Number of CPUs to use for parallel processing.                                                      |
@@ -92,9 +92,9 @@ The `FIRES` command-line tool provides several options to customize the simulati
 ### Examples
 
 #### Basic Simulation
-Simulate an FRB with a scattering timescale of 0.5 ms and SNR of 2:
+Simulate an FRB with a scattering timescale of 0.5 ms and noise of 2:
 ```bash
-FIRES -t 0.5 --plot iquv --mode gauss --snr 10
+FIRES -t 0.5 --plot iquv --mode gauss --noise 10
 ```
 
 #### Simulate an FRB with micro-shots:
