@@ -211,9 +211,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	fig.subplots_adjust(hspace=0.)
 
 	# Plot polarisation angle
-	#axs[0].errorbar(time_ms, phits, yerr = dphits, c='black', markersize=1, lw=0.5, capsize=1, zorder=8)
-	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
-	axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
+	axs[0].errorbar(time_ms, phits, yerr = dphits, c='black', markersize=1, lw=0.5, capsize=1, zorder=8)
+	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
 	axs[0].fill_between(
 		time_ms, 
 		phits - dphits,  # Lower bound of the error
@@ -229,6 +228,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	
 	# Plot the mean across all frequency channels (axis 0)
+	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
 	axs[1].plot(time_ms, I, markersize=2 ,label='I', color='Black')
 	axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
 	#axs[1].plot(time_ms, Q, markersize=2, label='Q', color='Green')
@@ -236,7 +236,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].plot(time_ms, V, markersize=2, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 
-	w95_ms, left, right = boxcar_width_w95(I, time_ms, frac=0.95)
+	_, left, right = boxcar_width(I, time_ms, frac=0.95)
 	axs[1].axvspan(time_ms[left], time_ms[right], color='lightskyblue', alpha=0.2, zorder=0)
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
