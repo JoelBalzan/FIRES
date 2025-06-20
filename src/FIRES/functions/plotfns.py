@@ -211,7 +211,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	fig.subplots_adjust(hspace=0.)
 
 	# Plot polarisation angle
-	axs[0].scatter(time_ms, phits, c='black', s=6, zorder=8)
+	axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
 	axs[0].errorbar(time_ms, phits, yerr=dphits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
  
 	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
@@ -224,11 +224,11 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	
 	# Plot the mean across all frequency channels (axis 0)
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
-	axs[1].plot(time_ms, I, markersize=2 ,label='I', color='Black')
-	axs[1].plot(time_ms, L, markersize=2, label='L', color='Red')
+	axs[1].plot(time_ms, I, markersize=1 ,label='I', color='Black')
+	axs[1].plot(time_ms, L, markersize=1, label='L', color='Red')
 	#axs[1].plot(time_ms, Q, markersize=2, label='Q', color='Green')
 	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
-	axs[1].plot(time_ms, V, markersize=2, label='V', color='Blue')
+	#axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 
 	_, left, right = boxcar_width(I, time_ms, frac=0.95)
@@ -236,7 +236,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 	axs[1].legend(loc='upper right')
-	axs[1].set_ylabel("Flux Density (arb.)")
+	axs[1].set_ylabel("Flux Density [arb.]")
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
 	axs[1].set_yticklabels([]) 
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
