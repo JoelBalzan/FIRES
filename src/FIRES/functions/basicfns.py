@@ -176,7 +176,7 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	return new_dynspec
 
 
-def est_profiles(dynspec, time_ms, noise_stokes):
+def est_profiles(dynspec, time_ms, noise_stokes, left, right):
 	"""
 	Extract and analyze time-resolved polarization profiles from a dynamic spectrum.
 	
@@ -188,6 +188,10 @@ def est_profiles(dynspec, time_ms, noise_stokes):
 		Time axis in milliseconds
 	noise_stokes : array_like, shape (4,)
 		RMS noise levels for each Stokes parameter
+	left : int
+		Starting time bin index for integration window
+	right : int
+		Ending time bin index for integration window
 		
 	Returns:
 	--------
@@ -242,19 +246,22 @@ def est_profiles(dynspec, time_ms, noise_stokes):
   
   
 		# Set large errors to NaN
-		mask = iquvt[0] < noise_stokes[0]
+		mask = itsub < noise_stokes[0]
 		phits[mask]  = np.nan
 		dphits[mask] = np.nan
 		psits[mask]  = np.nan
 		dpsits[mask] = np.nan
 
-		invalid_pa = ~np.isfinite(phits) | ~np.isfinite(dphits)
-		phits[invalid_pa] = np.nan
-		dphits[invalid_pa] = np.nan
+		# Mask PA where linear polarization is not significant
+		#lts_noise = np.sqrt(noise_stokes[1]**2 + noise_stokes[2]**2)
+		#snr_L = lts / lts_noise
+		#snr_threshold = 50.0  # or 5.0 for stricter masking
+#
+		#low_snr_mask = snr_L < snr_threshold
+		#phits[low_snr_mask] = np.nan
+		#dphits[low_snr_mask] = np.nan
   
 		# Mask PA outside all signal windows using on-pulse finder
-		I = np.nansum(dynspec[0], axis=0)
-		w95_ms, left, right = boxcar_width(I, time_ms, frac=0.95)
 		pa_mask = np.zeros_like(phits, dtype=bool)
 		pa_mask[left:right+1] = True
 		phits[~pa_mask] = np.nan
@@ -370,22 +377,22 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
 
 	# Use Stokes I to find the on-pulse window
 	I = np.nansum(corrdspec[0], axis=0)
-	w95_ms, left, right = boxcar_width(I, time_ms, frac=0.95)
+	_, left, right = boxcar_width(I, time_ms, frac=0.95)
 
 	# Estimate noise in each Stokes parameter using off-pulse region
 	offpulse_mask = np.ones(I.shape, dtype=bool)
 	offpulse_mask[left:right+1] = False  # Exclude on-pulse region
 
-	nstokes, nchan, ntime = corrdspec.shape
-	noise_stokes = np.zeros(nstokes)
-	for s in range(nstokes):
-		# For each channel, get stddev over off-pulse bins, then average over channels
-		noise_per_chan = [np.nanstd(corrdspec[s, ch, offpulse_mask]) for ch in range(nchan)]
-		noise_stokes[s] = np.nanmean(noise_per_chan)
+	npol = corrdspec.shape[0]
+	noise_stokes = np.zeros(npol)
+	for s in range(npol):
+		# Flatten all off-pulse samples across all channels for this Stokes parameter
+		offpulse_samples = corrdspec[s, :, offpulse_mask].ravel()
+		noise_stokes[s] = np.nanstd(offpulse_samples)
 
 	noisespec = np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
 
-	tsdata = est_profiles(corrdspec, time_ms, noise_stokes)
+	tsdata = est_profiles(corrdspec, time_ms, noise_stokes, left, right)
 
 	return tsdata, corrdspec, noisespec, noise_stokes
 
@@ -487,7 +494,7 @@ def weight_dict(x, yvals, weights_dict, ndigits=3):
 	return normalised_vals
 	
  
-def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
+def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 	"""
 	Normalize grouped measurement data by corresponding weight factors.
 	
@@ -508,18 +515,12 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 		Dictionary with same keys as input, containing normalized values:
 		normalized_value = original_value / weight_factor
 	"""
-	# Calculate frequency-dependent scattering timescale
-	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
-
-	# Time resolution
-	dt = time_ms[1] - time_ms[0]
-
 	# Pad to cover tail (~5 tau)
-	n_pad = int(np.ceil(5 * tau_cms / dt))
+	n_pad = int(np.ceil(5 * tau_cms / time_res_ms))
 	padded_I = np.pad(chan, (0, n_pad), mode='constant')  # Pad only at end
 
 	# Create IRF time axis
-	irf_t = np.arange(0, (n_pad + 1)) * dt
+	irf_t = np.arange(0, (n_pad + 1)) * time_res_ms
 	irf = np.exp(-irf_t / tau_cms)
 	irf /= np.sum(irf)  # Normalize
 
@@ -531,7 +532,7 @@ def scatter_stokes_chan(chan, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 
 
 
-def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=2):
+def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=1):
 	"""
 	Add Gaussian noise to a clean Stokes IQUV dynamic spectrum based on the radiometer equation.
 
@@ -572,8 +573,8 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=2):
 			noisy_dynspec[i] = dynspec[i] + noise[i] * np.sqrt(2)  # Scale noise for Q, U, V to maintain polarization properties
 
 	
-	snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
-	print(f"Stokes I SNR (boxcar method): {snr:.2f}")
+	#snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
+	#print(f"Stokes I SNR (boxcar method): {snr:.2f}")
  
 	snr, _, _ = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), time_ms, frac=0.95)
 	print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
@@ -625,18 +626,18 @@ def boxcar_snr(ys, rms):
 
 
 def snr_onpulse(profile, time_ms, frac=0.95):
-    """
-    Calculate S/N using the on-pulse window and off-pulse RMS.
-    """
-    # Find on-pulse window
-    _, left, right = boxcar_width(profile, time_ms, frac=frac)
-    onpulse = profile[left:right+1]
-    # Off-pulse mask
-    mask = np.ones_like(profile, dtype=bool)
-    mask[left:right+1] = False
-    offpulse = profile[mask]
-    # Estimate RMS from off-pulse
-    rms = np.nanstd(offpulse)
-    # S/N calculation
-    snr = np.nansum(onpulse) / (rms * np.sqrt(len(onpulse)))
-    return snr, left, right
+	"""
+	Calculate S/N using the on-pulse window and off-pulse RMS.
+	"""
+	# Find on-pulse window
+	_, left, right = boxcar_width(profile, time_ms, frac=frac)
+	onpulse = profile[left:right+1]
+	# Off-pulse mask
+	mask = np.ones_like(profile, dtype=bool)
+	mask[left:right+1] = False
+	offpulse = profile[mask]
+	# Estimate RMS from off-pulse
+	rms = np.nanstd(offpulse)
+	# S/N calculation
+	snr = np.nansum(onpulse) / (rms * np.sqrt(len(onpulse)))
+	return snr, left, right
