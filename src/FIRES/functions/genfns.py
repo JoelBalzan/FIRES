@@ -116,11 +116,11 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 			)  # Stokes Q, U, V
 
 		dynspec += temp_dynspec
-	
+	snr = None
 	if noise:
-		dynspec = add_noise(dynspec, 100, (freq_mhz[1] - freq_mhz[0]) * 1e6, (time_res_ms) / 1000, time_ms)
+		dynspec, snr = add_noise(dynspec, 100, (freq_mhz[1] - freq_mhz[0]) * 1e6, (time_res_ms) / 1000, time_ms)
 
-	return dynspec, None
+	return dynspec, snr, None
 
 
 
@@ -255,7 +255,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 
 	var_pol_angles = np.nanvar(np.array(all_pol_angles))
 	
+	snr = None
 	if noise:
-		dynspec = add_noise(dynspec, 100, (freq_mhz[1] - freq_mhz[0])*1e6, (time_res_ms)/1000, time_ms)
+		dynspec, snr = add_noise(dynspec, 100, (freq_mhz[1] - freq_mhz[0])*1e6, (time_res_ms)/1000, time_ms)
 
-	return dynspec, var_pol_angles
+	return dynspec, snr, var_pol_angles

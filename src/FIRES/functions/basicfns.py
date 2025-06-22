@@ -576,10 +576,10 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=1):
 	#snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
 	#print(f"Stokes I SNR (boxcar method): {snr:.2f}")
  
-	snr, _, _ = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), time_ms, frac=0.95)
+	snr = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), time_ms, frac=0.95)
 	print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
 
-	return noisy_dynspec
+	return noisy_dynspec, snr
 
 
 
@@ -640,4 +640,4 @@ def snr_onpulse(profile, time_ms, frac=0.95):
 	rms = np.nanstd(offpulse)
 	# S/N calculation
 	snr = np.nansum(onpulse) / (rms * np.sqrt(len(onpulse)))
-	return snr, left, right
+	return snr
