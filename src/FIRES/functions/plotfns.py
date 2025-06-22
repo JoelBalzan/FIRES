@@ -211,11 +211,11 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	fig.subplots_adjust(hspace=0.)
 
 	# Plot polarisation angle
-	axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
-	axs[0].errorbar(time_ms, phits, yerr=dphits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
+	#axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
+	#axs[0].errorbar(time_ms, phits, yerr=dphits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
  
-	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
-	#axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
+	axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
+	axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
 	axs[0].set_ylabel("PA [deg.]")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
@@ -244,8 +244,9 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		axs_1_text = r"$\,\tau = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
 	else:
 		axs_1_text = r"$\,\tau = %.2f\,\mathrm{ms}$" % (tau_ms[0])
+
 	axs[1].text(
-		0.80, 0.95,  # x, y in axes fraction coordinates 
+		0.98, 0.50,  # x, y in axes fraction coordinates 
 		axs_1_text,
 		ha='right', va='top',
 		transform=axs[1].transAxes,
