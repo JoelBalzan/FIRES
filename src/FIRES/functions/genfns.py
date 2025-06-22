@@ -257,6 +257,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 	
 	snr = None
 	if noise:
-		dynspec, snr = add_noise(dynspec, 100, (freq_mhz[1] - freq_mhz[0])*1e6, (time_res_ms)/1000, time_ms)
+		dynspec, snr = add_noise(dynspec, 75, (freq_mhz[1] - freq_mhz[0])*1e6, (time_res_ms)/1000, time_ms)
 
 	return dynspec, snr, var_pol_angles
