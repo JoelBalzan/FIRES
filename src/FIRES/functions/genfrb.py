@@ -411,7 +411,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 
 
 		else:
-			dspec, _ = generate_dynspec(
+			dspec, snr, _ = generate_dynspec(
 			xname=None,
 			mode=mode,
 			var=None,
