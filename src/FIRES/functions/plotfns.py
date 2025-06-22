@@ -240,9 +240,13 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
 	axs[1].set_yticklabels([]) 
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
+	if snr is not None:
+		axs_1_text = r"$\,\tau = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
+	else:
+		axs_1_text = r"$\,\tau = %.2f\,\mathrm{ms}$" % (tau_ms[0])
 	axs[1].text(
 		0.80, 0.95,  # x, y in axes fraction coordinates 
-		r"$\,\tau = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr),
+		axs_1_text,
 		ha='right', va='top',
 		transform=axs[1].transAxes,
 		color='black',
