@@ -195,14 +195,14 @@ def load_multiple_data_grouped(data):
 
 	all_results = {}
 	for prefix, files in groups.items():
+		xname                 = None
 		all_xvals             = []
 		all_yvals             = {}
 		all_errs              = {}
 		all_var_PA_microshots = {}
-		all_dspecs            = {}
-		xname                 = None
 		dspec_params          = None
 		plot_mode             = None
+		all_snrs 			  = {}
 
 		for file_name in files:
 			with open(os.path.join(data, file_name), "rb") as f:
@@ -216,19 +216,18 @@ def load_multiple_data_grouped(data):
 			errs              = obj["errs"]
 			var_PA_microshots = obj["var_PA_microshots"]
 			dspec_params      = obj["dspec_params"]
-			dspecs            = obj.get("dspecs", None)
+			snrs              = obj["snrs"]
 
 			for s_val in xvals:
 				if s_val not in all_yvals:
 					all_yvals[s_val] = []
 					all_errs[s_val] = []
 					all_var_PA_microshots[s_val] = []
-					all_dspecs[s_val] = []
+					all_snrs[s_val] = []
 				all_yvals[s_val].extend(yvals[s_val])
 				all_errs[s_val].extend(errs[s_val])
 				all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
-				if dspecs is not None:
-					all_dspecs[s_val].extend(dspecs[s_val])
+				all_snrs[s_val].extend(snrs[s_val])
 
 			all_xvals.extend(xvals)
 
@@ -240,7 +239,7 @@ def load_multiple_data_grouped(data):
 			'var_PA_microshots': all_var_PA_microshots,
 			'dspec_params'     : dspec_params,
 			'plot_mode'        : plot_mode,
-			'dspecs'           : all_dspecs,
+			'snrs'             : all_snrs	
 		}
 
 	return all_results
@@ -284,7 +283,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
-	dspec, PA_microshot = generate_dynspec(
+	dspec, snr, PA_microshot = generate_dynspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -307,7 +306,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 
 	xvals, result_err = process_func(**process_func_args)
 
-	return dspec, var, xvals, result_err, PA_microshot
+	return dspec, var, xvals, result_err, PA_microshot, snr
 
 
 def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -408,7 +407,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 				width_ds = gdict['width_ms'][1] / t_res
 				if band_width_mhz[1] == 0.:
 					band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-				dynspec = dynspec = add_noise(dynspec, 100, f_res, t_res, time_ms)
+				dynspec, snr = dynspec = add_noise(dynspec, 100, f_res, t_res, time_ms)
 
 
 		else:
@@ -507,22 +506,25 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			yvals             = {s_val: [] for s_val in xvals}
 			errs              = {s_val: [] for s_val in xvals}
 			var_PA_microshots = {s_val: [] for s_val in xvals}
+			snrs  	          = {s_val: [] for s_val in xvals}
 			
-			for dspec, var, val, err, PA_microshot in results:
+			for dspec, var, val, err, PA_microshot, snr in results:
 				dspecs[var].append(dspec)
 				yvals[var].append(val)
 				errs[var].append(err)
 				var_PA_microshots[var].append(PA_microshot)
+				snrs[var].append(snr)
 
 	
 			frb_dict = {
 				"xname"            : xname,
 				"xvals"            : xvals,
-				"plot_mode"        : plot_mode,
 				"yvals"            : yvals,
 				"errs"             : errs,
 				"var_PA_microshots": var_PA_microshots,
-				"dspec_params"     : dspec_params
+				"dspec_params"     : dspec_params,
+				"plot_mode"        : plot_mode,
+				"snrs"             : snrs
 			}
 
 		if save:
