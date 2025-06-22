@@ -374,7 +374,6 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 		time_res_ms     = t_res,
 		seed            = seed,
 		nseed           = nseed,
-		noise             = noise,
 		tau_ms          = tau_ms,
 		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
