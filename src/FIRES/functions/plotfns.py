@@ -183,7 +183,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots):
+def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -242,7 +242,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	axs[1].text(
 		0.80, 0.95,  # x, y in axes fraction coordinates 
-		r"$\tau = %.2f$ ms" % tau_ms[0],
+		r"$\,\tau = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr),
 		ha='right', va='top',
 		transform=axs[1].transAxes,
 		color='black',
