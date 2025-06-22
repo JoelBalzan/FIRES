@@ -560,17 +560,9 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=1):
 	# Calculate RMS noise using the radiometer equation
 	sigma = t_sys / np.sqrt(n_pol * f_res * t_res)
 
-	npol = dynspec.shape[0]  # Number of polarizations (should be 4 for IQUV)
 	noise = np.random.normal(0.0, sigma, dynspec.shape)
 	
-	noisy_dynspec = np.zeros_like(dynspec, dtype=float)
-	# Add noise to each Stokes parameter
-	for i in range(npol):
-		# Add noise to Stokes I, Q, U, V
-		if i == 0:  # Stokes I
-			noisy_dynspec[i] = dynspec[i] + noise[i]
-		else:  # Stokes Q, U, V
-			noisy_dynspec[i] = dynspec[i] + noise[i] * np.sqrt(2)  # Scale noise for Q, U, V to maintain polarization properties
+	noisy_dynspec = dynspec + noise
 
 	
 	#snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
