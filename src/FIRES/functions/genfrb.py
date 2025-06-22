@@ -374,6 +374,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 		time_res_ms     = t_res,
 		seed            = seed,
 		nseed           = nseed,
+		noise           = noise,
 		tau_ms          = tau_ms,
 		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
@@ -419,7 +420,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 		)
 		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, gdict, tau_ms)
 		frb_data = simulated_frb(
-			frb_id, freq_mhz, time_ms, tau_ms, scatter_idx, gauss_params, obs_params, dspec
+			frb_id, dspec, dspec_params, snr
 		)
 		if save:
 			tau = f"{tau_ms:.2f}"
