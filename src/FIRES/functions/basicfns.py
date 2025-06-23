@@ -373,7 +373,10 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
 	RM = gdict["RM"]
 
 	max_rm = RM[np.argmax(np.abs(RM))]
-	corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
+	if max_rm > 0:
+		corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
+	else:
+		corrdspec = dynspec.copy()
 
 	# Use Stokes I to find the on-pulse window
 	I = np.nansum(corrdspec[0], axis=0)
