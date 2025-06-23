@@ -189,7 +189,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 	for g in range(num_main_gauss):
 		for _ in range(num_micro_gauss[g]):
 			# Generate random variations for the micro-Gaussian parameters
-			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var * peak_amp[g]) / num_micro_gauss[g]
+			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var) / num_micro_gauss[g]
 			# Sample the micro width as a percentage of the main width
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
 			# Calculate the maximum allowed offset so microshots stay within the main Gaussian width
