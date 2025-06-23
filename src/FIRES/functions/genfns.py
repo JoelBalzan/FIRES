@@ -195,9 +195,9 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 			# Calculate the maximum allowed offset so microshots stay within the main Gaussian width
 			var_t0              = np.random.normal(t0[g], width_ms[g] / 4.29193) # 4.29193 is the FWTM factor for Gaussian
 			var_PA              = np.random.normal(PA[g], pol_angle_var)
-			var_lfrac           = np.random.normal(lfrac[g], lin_pol_frac_var * lfrac[g])
-			var_vfrac           = np.random.normal(vfrac[g], circ_pol_frac_var * vfrac[g])
-			var_dPA             = np.random.normal(dPA[g], delta_pol_angle_var * np.abs(dPA[g]))
+			var_lfrac           = np.random.normal(lfrac[g], lin_pol_frac_var)
+			var_vfrac           = np.random.normal(vfrac[g], circ_pol_frac_var)
+			var_dPA             = np.random.normal(dPA[g], delta_pol_angle_var)
 			var_RM              = np.random.normal(RM[g], rm_var)
 			var_DM              = np.random.normal(DM[g], dm_var)
 			var_band_centre_mhz = np.random.normal(band_centre_mhz[g], band_centre_mhz_var)
