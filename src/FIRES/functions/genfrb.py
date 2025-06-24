@@ -447,6 +447,9 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			elif len(files) == 1:
 				with open(os.path.join(data, files[0]), 'rb') as f:
 					frb_dict = pkl.load(f)
+			else:
+				print(f"No .pkl files found in {data}.")
+				sys.exit(1)
 		else:
 			if np.all(gauss_params[-1,:] == 0.0):
 				# Create a list of tasks (timescale, realization)
