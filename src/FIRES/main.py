@@ -147,7 +147,7 @@ def main():
 		"--figsize",
 		type=float,
 		nargs=2,
-		default=[6, 10],
+		default=None,
 		metavar=("WIDTH", "HEIGHT"),
 		help="Figure size for plots. Provide two values: width and height (in inches)."
 	)
@@ -243,6 +243,7 @@ def main():
 	args.phase_window = window_map[args.phase_window]
 
 	# Parse scattering timescale(s)
+	
 	scattering_timescales = np.array([])
 	for value in args.tau_ms:
 		if value.startswith("(") and value.endswith(")"):  # Check if it's a range
