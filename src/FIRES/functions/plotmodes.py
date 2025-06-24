@@ -31,36 +31,36 @@ plt.rcParams['ps.fonttype'] 	= 42
 plt.rcParams['savefig.dpi'] 	= 600
 plt.rcParams['font.size'] 		= 14
 plt.rcParams['font.family']		= 'sans-serif'  
-plt.rcParams['axes.labelsize']  = 14
-plt.rcParams['axes.titlesize']  = 14
-plt.rcParams['legend.fontsize'] = 12
-plt.rcParams['xtick.labelsize'] = 12
-plt.rcParams['ytick.labelsize'] = 12
+plt.rcParams['axes.labelsize']  = 20
+plt.rcParams['axes.titlesize']  = 20
+plt.rcParams['legend.fontsize'] = 14
+plt.rcParams['xtick.labelsize'] = 20
+plt.rcParams['ytick.labelsize'] = 20
 plt.rcParams['text.usetex'] 	= True
 
 #colour blind friendly: https://gist.github.com/thriveth/8560036
 
 colours = {
-    'red'   : '#e41a1c',
-    'blue'  : '#377eb8',
-    'purple': '#984ea3',
-    'orange': '#ff7f00',
-    'green' : '#4daf4a',
-    'pink'  : '#f781bf',
-    'brown' : '#a65628',
-    'gray'  : '#999999',
-    'yellow': '#dede00'
+	'red'   : '#e41a1c',
+	'blue'  : '#377eb8',
+	'purple': '#984ea3',
+	'orange': '#ff7f00',
+	'green' : '#4daf4a',
+	'pink'  : '#f781bf',
+	'brown' : '#a65628',
+	'gray'  : '#999999',
+	'yellow': '#dede00'
 } 
 
 colour_map = {
-    'lowest-quarter'   : '#e41a1c',
-    'highest-quarter'  : '#377eb8',
-    'full-band'        : '#984ea3',
-    'leading'          : '#ff7f00',
-    'trailing'         : '#4daf4a',
-    'total'            : '#f781bf',
-    'lower-mid-quarter': '#a65628',
-    'upper-mid-quarter': '#999999',
+	'lowest-quarter'   : '#e41a1c',
+	'highest-quarter'  : '#377eb8',
+	'full-band'        : '#984ea3',
+	'leading'          : '#ff7f00',
+	'trailing'         : '#4daf4a',
+	'total'            : '#984ea3',
+	'lower-mid-quarter': '#a65628',
+	'upper-mid-quarter': '#999999',
 }
 
 
@@ -348,6 +348,39 @@ def parse_fit_arg(fit_item):
 		return None, None
 
 
+def print_avg_snrs(subdict):
+    snrs = subdict.get("snrs", [])
+    # Handle dict or list
+    if isinstance(snrs, dict):
+        snr_values = list(snrs.values())
+    else:
+        snr_values = snrs
+    # Skip noiseless cases
+    if not snr_values or all(s is None or (isinstance(s, list) and all(v is None for v in s)) for s in snr_values):
+        return
+    # Get S/N at lowest and highest xvals
+    if isinstance(snrs, dict):
+        keys_sorted = sorted(snrs.keys())
+        lowest = snrs[keys_sorted[0]]
+        highest = snrs[keys_sorted[-1]]
+    else:
+        lowest = snrs[0]
+        highest = snrs[-1]
+    def avg(val):
+        if isinstance(val, list):
+            vals = [v for v in val if v is not None]
+            if not vals:
+                return None
+            return np.nanmean(vals)
+        return val if val is not None else None
+    avg_low = np.round(avg(lowest), 2)
+    avg_high = np.round(avg(highest), 2)
+    # Only print if at least one is not None
+    if avg_low is not None or avg_high is not None:
+        print(f"Full Dynamic Spectrum avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}")
+        
+
+
 def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
 	
 	slc = get_freq_window_indices(freq_mhz, freq_window)
@@ -374,7 +407,10 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	Supports plotting multiple run groups for comparison.
 	"""
 	# If frb_dict contains multiple runs, plot each on the same axes
-	yvar = r"\mathcal{R}_{\mathrm{PA}}"
+	yvar = r"\mathcal{R}_{\mathrm{\psi}}"
+ 
+	if figsize is None:
+		figsize = (10, 9)
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
@@ -398,7 +434,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			med_vals, percentile_errs = median_percentiles(yvals, xvals)
 
 			x, xvar = get_x_and_xvar(subdict, width_ms)
-	
+			x = np.atleast_1d(x)
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
@@ -413,7 +449,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 				fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
 			else:
 				print("No fit provided, skipping fit plotting.")
-		
+		print_avg_snrs(subdict)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
@@ -423,7 +459,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			name = make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 			name = os.path.join(out_dir, name + ".pdf")
 			fig.savefig(name, bbox_inches='tight', dpi=600)
-			print(f"Saved figure to {name}  \n")
+			print(f"\nSaved figure to {name}  \n")
 		return
 	
 	# Otherwise, plot as usual (single job)
