@@ -207,7 +207,10 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	U = np.nansum(dspec[2,:], axis=0)  # Stokes U
 	V = np.nansum(dspec[3,:], axis=0)  # Stokes V
 	
-	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=(figsize[0], figsize[1]))
+	if figsize is None:
+		figsize = (7, 9)
+	
+	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=figsize)
 	fig.subplots_adjust(hspace=0.)
 
 	# Plot polarisation angle
@@ -246,7 +249,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		axs_1_text = r"$\,\tau = %.2f\,\mathrm{ms}$" % (tau_ms[0])
 
 	axs[1].text(
-		0.98, 0.50,  # x, y in axes fraction coordinates 
+		0.82, 0.90,  # x, y in axes fraction coordinates 
 		axs_1_text,
 		ha='right', va='top',
 		transform=axs[1].transAxes,
