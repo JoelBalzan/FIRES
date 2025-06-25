@@ -220,7 +220,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
 	axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
-	axs[0].set_ylabel("PA [deg.]")
+	axs[0].set_ylabel(r"$\psi$ [deg.]")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
@@ -240,6 +240,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 	axs[1].legend(loc='upper right')
 	axs[1].set_ylabel("Flux Density [arb.]")
+	axs[1].yaxis.set_label_coords(-0.09, 0.5)  # Adjust y-label position
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
 	axs[1].set_yticklabels([]) 
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
