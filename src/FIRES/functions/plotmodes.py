@@ -412,7 +412,6 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	if figsize is None:
 		figsize = (10, 9)
 	if is_multi_run_dict(frb_dict):
-		print_avg_snrs(subdict)
 		fig, ax = plt.subplots(figsize=figsize)
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
 		colour_list = list(colours.values())
@@ -450,6 +449,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 				fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
 			else:
 				print("No fit provided, skipping fit plotting.")
+			print_avg_snrs(subdict)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
