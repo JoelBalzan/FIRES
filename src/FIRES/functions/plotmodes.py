@@ -294,7 +294,7 @@ def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
 	if plot_type == "pa_var":
 		if frb_dict["xname"] == "tau_ms":
 			x = np.array(frb_dict["xvals"]) / width_ms
-			xvar = r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}"
+			xvar = r"\tau / W"
 		elif frb_dict["xname"] == "PA_var":
 			x = np.array(frb_dict["xvals"])
 			xvar = r"\Delta\psi_\mathrm{micro}"
@@ -412,6 +412,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	if figsize is None:
 		figsize = (10, 9)
 	if is_multi_run_dict(frb_dict):
+		print_avg_snrs(subdict)
 		fig, ax = plt.subplots(figsize=figsize)
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
 		colour_list = list(colours.values())
@@ -449,7 +450,6 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 				fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
 			else:
 				print("No fit provided, skipping fit plotting.")
-		print_avg_snrs(subdict)
 		ax.grid(True, linestyle='--', alpha=0.6)
 		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
 		ax.legend()
