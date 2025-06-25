@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-from FIRES.functions.basicfns import process_dynspec, median_percentiles, weight_dict
+from FIRES.functions.basicfns import process_dynspec, median_percentiles, weight_dict, boxcar_width
 from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
@@ -349,36 +349,36 @@ def parse_fit_arg(fit_item):
 
 
 def print_avg_snrs(subdict):
-    snrs = subdict.get("snrs", [])
-    # Handle dict or list
-    if isinstance(snrs, dict):
-        snr_values = list(snrs.values())
-    else:
-        snr_values = snrs
-    # Skip noiseless cases
-    if not snr_values or all(s is None or (isinstance(s, list) and all(v is None for v in s)) for s in snr_values):
-        return
-    # Get S/N at lowest and highest xvals
-    if isinstance(snrs, dict):
-        keys_sorted = sorted(snrs.keys())
-        lowest = snrs[keys_sorted[0]]
-        highest = snrs[keys_sorted[-1]]
-    else:
-        lowest = snrs[0]
-        highest = snrs[-1]
-    def avg(val):
-        if isinstance(val, list):
-            vals = [v for v in val if v is not None]
-            if not vals:
-                return None
-            return np.nanmean(vals)
-        return val if val is not None else None
-    avg_low = np.round(avg(lowest), 2)
-    avg_high = np.round(avg(highest), 2)
-    # Only print if at least one is not None
-    if avg_low is not None or avg_high is not None:
-        print(f"Full Dynamic Spectrum avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}")
-        
+	snrs = subdict.get("snrs", [])
+	# Handle dict or list
+	if isinstance(snrs, dict):
+		snr_values = list(snrs.values())
+	else:
+		snr_values = snrs
+	# Skip noiseless cases
+	if not snr_values or all(s is None or (isinstance(s, list) and all(v is None for v in s)) for s in snr_values):
+		return
+	# Get S/N at lowest and highest xvals
+	if isinstance(snrs, dict):
+		keys_sorted = sorted(snrs.keys())
+		lowest = snrs[keys_sorted[0]]
+		highest = snrs[keys_sorted[-1]]
+	else:
+		lowest = snrs[0]
+		highest = snrs[-1]
+	def avg(val):
+		if isinstance(val, list):
+			vals = [v for v in val if v is not None]
+			if not vals:
+				return None
+			return np.nanmean(vals)
+		return val if val is not None else None
+	avg_low = np.round(avg(lowest), 2)
+	avg_high = np.round(avg(highest), 2)
+	# Only print if at least one is not None
+	if avg_low is not None or avg_high is not None:
+		print(f"Full Dynamic Spectrum avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}")
+		
 
 
 def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
@@ -497,7 +497,6 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
 	
 	freq_slc = get_freq_window_indices(freq_mhz, freq_window)
-	
 	peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
 	phase_slc = get_phase_window_indices(phase_window, peak_index)
 
@@ -510,13 +509,14 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 	iquvt = ts_data.iquvt
 	I = ts_data.iquvt[0]
 
-	threshold = 0.05 * np.nanmax(I)
-	mask = I <= threshold
+	_, left, right = boxcar_width(I, time_ms, frac=0.95)
+	onpulse_mask = np.ones(I.shape, dtype=bool)
+	onpulse_mask[left:right+1] = False  # Include on-pulse region
  
-	I_masked = np.where(mask, np.nan, iquvt[0])
-	Q_masked = np.where(mask, np.nan, iquvt[1])
-	U_masked = np.where(mask, np.nan, iquvt[2])
-	V_masked = np.where(mask, np.nan, iquvt[3])
+	I_masked = np.where(onpulse_mask, np.nan, iquvt[0])
+	Q_masked = np.where(onpulse_mask, np.nan, iquvt[1])
+	U_masked = np.where(onpulse_mask, np.nan, iquvt[2])
+	V_masked = np.where(onpulse_mask, np.nan, iquvt[3])
 	
 	L = np.sqrt(Q_masked**2 + U_masked**2)
  
@@ -524,9 +524,8 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 	integrated_L = np.nansum(L)
 	lfrac = integrated_L / integrated_I
  
-	mask = I > threshold
-	noise_I = np.nanstd(I[mask])
-	noise_L = np.nanstd(L[mask])
+	noise_I = np.nanstd(I[onpulse_mask])
+	noise_L = np.nanstd(L[onpulse_mask])
 	lfrac_err = np.sqrt((noise_L / integrated_I)**2 + (integrated_L * noise_I / integrated_I**2)**2)
 
 	return lfrac, lfrac_err
@@ -540,10 +539,10 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
 		colour_list = list(colours.values())
 		for idx, (run, subdict) in enumerate(frb_dict.items()):
-			colour = colour_list[idx % len(colour_list)]
+			colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
 			#linestyle = linestyles[idx % len(linestyles)]
    
-			tau_ms = np.array(subdict["xvals"])
+			xvals = np.array(subdict["xvals"])
 			yvals = subdict["yvals"]
 			errs = subdict["errs"]
 			dspec_params = subdict["dspec_params"]
@@ -554,9 +553,10 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			else:
 				raise TypeError("dspec_params is not a dict or tuple")
 			
-			med_vals, percentile_errs = median_percentiles(yvals, tau_ms)
+
+			med_vals, percentile_errs = median_percentiles(yvals, xvals)
+   
 			x, xvar = get_x_and_xvar(subdict, width_ms, plot_type="lfrac")
-			
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
@@ -585,13 +585,13 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		return
 
 	# Otherwise, plot as usual (single job)
-	tau_ms = frb_dict["tau_ms"]
+	xvals = frb_dict["xvals"]
 	yvals = frb_dict["yvals"]
 	errs = frb_dict["errs"]
 	dspec_params = frb_dict["dspec_params"]
 	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
-	med_vals, percentile_errs = median_percentiles(yvals, tau_ms)
+	med_vals, percentile_errs = median_percentiles(yvals, xvals)
 	x, xvar = get_x_and_xvar(frb_dict, width_ms, plot_type="lfrac")
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])
