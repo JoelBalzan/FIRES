@@ -126,7 +126,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict, var_dict,
-					  width_range, noise, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None, auto_time_window=True):
+					  width_range, noise, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None):
 	"""
 	Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
 	Optionally apply a Gaussian spectral profile to create band-limited pulses.
