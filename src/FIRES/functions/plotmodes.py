@@ -303,7 +303,7 @@ def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
 	elif plot_type == "lfrac":
 		if frb_dict["xname"] == "tau_ms":
 			x = np.array(frb_dict["xvals"]) / width_ms
-			xvar = r"\tau_\mathrm{ms} / \sigma_\mathrm{ms}"
+			xvar = r"\tau_\mathrm{ms} / W"
 		elif frb_dict["xname"] == "PA_var":
 			x = np.array(frb_dict["xvals"])
 			xvar = r"\Delta\psi_\mathrm{micro}"
@@ -428,8 +428,8 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			else:
 				raise TypeError("dspec_params is not a dict or tuple")
 			
-			yvals = weight_dict(xvals, yvals, var_params, "PA")
-			med_vals, percentile_errs = median_percentiles(yvals, xvals)
+			y = weight_dict(xvals, yvals, var_params, "PA")
+			med_vals, percentile_errs = median_percentiles(y, xvals)
 
 			x, xvar = get_x_and_xvar(subdict, width_ms)
 			x = np.atleast_1d(x)
@@ -463,13 +463,12 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	# Otherwise, plot as usual (single job)
 	xvals = frb_dict["xvals"]
 	yvals = frb_dict["yvals"]
-	print(frb_dict["var_params"])
 	var_params = frb_dict["var_params"]
 	dspec_params = frb_dict["dspec_params"]
 	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
-	yvals = weight_dict(xvals, yvals, var_params, "PA")
-	med_vals, percentile_errs = median_percentiles(yvals, xvals)
+	y = weight_dict(xvals, yvals, var_params, "PA")
+	med_vals, percentile_errs = median_percentiles(y, xvals)
  
 	x, xvar = get_x_and_xvar(frb_dict, width_ms)
  
@@ -495,14 +494,17 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 
 def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
 	
-	freq_slc = get_freq_window_indices(freq_mhz, freq_window)
-	peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
-	phase_slc = get_phase_window_indices(phase_window, peak_index)
+	if freq_window != "full-band":
+		freq_slc = get_freq_window_indices(freq_mhz, freq_window)
+		freq_mhz = freq_mhz[freq_slc]
+		dspec = dspec[:, freq_slc, :]
+	if phase_window != "total":
+		peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
+		phase_slc = get_phase_window_indices(phase_window, peak_index)
+		time_ms = time_ms[phase_slc]
+		dspec = dspec[:, :, phase_slc]
 
-	freq_mhz = freq_mhz[freq_slc]
-	time_ms = time_ms[phase_slc]
-	dspec = dspec[:, freq_slc, phase_slc]
-	
+ 
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict, tau_ms)
  
 	iquvt = ts_data.iquvt
@@ -510,25 +512,26 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 	Q = iquvt[1]
 	U = iquvt[2]
 	V = iquvt[3]
-
+ 
 	_, left, right = boxcar_width(I, time_ms, frac=0.95)
 	onpulse_mask = np.zeros(I.shape, dtype=bool)
 	onpulse_mask[left:right+1] = True  # Include on-pulse region
- 
+
 	I_masked = np.where(onpulse_mask, I, np.nan)
 	Q_masked = np.where(onpulse_mask, Q, np.nan)
 	U_masked = np.where(onpulse_mask, U, np.nan)
 	V_masked = np.where(onpulse_mask, V, np.nan)
-	
+
 	L = np.sqrt(Q_masked**2 + U_masked**2)
- 
+	
 	integrated_I = np.nansum(I_masked)
 	integrated_L = np.nansum(L)
 
+	
 	lfrac = integrated_L / integrated_I
  
-	noise_I = np.nanstd(I[onpulse_mask])
-	noise_L = np.nanstd(L[onpulse_mask])
+	noise_I = np.nanstd(I[~onpulse_mask])
+	noise_L = np.nanstd(L[~onpulse_mask])
 	lfrac_err = np.sqrt((noise_L / integrated_I)**2 + (integrated_L * noise_I / integrated_I**2)**2)
 
 	return lfrac, lfrac_err
@@ -537,6 +540,8 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit):
 	yvar = r"L/I"
 	# If frb_dict contains multiple job IDs, plot each on the same axes
+	if figsize is None:
+		figsize = (10, 9)
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		#linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 5))]
@@ -557,8 +562,8 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			else:
 				raise TypeError("dspec_params is not a dict or tuple")
 			
-			yvals = weight_dict(xvals, yvals, var_params, "lfrac")
-			med_vals, percentile_errs = median_percentiles(yvals, xvals)
+			y = weight_dict(xvals, yvals, var_params, "lfrac")
+			med_vals, percentile_errs = median_percentiles(y, xvals)
    
 			x, xvar = get_x_and_xvar(subdict, width_ms, plot_type="lfrac")
 			lower = np.array([lower for (lower, upper) in percentile_errs])
@@ -593,11 +598,12 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	yvals = frb_dict["yvals"]
 	var_params = frb_dict["var_params"]
 	errs = frb_dict["errs"]
+ 
 	dspec_params = frb_dict["dspec_params"]
 	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
-	yvals = weight_dict(xvals, yvals, var_params, "lfrac")
-	med_vals, percentile_errs = median_percentiles(yvals, xvals)
+	y = weight_dict(xvals, yvals, dspec_params[0]["lfrac"])
+	med_vals, percentile_errs = median_percentiles(y, xvals)
  
 	x, xvar = get_x_and_xvar(frb_dict, width_ms, plot_type="lfrac")
 	lower = np.array([lower for (lower, upper) in percentile_errs])
