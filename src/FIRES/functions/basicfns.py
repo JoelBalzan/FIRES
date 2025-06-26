@@ -483,17 +483,46 @@ def median_percentiles(yvals, x, ndigits=3):
 	return med_vals, percentile_errs
 
 
-def weight_dict(x, yvals, weights_dict, ndigits=3):
-	# Round all keys in yvals and weights_dict
+def weight_dict(x, yvals, weights_dict, var_name, ndigits=3):
+	"""
+	Normalize values in yvals by weights from weights_dict for a specific variable.
+
+	Parameters:
+	-----------
+	x : array_like
+		Array of parameter values for which to compute normalized values.
+	yvals : dict
+		Dictionary where keys are parameter values and values are lists/arrays of measurements.
+	weights_dict : dict
+		Dictionary where keys are parameter values and values are dictionaries of weight factors.
+	var_name : str
+		Name of the variable in weights_dict to use for normalization.
+	ndigits : int, optional
+		Number of decimal places for rounding keys during lookup (default: 3).
+
+	Returns:
+	--------
+	dict
+		Dictionary with normalized values for each key in x.
+	"""
+	# Round all keys in yvals and weights_dict for consistent lookup
 	vals_rounded = {round(float(k), ndigits): v for k, v in yvals.items()}
 	weights_rounded = {round(float(k), ndigits): v for k, v in weights_dict.items()}
+
 	normalised_vals = {}
 	for var in x:
 		key = round(float(var), ndigits)
 		if key in vals_rounded and key in weights_rounded:
-			normalised_vals[key] = [val / pa if pa != 0 else 0 for val, pa in zip(vals_rounded[key], weights_rounded[key])]
+			weights = weights_rounded[key].get(var_name, None)
+			if weights and isinstance(weights, (list, np.ndarray)) and len(weights) > 0:
+				normalised_vals[key] = [
+					val / weight if weight != 0 else 0
+					for val, weight in zip(vals_rounded[key], weights)
+				]
+			else:
+				normalised_vals[key] = None  # Handle missing or invalid weights
 		else:
-			normalised_vals[key] = None  # or handle missing keys as needed
+			normalised_vals[key] = None  # Handle missing keys
 	return normalised_vals
 	
  
@@ -535,7 +564,7 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 
 
 
-def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=1):
+def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, n_pol=1):
 	"""
 	Add Gaussian noise to a clean Stokes IQUV dynamic spectrum based on the radiometer equation.
 
@@ -572,7 +601,8 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, n_pol=1):
 	#print(f"Stokes I SNR (boxcar method): {snr:.2f}")
  
 	snr = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), time_ms, frac=0.95)
-	print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
+	if plot_multiple_frb == False:
+		print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
 
 	return noisy_dynspec, snr
 
