@@ -483,47 +483,52 @@ def median_percentiles(yvals, x, ndigits=3):
 	return med_vals, percentile_errs
 
 
-def weight_dict(x, yvals, weights_dict, var_name, ndigits=3):
-	"""
-	Normalize values in yvals by weights from weights_dict for a specific variable.
+def weight_dict(x, yvals, weights, var_name=None):
+    """
+    Normalize values in yvals by weights from weights for a specific variable or a single weight value.
 
-	Parameters:
-	-----------
-	x : array_like
-		Array of parameter values for which to compute normalized values.
-	yvals : dict
-		Dictionary where keys are parameter values and values are lists/arrays of measurements.
-	weights_dict : dict
-		Dictionary where keys are parameter values and values are dictionaries of weight factors.
-	var_name : str
-		Name of the variable in weights_dict to use for normalization.
-	ndigits : int, optional
-		Number of decimal places for rounding keys during lookup (default: 3).
+    Parameters:
+    -----------
+    x : array_like
+        Array of parameter values for which to compute normalized values.
+    yvals : dict
+        Dictionary where keys are parameter values and values are lists/arrays of measurements.
+    weights : dict or float
+        If var_name is provided, a dictionary where keys are parameter values and values are dictionaries of weight factors.
+        If var_name is None, a single weight value to normalize all values.
+    var_name : str, optional
+        Name of the variable in weights to use for normalization. If None, weights is treated as a single value.
 
-	Returns:
-	--------
-	dict
-		Dictionary with normalized values for each key in x.
-	"""
-	# Round all keys in yvals and weights_dict for consistent lookup
-	vals_rounded = {round(float(k), ndigits): v for k, v in yvals.items()}
-	weights_rounded = {round(float(k), ndigits): v for k, v in weights_dict.items()}
+    Returns:
+    --------
+    dict
+        Dictionary with normalized values for each key in x.
+    """
+    normalized_vals = {}
 
-	normalised_vals = {}
-	for var in x:
-		key = round(float(var), ndigits)
-		if key in vals_rounded and key in weights_rounded:
-			weights = weights_rounded[key].get(var_name, None)
-			if weights and isinstance(weights, (list, np.ndarray)) and len(weights) > 0:
-				normalised_vals[key] = [
-					val / weight if weight != 0 else 0
-					for val, weight in zip(vals_rounded[key], weights)
-				]
-			else:
-				normalised_vals[key] = None  # Handle missing or invalid weights
-		else:
-			normalised_vals[key] = None  # Handle missing keys
-	return normalised_vals
+    if var_name is not None:
+        # Case where var_name is provided
+        for var in x:
+            y_values = yvals.get(var, [])
+            weights = weights.get(var, {}).get(var_name, [])
+
+            if y_values and weights and len(y_values) == len(weights):
+                normalized_vals[var] = [
+                    val / weight if weight != 0 else 0
+                    for val, weight in zip(y_values, weights)
+                ]
+            else:
+                normalized_vals[var] = None  # Handle missing or invalid data
+    else:
+        # Case where weights_dict is a single value
+        for var in x:
+            y_values = yvals.get(var, [])
+            normalized_vals[var] = [
+                val / weights if weights != 0 else 0
+                for val in y_values
+            ]
+
+    return normalized_vals
 	
  
 def scatter_stokes_chan(chan, time_res_ms, tau_cms):
