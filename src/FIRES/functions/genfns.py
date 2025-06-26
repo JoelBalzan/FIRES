@@ -40,7 +40,7 @@ def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc_idx, ref_freq_mhz):
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb):
 	"""
 	Generate dynamic spectrum for Gaussian pulses.
 	Inputs:
@@ -118,7 +118,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 		dynspec += temp_dynspec
 	snr = None
 	if noise:
-		dynspec, snr = add_noise(dynspec, 100, (freq_mhz[1] - freq_mhz[0]) * 1e6, (time_res_ms) / 1000, time_ms)
+		dynspec, snr = add_noise(dynspec, 75, (freq_mhz[1] - freq_mhz[0]) * 1e6, (time_res_ms) / 1000, time_ms, plot_multiple_frb)
 
 	return dynspec, snr, None
 
@@ -126,7 +126,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict, var_dict,
-					  width_range, noise, tau_ms, sc_idx, ref_freq_mhz, microvar=None, xname=None):
+					  width_range, noise, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb, microvar=None, xname=None):
 	"""
 	Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
 	Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -185,11 +185,11 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 	if tau_ms > 0:
 		tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
 
-	all_pol_angles = []  
+	all_params = []  
 	for g in range(num_main_gauss):
 		for _ in range(num_micro_gauss[g]):
 			# Generate random variations for the micro-Gaussian parameters
-			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var) / num_micro_gauss[g]
+			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var)
 			# Sample the micro width as a percentage of the main width
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
 			# Calculate the maximum allowed offset so microshots stay within the main Gaussian width
@@ -211,7 +211,20 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 				var_lfrac = np.clip(var_lfrac, 0.0, 1.0)
 				var_vfrac = np.clip(1.0 - var_lfrac, 0.0, 1.0)
 
-			all_pol_angles.append(var_PA)
+			params = {
+				'peak_amp': var_peak_amp,
+				'width_ms': var_width_ms,
+				't0': var_t0,
+				'PA': var_PA,
+				'lfrac': var_lfrac,
+				'vfrac': var_vfrac,
+				'dPA': var_dPA,
+				'RM': var_RM,
+				'DM': var_DM,
+				'band_centre_mhz': var_band_centre_mhz,
+				'band_width_mhz': var_band_width_mhz
+			}
+			all_params.append(params)
 
 			# Initialize a temporary array for the current micro-shot
 			temp_dynspec = np.zeros_like(dynspec)
@@ -250,13 +263,12 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 
 			# Accumulate the contributions from the current micro-shot
 			dynspec += temp_dynspec
-	
 
+	# Calculate variance for each parameter in var_params
+	var_params = {key: np.var([params[key] for params in all_params]) for key in all_params[0].keys()}
 
-	var_pol_angles = np.nanvar(np.array(all_pol_angles))
-	
 	snr = None
 	if noise:
-		dynspec, snr = add_noise(dynspec, 75, (freq_mhz[1] - freq_mhz[0])*1e6, (time_res_ms)/1000, time_ms)
+		dynspec, snr = add_noise(dynspec, 75, (freq_mhz[1] - freq_mhz[0])*1e6, (time_res_ms)/1000, time_ms, plot_multiple_frb)
 
-	return dynspec, snr, var_pol_angles
+	return dynspec, snr, var_params
