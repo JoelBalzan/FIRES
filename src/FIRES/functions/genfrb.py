@@ -266,9 +266,9 @@ def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	}
  
 	if mode == 'mgauss':
-		return m_gauss_dynspec(**params_filtered, microvar=var, xname=xname)
+		return m_gauss_dynspec(**params_filtered, microvar=var, xname=xname, plot_multiple_frb=plot_multiple_frb)
 	elif mode == 'gauss':
-		return gauss_dynspec(**params_filtered)
+		return gauss_dynspec(**params_filtered, plot_multiple_frb=plot_multiple_frb)
 
 
 def process_task(task, xname, mode, plot_mode, **params):
@@ -283,7 +283,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
-	dspec, snr, PA_microshot = generate_dynspec(
+	dspec, snr, var_params = generate_dynspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -306,7 +306,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 
 	xvals, result_err = process_func(**process_func_args)
 
-	return dspec, var, xvals, result_err, PA_microshot, snr
+	return var, xvals, result_err, var_params, snr
 
 
 def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
@@ -381,7 +381,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 		num_micro_gauss = n_gauss,
 		width_range     = width_range,
 		phase_window    = phase_window,
-		freq_window     = freq_window,
+		freq_window     = freq_window
 	)
  
 	if np.any(gauss_params[-1,:] != 0.0) and len(tau_ms) > 1:
@@ -397,17 +397,15 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 	if np.any(gdict['lfrac'] + gdict['vfrac']) > 1.0:
 		print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
 
-	if plot_mode.requires_multiple_frb == False:
+	plot_multiple_frb = plot_mode.requires_multiple_frb
+	if plot_multiple_frb == False:
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)
 			if tau_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, scatter_idx, ref_freq)
 			if noise:
-				width_ds = gdict['width_ms'][1] / t_res
-				if band_width_mhz[1] == 0.:
-					band_width_mhz = freq_mhz[-1] - freq_mhz[0]
-				dynspec, snr = dynspec = add_noise(dynspec, 100, f_res, t_res, time_ms)
+				dynspec, snr = dynspec = add_noise(dynspec, 100, f_res, t_res, time_ms, plot_multiple_frb)
 
 
 		else:
@@ -502,32 +500,30 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 											desc=f"Processing {xname} variance and realisations"))
 
 			# Aggregate results by timescale
-			if 'tau_ms' in xname or np.all(gauss_params[-1,:] == 0.0):
+			if 'tau_ms' in xname or np.all(gauss_params[-1, :] == 0.0):
 				xvals = tau_ms
-
-			dspecs            = {s_val: [] for s_val in xvals}
-			yvals             = {s_val: [] for s_val in xvals}
-			errs              = {s_val: [] for s_val in xvals}
-			var_PA_microshots = {s_val: [] for s_val in xvals}
-			snrs  	          = {s_val: [] for s_val in xvals}
 			
-			for dspec, var, val, err, PA_microshot, snr in results:
-				dspecs[var].append(dspec)
+			yvals = {s_val: [] for s_val in xvals}
+			errs = {s_val: [] for s_val in xvals}
+			var_params = {s_val: {key: [] for key in ['peak_amp', 'width_ms', 't0', 'PA', 'lfrac', 'vfrac', 'dPA', 'RM', 'DM', 'band_centre_mhz', 'band_width_mhz']} for s_val in xvals}
+			snrs = {s_val: [] for s_val in xvals}
+			
+			for var, val, err, params_dict, snr in results:
 				yvals[var].append(val)
 				errs[var].append(err)
-				var_PA_microshots[var].append(PA_microshot)
 				snrs[var].append(snr)
-
-	
+				for key, value in params_dict.items():
+					var_params[var][key].append(value)
+			
 			frb_dict = {
-				"xname"            : xname,
-				"xvals"            : xvals,
-				"yvals"            : yvals,
-				"errs"             : errs,
-				"var_PA_microshots": var_PA_microshots,
-				"dspec_params"     : dspec_params,
-				"plot_mode"        : plot_mode,
-				"snrs"             : snrs
+				"xname": xname,
+				"xvals": xvals,
+				"yvals": yvals,
+				"errs": errs,
+				"var_params": var_params,  # Updated to handle the dictionary structure
+				"dspec_params": dspec_params,
+				"plot_mode": plot_mode,
+				"snrs": snrs,
 			}
 
 		if save:
