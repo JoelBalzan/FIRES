@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-from FIRES.functions.basicfns import process_dynspec, median_percentiles, weight_dict, boxcar_width
+from FIRES.functions.basicfns import process_dynspec, boxcar_width
 from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
@@ -134,36 +134,125 @@ def get_phase_window_indices(phase_window, peak_index):
 	return phase_slices.get(phase_window, None)
 
 
-def set_scale_and_labels(ax, scale, xvar, yvar, x=None):
+
+def median_percentiles(yvals, x, ndigits=3):
+	"""
+	Calculate median values and percentile-based error bars from grouped data.
+
+	Parameters:
+	-----------
+	yvals : dict
+		Dictionary where keys are parameter values and values are lists/arrays of measurements
+	x : array_like
+		Array of parameter values for which to compute statistics  
+	ndigits : int, optional
+		Number of decimal places for rounding keys during lookup (default: 3)
+		
+	Returns:
+	--------
+	tuple
+		Two-element tuple containing:
+		- med_vals: List of median values for each x value
+		- percentile_errs: List of (lower_percentile, upper_percentile) tuples
+	"""
+ 
+	med_vals = []
+	percentile_errs = []
+	# Round all keys in yvals for consistent lookup
+	vals_rounded = {round(float(k), ndigits): v for k, v in yvals.items()}
+	for var in x:
+		key = round(float(var), ndigits)
+		v = vals_rounded.get(key, None)
+		if v is not None and isinstance(v, (list, np.ndarray)) and len(v) > 0:
+			median_val = np.median(v)
+			lower_percentile = np.percentile(v, 16)
+			upper_percentile = np.percentile(v, 84)
+			med_vals.append(median_val)
+			percentile_errs.append((lower_percentile, upper_percentile))
+		else:
+			med_vals.append(np.nan)
+			percentile_errs.append((np.nan, np.nan))
+	return med_vals, percentile_errs
+
+
+def weight_dict(x, yvals, weight, var_name=None):
+    """
+    Normalize values in yvals by weights from weights for a specific variable or a single weight value.
+
+    Parameters:
+    -----------
+    x : array_like
+        Array of parameter values for which to compute normalized values.
+    yvals : dict
+        Dictionary where keys are parameter values and values are lists/arrays of measurements.
+    weights : dict or float
+        If var_name is provided, a dictionary where keys are parameter values and values are dictionaries of weight factors.
+        If var_name is None, a single weight value to normalize all values.
+    var_name : str, optional
+        Name of the variable in weights to use for normalization. If None, weights is treated as a single value.
+
+    Returns:
+    --------
+    dict
+        Dictionary with normalized values for each key in x.
+    """
+    normalized_vals = {}
+
+    if var_name is not None:
+        # Case where var_name is provided
+        for var in x:
+            y_values = yvals.get(var, [])
+            weights = weight.get(var, {}).get(var_name, [])
+
+            if y_values and weights and len(y_values) == len(weights):
+                normalized_vals[var] = [
+                    val / weights if weights != 0 else 0
+                    for val, weights in zip(y_values, weights)
+                ]
+            else:
+                normalized_vals[var] = None  # Handle missing or invalid data
+    else:
+        # Case where weights_dict is a single value
+        for var in x:
+            y_values = yvals.get(var, [])
+            normalized_vals[var] = [
+                val / weight if weight != 0 else 0
+                for val, weight in zip(y_values, weight)
+            ]
+
+    return normalized_vals
+	
+
+def set_scale_and_labels(ax, scale, xname, yname, x=None):
 	"""
 	Set axis scales and labels for the plot based on the scale argument.
 	Optionally set x-limits using the provided x array.
 	"""
 	if scale == "linear":
 		ax.set_yscale('linear')
-		ax.set_xlabel(rf"${xvar}$")
-		ax.set_ylabel(rf"${yvar}$")
+		ax.set_xlabel(rf"${xname}$")
+		ax.set_ylabel(rf"${yname}$")
 		if x is not None:
 			ax.set_xlim(x[0], x[-1])
 	elif scale == "logx":
 		ax.set_xscale('log')
-		ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
-		ax.set_ylabel(rf"${yvar}$")
+		ax.set_xlabel(rf"$\log_{{10}}({xname})$")
+		ax.set_ylabel(rf"${yname}$")
 		if x is not None:
 			x_positive = x[x > 0]
 			if len(x_positive) > 0:
 				ax.set_xlim(x_positive[0], x_positive[-1])
 	elif scale == "logy":
 		ax.set_yscale('log')
-		ax.set_xlabel(rf"${xvar}$")
-		ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
+		ax.set_xlabel(rf"${xname}$")
+		ax.set_ylabel(rf"$\log_{{10}}({yname})$")
 		if x is not None:
 			ax.set_xlim(x[0], x[-1])
 	elif scale == "loglog":
 		ax.set_xscale('log')
 		ax.set_yscale('log')
-		ax.set_xlabel(rf"$\log_{{10}}({xvar})$")
-		ax.set_ylabel(rf"$\log_{{10}}({yvar})$")
+		ax.set_xlabel(rf"$\log_{{10}}({xname})$")
+		ax.set_ylabel(rf"$\log_{{10}}({yname})$")
 		if x is not None:
 			x_positive = x[x > 0]
 			if len(x_positive) > 0:
@@ -287,29 +376,29 @@ def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black')
 
 
 
-def get_x_and_xvar(frb_dict, width_ms, plot_type="pa_var"):
+def weight_x_get_xname(frb_dict, width_ms, plot_type="pa_var"):
 	"""
 	Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
 	"""
 	if plot_type == "pa_var":
 		if frb_dict["xname"] == "tau_ms":
 			x = np.array(frb_dict["xvals"]) / width_ms
-			xvar = r"\tau / W"
+			xname = r"\tau / W"
 		elif frb_dict["xname"] == "PA_var":
 			x = np.array(frb_dict["xvals"])
-			xvar = r"\Delta\psi_\mathrm{micro}"
+			xname = r"\Delta\psi_\mathrm{micro}"
 		else:
 			raise ValueError(f"Unknown xname: {frb_dict['xname']}")
 	elif plot_type == "lfrac":
 		if frb_dict["xname"] == "tau_ms":
 			x = np.array(frb_dict["xvals"]) / width_ms
-			xvar = r"\tau_\mathrm{ms} / W"
+			xname = r"\tau_\mathrm{ms} / W"
 		elif frb_dict["xname"] == "PA_var":
 			x = np.array(frb_dict["xvals"])
-			xvar = r"\Delta\psi_\mathrm{micro}"
+			xname = r"\Delta\psi_\mathrm{micro}"
 		else:
 			raise ValueError(f"Unknown xname: {frb_dict['xname']}")
-	return x, xvar
+	return x, xname
 
 
 def parse_fit_arg(fit_item):
@@ -381,6 +470,65 @@ def print_avg_snrs(subdict):
 		
 
 
+def plot_multirun(frb_dict, ax, plot_type, fit, scale, yname, colour_map, colours):
+    """
+    Common plotting logic for plot_pa_var and plot_lfrac_var.
+
+    Parameters:
+    -----------
+    frb_dict : dict
+        Dictionary containing FRB simulation data.
+    ax : matplotlib.axes.Axes
+        Axis object for plotting.
+    plot_type : str
+        Type of plot ("pa_var" or "lfrac").
+    fit : str or list
+        Fit type or list of fit types.
+    scale : str
+        Scale type ("linear", "logx", "logy", "loglog").
+    yname : str
+        Y-axis variable name.
+    colour_map : dict
+        Mapping of run names to colors.
+    colours : dict
+        Default color palette.
+    """
+    colour_list = list(colours.values())
+    for idx, (run, subdict) in enumerate(frb_dict.items()):
+        colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
+
+        xvals = np.array(subdict["xvals"])
+        yvals = subdict["yvals"]
+        var_params = subdict["var_params"]
+        dspec_params = subdict["dspec_params"]
+        width_ms = np.array(dspec_params["gdict"]["width_ms"])[0]
+
+        y = weight_dict(xvals, yvals, var_params, "PA" if plot_type == "pa_var" else "lfrac")
+        med_vals, percentile_errs = median_percentiles(y, xvals)
+
+        x, xname = weight_x_get_xname(subdict, width_ms, plot_type=plot_type)
+        lower = np.array([lower for (lower, upper) in percentile_errs])
+        upper = np.array([upper for (lower, upper) in percentile_errs])
+
+        ax.plot(x, med_vals, label=run, color=colour, linewidth=2)
+        ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
+        if fit is not None:
+            if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
+                fit_type, fit_degree = parse_fit_arg(fit[idx])
+            else:
+                fit_type, fit_degree = parse_fit_arg(fit)
+            fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
+        else:
+            print("No fit provided, skipping fit plotting.")
+        print_avg_snrs(subdict)
+
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend()
+    set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+
+
+
+
 def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
 	
 	slc = get_freq_window_indices(freq_mhz, freq_window)
@@ -407,7 +555,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	Supports plotting multiple run groups for comparison.
 	"""
 	# If frb_dict contains multiple runs, plot each on the same axes
-	yvar = r"\mathcal{R}_{\mathrm{\psi}}"
+	yname = r"\mathcal{R}_{\mathrm{\psi}}"
  
 	if figsize is None:
 		figsize = (10, 9)
@@ -421,17 +569,12 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			yvals = subdict["yvals"]
 			var_params = subdict["var_params"]
 			dspec_params = subdict["dspec_params"]
-			if isinstance(dspec_params, dict):
-				width_ms = np.array(dspec_params["gdict"]["width_ms"])[0]
-			elif isinstance(dspec_params, tuple):
-				width_ms = np.array(dspec_params[0]["width_ms"])[0]
-			else:
-				raise TypeError("dspec_params is not a dict or tuple")
-			
+			width_ms = np.array(dspec_params["gdict"]["width_ms"])[0]
+
 			y = weight_dict(xvals, yvals, var_params, "PA")
 			med_vals, percentile_errs = median_percentiles(y, xvals)
 
-			x, xvar = get_x_and_xvar(subdict, width_ms)
+			x, xname = weight_x_get_xname(subdict, width_ms)
 			x = np.atleast_1d(x)
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
@@ -449,7 +592,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 				print("No fit provided, skipping fit plotting.")
 			print_avg_snrs(subdict)
 		ax.grid(True, linestyle='--', alpha=0.6)
-		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
+		set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 		ax.legend()
 		if show_plots:
 			plt.show()
@@ -470,7 +613,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	y = weight_dict(xvals, yvals, var_params, "PA")
 	med_vals, percentile_errs = median_percentiles(y, xvals)
  
-	x, xvar = get_x_and_xvar(frb_dict, width_ms)
+	x, xname = weight_x_get_xname(frb_dict, width_ms)
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
@@ -482,7 +625,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	if fit is not None:
 		fit_and_plot(ax, x, med_vals, fit, label=None)
 		ax.legend()
-	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
+	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
@@ -538,7 +681,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 
 
 def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit):
-	yvar = r"L/I"
+	yname = r"L/I"
 	# If frb_dict contains multiple job IDs, plot each on the same axes
 	if figsize is None:
 		figsize = (10, 9)
@@ -553,19 +696,14 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			xvals = np.array(subdict["xvals"])
 			yvals = subdict["yvals"]
 			var_params = subdict["var_params"]
-			errs = subdict["errs"]
 			dspec_params = subdict["dspec_params"]
-			if isinstance(dspec_params, dict):
-				width_ms = np.array(dspec_params["gdict"]["width_ms"])[0]
-			elif isinstance(dspec_params, tuple):
-				width_ms = np.array(dspec_params[0]["width_ms"])[0]
-			else:
-				raise TypeError("dspec_params is not a dict or tuple")
+			width_ms = np.array(dspec_params["gdict"]["width_ms"])[0]
+
 			
 			y = weight_dict(xvals, yvals, var_params, "lfrac")
 			med_vals, percentile_errs = median_percentiles(y, xvals)
    
-			x, xvar = get_x_and_xvar(subdict, width_ms, plot_type="lfrac")
+			x, xname = weight_x_get_xname(subdict, width_ms, plot_type="lfrac")
 			lower = np.array([lower for (lower, upper) in percentile_errs])
 			upper = np.array([upper for (lower, upper) in percentile_errs])
 			
@@ -581,7 +719,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			else:
 				print("No fit provided, skipping fit plotting.")
 		ax.grid(True, linestyle='--', alpha=0.6)
-		set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
+		set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 		ax.legend()
 		if show_plots:
 			plt.show()
@@ -605,7 +743,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	y = weight_dict(xvals, yvals, dspec_params[0]["lfrac"])
 	med_vals, percentile_errs = median_percentiles(y, xvals)
  
-	x, xvar = get_x_and_xvar(frb_dict, width_ms, plot_type="lfrac")
+	x, xname = weight_x_get_xname(frb_dict, width_ms, plot_type="lfrac")
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
  
@@ -616,7 +754,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	if fit is not None:
 		fit_and_plot(ax, x, med_vals, fit, label=None)
 		ax.legend()
-	set_scale_and_labels(ax, scale, xvar=xvar, yvar=yvar, x=x)
+	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
