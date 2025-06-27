@@ -199,7 +199,7 @@ def load_multiple_data_grouped(data):
 		all_xvals             = []
 		all_yvals             = {}
 		all_errs              = {}
-		all_var_PA_microshots = {}
+		all_var_params        = {}
 		dspec_params          = None
 		plot_mode             = None
 		all_snrs 			  = {}
@@ -214,7 +214,7 @@ def load_multiple_data_grouped(data):
 			xvals             = obj["xvals"]
 			yvals             = obj["yvals"]
 			errs              = obj["errs"]
-			var_PA_microshots = obj["var_PA_microshots"]
+			var_params    	  = obj["var_params"]
 			dspec_params      = obj["dspec_params"]
 			snrs              = obj["snrs"]
 
@@ -222,11 +222,12 @@ def load_multiple_data_grouped(data):
 				if s_val not in all_yvals:
 					all_yvals[s_val] = []
 					all_errs[s_val] = []
-					all_var_PA_microshots[s_val] = []
+					all_var_params[s_val] = {key: [] for key in var_params.keys()}
 					all_snrs[s_val] = []
 				all_yvals[s_val].extend(yvals[s_val])
 				all_errs[s_val].extend(errs[s_val])
-				all_var_PA_microshots[s_val].extend(var_PA_microshots[s_val])
+				for key, value in var_params.items():
+					all_var_params[s_val][key].extend(value[s_val])
 				all_snrs[s_val].extend(snrs[s_val])
 
 			all_xvals.extend(xvals)
@@ -236,7 +237,7 @@ def load_multiple_data_grouped(data):
 			'xvals'            : all_xvals,
 			'yvals'            : all_yvals,
 			'errs'             : all_errs,
-			'var_PA_microshots': all_var_PA_microshots,
+			'var_params'       : all_var_params,
 			'dspec_params'     : dspec_params,
 			'plot_mode'        : plot_mode,
 			'snrs'             : all_snrs	
