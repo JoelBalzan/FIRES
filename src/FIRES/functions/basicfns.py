@@ -483,7 +483,7 @@ def median_percentiles(yvals, x, ndigits=3):
 	return med_vals, percentile_errs
 
 
-def weight_dict(x, yvals, weights, var_name=None):
+def weight_dict(x, yvals, weight, var_name=None):
     """
     Normalize values in yvals by weights from weights for a specific variable or a single weight value.
 
@@ -510,12 +510,12 @@ def weight_dict(x, yvals, weights, var_name=None):
         # Case where var_name is provided
         for var in x:
             y_values = yvals.get(var, [])
-            weights = weights.get(var, {}).get(var_name, [])
+            weights = weight.get(var, {}).get(var_name, [])
 
             if y_values and weights and len(y_values) == len(weights):
                 normalized_vals[var] = [
-                    val / weight if weight != 0 else 0
-                    for val, weight in zip(y_values, weights)
+                    val / weights if weights != 0 else 0
+                    for val, weights in zip(y_values, weights)
                 ]
             else:
                 normalized_vals[var] = None  # Handle missing or invalid data
@@ -524,8 +524,8 @@ def weight_dict(x, yvals, weights, var_name=None):
         for var in x:
             y_values = yvals.get(var, [])
             normalized_vals[var] = [
-                val / weights if weights != 0 else 0
-                for val in y_values
+                val / weight if weight != 0 else 0
+                for val, weight in zip(y_values, weight)
             ]
 
     return normalized_vals
