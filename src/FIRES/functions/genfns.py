@@ -24,7 +24,7 @@ from FIRES.functions.plotfns import *
 #    --------------------------	Functions ---------------------------
 
 def apply_faraday_rotation(pol_angle_arr, RM, lambda_sq, median_lambda_sq):
-	return pol_angle_arr + RM * (lambda_sq - median_lambda_sq)
+	return np.deg2rad(pol_angle_arr) + RM * (lambda_sq - median_lambda_sq)
 
 
 def calculate_dispersion_delay(DM, freq, ref_freq):
