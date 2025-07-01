@@ -152,6 +152,13 @@ def main():
 		help="Figure size for plots. Provide two values: width and height (in inches)."
 	)
 	parser.add_argument(
+		"-e", "--extension",
+		type=str,
+		default="pdf",
+		metavar="",
+		help="File extension for saved plots. Default is 'pdf'."
+	)
+	parser.add_argument(
 		"--plot-scale",
 		type=str,
 		default="linear",
@@ -361,6 +368,7 @@ def main():
 						"phase_window": args.phase_window,
 						"freq_window" : args.freq_window,
 						"fit"         : args.fit,
+						"extension"   : args.extension,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
