@@ -24,7 +24,7 @@ from FIRES.functions.basicfns import *
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots):
+def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots, extension):
 	"""
 	Plot Stokes IQUV profiles and dynamic spectra.
 	Inputs:
@@ -94,13 +94,13 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + "_iquv.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_iquv.pdf")))
+		fig.savefig(os.path.join(outdir, fname + "_iquv." + extension), bbox_inches='tight', dpi=600)
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_iquv." + extension)))
 
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, show_plots):
+def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, show_plots, extension):
 	"""
 	Plot PA profile and dPA/dt.
 	Inputs:
@@ -177,13 +177,13 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + "_dpa.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_dpa.pdf")))
+		fig.savefig(os.path.join(outdir, fname + "_dpa." + extension), bbox_inches='tight', dpi=600)
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_dpa." + extension)))
 
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr):
+def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -278,8 +278,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec.pdf"), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec.pdf")))
+		fig.savefig(os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec." + extension), bbox_inches='tight', dpi=600)
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec." + extension)))
 
 
 	#	----------------------------------------------------------------------------------------------------------
