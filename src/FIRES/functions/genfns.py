@@ -185,7 +185,20 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 	if tau_ms > 0:
 		tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
 
-	all_params = []  
+	all_params = {
+		'peak_amp'       : [],
+		'width_ms'       : [],
+		't0'             : [],
+		'PA'             : [],
+		'lfrac'          : [],
+		'vfrac'          : [],
+		'dPA'            : [],
+		'RM'             : [],
+		'DM'             : [],
+		'band_centre_mhz': [],
+		'band_width_mhz' : []
+	}
+
 	for g in range(num_main_gauss):
 		for _ in range(num_micro_gauss[g]):
 			# Generate random variations for the micro-Gaussian parameters
@@ -211,20 +224,18 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 				var_lfrac = np.clip(var_lfrac, 0.0, 1.0)
 				var_vfrac = np.clip(1.0 - var_lfrac, 0.0, 1.0)
 
-			params = {
-				'peak_amp': var_peak_amp,
-				'width_ms': var_width_ms,
-				't0': var_t0,
-				'PA': var_PA,
-				'lfrac': var_lfrac,
-				'vfrac': var_vfrac,
-				'dPA': var_dPA,
-				'RM': var_RM,
-				'DM': var_DM,
-				'band_centre_mhz': var_band_centre_mhz,
-				'band_width_mhz': var_band_width_mhz
-			}
-			all_params.append(params)
+			# Append values to the respective lists in `all_params`
+			all_params['peak_amp'].append(var_peak_amp)
+			all_params['width_ms'].append(var_width_ms)
+			all_params['t0'].append(var_t0)
+			all_params['PA'].append(var_PA)
+			all_params['lfrac'].append(var_lfrac)
+			all_params['vfrac'].append(var_vfrac)
+			all_params['dPA'].append(var_dPA)
+			all_params['RM'].append(var_RM)
+			all_params['DM'].append(var_DM)
+			all_params['band_centre_mhz'].append(var_band_centre_mhz)
+			all_params['band_width_mhz'].append(var_band_width_mhz)
 
 			# Initialize a temporary array for the current micro-shot
 			temp_dynspec = np.zeros_like(dynspec)
@@ -265,7 +276,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 			dynspec += temp_dynspec
 
 	# Calculate variance for each parameter in var_params
-	var_params = {key: np.var([params[key] for params in all_params]) for key in all_params[0].keys()}
+	var_params = {key: np.var(values) for key, values in all_params.items()}
+	print(var_params)
 
 	snr = None
 	if noise:
