@@ -207,29 +207,26 @@ def load_multiple_data_grouped(data):
 		for file_name in files:
 			with open(os.path.join(data, file_name), "rb") as f:
 				obj = pkl.load(f)
-			if xname is None:
-				xname = obj.get("xname", "unknown")
-			if plot_mode is None:
-				plot_mode = obj.get("plot_mode", None)
-			xvals             = obj["xvals"]
-			yvals             = obj["yvals"]
-			errs              = obj["errs"]
-			var_params    	  = obj["var_params"]
-			dspec_params      = obj["dspec_params"]
-			snrs              = obj["snrs"]
+			xname        = obj["xname"]
+			plot_mode    = obj["plot_mode"]
+			xvals        = obj["xvals"]
+			yvals        = obj["yvals"]
+			errs         = obj["errs"]
+			var_params   = obj["var_params"]
+			dspec_params = obj["dspec_params"]
+			snrs         = obj["snrs"]
 
 			for v in xvals:
 				if v not in all_yvals:
-					all_yvals[v] = []
-					all_errs[v] = []
-					all_var_params[v] = {key: [] for key in var_params.keys()}
-					all_snrs[v] = []
+					all_yvals[v]      = []
+					all_errs[v]       = []
+					all_var_params[v] = {key: [] for key in var_params[v].keys()}
+					all_snrs[v]       = []
 				all_yvals[v].extend(yvals[v])
 				all_errs[v].extend(errs[v])
-				for key, value in var_params.items():
-					all_var_params[v][key].extend(value[v])
+				for key, values in var_params[v].items():
+					all_var_params[v][key].extend(values)
 				all_snrs[v].extend(snrs[v])
-
 			all_xvals.extend(xvals)
 
 		all_results[prefix] = {
