@@ -277,7 +277,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 
 	# Calculate variance for each parameter in var_params
 	var_params = {key: np.var(values) for key, values in all_params.items()}
-	print(var_params)
 
 	snr = None
 	if noise:
