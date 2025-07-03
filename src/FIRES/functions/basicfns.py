@@ -222,10 +222,10 @@ def est_profiles(dynspec, time_ms, noise_stokes, left, right):
 		epts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2 + (vtsub * noise_stokes[3]) ** 2) / pts
   
 		# Calculate the polarization angles
-		phits  = 0.5 * np.arctan2(utsub, qtsub)
-		dphits = 0.5 * np.sqrt((utsub * noise_stokes[1]) ** 2 + (qtsub * noise_stokes[2]) ** 2) / (utsub ** 2 + qtsub ** 2)				
-		psits  = 0.5 * np.arctan2(vtsub, lts)
-		dpsits = 0.5 * np.sqrt((vtsub * elts) ** 2 + (lts * noise_stokes[3]) ** 2) / (vtsub ** 2 + lts ** 2)
+		phits  = np.rad2deg(0.5 * np.arctan2(utsub, qtsub))
+		dphits = np.rad2deg(0.5 * np.sqrt((utsub * noise_stokes[1]) ** 2 + (qtsub * noise_stokes[2]) ** 2) / (utsub ** 2 + qtsub ** 2))
+		psits  = np.rad2deg(0.5 * np.arctan2(vtsub, lts))
+		dpsits = np.rad2deg(0.5 * np.sqrt((vtsub * elts) ** 2 + (lts * noise_stokes[3]) ** 2) / (vtsub ** 2 + lts ** 2))
   
 		
 		
