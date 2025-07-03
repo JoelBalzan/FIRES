@@ -218,17 +218,17 @@ def load_multiple_data_grouped(data):
 			dspec_params      = obj["dspec_params"]
 			snrs              = obj["snrs"]
 
-			for s_val in xvals:
-				if s_val not in all_yvals:
-					all_yvals[s_val] = []
-					all_errs[s_val] = []
-					all_var_params[s_val] = {key: [] for key in var_params.keys()}
-					all_snrs[s_val] = []
-				all_yvals[s_val].extend(yvals[s_val])
-				all_errs[s_val].extend(errs[s_val])
+			for v in xvals:
+				if v not in all_yvals:
+					all_yvals[v] = []
+					all_errs[v] = []
+					all_var_params[v] = {key: [] for key in var_params.keys()}
+					all_snrs[v] = []
+				all_yvals[v].extend(yvals[v])
+				all_errs[v].extend(errs[v])
 				for key, value in var_params.items():
-					all_var_params[s_val][key].extend(value[s_val])
-				all_snrs[s_val].extend(snrs[s_val])
+					all_var_params[v][key].extend(value[v])
+				all_snrs[v].extend(snrs[v])
 
 			all_xvals.extend(xvals)
 
@@ -260,7 +260,7 @@ def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	sig = inspect.signature(dynspec_func)
 	allowed_args = set(sig.parameters.keys())
 
-	# Always pass tau_ms as s_val
+	# Always pass tau_ms as v
 	params_filtered = {
 		k: v for k, v in params.items()
 		if k in allowed_args and k not in ("xname")
@@ -504,10 +504,10 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			if 'tau_ms' in xname or np.all(gauss_params[-1, :] == 0.0):
 				xvals = tau_ms
 			
-			yvals = {s_val: [] for s_val in xvals}
-			errs = {s_val: [] for s_val in xvals}
-			var_params = {s_val: {key: [] for key in ['peak_amp', 'width_ms', 't0', 'PA', 'lfrac', 'vfrac', 'dPA', 'RM', 'DM', 'band_centre_mhz', 'band_width_mhz']} for s_val in xvals}
-			snrs = {s_val: [] for s_val in xvals}
+			yvals = {v: [] for v in xvals}
+			errs = {v: [] for v in xvals}
+			var_params = {v: {key: [] for key in ['peak_amp', 'width_ms', 't0', 'PA', 'lfrac', 'vfrac', 'dPA', 'RM', 'DM', 'band_centre_mhz', 'band_width_mhz']} for v in xvals}
+			snrs = {v: [] for v in xvals}
 			
 			for var, val, err, params_dict, snr in results:
 				yvals[var].append(val)
