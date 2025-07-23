@@ -194,13 +194,6 @@ def main():
 		   )
 	)
 	parser.add_argument(
-		"--n-gauss",
-		nargs="+",  # Expect one or more values
-		type=int,
-		metavar="",
-		help="Number of micro-shots to generate for each main Gaussian. Required if --mode is 'mgauss'."
-	)
-	parser.add_argument(
 		"--seed",
 		type=int,
 		default=None,
@@ -213,16 +206,6 @@ def main():
 		default=1,
 		metavar="",
 		help="How many realisations to generate at each scattering timescale for mgauss mode."
-	)
-	parser.add_argument(
-		"--mg-width",
-		nargs=2,
-		type=float,
-		default=[10, 50],
-		metavar=("MIN_WIDTH", "MAX_WIDTH"),
-		help=("Minimum and maximum percentage of the main gaussian width to generate micro-gaussians.\n"
-  			  "Only if --mode mgauss is set. Default is [10, 50] percent of the main gaussian width."
-	 )
 	)
 	parser.add_argument(
 		"--noise",
@@ -294,11 +277,9 @@ def main():
 				out_dir      = args.output_dir,
 				save         = args.write,
 				mode         = args.mode,
-				n_gauss      = args.n_gauss,
 				seed         = args.seed,
 				nseed        = args.nseed,
-				width_range  = args.mg_width,
-				noise          = args.noise,
+				noise        = args.noise,
 				n_cpus       = args.ncpu,
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
@@ -315,10 +296,8 @@ def main():
 				out_dir      = args.output_dir,
 				save         = args.write,
 				mode         = args.mode,
-				n_gauss      = args.n_gauss,
 				seed         = args.seed,
 				nseed        = None,
-				width_range  = args.mg_width,
 				noise          = args.noise,
 				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
