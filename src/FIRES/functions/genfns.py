@@ -125,8 +125,8 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 
 
 
-def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict, var_dict,
-					  width_range, noise, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb, microvar=None, xname=None):
+def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
+					noise, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb, variation_parameter=None, xname=None):
 	"""
 	Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
 	Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -147,18 +147,19 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 	dPA             = gdict['dPA']
 	band_centre_mhz = gdict['band_centre_mhz']
 	band_width_mhz  = gdict['band_width_mhz']
+	ngauss		    = gdict['ngauss']
+	mg_width_low    = gdict['mg_width_low']
+	mg_width_high   = gdict['mg_width_high']
 
-	num_main_gauss = len(t0) 
-	if len(num_micro_gauss) != num_main_gauss:
-		raise ValueError(f"Number of main Gaussians ({num_main_gauss}) does not match number of sets of micro-Gaussians ({len(num_micro_gauss)}) \n"
-						 "Check --n-gauss and/or gparams.txt")
+	# Create width_range list with pairs of [mg_width_low, mg_width_high]
+	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
 
 	# check if varying scattering time scale or variable from gparams.txt
-	if microvar is not None:
+	if variation_parameter is not None:
 		if xname in var_dict:
-			var_dict[xname][0] = microvar
+			var_dict[xname][0] = variation_parameter
 		elif xname == "tau_ms":
-			tau_ms = microvar
+			tau_ms = variation_parameter
 			
 	peak_amp_var        = var_dict['peak_amp_var'][0]
 	pol_angle_var       = var_dict['PA_var'][0]
@@ -169,6 +170,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 	dm_var              = var_dict['DM_var'][0]
 	band_centre_mhz_var = var_dict['band_centre_mhz_var'][0]
 	band_width_mhz_var  = var_dict['band_width_mhz_var'][0]
+	
 
 	if lin_pol_frac_var > 0.0 and circ_pol_frac_var > 0.0:
 		input("Linear and circular polarisation variations are both > 0.0. Choose one to vary (l/c).")
@@ -199,12 +201,13 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, num_micro_gauss, seed, gdict
 		'band_width_mhz' : []
 	}
 
+	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
-		for _ in range(num_micro_gauss[g]):
+		for _ in range(int(ngauss[g])):
 			# Generate random variations for the micro-Gaussian parameters
 			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var)
 			# Sample the micro width as a percentage of the main width
-			var_width_ms        = width_ms[g] * np.random.uniform(width_range[0] / 100, width_range[1] / 100)
+			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			# Calculate the maximum allowed offset so microshots stay within the main Gaussian width
 			var_t0              = np.random.normal(t0[g], width_ms[g] / 4.29193) # 4.29193 is the FWTM factor for Gaussian
 			var_PA              = np.random.normal(PA[g], pol_angle_var)

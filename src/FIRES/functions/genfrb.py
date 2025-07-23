@@ -264,7 +264,7 @@ def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	}
  
 	if mode == 'mgauss':
-		return m_gauss_dynspec(**params_filtered, microvar=var, xname=xname, plot_multiple_frb=plot_multiple_frb)
+		return m_gauss_dynspec(**params_filtered, variation_parameter=var, xname=xname, plot_multiple_frb=plot_multiple_frb)
 	elif mode == 'gauss':
 		return gauss_dynspec(**params_filtered, plot_multiple_frb=plot_multiple_frb)
 
@@ -307,7 +307,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 	return var, xvals, result_err, var_params, snr
 
 
-def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, width_range, save,
+def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, save,
 				 obs_file, gauss_file, noise, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
@@ -344,9 +344,12 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 		'vfrac'          : gauss_params[:-3, 8],
 		'dPA'            : gauss_params[:-3, 9],
 		'band_centre_mhz': gauss_params[:-3, 10],
-		'band_width_mhz' : gauss_params[:-3, 11]
+		'band_width_mhz' : gauss_params[:-3, 11],
+		'ngauss'         : gauss_params[:-3, 12],
+		'mg_width_low'   : gauss_params[:-3, 13],
+		'mg_width_high'  : gauss_params[:-3, 14]
 	}
- 
+	
 	var_dict = {
 		't0_var'             : gauss_params[-3:, 0],
 		'width_ms_var'       : gauss_params[-3:, 1],
@@ -376,8 +379,6 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 		tau_ms          = tau_ms,
 		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
-		num_micro_gauss = n_gauss,
-		width_range     = width_range,
 		phase_window    = phase_window,
 		freq_window     = freq_window
 	)
@@ -428,7 +429,6 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, n_gauss, seed, nseed, widt
 			else:  # mode == 'mgauss'
 				out_file = (
 					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
-					f"sgwidth_{width_range[0]:.2f}-{width_range[1]:.2f}_"
 					f"seed_{seed}_nseed_{nseed}_PA_{gdict['PA'][-1]:.2f}.pkl"
 				)
 			with open(out_file, 'wb') as frb_file:
