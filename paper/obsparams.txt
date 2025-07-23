@@ -9,12 +9,15 @@
 # scattering_index: Scattering index
 # reference_freq: reference frequency for scattering and dispersion in MHz
 
-f0=1463.5
-f1=1799.5
-f_res=1
-t0=-10
-t1=2
-t_res=0.01
 
-scattering_index=-4
-reference_freq=1000
+########################
+f0    = 1463.5          
+f1    = 1799.5          
+f_res = 1               
+t0    = -1             
+t1    = 8              
+t_res = 0.005            
+########################
+scattering_index = -4   
+reference_freq   = 1000 
+########################
