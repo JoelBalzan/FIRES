@@ -200,9 +200,17 @@ def weight_dict(xvals, yvals, weight, var_name=None):
 
 	if var_name is not None:
 		# Case where var_name is provided
+		# First check if var_name exists in any of the weight dictionaries
+		var_name_exists = any(var_name in weight.get(var, {}) for var in xvals)
+		if not var_name_exists:
+			print(f"Warning: var_name '{var_name}' not found in weight dictionaries. Returning empty result.")
+			return {}
+			
 		for var in xvals:
 			y_values = yvals.get(var, [])
-			weights = weight.get(var, {}).get(var_name, [])
+			var_weights = weight.get(var, {})
+			
+			weights = var_weights.get(var_name, [])
 
 			if y_values and weights and len(y_values) == len(weights):
 				normalized_vals[var] = [
@@ -224,39 +232,24 @@ def weight_dict(xvals, yvals, weight, var_name=None):
 	
 
 def set_scale_and_labels(ax, scale, xname, yname, x=None):
-	"""
-	Set axis scales and labels for the plot based on the scale argument.
-	Optionally set x-limits using the provided x array.
-	"""
-	if scale == "linear":
-		ax.set_yscale('linear')
-		ax.set_xlabel(rf"${xname}$")
-		ax.set_ylabel(rf"${yname}$")
-		if x is not None:
-			ax.set_xlim(x[0], x[-1])
-	elif scale == "logx":
-		ax.set_xscale('log')
-		ax.set_xlabel(rf"$\log_{{10}}({xname})$")
-		ax.set_ylabel(rf"${yname}$")
-		if x is not None:
-			x_positive = x[x > 0]
-			if len(x_positive) > 0:
-				ax.set_xlim(x_positive[0], x_positive[-1])
-	elif scale == "logy":
-		ax.set_yscale('log')
-		ax.set_xlabel(rf"${xname}$")
-		ax.set_ylabel(rf"$\log_{{10}}({yname})$")
-		if x is not None:
-			ax.set_xlim(x[0], x[-1])
-	elif scale == "loglog":
-		ax.set_xscale('log')
-		ax.set_yscale('log')
-		ax.set_xlabel(rf"$\log_{{10}}({xname})$")
-		ax.set_ylabel(rf"$\log_{{10}}({yname})$")
-		if x is not None:
-			x_positive = x[x > 0]
-			if len(x_positive) > 0:
-				ax.set_xlim(x_positive[0], x_positive[-1])
+    # Set labels (same for all scales now)
+    ax.set_xlabel(rf"${xname}$")
+    ax.set_ylabel(rf"${yname}$")
+    
+    # Set scales
+    if scale == "logx" or scale == "loglog":
+        ax.set_xscale('log')
+    if scale == "logy" or scale == "loglog":
+        ax.set_yscale('log')
+    
+    # Set limits
+    if x is not None:
+        if scale in ["logx", "loglog"]:
+            x_positive = x[x > 0]
+            if len(x_positive) > 0:
+                ax.set_xlim(x_positive[0], x_positive[-1])
+        else:
+            ax.set_xlim(x[0], x[-1])
 
 
 def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -679,7 +672,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			ax.plot(x, med_vals, label=run, color=colour)#, linestyle=linestyle)
 			ax.fill_between(x, lower, upper, alpha=0.2, color=colour)
 			if fit is not None:
-				# Accept fit as a list of strings like ['poly,1', 'poly,2', 'poly,3'] or just ['poly', 'poly,2', 'poly']
+				# Accept fit as a list of strings like ['poly,1', 'poly,2', 'poly,3'] or something like ['poly', 'poly,2', 'poly']
 				if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
 					fit_type, fit_degree = parse_fit_arg(fit[idx])
 				else:
