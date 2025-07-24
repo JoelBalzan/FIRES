@@ -214,12 +214,13 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	fig.subplots_adjust(hspace=0.)
 
 	# Plot polarisation angle
-	#axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
-	#axs[0].errorbar(time_ms, phits, yerr=dphits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
+	axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
+	axs[0].errorbar(time_ms, phits, yerr=dphits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
  
-	axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
-	axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
+	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
+	#axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
+	axs[0].set_ylim(-120, 120)
 	axs[0].set_ylabel(r"$\psi$ [deg.]")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
@@ -278,8 +279,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec." + extension), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_dynspec." + extension)))
+		fig.savefig(os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension), bbox_inches='tight', dpi=600)
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_ILVPA." + extension)))
 
 
 	#	----------------------------------------------------------------------------------------------------------
