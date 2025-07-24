@@ -176,7 +176,7 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	return new_dynspec
 
 
-def est_profiles(dynspec, time_ms, noise_stokes, left, right):
+def est_profiles(dynspec, noise_stokes, left, right):
 	"""
 	Extract and analyze time-resolved polarization profiles from a dynamic spectrum.
 	
@@ -253,13 +253,31 @@ def est_profiles(dynspec, time_ms, noise_stokes, left, right):
 		dpsits[mask] = np.nan
 
 		# Mask PA where linear polarization is not significant
-		#lts_noise = np.sqrt(noise_stokes[1]**2 + noise_stokes[2]**2)
-		#snr_L = lts / lts_noise
-		#snr_threshold = 50.0  # or 5.0 for stricter masking
-#
-		#low_snr_mask = snr_L < snr_threshold
-		#phits[low_snr_mask] = np.nan
-		#dphits[low_snr_mask] = np.nan
+		lts_noise = np.sqrt(noise_stokes[1]**2 + noise_stokes[2]**2)
+		snr_L = lts / lts_noise
+		
+		#Use median + N*MAD (Median Absolute Deviation) for robustness
+		valid_snr = snr_L[~np.isnan(snr_L) & ~np.isinf(snr_L)]
+		if len(valid_snr) > 0:
+			#median_snr = np.nanmedian(valid_snr)
+			#mad_snr = np.nanmedian(np.abs(valid_snr - median_snr))
+			#snr_threshold = median_snr + 2.0 * mad_snr  # 2-sigma equivalent
+			
+			# use percentile-based threshold
+			#snr_threshold = np.nanpercentile(valid_snr, 75)  # 75th percentile
+			
+			# scale with peak SNR
+			peak_snr = np.nanmax(valid_snr)
+			snr_threshold = 0.03 * peak_snr  # 3% of peak SNR
+
+			# Ensure minimum threshold to avoid noise
+			snr_threshold = max(snr_threshold, 3.0)
+		else:
+			snr_threshold = 5.0  # Fallback if no valid SNR values
+			
+		low_snr_mask = snr_L < snr_threshold
+		phits[low_snr_mask] = np.nan
+		dphits[low_snr_mask] = np.nan
   
 		# Mask PA outside all signal windows using on-pulse finder
 		pa_mask = np.zeros_like(phits, dtype=bool)
@@ -343,7 +361,7 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 
 
 
-def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
+def process_dynspec(dynspec, freq_mhz, time_ms, gdict):
 	"""
 	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
 	
@@ -395,7 +413,7 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict, tau_ms):
 
 	noisespec = np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
 
-	tsdata = est_profiles(corrdspec, time_ms, noise_stokes, left, right)
+	tsdata = est_profiles(corrdspec, noise_stokes, left, right)
 
 	return tsdata, corrdspec, noisespec, noise_stokes
 
