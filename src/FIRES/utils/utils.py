@@ -133,8 +133,6 @@ class DynspecParams(NamedTuple):
     tau_ms         : float
     sc_idx         : float
     ref_freq_mhz   : float
-    num_micro_gauss: int
-    width_range    : float
     phase_window   : str
     freq_window    : str
 
