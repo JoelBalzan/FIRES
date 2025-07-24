@@ -307,7 +307,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 	return var, xvals, result_err, var_params, snr
 
 
-def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, save,
+def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 				 obs_file, gauss_file, noise, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
@@ -419,8 +419,8 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, save,
 		frb_data = simulated_frb(
 			frb_id, dspec, dspec_params, snr
 		)
-		if save:
-			tau = f"{tau_ms:.2f}"
+		if write:
+			tau = f"{tau_ms[0]:.2f}"
 			if mode == 'gauss':
 				out_file = (
 					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
@@ -524,7 +524,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, save,
 				"snrs": snrs,
 			}
 
-		if save:
+		if write:
 			# Create a descriptive filename
 			if xname == 'tau_ms':
 				xvals = f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}" if len(tau_ms) > 1 else f"{tau_ms[0]:.2f}"
