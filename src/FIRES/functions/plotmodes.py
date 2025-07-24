@@ -88,7 +88,7 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, sh
 	
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
-		frb_data.dynamic_spectrum, freq_mhz, time_ms, gdict, tau_ms
+		frb_data.dynamic_spectrum, freq_mhz, time_ms, gdict
 	)
 
 	iquvt = ts_data.iquvt
@@ -536,7 +536,7 @@ def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, t
 	freq_mhz = freq_mhz[slc]
 	dspec = dspec[:, slc, :]
 		
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict, tau_ms)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict)
 	
 	peak_index = np.argmax(ts_data.iquvt[0])
 	phase_slc = get_phase_window_indices(phase_window, peak_index)
@@ -617,7 +617,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 		dspec = dspec[:, :, phase_slc]
 
  
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict, tau_ms)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict)
  
 	iquvt = ts_data.iquvt
 	I = iquvt[0]
