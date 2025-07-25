@@ -114,6 +114,11 @@ def main():
   			  "Choose 'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', or 'full-band'. Default is 'full-band'."
 	  )
 	)
+	parser.add_argument(
+		"-v", "--verbose",
+		action="store_true",
+		help="Enable verbose output."
+	)
 	# Plotting Options
 	parser.add_argument(
 		"-p", "--plot",
@@ -256,6 +261,8 @@ def main():
 				scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
 
 		args.tau_ms = scattering_timescales
+	else:
+		args.tau_ms = np.array([float(args.tau_ms[0])])  # Convert single value to array
 
 	print(f"Scattering timescales: {args.tau_ms} ms \n")
 
@@ -368,12 +375,14 @@ def main():
 						
 				except Exception as e:
 					print(f"An error occurred while plotting '{plot_mode}': {e} \n")
-					traceback.print_exc()
+					if args.verbose:
+						traceback.print_exc()
 		else:
 			print("No plots generated. \n")
 	except Exception as e:
 		print(f"An error occurred during the simulation: {e} \n")
-		traceback.print_exc()
+		if args.verbose:
+			traceback.print_exc()
 
 
 
