@@ -51,7 +51,7 @@ def main():
 		default=[0.0],
 		metavar="",
 		help=("Scattering time scale(s) in milliseconds.\n"
-			  "Provide one or more values. Use '(start,stop,step)' for ranges. Default is 0.0 ms."
+			  "Provide one or more values. Use start,stop,step for ranges. Default is 0.0 ms."
 		   )
 	)
 	parser.add_argument(
@@ -234,19 +234,26 @@ def main():
 
 	# Parse scattering timescale(s)
 	
-	scattering_timescales = np.array([])
-	for value in args.tau_ms:
-		if value.startswith("(") and value.endswith(")"):  # Check if it's a range
-			try:
-				start, stop, step = map(float, value.strip("()").split(","))
-				range_values = np.arange(start, stop + step, step)  # Include the stop value
-				scattering_timescales = np.concatenate((scattering_timescales, range_values))  # Append to array
-			except ValueError:
-				raise ValueError("Invalid range format for scattering timescales. Use '(start,stop,step)'.")
-		else:
-			scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
-
-	args.tau_ms = scattering_timescales
+	if len(args.tau_ms) > 1:
+		scattering_timescales = np.array([])
+		for value in args.tau_ms:
+			if "," in value:  # Check if it's a range (comma-separated)
+				try:
+					parts = value.split(",")
+					if len(parts) == 3:  # start,stop,step format
+						start, stop, step = map(float, parts)
+						range_values = np.arange(start, stop + step, step)  # Include the stop value
+						scattering_timescales = np.concatenate((scattering_timescales, range_values))  # Append to array
+					else:
+						# Multiple individual values separated by commas
+						values = list(map(float, parts))
+						scattering_timescales = np.concatenate((scattering_timescales, values))
+				except ValueError:
+					raise ValueError("Invalid range format for scattering timescales. Use 'start,stop,step' or comma-separated values.")
+			else:
+				scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
+	
+		args.tau_ms = scattering_timescales
 
 	print(f"Scattering timescales: {args.tau_ms} ms \n")
 
@@ -298,7 +305,7 @@ def main():
 				mode         = args.mode,
 				seed         = args.seed,
 				nseed        = None,
-				noise          = args.noise,
+				noise         = args.noise,
 				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
