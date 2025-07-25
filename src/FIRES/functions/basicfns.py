@@ -440,7 +440,8 @@ def boxcar_width(profile, time_ms, frac=0.95):
 		- best_start: Starting index of optimal window  
 		- best_end: Ending index of optimal window
 	"""
-	prof = np.nan_to_num(profile)
+	prof = np.nan_to_num(np.squeeze(profile))
+	time_ms = np.squeeze(time_ms)
 	total = np.sum(prof)
 	n = len(prof)
 	min_width = n
