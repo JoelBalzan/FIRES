@@ -261,7 +261,7 @@ def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="al
 		parts.append(f"freq_{freq_window}")
 	if phase_window != "total":
 		parts.append(f"phase_{phase_window}")
-	parts.extend([plot_type, scale, fname])
+	parts.extend([fname, scale, plot_type])
 	return "_".join(parts)
 
 
