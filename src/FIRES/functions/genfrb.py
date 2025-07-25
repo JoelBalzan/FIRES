@@ -171,76 +171,85 @@ def load_data(data, freq_mhz, time_ms):
 
 
 def load_multiple_data_grouped(data):
-	"""
-	Group simulation outputs by prefix (everything before the first underscore).
-	Returns a dictionary: {prefix: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
-	"""
-	from collections import defaultdict
-	import re
+    """
+    Group simulation outputs by freq and phase info (everything after freq_ and phase_).
+    Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
+    """
+    from collections import defaultdict
+    import re
  
-	def extract_sc_value(fname):
-		# Match _sc_<number> or _sc_<number>-<number>
-		m = re.search(r'_sc_([0-9.]+)(?:-([0-9.]+))?', fname)
-		if m:
-			return float(m.group(1))
-		return float('inf')  # Put files without _sc_ at the end
-	
-	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
-	file_names = sorted(file_names, key=extract_sc_value)
-	groups = defaultdict(list)
-	for fname in file_names:
-		prefix = fname.split('_')[0]
-		prefix = window_map[prefix] if prefix in window_map else prefix
-		groups[prefix].append(fname)
+    def extract_sc_value(fname):
+        # Match _sc_<number> or _sc_<number>-<number>
+        m = re.search(r'_sc_([0-9.]+)(?:-([0-9.]+))?', fname)
+        if m:
+            return float(m.group(1))
+        return float('inf')  # Put files without _sc_ at the end
+    
+    def extract_freq_phase_key(fname):
+        # Extract freq and phase info from filename
+        # Pattern: freq_{freq}_phase_{phase}.pkl
+        m = re.search(r'freq_([^_]+)_phase_([^.]+)\.pkl$', fname)
+        if m:
+            freq_info = m.group(1)
+            phase_info = m.group(2)
+            return f"{freq_info}, {phase_info}"
+        return "unknown"  # fallback for files that don't match pattern
+    
+    file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
+    file_names = sorted(file_names, key=extract_sc_value)
+    groups = defaultdict(list)
+    for fname in file_names:
+        freq_phase_key = extract_freq_phase_key(fname)
+        groups[freq_phase_key].append(fname)
 
-	all_results = {}
-	for prefix, files in groups.items():
-		xname                 = None
-		all_xvals             = []
-		all_yvals             = {}
-		all_errs              = {}
-		all_var_params        = {}
-		dspec_params          = None
-		plot_mode             = None
-		all_snrs 			  = {}
+    all_results = {}
+    for freq_phase_key, files in groups.items():
+        xname                 = None
+        all_xvals             = []
+        all_yvals             = {}
+        all_errs              = {}
+        all_var_params        = {}
+        dspec_params          = None
+        plot_mode             = None
+        all_snrs 			  = {}
 
-		for file_name in files:
-			with open(os.path.join(data, file_name), "rb") as f:
-				obj = pkl.load(f)
-			xname        = obj["xname"]
-			plot_mode    = obj["plot_mode"]
-			xvals        = obj["xvals"]
-			yvals        = obj["yvals"]
-			errs         = obj["errs"]
-			var_params   = obj["var_params"]
-			dspec_params = obj["dspec_params"]
-			snrs         = obj["snrs"]
+        for file_name in files:
+            with open(os.path.join(data, file_name), "rb") as f:
+                obj = pkl.load(f)
+            xname        = obj["xname"]
+            plot_mode    = obj["plot_mode"]
+            xvals        = obj["xvals"]
+            yvals        = obj["yvals"]
+            errs         = obj["errs"]
+            var_params   = obj["var_params"]
+            dspec_params = obj["dspec_params"]
+            snrs         = obj["snrs"]
 
-			for v in xvals:
-				if v not in all_yvals:
-					all_yvals[v]      = []
-					all_errs[v]       = []
-					all_var_params[v] = {key: [] for key in var_params[v].keys()}
-					all_snrs[v]       = []
-				all_yvals[v].extend(yvals[v])
-				all_errs[v].extend(errs[v])
-				for key, values in var_params[v].items():
-					all_var_params[v][key].extend(values)
-				all_snrs[v].extend(snrs[v])
-			all_xvals.extend(xvals)
+            for v in xvals:
+                if v not in all_yvals:
+                    all_yvals[v]      = []
+                    all_errs[v]       = []
+                    all_var_params[v] = {key: [] for key in var_params[v].keys()}
+                    all_snrs[v]       = []
+                all_yvals[v].extend(yvals[v])
+                all_errs[v].extend(errs[v])
+                for key, values in var_params[v].items():
+                    all_var_params[v][key].extend(values)
+                all_snrs[v].extend(snrs[v])
+            all_xvals.extend(xvals)
 
-		all_results[prefix] = {
-			'xname'            : xname,
-			'xvals'            : all_xvals,
-			'yvals'            : all_yvals,
-			'errs'             : all_errs,
-			'var_params'       : all_var_params,
-			'dspec_params'     : dspec_params,
-			'plot_mode'        : plot_mode,
-			'snrs'             : all_snrs	
-		}
+        all_results[freq_phase_key] = {
+            'xname'            : xname,
+            'xvals'            : all_xvals,
+            'yvals'            : all_yvals,
+            'errs'             : all_errs,
+            'var_params'       : all_var_params,
+            'dspec_params'     : dspec_params,
+            'plot_mode'        : plot_mode,
+            'snrs'             : all_snrs	
+        }
 
-	return all_results
+    return all_results
 
 
 def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
