@@ -183,9 +183,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
 	median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 	# Calculate frequency-dependent scattering timescale
-	
 	if tau_ms > 0:
 		tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
+	else:
+		tau_cms = np.zeros_like(freq_mhz)
 
 	all_params = {
 		'peak_amp'       : [],
