@@ -197,7 +197,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			- noise_stokes: Noise levels for each Stokes parameter
 	"""
 
-	phits  = tsdata.phits
+	# Wrap PA to [-90, 90] range
+	phits = ((tsdata.phits + 90) % 180) - 90
 	dphits = tsdata.dphits
  
 	# Linear polarisation
@@ -220,7 +221,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
 	#axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
-	axs[0].set_ylim(-120, 120)
+	axs[0].set_ylim(-90, 90)
 	axs[0].set_ylabel(r"$\psi$ [deg.]")
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
@@ -260,11 +261,11 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	)
 
 
-	mn = np.mean(dspec[0])
-	std = np.std(dspec[0])
-
+	#mn = np.mean(dspec[0])
+	#std = np.std(dspec[0])
 	#vmin = mn - 3*std
 	#vmax = mn + 7*std
+
 	vmin = np.nanpercentile(dspec[0], 1)
 	vmax = np.nanpercentile(dspec[0], 99)
 	axs[2].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
