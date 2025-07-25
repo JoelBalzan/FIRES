@@ -249,7 +249,17 @@ def set_scale_and_labels(ax, scale, xname, yname, x=None):
             if len(x_positive) > 0:
                 ax.set_xlim(x_positive[0], x_positive[-1])
         else:
-            ax.set_xlim(x[0], x[-1])
+            # Check if x range is valid before setting limits
+            if len(x) > 1 and x[0] != x[-1]:
+                ax.set_xlim(x[0], x[-1])
+            elif len(x) == 1:
+                # For single point, set reasonable range around it
+                center = x[0]
+                if center == 0:
+                    ax.set_xlim(-1, 1)
+                else:
+                    margin = abs(center) * 0.1
+                    ax.set_xlim(center - margin, center + margin)
 
 
 def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -383,7 +393,7 @@ def weight_x_get_xname(frb_dict, width_ms, plot_type="pa_var"):
 	elif plot_type == "lfrac":
 		if frb_dict["xname"] == "tau_ms":
 			x = np.array(frb_dict["xvals"]) / width_ms
-			xname = r"\tau_\mathrm{ms} / W"
+			xname = r"\tau / W"
 		elif frb_dict["xname"] == "PA_var":
 			x = np.array(frb_dict["xvals"])
 			xname = r"\Delta\psi_\mathrm{micro}"
@@ -637,11 +647,12 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 	integrated_L = np.nansum(L)
 
 	
-	lfrac = integrated_L / integrated_I
+	with np.errstate(divide='ignore', invalid='ignore'):
+		lfrac = integrated_L / integrated_I
  
-	noise_I = np.nanstd(I[~onpulse_mask])
-	noise_L = np.nanstd(L[~onpulse_mask])
-	lfrac_err = np.sqrt((noise_L / integrated_I)**2 + (integrated_L * noise_I / integrated_I**2)**2)
+		noise_I = np.nanstd(I[~onpulse_mask])
+		noise_L = np.nanstd(L[~onpulse_mask])
+		lfrac_err = np.sqrt((noise_L / integrated_I)**2 + (integrated_L * noise_I / integrated_I**2)**2)
 
 	return lfrac, lfrac_err
 
