@@ -459,7 +459,7 @@ def print_avg_snrs(subdict):
 	avg_high = np.round(avg(highest), 2)
 	# Only print if at least one is not None
 	if avg_low is not None or avg_high is not None:
-		print(f"Full Dynamic Spectrum avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}")
+		print(f"Avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}\n")
 		
 
 
@@ -490,6 +490,7 @@ def plot_multirun(frb_dict, ax, plot_type, fit, scale, yname, colour_map, colour
 	"""
 	colour_list = list(colours.values())
 	for idx, (run, subdict) in enumerate(frb_dict.items()):
+		print(run+":")
 		colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
 
 		xvals = np.array(subdict["xvals"])
