@@ -53,14 +53,14 @@ colours = {
 } 
 
 colour_map = {
-	'lowest-quarter'   : '#e41a1c',
-	'highest-quarter'  : '#377eb8',
-	'full-band'        : '#984ea3',
-	'leading'          : '#ff7f00',
-	'trailing'         : '#4daf4a',
-	'total'            : '#984ea3',
-	'lower-mid-quarter': '#a65628',
-	'upper-mid-quarter': '#999999',
+	'lowest-quarter, total'   : '#e41a1c',
+	'highest-quarter, total'  : '#377eb8',
+	'full-band, total'        : '#984ea3',
+	'full-band, leading'          : '#ff7f00',
+	'full-band, trailing'         : '#4daf4a',
+	'full-band, total'            : '#984ea3',
+	'lower-mid-quarter, total'    : '#a65628',
+	'upper-mid-quarter, total'    : '#999999',
 }
 
 
@@ -256,12 +256,10 @@ def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="al
 	"""
 	Generate a plot filename with freq/phase window at the front if not 'all'.
 	"""
-	parts = []
-	if freq_window != "full-band":
-		parts.append(f"freq_{freq_window}")
-	if phase_window != "total":
-		parts.append(f"phase_{phase_window}")
-	parts.extend([fname, scale, plot_type])
+	parts = [fname, scale]
+	parts.append(f"freq_{freq_window}")
+	parts.append(f"phase_{phase_window}")
+	parts.append(plot_type)
 	return "_".join(parts)
 
 
@@ -460,6 +458,11 @@ def print_avg_snrs(subdict):
 	# Only print if at least one is not None
 	if avg_low is not None or avg_high is not None:
 		print(f"Avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}\n")
+	
+	med_low = np.round(np.nanmedian(lowest), 2)
+	med_high = np.round(np.nanmedian(highest), 2)
+	if med_low is not None or med_high is not None:
+		print(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
 		
 
 
