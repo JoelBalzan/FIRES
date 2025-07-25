@@ -229,8 +229,10 @@ def main():
 	args = parser.parse_args()
 
 	# Map long freq-window names to abbreviated forms
-	args.freq_window = window_map[args.freq_window]
-	args.phase_window = window_map[args.phase_window]
+	if args.freq_window in window_map:
+		args.freq_window = window_map[args.freq_window]
+	if args.phase_window in window_map:
+		args.phase_window = window_map[args.phase_window]
 
 	# Parse scattering timescale(s)
 	
@@ -252,7 +254,7 @@ def main():
 					raise ValueError("Invalid range format for scattering timescales. Use 'start,stop,step' or comma-separated values.")
 			else:
 				scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
-	
+
 		args.tau_ms = scattering_timescales
 
 	print(f"Scattering timescales: {args.tau_ms} ms \n")
