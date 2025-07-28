@@ -78,7 +78,11 @@ window_map = {
 	'2q': 'lower-mid-quarter',
 	'3q': 'upper-mid-quarter',
 	'4q': 'highest-quarter',
-	'full': 'full-band'
+	'full': 'full-band',
+
+    'first': 'leading',
+	'last': 'trailing',
+	'all': 'total'
 }
 
 # Universal constants 
