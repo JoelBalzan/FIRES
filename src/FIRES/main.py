@@ -19,8 +19,8 @@ import sys
 import traceback
 from inspect import signature
 
-from FIRES.functions.genfrb import generate_frb, obs_params_path, gauss_params_path
-from FIRES.utils.utils import chi2_fit, gaussian_model, window_map
+from FIRES.functions.genfrb import generate_frb
+from FIRES.utils.utils import chi2_fit, gaussian_model, window_map, obs_params_path, gauss_params_path
 from FIRES.functions.plotmodes import plot_modes
 
 
@@ -288,8 +288,8 @@ def main():
 				data         = args.data,
 				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
-				obs_file     = obs_params_path,
-				gauss_file   = gauss_params_path,
+				obs_file     = args.obs_params,
+				gauss_file   = args.gauss_params,
 				out_dir      = args.output_dir,
 				write        = args.write,
 				mode         = args.mode,
@@ -307,8 +307,8 @@ def main():
 				data         = args.data,
 				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
-				obs_file     = obs_params_path,
-				gauss_file   = gauss_params_path,
+				obs_file     = args.obs_params,
+				gauss_file   = args.gauss_params,
 				out_dir      = args.output_dir,
 				write        = args.write,
 				mode         = args.mode,
