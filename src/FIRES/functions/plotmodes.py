@@ -29,14 +29,15 @@ from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estim
 plt.rcParams['pdf.fonttype']	= 42
 plt.rcParams['ps.fonttype'] 	= 42
 plt.rcParams['savefig.dpi'] 	= 600
-plt.rcParams['font.size'] 		= 14
 plt.rcParams['font.family']		= 'sans-serif'  
+plt.rcParams['text.usetex'] 	= True
+
+plt.rcParams['font.size'] 		= 14
 plt.rcParams['axes.labelsize']  = 20
 plt.rcParams['axes.titlesize']  = 20
 plt.rcParams['legend.fontsize'] = 14
 plt.rcParams['xtick.labelsize'] = 20
 plt.rcParams['ytick.labelsize'] = 20
-plt.rcParams['text.usetex'] 	= True
 
 #colour blind friendly: https://gist.github.com/thriveth/8560036
 
@@ -56,11 +57,10 @@ colour_map = {
 	'lowest-quarter, total'   : '#e41a1c',
 	'highest-quarter, total'  : '#377eb8',
 	'full-band, total'        : '#984ea3',
-	'full-band, leading'          : '#ff7f00',
-	'full-band, trailing'         : '#4daf4a',
-	'full-band, total'            : '#984ea3',
-	'lower-mid-quarter, total'    : '#a65628',
-	'upper-mid-quarter, total'    : '#999999',
+	'full-band, leading'      : '#ff7f00',
+	'full-band, trailing'     : '#4daf4a',
+	'lower-mid-quarter, total': '#a65628',
+	'upper-mid-quarter, total': '#999999',
 }
 
 
@@ -81,7 +81,9 @@ class PlotMode:
 		self.requires_multiple_frb = requires_multiple_frb
 		
 def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, show_plots, extension):
-
+	"""
+	Call basic plot functions
+	"""
 	dspec_params = frb_data.dspec_params
 	freq_mhz = dspec_params.freq_mhz
 	time_ms = dspec_params.time_ms
@@ -232,34 +234,34 @@ def weight_dict(xvals, yvals, weight, var_name=None):
 	
 
 def set_scale_and_labels(ax, scale, xname, yname, x=None):
-    # Set labels (same for all scales now)
-    ax.set_xlabel(rf"${xname}$")
-    ax.set_ylabel(rf"${yname}$")
-    
-    # Set scales
-    if scale == "logx" or scale == "loglog":
-        ax.set_xscale('log')
-    if scale == "logy" or scale == "loglog":
-        ax.set_yscale('log')
-    
-    # Set limits
-    if x is not None:
-        if scale in ["logx", "loglog"]:
-            x_positive = x[x > 0]
-            if len(x_positive) > 0:
-                ax.set_xlim(x_positive[0], x_positive[-1])
-        else:
-            # Check if x range is valid before setting limits
-            if len(x) > 1 and x[0] != x[-1]:
-                ax.set_xlim(x[0], x[-1])
-            elif len(x) == 1:
-                # For single point, set reasonable range around it
-                center = x[0]
-                if center == 0:
-                    ax.set_xlim(-1, 1)
-                else:
-                    margin = abs(center) * 0.1
-                    ax.set_xlim(center - margin, center + margin)
+	# Set labels (same for all scales now)
+	ax.set_xlabel(rf"${xname}$")
+	ax.set_ylabel(rf"${yname}$")
+	
+	# Set scales
+	if scale == "logx" or scale == "loglog":
+		ax.set_xscale('log')
+	if scale == "logy" or scale == "loglog":
+		ax.set_yscale('log')
+	
+	# Set limits
+	if x is not None:
+		if scale in ["logx", "loglog"]:
+			x_positive = x[x > 0]
+			if len(x_positive) > 0:
+				ax.set_xlim(x_positive[0], x_positive[-1])
+		else:
+			# Check if x range is valid before setting limits
+			if len(x) > 1 and x[0] != x[-1]:
+				ax.set_xlim(x[0], x[-1])
+			elif len(x) == 1:
+				# For single point, set reasonable range around it
+				center = x[0]
+				if center == 0:
+					ax.set_xlim(-1, 1)
+				else:
+					margin = abs(center) * 0.1
+					ax.set_xlim(center - margin, center + margin)
 
 
 def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -559,9 +561,57 @@ def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, t
 
 def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension):
 	"""
-	Plot the var of the polarization angle (PA) and its error bars vs the scattering timescale.
-	Supports plotting multiple run groups for comparison.
+	Plot the variance of the polarization angle (PA) as a function of scattering parameters.
+	
+	This function creates a plot showing how the polarization angle variance (R_ψ) changes
+	with scattering timescale or PA variance parameters. It supports both single-run and 
+	multi-run plotting for parameter comparison studies.
+	
+	Parameters:
+	-----------
+	frb_dict : dict
+		Dictionary containing FRB simulation results. For single runs, contains keys like
+		'xvals', 'yvals', 'var_params', 'dspec_params'. For multi-run comparisons, contains
+		nested dictionaries with run names as keys.
+	save : bool
+		Whether to save the plot to disk.
+	fname : str
+		Base filename for the saved plot (without extension).
+	out_dir : str
+		Output directory path for saving the plot.
+	figsize : tuple or None
+		Figure size as (width, height) in inches. If None, defaults to (10, 9).
+	show_plots : bool
+		Whether to display the plot interactively.
+	scale : str
+		Axis scaling type. Options: 'linear', 'logx', 'logy', 'loglog'.
+	phase_window : str
+		Phase window for analysis. Options: 'total', 'leading', 'trailing'.
+	freq_window : str
+		Frequency window for analysis. Options: 'full-band', 'lowest-quarter', 
+		'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter'.
+	fit : str, list, or None
+		Fitting function(s) to overlay. Can be single fit type (applied to all runs)
+		or list of fit types (one per run). Options include 'linear', 'power', 
+		'poly,N' (polynomial of degree N), 'exp', 'log', etc.
+	extension : str
+		File extension for saved plots (e.g., 'pdf', 'png').
+		
+	Notes:
+	------
+	- For multi-run plots, each run is plotted with different colors and includes
+	  median values with 16th-84th percentile error bands
+	- X-axis shows τ/W (scattering time normalised by pulse width) 
+	- Y-axis shows R_ψ, the variance ratio of polarisation angles
+	- Automatic color mapping is applied for predefined run types
 	"""
+
+	plt.rcParams['font.size'] 		= 14
+	plt.rcParams['axes.labelsize']  = 20
+	plt.rcParams['axes.titlesize']  = 20
+	plt.rcParams['legend.fontsize'] = 14
+	plt.rcParams['xtick.labelsize'] = 20
+	plt.rcParams['ytick.labelsize'] = 20
 	# If frb_dict contains multiple runs, plot each on the same axes
 	yname = r"\mathcal{R}_{\mathrm{\psi}}"
  
@@ -658,6 +708,61 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, ta
 
 
 def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension):
+	"""
+    Plot the linear polarization fraction (L/I) as a function of scattering parameters.
+    
+    This function visualizes how the degree of linear polarization changes with varying
+    scattering conditions or other simulation parameters. It computes the integrated
+    linear polarization fraction over specified frequency and phase windows.
+    
+    Parameters:
+    -----------
+    frb_dict : dict
+        Dictionary containing FRB simulation results. For single runs, contains keys like
+        'xvals', 'yvals', 'var_params', 'dspec_params'. For multi-run comparisons, contains
+        nested dictionaries with run names as keys.
+    save : bool
+        Whether to save the plot to disk.
+    fname : str
+        Base filename for the saved plot (without extension).
+    out_dir : str
+        Output directory path for saving the plot.
+    figsize : tuple or None
+        Figure size as (width, height) in inches. If None, defaults to (10, 9).
+    show_plots : bool
+        Whether to display the plot interactively.
+    scale : str
+        Axis scaling type. Options: 'linear', 'logx', 'logy', 'loglog'.
+    phase_window : str
+        Phase window for integration. Options: 'total', 'leading', 'trailing'.
+        Determines which part of the pulse profile to include in L/I calculation.
+    freq_window : str
+        Frequency window for integration. Options: 'full-band', 'lowest-quarter', 
+        'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter'.
+    fit : str, list, or None
+        Fitting function(s) to overlay. Can be single fit type (applied to all runs)
+        or list of fit types (one per run). Options include 'linear', 'power', 
+        'poly,N' (polynomial of degree N), 'exp', 'log', etc.
+    extension : str
+        File extension for saved plots (e.g., 'pdf', 'png').
+        
+    Notes:
+    ------
+    - Linear fraction is calculated as L/I = √(Q² + U²)/I integrated over the 
+      specified windows and on-pulse region (95% width)
+    - For multi-run plots, median values with 16th-84th percentile error bands are shown
+    - X-axis shows τ/W (scattering time normalised by pulse width)
+    - Error bars include both statistical noise and systematic uncertainties
+    - Useful for studying depolarisation effects due to scattering
+    """
+
+	plt.rcParams['font.size'] 		= 14
+	plt.rcParams['axes.labelsize']  = 20
+	plt.rcParams['axes.titlesize']  = 20
+	plt.rcParams['legend.fontsize'] = 14
+	plt.rcParams['xtick.labelsize'] = 20
+	plt.rcParams['ytick.labelsize'] = 20
+
 	yname = r"L/I"
 	# If frb_dict contains multiple job IDs, plot each on the same axes
 	if figsize is None:
