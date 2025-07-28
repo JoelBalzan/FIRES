@@ -114,7 +114,7 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 	"""
 
 
-	w95_ms, left, right = boxcar_width(np.nansum(dynspec[0], axis=0), time_ms, frac=0.95)
+	_, left, right = boxcar_width(np.nansum(dynspec[0], axis=0), time_ms, frac=0.95)
 
 	# Calculate the mean spectra for each Stokes parameter
 	ispec   = np.nansum(dynspec[0, :, left:right], axis=1)
@@ -442,21 +442,31 @@ def boxcar_width(profile, time_ms, frac=0.95):
 	"""
 	prof = np.nan_to_num(np.squeeze(profile))
 	time_ms = np.squeeze(time_ms)
-	total = np.sum(prof)
 	n = len(prof)
+	
+	# Target flux to enclose
+	target_flux = frac * np.sum(prof)
+	
+	# Compute cumulative sum once
+	cumsum = np.cumsum(prof)
+	
 	min_width = n
 	best_start, best_end = 0, n-1
-
+	
+	# For each starting position
 	for start in range(n):
-		cumsum = 0.0
-		for end in range(start, n):
-			cumsum += prof[end]
-			if cumsum >= frac * total:
-				width = end - start + 1
-				if width < min_width:
-					min_width = width
-					best_start, best_end = start, end
-				break  # No need to check longer windows from this start
+		# Find the first position where we exceed target flux
+		start_flux = cumsum[start-1] if start > 0 else 0
+		target_end_flux = start_flux + target_flux
+		
+		# Binary search or simple search for end position
+		end_indices = np.where(cumsum >= target_end_flux)[0]
+		if len(end_indices) > 0:
+			end = end_indices[0]
+			width = end - start + 1
+			if width < min_width:
+				min_width = width
+				best_start, best_end = start, end
 
 	width_ms = time_ms[best_end] - time_ms[best_start] if min_width < n else 0.0
 	return width_ms, best_start, best_end
