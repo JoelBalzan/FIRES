@@ -17,6 +17,14 @@ from collections import namedtuple
 import numpy as np
 from scipy.optimize import curve_fit
 from typing import NamedTuple
+import os
+
+
+# --------------------------	Define paths	-------------------------------
+current_dir = os.path.dirname(__file__)
+parent_dir = os.path.dirname(current_dir)
+obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
+gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
 
 
 #    --------------------------	Define parameters	-------------------------------
@@ -24,11 +32,24 @@ def get_parameters(filename):
     parameters = {}
     with open(filename, 'r') as file:
         for line in file:
-            # Skip empty lines or lines without '='
-            if '=' not in line.strip():
+            line = line.strip()
+            # Skip empty lines or comment lines
+            if not line or line.startswith('#'):
                 continue
-            key, value = line.strip().split('=', 1)  # Use maxsplit=1 to handle extra '=' in values
-            parameters[key.strip()] = value.strip()
+            
+            # Check for either '=' or ':' separator
+            if '=' in line:
+                key, value = line.split('=', 1)  # Use maxsplit=1 to handle extra '=' in values
+            elif ':' in line:
+                key, value = line.split(':', 1)  # Use maxsplit=1 to handle extra ':' in values
+            else:
+                continue  # Skip lines without either separator
+            
+            # Remove square brackets and their contents from the value
+            import re
+            value = re.sub(r'\[.*?\]', '', value).strip()
+            
+            parameters[key.strip()] = value
     return parameters
 
 
