@@ -120,52 +120,93 @@ def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 	return dspec_scattered
 
 
-def load_data(data, freq_mhz, time_ms):
-	print(f"Loading data from {data}...")
-	if isinstance(data, str):
-		if os.path.isdir(data):
-			# Expect exactly one file for each Stokes parameter: I, Q, U, V
-			stokes_labels = ['I', 'Q', 'U', 'V']
-			stokes_files = []
-			for s in stokes_labels:
-				# Find the file for this Stokes parameter
-				matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
-				#matches = [f for f in os.listdir(data) if f.endswith(f'{s}.npy')]
-				
-				if len(matches) != 1:
-					raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
-				stokes_files.append(os.path.join(data, matches[0]))
-			# Load and stack
-			arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
-			dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
-			
-			summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
-			summary = get_parameters(os.path.join(data, summary_file[0]))
-			cfreq_mhz = float(summary['cfreq'])
-			bw_mhz = float(summary['bw'])
-			freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
-			time_res_ms = 0.01 # Convert to milliseconds
-			time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
-			print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
-			
-		elif data.endswith('.pkl'):
-			with open(data, 'rb') as f:
-				dspec = pkl.load(f)['dspec']
-		elif data.endswith('.npy'):
-			arr = np.load(data)
-			if arr.ndim == 2:
-				dspec = arr[np.newaxis, ...]  # shape: (1, nchan, ntime)
-			else:
-				dspec = arr
-		else:
-			raise ValueError("Unsupported file format: only .pkl and .npy are supported")
-	else:
-		raise ValueError("Unsupported data type for 'data'")
+def load_data(data, freq_mhz, time_ms, downsample_factor=1):
+    """
+    Load data from files with optional downsampling.
+    
+    Args:
+        data: Path to data directory or file
+        freq_mhz: Frequency array (will be updated if loading from directory)
+        time_ms: Time array (will be updated if loading from directory)
+        downsample_factor: Integer factor to downsample by (default: 1, no downsampling)
+    
+    Returns:
+        dspec: Dynamic spectrum array
+        freq_mhz: Updated frequency array
+        time_ms: Updated time array
+    """
+    print(f"Loading data from {data}...")
+    if downsample_factor > 1:
+        print(f"Downsampling by factor of {downsample_factor}")
+    
+    if isinstance(data, str):
+        if os.path.isdir(data):
+            # Expect exactly one file for each Stokes parameter: I, Q, U, V
+            stokes_labels = ['I', 'Q', 'U', 'V']
+            stokes_files = []
+            for s in stokes_labels:
+                # Find the file for this Stokes parameter
+                matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
+                #matches = [f for f in os.listdir(data) if f.endswith(f'{s}.npy')]
+                
+                if len(matches) != 1:
+                    raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
+                stokes_files.append(os.path.join(data, matches[0]))
+            # Load and stack
+            arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
+            dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
+            
+            # Apply downsampling if requested
+            if downsample_factor > 1:
+                # Downsample in both frequency and time dimensions
+                dspec = dspec[:, ::downsample_factor, ::downsample_factor]
+            
+            summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
+            summary = get_parameters(os.path.join(data, summary_file[0]))
+            cfreq_mhz = float(summary['cfreq'])
+            bw_mhz = float(summary['bw'])
+            freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
+            time_res_ms = 3e-6 * downsample_factor  # Adjust time resolution for downsampling
+            time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
+            print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
+            
+        elif data.endswith('.pkl'):
+            with open(data, 'rb') as f:
+                dspec = pkl.load(f)['dspec']
+            # Apply downsampling if requested
+            if downsample_factor > 1:
+                if dspec.ndim == 3:
+                    dspec = dspec[:, ::downsample_factor, ::downsample_factor]
+                else:
+                    dspec = dspec[::downsample_factor, ::downsample_factor]
+                # Update time and frequency arrays for downsampling
+                freq_mhz = freq_mhz[::downsample_factor]
+                time_ms = time_ms[::downsample_factor]
+                
+        elif data.endswith('.npy'):
+            arr = np.load(data)
+            if arr.ndim == 2:
+                dspec = arr[np.newaxis, ...]  # shape: (1, nchan, ntime)
+            else:
+                dspec = arr
+            # Apply downsampling if requested
+            if downsample_factor > 1:
+                if dspec.ndim == 3:
+                    dspec = dspec[:, ::downsample_factor, ::downsample_factor]
+                else:
+                    dspec = dspec[::downsample_factor, ::downsample_factor]
+                # Update time and frequency arrays for downsampling
+                freq_mhz = freq_mhz[::downsample_factor]
+                time_ms = time_ms[::downsample_factor]
+        else:
+            raise ValueError("Unsupported file format: only .pkl and .npy are supported")
+    else:
+        raise ValueError("Unsupported data type for 'data'")
 
-	start, stop = select_offpulse_window(np.nansum(dspec[0], axis=0))
-	dspec = subtract_baseline_offpulse(dspec, start, stop, axis=-1, method='mean')
+    start, stop = select_offpulse_window(np.nansum(dspec[0], axis=0))
+    dspec = subtract_baseline_offpulse(dspec, start, stop, axis=-1, method='mean')
 
-	return dspec, freq_mhz, time_ms
+    return dspec, freq_mhz, time_ms
 
 
 def load_multiple_data_grouped(data):
@@ -410,12 +451,15 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)
-			snr = None  # SNR is not calculated for loaded data
+			snr = snr_onpulse(np.nansum(dspec[0], axis=0), time_ms, frac=0.95)  
 			if tau_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, scatter_idx, ref_freq)
 			if noise:
-				dspec, snr = add_noise(dynspec=dspec, t_sys=100, f_res=f_res, t_res=t_res, 
+				dspec, snr = add_noise(dynspec=dspec, t_sys=75, f_res=f_res, t_res=t_res, 
 													time_ms=time_ms, plot_multiple_frb=plot_multiple_frb)
+			
+			# Update dspec_params with new time and frequency arrays
+			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
 
 		else:
 			dspec, snr, _ = generate_dynspec(
@@ -513,7 +557,8 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 			
 			yvals = {v: [] for v in xvals}
 			errs = {v: [] for v in xvals}
-			var_params = {v: {key: [] for key in ['peak_amp', 'width_ms', 't0', 'PA', 'lfrac', 'vfrac', 'dPA', 'RM', 'DM', 'band_centre_mhz', 'band_width_mhz']} for v in xvals}
+			var_params = {v: {key: [] for key in ['var_peak_amp', 'var_width_ms', 'var_t0', 'var_PA', 'var_lfrac', 'var_vfrac', 
+												'var_dPA', 'var_RM', 'var_DM', 'var_band_centre_mhz', 'var_band_width_mhz']} for v in xvals}
 			snrs = {v: [] for v in xvals}
 			
 			for var, val, err, params_dict, snr in results:
