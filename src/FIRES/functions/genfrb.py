@@ -29,10 +29,7 @@ from FIRES.functions.basicfns import scatter_stokes_chan, add_noise
 from FIRES.functions.genfns import *
 from FIRES.utils.utils import *
 
-current_dir = os.path.dirname(__file__)
-parent_dir = os.path.dirname(current_dir)
-obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
-gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
+
 
 
 def subtract_baseline_offpulse(dspec, off_start, off_end, axis=-1, method='median'):
@@ -124,6 +121,7 @@ def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 
 
 def load_data(data, freq_mhz, time_ms):
+	print(f"Loading data from {data}...")
 	if isinstance(data, str):
 		if os.path.isdir(data):
 			# Expect exactly one file for each Stokes parameter: I, Q, U, V
@@ -141,12 +139,12 @@ def load_data(data, freq_mhz, time_ms):
 			arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
 			dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
 			
-			summary_file = "parameters.txt"
-			summary = get_parameters(os.path.join(data, summary_file))
-			cfreq_mhz = float(summary['centre_freq_frb'])
+			summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
+			summary = get_parameters(os.path.join(data, summary_file[0]))
+			cfreq_mhz = float(summary['cfreq'])
 			bw_mhz = float(summary['bw'])
 			freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
-			time_res_ms = 0.001 # Convert to milliseconds
+			time_res_ms = 0.01 # Convert to milliseconds
 			time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
 			print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
 			
@@ -171,85 +169,87 @@ def load_data(data, freq_mhz, time_ms):
 
 
 def load_multiple_data_grouped(data):
-    """
-    Group simulation outputs by freq and phase info (everything after freq_ and phase_).
-    Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
-    """
-    from collections import defaultdict
-    import re
- 
-    def extract_sc_value(fname):
-        # Match _sc_<number> or _sc_<number>-<number>
-        m = re.search(r'_sc_([0-9.]+)(?:-([0-9.]+))?', fname)
-        if m:
-            return float(m.group(1))
-        return float('inf')  # Put files without _sc_ at the end
-    
-    def extract_freq_phase_key(fname):
-        # Extract freq and phase info from filename
-        # Pattern: freq_{freq}_phase_{phase}.pkl
-        m = re.search(r'freq_([^_]+)_phase_([^.]+)\.pkl$', fname)
-        if m:
-            freq_info = m.group(1)
-            phase_info = m.group(2)
-            return f"{freq_info}, {phase_info}"
-        return "unknown"  # fallback for files that don't match pattern
-    
-    file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
-    file_names = sorted(file_names, key=extract_sc_value)
-    groups = defaultdict(list)
-    for fname in file_names:
-        freq_phase_key = extract_freq_phase_key(fname)
-        groups[freq_phase_key].append(fname)
+	"""
+	Group simulation outputs by freq and phase info (everything after freq_ and phase_).
+	Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
+	"""
+	from collections import defaultdict
+	import re
+	
+	print(f"Loading grouped data from {data}...")
 
-    all_results = {}
-    for freq_phase_key, files in groups.items():
-        xname                 = None
-        all_xvals             = []
-        all_yvals             = {}
-        all_errs              = {}
-        all_var_params        = {}
-        dspec_params          = None
-        plot_mode             = None
-        all_snrs 			  = {}
+	def extract_sc_value(fname):
+		# Match _sc_<number> or _sc_<number>-<number>
+		m = re.search(r'_sc_([0-9.]+)(?:-([0-9.]+))?', fname)
+		if m:
+			return float(m.group(1))
+		return float('inf')  # Put files without _sc_ at the end
+	
+	def extract_freq_phase_key(fname):
+		# Extract freq and phase info from filename
+		# Pattern: freq_{freq}_phase_{phase}.pkl
+		m = re.search(r'freq_([^_]+)_phase_([^.]+)\.pkl$', fname)
+		if m:
+			freq_info = m.group(1)
+			phase_info = m.group(2)
+			return f"{freq_info}, {phase_info}"
+		return "unknown"  # fallback for files that don't match pattern
+	
+	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
+	file_names = sorted(file_names, key=extract_sc_value)
+	groups = defaultdict(list)
+	for fname in file_names:
+		freq_phase_key = extract_freq_phase_key(fname)
+		groups[freq_phase_key].append(fname)
 
-        for file_name in files:
-            with open(os.path.join(data, file_name), "rb") as f:
-                obj = pkl.load(f)
-            xname        = obj["xname"]
-            plot_mode    = obj["plot_mode"]
-            xvals        = obj["xvals"]
-            yvals        = obj["yvals"]
-            errs         = obj["errs"]
-            var_params   = obj["var_params"]
-            dspec_params = obj["dspec_params"]
-            snrs         = obj["snrs"]
+	all_results = {}
+	for freq_phase_key, files in groups.items():
+		xname                 = None
+		all_xvals             = []
+		all_yvals             = {}
+		all_errs              = {}
+		all_var_params        = {}
+		dspec_params          = None
+		plot_mode             = None
+		all_snrs 			  = {}
 
-            for v in xvals:
-                if v not in all_yvals:
-                    all_yvals[v]      = []
-                    all_errs[v]       = []
-                    all_var_params[v] = {key: [] for key in var_params[v].keys()}
-                    all_snrs[v]       = []
-                all_yvals[v].extend(yvals[v])
-                all_errs[v].extend(errs[v])
-                for key, values in var_params[v].items():
-                    all_var_params[v][key].extend(values)
-                all_snrs[v].extend(snrs[v])
-            all_xvals.extend(xvals)
+		for file_name in files:
+			with open(os.path.join(data, file_name), "rb") as f:
+				obj = pkl.load(f)
+			xname        = obj["xname"]
+			plot_mode    = obj["plot_mode"]
+			xvals        = obj["xvals"]
+			yvals        = obj["yvals"]
+			errs         = obj["errs"]
+			var_params   = obj["var_params"]
+			dspec_params = obj["dspec_params"]
+			snrs         = obj["snrs"]
 
-        all_results[freq_phase_key] = {
-            'xname'            : xname,
-            'xvals'            : all_xvals,
-            'yvals'            : all_yvals,
-            'errs'             : all_errs,
-            'var_params'       : all_var_params,
-            'dspec_params'     : dspec_params,
-            'plot_mode'        : plot_mode,
-            'snrs'             : all_snrs	
-        }
+			for v in xvals:
+				if v not in all_yvals:
+					all_yvals[v]      = []
+					all_errs[v]       = []
+					all_var_params[v] = {key: [] for key in var_params[v].keys()}
+					all_snrs[v]       = []
+				all_yvals[v].extend(yvals[v])
+				all_errs[v].extend(errs[v])
+				for key, values in var_params[v].items():
+					all_var_params[v][key].extend(values)
+				all_snrs[v].extend(snrs[v])
+			all_xvals.extend(xvals)
 
-    return all_results
+		all_results[freq_phase_key] = {
+			'xname'            : xname,
+			'xvals'            : all_xvals,
+			'yvals'            : all_yvals,
+			'errs'             : all_errs,
+			'var_params'       : all_var_params,
+			'dspec_params'     : dspec_params,
+			'plot_mode'        : plot_mode,
+			'snrs'             : all_snrs	
+		}
+
+	return all_results
 
 
 def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
@@ -410,11 +410,12 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)
+			snr = None  # SNR is not calculated for loaded data
 			if tau_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, scatter_idx, ref_freq)
 			if noise:
-				dynspec, snr = dynspec = add_noise(dynspec, 100, f_res, t_res, time_ms, plot_multiple_frb)
-
+				dspec, snr = add_noise(dynspec=dspec, t_sys=100, f_res=f_res, t_res=t_res, 
+													time_ms=time_ms, plot_multiple_frb=plot_multiple_frb)
 
 		else:
 			dspec, snr, _ = generate_dynspec(
