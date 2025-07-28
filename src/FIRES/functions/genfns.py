@@ -189,17 +189,17 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 		tau_cms = np.zeros_like(freq_mhz)
 
 	all_params = {
-		'peak_amp'       : [],
-		'width_ms'       : [],
-		't0'             : [],
-		'PA'             : [],
-		'lfrac'          : [],
-		'vfrac'          : [],
-		'dPA'            : [],
-		'RM'             : [],
-		'DM'             : [],
-		'band_centre_mhz': [],
-		'band_width_mhz' : []
+		'var_peak_amp'       : [],
+		'var_width_ms'       : [],
+		'var_t0'             : [],
+		'var_PA'             : [],
+		'var_lfrac'          : [],
+		'var_vfrac'          : [],
+		'var_dPA'            : [],
+		'var_RM'             : [],
+		'var_DM'             : [],
+		'var_band_centre_mhz': [],
+		'var_band_width_mhz' : []
 	}
 
 	num_main_gauss = len(t0) 
@@ -229,17 +229,17 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 				var_vfrac = np.clip(1.0 - var_lfrac, 0.0, 1.0)
 
 			# Append values to the respective lists in `all_params`
-			all_params['peak_amp'].append(var_peak_amp)
-			all_params['width_ms'].append(var_width_ms)
-			all_params['t0'].append(var_t0)
-			all_params['PA'].append(var_PA)
-			all_params['lfrac'].append(var_lfrac)
-			all_params['vfrac'].append(var_vfrac)
-			all_params['dPA'].append(var_dPA)
-			all_params['RM'].append(var_RM)
-			all_params['DM'].append(var_DM)
-			all_params['band_centre_mhz'].append(var_band_centre_mhz)
-			all_params['band_width_mhz'].append(var_band_width_mhz)
+			all_params['var_peak_amp'].append(var_peak_amp)
+			all_params['var_width_ms'].append(var_width_ms)
+			all_params['var_t0'].append(var_t0)
+			all_params['var_PA'].append(var_PA)
+			all_params['var_lfrac'].append(var_lfrac)
+			all_params['var_vfrac'].append(var_vfrac)
+			all_params['var_dPA'].append(var_dPA)
+			all_params['var_RM'].append(var_RM)
+			all_params['var_DM'].append(var_DM)
+			all_params['var_band_centre_mhz'].append(var_band_centre_mhz)
+			all_params['var_band_width_mhz'].append(var_band_width_mhz)
 
 			# Initialize a temporary array for the current micro-shot
 			temp_dynspec = np.zeros_like(dynspec)
