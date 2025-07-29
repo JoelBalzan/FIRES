@@ -39,8 +39,8 @@ plt.rcParams['legend.fontsize'] = 14
 plt.rcParams['xtick.labelsize'] = 20
 plt.rcParams['ytick.labelsize'] = 20
 
+#	--------------------------	Colour maps	---------------------------
 #colour blind friendly: https://gist.github.com/thriveth/8560036
-
 colours = {
 	'red'   : '#e41a1c',
 	'blue'  : '#377eb8',
@@ -63,7 +63,40 @@ colour_map = {
 	'upper-mid-quarter, total': '#999999',
 }
 
+#	--------------------------	Parameter mappings	---------------------------
+param_map = {
+	# Intrinsic parameters
+	"tau_ms"         : r"\tau_0",
+	"width_ms"       : r"W_0",
+	"peak_amp"       : r"A_0",
+	"spec_idx"       : r"\alpha_0",
+	"DM"             : r"\mathrm{DM}_0",
+	"RM"             : r"\mathrm{RM}_0",
+	"PA"             : r"\psi_0",
+	"lfrac"          : r"(L/I)_0",
+	"vfrac"          : r"(V/I)_0",
+	"dPA"            : r"\Delta\psi_0",
+	"band_centre_mhz": r"\nu_{\mathrm{c},0}",
+	"band_width_mhz" : r"\Delta \nu_0",
+	"ngauss"         : r"N_{\mathrm{gauss},0}",
+	"mg_width_low"   : r"W_{\mathrm{low},0}",
+	"mg_width_high"  : r"W_{\mathrm{high},0}",
+	# Variation parameters
+	"var_t0"             : r"\mathrm{Var}(t_0)",
+	"var_width_ms"       : r"\mathrm{Var}(W)",
+	"var_peak_amp"       : r"\mathrm{Var}(A)",
+	"var_spec_idx"       : r"\mathrm{Var}(\alpha)",
+	"var_DM"             : r"\mathrm{Var}(\mathrm{DM})",
+	"var_RM"             : r"\mathrm{Var}(\mathrm{RM})",
+	"var_PA"             : r"\mathrm{Var}(\psi_{\mathrm{micro}})",
+	"var_lfrac"          : r"\mathrm{Var}(L/I)",
+	"var_vfrac"          : r"\mathrm{Var}(V/I)",
+	"var_dPA"            : r"\mathrm{Var}(\Delta\psi)",
+	"var_band_centre_mhz": r"\mathrm{Var}(\nu_c)",
+	"var_band_width_mhz" : r"\mathrm{Var}(\Delta \nu)",
+}
 
+#	--------------------------	PlotMode class	---------------------------
 class PlotMode:
 	def __init__(self, name, process_func, plot_func, requires_multiple_frb=False):
 		"""
@@ -80,6 +113,8 @@ class PlotMode:
 		self.plot_func = plot_func
 		self.requires_multiple_frb = requires_multiple_frb
 		
+
+# --------------------------	Plot modes definitions	---------------------------
 def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, show_plots, extension):
 	"""
 	Call basic plot functions
@@ -176,7 +211,7 @@ def median_percentiles(yvals, x, ndigits=3):
 	return med_vals, percentile_errs
 
 
-def weight_dict(xvals, yvals, weight_params, var_name=None, weight_by=None):
+def weight_dict(xvals, yvals, weight_params, weight_by=None):
 	"""
 	Normalize values in yvals by weights from weight_params for a specific variable or by any parameter.
 
@@ -188,9 +223,6 @@ def weight_dict(xvals, yvals, weight_params, var_name=None, weight_by=None):
 		Dictionary where keys are parameter values and values are lists/arrays of measurements.
 	weight_params : dict or list
 		Parameter dictionaries containing weight factors. Can be var_params, dspec_params, or combined.
-	var_name : str, optional
-		Name of the variable in weight_params to use for normalization (legacy parameter).
-		If None and weight_by is None, no normalization is applied.
 	weight_by : str, optional
 		Parameter name to use for weighting/normalization. Can be any parameter in weight_params.
 		Takes precedence over var_name if both are provided.
@@ -200,13 +232,9 @@ def weight_dict(xvals, yvals, weight_params, var_name=None, weight_by=None):
 	dict
 		Dictionary with normalized/weighted values for each key in xvals.
 	"""
-	#print(xvals, yvals, weight_params, var_name, weight_by)
 	normalized_vals = {}
 	
-	# Determine which weighting parameter to use
-	weighting_param = weight_by if weight_by is not None else var_name
-	
-	if weighting_param is None:
+	if weight_by is None:
 		# No weighting requested - return original values
 		for var in xvals:
 			normalized_vals[var] = yvals.get(var, [])
@@ -215,9 +243,9 @@ def weight_dict(xvals, yvals, weight_params, var_name=None, weight_by=None):
 	# Handle both dict of dicts (multi-parameter case) and list of dicts (single parameter case)
 	if isinstance(weight_params, dict) and any(isinstance(v, dict) for v in weight_params.values()):
 		# Multi-parameter case: weight_params is like {param_value: {param_name: [values], ...}, ...}
-		weighting_param_exists = any(weighting_param in weight_params.get(var, {}) for var in xvals)
+		weighting_param_exists = any(weight_by in weight_params.get(var, {}) for var in xvals)
 		if not weighting_param_exists:
-			print(f"Warning: weighting parameter '{weighting_param}' not found in weight dictionaries. Returning unweighted values.")
+			print(f"Warning: weighting parameter '{weight_by}' not found in weight dictionaries. Returning unweighted values.")
 			for var in xvals:
 				normalized_vals[var] = yvals.get(var, [])
 			return normalized_vals
@@ -225,7 +253,7 @@ def weight_dict(xvals, yvals, weight_params, var_name=None, weight_by=None):
 		for var in xvals:
 			y_values = yvals.get(var, [])
 			var_weight_dict = weight_params.get(var, {})
-			weights = var_weight_dict.get(weighting_param, [])
+			weights = var_weight_dict.get(weight_by, [])
 
 			if y_values and weights and len(y_values) == len(weights):
 				normalized_vals[var] = [
@@ -239,8 +267,8 @@ def weight_dict(xvals, yvals, weight_params, var_name=None, weight_by=None):
 	elif isinstance(weight_params, (list, tuple)) and len(weight_params) > 0:
 		# Single parameter case: weight_params is like [{param_name: value, ...}, ...]
 		# Extract the weighting parameter value
-		if weighting_param in weight_params[0]:
-			weight_value = weight_params[0][weighting_param]
+		if weight_by in weight_params[0]:
+			weight_value = weight_params[0][weight_by]
 			if isinstance(weight_value, (list, np.ndarray)) and len(weight_value) > 0:
 				weight_value = weight_value[0]  # Take first value if it's an array
 			
@@ -254,7 +282,7 @@ def weight_dict(xvals, yvals, weight_params, var_name=None, weight_by=None):
 				else:
 					normalized_vals[var] = []
 		else:
-			print(f"Warning: weighting parameter '{weighting_param}' not found in weight_params. Returning unweighted values.")
+			print(f"Warning: weighting parameter '{weight_by}' not found in weight_params. Returning unweighted values.")
 			for var in xvals:
 				normalized_vals[var] = yvals.get(var, [])
 	else:
@@ -457,40 +485,10 @@ def weight_x_get_xname(frb_dict, weight_x_by=None):
 		weight = None
 
 	# Define parameter mappings for LaTeX formatting
-	param_latex_map = {
-		# Intrinsic parameters
-		"tau_ms": r"\tau",
-		"width_ms": r"W", 
-		"peak_amp": r"A_{\mathrm{peak}}",
-		"spec_idx": r"\alpha",
-		"DM": r"\mathrm{DM}",
-		"RM": r"\mathrm{RM}",
-		"PA": r"\psi_0",
-		"lfrac": r"L/I",
-		"vfrac": r"V/I", 
-		"dPA": r"\Delta\psi",
-		"band_centre_mhz": r"\nu_{\mathrm{c}}",
-		"band_width_mhz": r"\Delta \nu",
-		"ngauss": r"N_{\mathrm{gauss}}",
-		"mg_width_low": r"W_{\mathrm{low}}",
-		"mg_width_high": r"W_{\mathrm{high}}",
-		# Variation parameters
-		"var_t0": r"\sigma_{t_0}",
-		"var_width_ms": r"\sigma_W",
-		"var_peak_amp": r"\sigma_{A}",
-		"var_spec_idx": r"\sigma_{\alpha}",
-		"var_DM": r"\sigma_{\mathrm{DM}}",
-		"var_RM": r"\sigma_{\mathrm{RM}}",
-		"var_PA": r"\Delta\psi_{\mathrm{micro}}",
-		"var_lfrac": r"\sigma_{L/I}",
-		"var_vfrac": r"\sigma_{V/I}",
-		"var_dPA": r"\sigma_{\Delta\psi}",
-		"var_band_centre_mhz": r"\sigma_{\nu_c}",
-		"var_band_width_mhz": r"\sigma_{\Delta \nu}",
-	}
+
 	
 	# Get base parameter name and LaTeX representation
-	base_name = param_latex_map.get(xname_raw, xname_raw)
+	base_name = param_map.get(xname_raw, xname_raw)
 	
 	# Handle normalization
 	# Normalize x-axis by the weight parameter
@@ -500,10 +498,43 @@ def weight_x_get_xname(frb_dict, weight_x_by=None):
 		xname = base_name
 	else:
 		x = xvals_raw / weight
-		weight_symbol = param_latex_map.get(weight_x_by, weight_x_by)
+		weight_symbol = param_map.get(weight_x_by, weight_x_by)
 		xname = base_name + r" / " + weight_symbol
 
 	return x, xname
+
+
+def get_weighted_y_name(yname, weight_y_by):
+	"""
+	Get LaTeX formatted y-axis name based on the weighting parameter and plot type.
+	
+	Parameters:
+	-----------
+	yname : str
+		Name of the y-axis variable (e.g., "Var($\psi$)", "L/I", etc.)
+	weight_y_by : str or None
+		Parameter used for y-axis weighting/normalization
+	Returns:
+	--------
+	str
+		LaTeX formatted y-axis name
+	"""
+
+	if yname == r"Var($\psi$)" and weight_y_by == "var_PA":
+		return r"\mathcal{R}_{\mathrm{\psi}}"
+	
+	# Check if we have a weight_y_by parameter
+	print(yname, weight_y_by)
+	if weight_y_by is not None:
+		w_name = param_map.get(weight_y_by, weight_y_by)
+		if "/" in w_name:
+			# If the weight name already contains a slash, use it directly
+			return "(" + yname + ")/" + w_name
+		return yname + '/' + w_name
+	else:
+		print(f"Warning: No weight_y_by specified for yname '{yname}'. Using default name.")
+	
+	return "Y"  # Default fallback
 
 
 def parse_fit_arg(fit_item):
@@ -580,7 +611,7 @@ def print_avg_snrs(subdict):
 		
 
 
-def plot_multirun(frb_dict, ax, fit, scale, yname, colour_map, colours, weight_y_by=None, weight_x_by=None):
+def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 
@@ -605,6 +636,9 @@ def plot_multirun(frb_dict, ax, fit, scale, yname, colour_map, colours, weight_y
 	weight_x_by : str or None, optional
 		Parameter to weight/normalize x-axis by.
 	"""
+	 # Determine y-axis name if not provided
+	yname = get_weighted_y_name(yname, weight_y_by)
+
 	colour_list = list(colours.values())
 	for idx, (run, subdict) in enumerate(frb_dict.items()):
 		print(run+":")
@@ -640,7 +674,7 @@ def plot_multirun(frb_dict, ax, fit, scale, yname, colour_map, colours, weight_y
 
 
 
-def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
+def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
 	slc = get_freq_window_indices(freq_mhz, freq_window)
 	freq_mhz = freq_mhz[slc]
@@ -707,20 +741,13 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	- Automatic color mapping is applied for predefined run types
 	"""
 
-	plt.rcParams['font.size'] 		= 14
-	plt.rcParams['axes.labelsize']  = 20
-	plt.rcParams['axes.titlesize']  = 20
-	plt.rcParams['legend.fontsize'] = 14
-	plt.rcParams['xtick.labelsize'] = 20
-	plt.rcParams['ytick.labelsize'] = 20
-	# If frb_dict contains multiple runs, plot each on the same axes
-	yname = r"\mathcal{R}_{\mathrm{\psi}}"
- 
+	yname = r"Var($\psi$)"
 	if figsize is None:
 		figsize = (10, 9)
+	# If frb_dict contains multiple runs, plot each on the same axes
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		plot_multirun(frb_dict, ax, fit=fit, scale=scale, yname=yname, colour_map=colour_map, colours=colours, weight_y_by="PA", weight_x_by="width_ms")
+		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="var_PA", weight_x_by="width_ms", yname=yname)
 		if show_plots:
 			plt.show()
 		if save:
@@ -752,6 +779,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	if fit is not None:
 		fit_and_plot(ax, x, med_vals, fit, label=None)
 		ax.legend()
+	yname = get_weighted_y_name(yname, "var_PA")
 	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
@@ -762,7 +790,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		print(f"Saved figure to {name}  \n")
 
 
-def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, tau_ms):
+def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
 	if freq_window != "full-band":
 		freq_slc = get_freq_window_indices(freq_mhz, freq_window)
@@ -857,20 +885,14 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	- Useful for studying depolarisation effects due to scattering
 	"""
 
-	plt.rcParams['font.size'] 		= 14
-	plt.rcParams['axes.labelsize']  = 20
-	plt.rcParams['axes.titlesize']  = 20
-	plt.rcParams['legend.fontsize'] = 14
-	plt.rcParams['xtick.labelsize'] = 20
-	plt.rcParams['ytick.labelsize'] = 20
-
-	yname = r"L/I"
 	# If frb_dict contains multiple job IDs, plot each on the same axes
+	yname = r"L/I"
+
 	if figsize is None:
 		figsize = (10, 9)
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		plot_multirun(frb_dict, ax, fit=fit, scale=scale, yname=yname, colour_map=colour_map, colours=colours, weight_y_by="lfrac", weight_x_by="width_ms")
+		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by="width_ms", yname=yname)
 		if show_plots:
 			plt.show()
 		if save:
@@ -903,6 +925,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	if fit is not None:
 		fit_and_plot(ax, x, med_vals, fit, label=None)
 		ax.legend()
+	yname = get_weighted_y_name("var_PA", "lfrac")
 	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
