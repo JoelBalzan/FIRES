@@ -573,7 +573,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 				"xvals": xvals,
 				"yvals": yvals,
 				"errs": errs,
-				"var_params": var_params,  # Updated to handle the dictionary structure
+				"var_params": var_params, 
 				"dspec_params": dspec_params,
 				"plot_mode": plot_mode,
 				"snrs": snrs,
