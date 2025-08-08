@@ -281,7 +281,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_{tau_ms[0]}" + "_ILVPA." + extension)))
+		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension)))
 
 
 	#	----------------------------------------------------------------------------------------------------------

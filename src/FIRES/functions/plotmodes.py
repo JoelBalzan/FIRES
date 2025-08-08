@@ -524,7 +524,6 @@ def get_weighted_y_name(yname, weight_y_by):
 		return r"\mathcal{R}_{\mathrm{\psi}}"
 	
 	# Check if we have a weight_y_by parameter
-	print(yname, weight_y_by)
 	if weight_y_by is not None:
 		w_name = param_map.get(weight_y_by, weight_y_by)
 		if "/" in w_name:
@@ -767,7 +766,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	y = weight_dict(xvals, yvals, var_params, "PA")
 	med_vals, percentile_errs = median_percentiles(y, xvals)
  
-	x, xname = weight_x_get_xname(frb_dict, width_ms)
+	x, xname = weight_x_get_xname(frb_dict, weight_x_by="width_ms")
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
@@ -912,9 +911,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	y = weight_dict(xvals, yvals, var_params, "lfrac")
 	med_vals, percentile_errs = median_percentiles(y, xvals)
  
-	x, xname = weight_x_get_xname(frb_dict, width_ms)
- 
-	x, xname = weight_x_get_xname(frb_dict, width_ms, plot_type="lfrac")
+	x, xname = weight_x_get_xname(frb_dict, weight_x_by=width_ms)
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
  

@@ -166,7 +166,9 @@ def load_data(data, freq_mhz, time_ms, downsample_factor=1):
             cfreq_mhz = float(summary['cfreq'])
             bw_mhz = float(summary['bw'])
             freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
-            time_res_ms = 3e-6 * downsample_factor  # Adjust time resolution for downsampling
+            # Default time resolution in ms (3 microseconds) - typical for radio observations
+            DEFAULT_TIME_RES_MS = 3e-6
+            time_res_ms = DEFAULT_TIME_RES_MS * downsample_factor
             time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
             print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
             
@@ -180,9 +182,9 @@ def load_data(data, freq_mhz, time_ms, downsample_factor=1):
                 else:
                     dspec = dspec[::downsample_factor, ::downsample_factor]
                 # Update time and frequency arrays for downsampling
-                freq_mhz = freq_mhz[::downsample_factor]
-                time_ms = time_ms[::downsample_factor]
-                
+                freq_mhz = freq_mhz[::downsample_factor].copy() if downsample_factor > 1 else freq_mhz
+                time_ms = time_ms[::downsample_factor].copy() if downsample_factor > 1 else time_ms
+
         elif data.endswith('.npy'):
             arr = np.load(data)
             if arr.ndim == 2:

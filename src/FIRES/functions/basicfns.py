@@ -43,8 +43,7 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 		Whether to save output figures and data files
 	show_plots : bool
 		Whether to display plots during processing
-		
-	Returns:
+
 	--------
 	list
 		Four-element list containing:
@@ -181,11 +180,10 @@ def est_profiles(dynspec, noise_stokes, left, right):
 	Extract and analyze time-resolved polarization profiles from a dynamic spectrum.
 	
 	Parameters:
+	Parameters:
 	-----------
 	dynspec : ndarray, shape (4, n_freq, n_time)  
 		Dynamic spectrum with Stokes I, Q, U, V
-	time_ms : array_like
-		Time axis in milliseconds
 	noise_stokes : array_like, shape (4,)
 		RMS noise levels for each Stokes parameter
 	left : int
@@ -376,9 +374,6 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict):
 	gdict : dict
 		Dictionary containing analysis parameters, must include:
 		- "RM": array of rotation measure values (rad/m²)
-	tau_ms : float
-		Pulse width parameter (currently unused in this function)
-		
 	Returns:
 	--------
 	tuple
@@ -474,24 +469,21 @@ def boxcar_width(profile, time_ms, frac=0.95):
  
 def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 	"""
-	Normalize grouped measurement data by corresponding weight factors.
+	Apply scattering to a single channel using exponential impulse response function.
 	
 	Parameters:
 	-----------
-	x : array_like
-		Parameter values for which to perform normalization
-	yvals : dict  
-		Dictionary with parameter values as keys and measurement lists as values
-	weights_dict : dict
-		Dictionary with parameter values as keys and weight factor lists as values
-	ndigits : int, optional
-		Number of decimal places for rounding keys during lookup (default: 3)
+	chan : array_like
+		Single frequency channel time series
+	time_res_ms : float
+		Time resolution in milliseconds
+	tau_cms : float
+		Scattering timescale in milliseconds
 		
 	Returns:
 	--------
-	dict
-		Dictionary with same keys as input, containing normalized values:
-		normalized_value = original_value / weight_factor
+	array_like
+		Scattered channel with same length as input
 	"""
 	# Pad to cover tail (~5 tau)
 	n_pad = int(np.ceil(5 * tau_cms / time_res_ms))
@@ -528,13 +520,9 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, n_pol=1)
 		Time array in milliseconds
 	n_pol : int
 		Number of polarizations (default 2 for Stokes I)
-	
-	Returns:
-	-------
-	noisy_dynspec : np.ndarray
-		Noisy Stokes IQUV dynamic spectrum
+	plot_multiple_frb : bool
+		Whether to suppress SNR print output (for batch processing)
 	"""
-
 	# Calculate RMS noise using the radiometer equation
 	sigma = t_sys / np.sqrt(n_pol * f_res * t_res)
 
@@ -564,9 +552,6 @@ def boxcar_snr(ys, rms):
 		Input signal profile
 	rms : float
 		RMS noise level
-	plot : bool, optional
-		Whether to show the diagnostic plot
-		
 	Returns:
 	--------
 	global_maxSNR_normalized : float

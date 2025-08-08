@@ -20,6 +20,7 @@ from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
 from FIRES.functions.plotfns import *
 
+GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2))
 
 #    --------------------------	Functions ---------------------------
 
@@ -43,21 +44,21 @@ def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb):
 	"""
 	Generate dynamic spectrum for Gaussian pulses.
-	Inputs:
-		- freq_mhz: Frequency array in MHz
-		- time_ms: Time array in ms
-		- chan_width_mhz: Frequency resolution in MHz
-		- time_res_ms: Time resolution in ms
-		- spec_idx: Spectral index array
-		- peak_amp: Peak amplitude array
-		- width_ms: Width of the Gaussian pulse in ms
-		- loc_ms: Location of the Gaussian pulse in ms
-		- DM: Dispersion measure in pc/cm^3
-		- PA: Polarization angle array
-		- lfrac: Linear polarization fraction array
-		- vfrac: Circular polarization fraction array
-		- dPA: Change in polarization angle with time
-		- RM: Rotation measure array
+	
+	Args:
+		freq_mhz: Frequency array in MHz
+		time_ms: Time array in ms
+		time_res_ms: Time resolution in ms
+		seed: Random seed for reproducibility
+		gdict: Dictionary containing pulse parameters (t0, width_ms, peak_amp, etc.)
+		noise: Boolean flag to add noise
+		tau_ms: Scattering timescale in ms
+		sc_idx: Scattering index
+		ref_freq_mhz: Reference frequency in MHz
+		plot_multiple_frb: Flag for plotting multiple FRBs
+	
+	Returns:
+		tuple: (dynspec, snr, None) where dynspec is a 4D array [I, Q, U, V]
 	"""
 
 
@@ -94,14 +95,13 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 
 		# Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
 		if band_width_mhz[g] != 0.:
-			if band_centre_mhz[g] == 0.:
-				band_centre_mhz[g] = np.median(freq_mhz)
-			spectral_profile = gaussian_model(freq_mhz, 1.0, band_centre_mhz[g], band_width_mhz[g] / 4.29193)
+			centre_freq = band_centre_mhz[g] if band_centre_mhz[g] != 0. else np.median(freq_mhz)
+			spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, band_width_mhz[g] / GAUSSIAN_FWHM_FACTOR)
 			norm_amp *= spectral_profile
 
 		for c in range(len(freq_mhz)):
 			faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, RM[g], lambda_sq[c], median_lambda_sq)
-			temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], t0[g], width_ms[g] / 4.29193)
+			temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
 			
 			if int(DM[g]) != 0:
 				disp_delay_ms = calculate_dispersion_delay(DM[g], freq_mhz[c], ref_freq_mhz)
@@ -173,11 +173,9 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	
 
 	if lin_pol_frac_var > 0.0 and circ_pol_frac_var > 0.0:
-		input("Linear and circular polarisation variations are both > 0.0. Choose one to vary (l/c).")
-		if input("l/c: ") == 'l':
-			circ_pol_frac_var = 0.0
-		else:
-			lin_pol_frac_var = 0.0
+		raise ValueError("Both linear and circular polarization variations cannot be > 0.0. "
+						"Set one to 0.0 before calling this function.")
+
 			
 	dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
 	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
@@ -209,8 +207,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var)
 			# Sample the micro width as a percentage of the main width
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
-			# Calculate the maximum allowed offset so microshots stay within the main Gaussian width
-			var_t0              = np.random.normal(t0[g], width_ms[g] / 4.29193) # 4.29193 is the FWTM factor for Gaussian
+			var_t0              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR) 
 			var_PA              = np.random.normal(PA[g], pol_angle_var)
 			var_lfrac           = np.random.normal(lfrac[g], lin_pol_frac_var)
 			var_vfrac           = np.random.normal(vfrac[g], circ_pol_frac_var)
@@ -249,9 +246,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			
 			# Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
 			if band_width_mhz[g] != 0.:
-				if band_centre_mhz[g] == 0.:
-					band_centre_mhz[g] = np.median(freq_mhz)
-				spectral_profile = gaussian_model(freq_mhz, 1.0, var_band_centre_mhz, var_band_width_mhz / 4.29193)  # 4.29193 is the FWTM factor for Gaussian
+				centre_freq = band_centre_mhz[g] if band_centre_mhz[g] != 0. else np.median(freq_mhz)
+				spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, band_width_mhz[g] / GAUSSIAN_FWHM_FACTOR)
 				norm_amp *= spectral_profile
 
 			pol_angle_arr = var_PA + (time_ms - var_t0) * var_dPA
@@ -260,7 +256,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 				# Apply Faraday rotation
 				faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, var_RM, lambda_sq[c], median_lambda_sq)
 				# Add the Gaussian pulse to the temporary dynamic spectrum
-				temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_t0, var_width_ms / 4.29193)
+				temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_t0, var_width_ms / GAUSSIAN_FWHM_FACTOR)
 
 				# Calculate the dispersion delay
 				if int(var_DM) != 0:
