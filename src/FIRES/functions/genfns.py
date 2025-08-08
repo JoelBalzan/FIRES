@@ -20,7 +20,7 @@ from FIRES.utils.utils import *
 from FIRES.functions.basicfns import *
 from FIRES.functions.plotfns import *
 
-GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2))
+GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) 
 
 #    --------------------------	Functions ---------------------------
 
