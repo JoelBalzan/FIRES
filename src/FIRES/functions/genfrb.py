@@ -31,73 +31,6 @@ from FIRES.utils.utils import *
 
 
 
-
-def subtract_baseline_offpulse(dspec, off_start, off_end, axis=-1, method='median'):
-	"""
-	Subtracts the baseline using a specific off-pulse window, specified as fractions (0-1) of the axis length.
-	Args:
-		dspec: np.ndarray, shape (nstokes, nchan, ntime)
-		off_start: float, start of off-pulse window as fraction (0-1)
-		off_end: float, end of off-pulse window as fraction (0-1)
-		axis: int, axis along which to estimate the baseline (default: time axis)
-		method: 'median' or 'mean'
-	Returns:
-		dspec_baseline_subtracted: np.ndarray, same shape as dspec
-	"""
-	axis_len = dspec.shape[axis]
-	start_idx = int(np.floor(off_start * axis_len))
-	end_idx = int(np.floor(off_end * axis_len))
-	slicer = [slice(None)] * dspec.ndim
-	slicer[axis] = slice(start_idx, end_idx)
-	offpulse_region = dspec[tuple(slicer)]
-
-	if method == 'median':
-		baseline = np.nanmedian(offpulse_region, axis=axis, keepdims=True)
-	elif method == 'mean':
-		baseline = np.nanmean(offpulse_region, axis=axis, keepdims=True)
-	else:
-		raise ValueError("method must be 'median' or 'mean'")
-	return dspec - baseline
-
-
-
-def select_offpulse_window(profile):
-	"""
-	Plot the profile and let the user select the off-pulse window by clicking twice.
-	Only mouse clicks are accepted.
-	Returns:
-		off_start_frac, off_end_frac: Start and end as fractions (0-1)
-	"""
-	fig, ax = plt.subplots(figsize=(10, 4))
-	ax.plot(profile, lw=0.5, color='k')
-	ax.set_xlim(0, len(profile))
-	ax.set_title("Click twice to select the off-pulse window")
-
-	clicks = []
-
-	def onclick(event):
-		# Only accept mouse button presses inside the axes
-		if event.inaxes == ax and event.button in [1, 2, 3]:
-			ax.axvline(event.xdata, color='r', linestyle='--')
-			fig.canvas.draw()
-			clicks.append(event.xdata)
-			if len(clicks) == 2:
-				fig.canvas.mpl_disconnect(cid)
-				plt.close(fig)
-
-	cid = fig.canvas.mpl_connect('button_press_event', onclick)
-	plt.show()
-
-	if len(clicks) < 2:
-		raise RuntimeError("Fewer than two mouse clicks registered.")
-
-	idx = sorted([int(round(x)) for x in clicks])
-	nbin = len(profile)
-	off_start_frac = max(0, idx[0] / nbin)
-	off_end_frac = min(1, idx[1] / nbin)
-	return off_start_frac, off_end_frac
-
-
 def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 	"""
 	Scatter all Stokes channels of a loaded dynamic spectrum.
@@ -146,12 +79,14 @@ def load_data(data, freq_mhz, time_ms, downsample_factor=1):
             stokes_files = []
             for s in stokes_labels:
                 # Find the file for this Stokes parameter
-                matches = [f for f in os.listdir(data) if f.endswith(f'ds{s}_crop.npy')]
-                #matches = [f for f in os.listdir(data) if f.endswith(f'{s}.npy')]
+                matches = [f for f in os.listdir(data) if s in f and f.endswith('.npy')]
                 
                 if len(matches) != 1:
                     raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
-                stokes_files.append(os.path.join(data, matches[0]))
+                
+                file_path = os.path.join(data, matches[0])
+                print(f"Stokes {s}: {matches[0]}")
+                stokes_files.append(file_path)
             # Load and stack
             arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
             dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
@@ -166,7 +101,7 @@ def load_data(data, freq_mhz, time_ms, downsample_factor=1):
             cfreq_mhz = float(summary['cfreq'])
             bw_mhz = float(summary['bw'])
             freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
-            # Default time resolution in ms (3 microseconds) - typical for radio observations
+            # Default time resolution in ms (3 microseconds) 
             DEFAULT_TIME_RES_MS = 3e-6
             time_res_ms = DEFAULT_TIME_RES_MS * downsample_factor
             time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
@@ -204,9 +139,6 @@ def load_data(data, freq_mhz, time_ms, downsample_factor=1):
             raise ValueError("Unsupported file format: only .pkl and .npy are supported")
     else:
         raise ValueError("Unsupported data type for 'data'")
-
-    start, stop = select_offpulse_window(np.nansum(dspec[0], axis=0))
-    dspec = subtract_baseline_offpulse(dspec, start, stop, axis=-1, method='mean')
 
     return dspec, freq_mhz, time_ms
 
