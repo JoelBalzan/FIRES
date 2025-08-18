@@ -53,7 +53,7 @@ def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 	return dspec_scattered
 
 
-def load_data(data, freq_mhz, time_ms, downsample_factor=1):
+def load_data(data, freq_mhz, time_ms):
     """
     Load data from files with optional downsampling.
     
@@ -69,9 +69,7 @@ def load_data(data, freq_mhz, time_ms, downsample_factor=1):
         time_ms: Updated time array
     """
     print(f"Loading data from {data}...")
-    if downsample_factor > 1:
-        print(f"Downsampling by factor of {downsample_factor}")
-    
+
     if isinstance(data, str):
         if os.path.isdir(data):
             # Expect exactly one file for each Stokes parameter: I, Q, U, V
@@ -91,50 +89,43 @@ def load_data(data, freq_mhz, time_ms, downsample_factor=1):
             arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
             dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
             
-            # Apply downsampling if requested
-            if downsample_factor > 1:
-                # Downsample in both frequency and time dimensions
-                dspec = dspec[:, ::downsample_factor, ::downsample_factor]
-            
+            # Flip data vertically
+            dspec = np.flip(dspec, axis=1)
+
             summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
             summary = get_parameters(os.path.join(data, summary_file[0]))
             cfreq_mhz = float(summary['cfreq'])
             bw_mhz = float(summary['bw'])
             freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
+
             # Default time resolution in ms (3 microseconds) 
             DEFAULT_TIME_RES_MS = 3e-6
-            time_res_ms = DEFAULT_TIME_RES_MS * downsample_factor
+            time_res_ms = DEFAULT_TIME_RES_MS
             time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
             print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
             
         elif data.endswith('.pkl'):
             with open(data, 'rb') as f:
                 dspec = pkl.load(f)['dspec']
-            # Apply downsampling if requested
-            if downsample_factor > 1:
-                if dspec.ndim == 3:
-                    dspec = dspec[:, ::downsample_factor, ::downsample_factor]
-                else:
-                    dspec = dspec[::downsample_factor, ::downsample_factor]
-                # Update time and frequency arrays for downsampling
-                freq_mhz = freq_mhz[::downsample_factor].copy() if downsample_factor > 1 else freq_mhz
-                time_ms = time_ms[::downsample_factor].copy() if downsample_factor > 1 else time_ms
+            # Flip data vertically
+            if dspec.ndim == 3:
+                dspec = np.flip(dspec, axis=1)
+            else:
+                dspec = np.flip(dspec, axis=0)
 
         elif data.endswith('.npy'):
             arr = np.load(data)
             if arr.ndim == 2:
                 dspec = arr[np.newaxis, ...]  # shape: (1, nchan, ntime)
+                # Flip data vertically
+                dspec = np.flip(dspec, axis=1)
             else:
                 dspec = arr
-            # Apply downsampling if requested
-            if downsample_factor > 1:
+                # Flip data vertically
                 if dspec.ndim == 3:
-                    dspec = dspec[:, ::downsample_factor, ::downsample_factor]
+                    dspec = np.flip(dspec, axis=1)
                 else:
-                    dspec = dspec[::downsample_factor, ::downsample_factor]
-                # Update time and frequency arrays for downsampling
-                freq_mhz = freq_mhz[::downsample_factor]
-                time_ms = time_ms[::downsample_factor]
+                    dspec = np.flip(dspec, axis=0)
         else:
             raise ValueError("Unsupported file format: only .pkl and .npy are supported")
     else:
