@@ -20,6 +20,7 @@ src/*/__pycache__/
 # Data folders
 simfrbs/
 plots/
+paper/
 
 # other
 .aider*
