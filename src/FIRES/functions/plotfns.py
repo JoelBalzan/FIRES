@@ -233,7 +233,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].plot(time_ms, L, markersize=1, label='L', color='Red')
 	#axs[1].plot(time_ms, Q, markersize=2, label='Q', color='Green')
 	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
-	#axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
+	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 
 	_, left, right = boxcar_width(I, time_ms, frac=0.95)
@@ -247,9 +247,9 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].set_yticklabels([]) 
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	if snr is not None:
-		axs_1_text = r"$\,\tau = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
+		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
 	else:
-		axs_1_text = r"$\,\tau = %.2f\,\mathrm{ms}$" % (tau_ms[0])
+		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}$" % (tau_ms[0])
 
 	axs[1].text(
 		0.82, 0.90,  # x, y in axes fraction coordinates 
