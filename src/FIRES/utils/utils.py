@@ -13,11 +13,12 @@
 
 #	--------------------------	Import modules	---------------------------
 
-from collections import namedtuple
-import numpy as np
-from scipy.optimize import curve_fit
-from typing import NamedTuple
 import os
+import numpy as np
+
+from typing import NamedTuple
+from collections import namedtuple
+from scipy.optimize import curve_fit
 
 
 # --------------------------	Define paths	-------------------------------
