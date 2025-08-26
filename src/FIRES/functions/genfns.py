@@ -86,7 +86,8 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 	# Calculate frequency-dependent scattering timescale
 	if tau_ms > 0:
 		tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
-
+	else:
+		tau_cms = np.zeros_like(freq_mhz)
 
 	for g in range(num_gauss):
 		temp_dynspec = np.zeros_like(dynspec)
