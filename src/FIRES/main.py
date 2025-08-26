@@ -213,9 +213,11 @@ def main():
 		help="How many realisations to generate at each scattering timescale for mgauss mode."
 	)
 	parser.add_argument(
-		"--noise",
-		action="store_true",
-		help="Add radiometric noise to the simulated FRB."
+		"--tsys",
+		type=float,
+		default=0.0,
+		metavar="",
+		help="System temperature in K. Default is 0 K (no noise)."
 	)
 	parser.add_argument(
 		"--ncpu",
@@ -229,6 +231,7 @@ def main():
 		action="store_true",
 		help="Enable chi-squared fitting on the final profiles (plot!=pa_var)."
 	)
+
 
 
 	args = parser.parse_args()
@@ -294,13 +297,13 @@ def main():
 				write        = args.write,
 				mode         = args.mode,
 				seed         = args.seed,
-				nseed        = args.nseed,
+				tsys         = args.tsys,
 				noise        = args.noise,
 				n_cpus       = args.ncpu,
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
 				freq_window  = args.freq_window,
-
+				tsys         = args.tsys
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
@@ -314,11 +317,12 @@ def main():
 				mode         = args.mode,
 				seed         = args.seed,
 				nseed        = None,
-				noise         = args.noise,
+				tsys         = args.tsys,
 				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
 				freq_window  = None,
+				tsys         = args.tsys
 			)
 			if args.chi2_fit:
 				print("Performing chi-squared fitting on the final profiles... \n")

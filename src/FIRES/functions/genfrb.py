@@ -283,7 +283,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 
 
 def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
-				 obs_file, gauss_file, noise, n_cpus, plot_mode, phase_window, freq_window):
+				 obs_file, gauss_file, tsys, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -350,14 +350,14 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 		time_res_ms     = t_res,
 		seed            = seed,
 		nseed           = nseed,
-		noise           = noise,
+		tsys            = tsys,
 		tau_ms          = tau_ms,
 		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
 		phase_window    = phase_window,
 		freq_window     = freq_window
 	)
- 
+
 	if np.any(gauss_params[-1,:] != 0.0) and len(tau_ms) > 1:
 		print("WARNING: The last row of gauss_params is not all zeros, but tau_ms has more than one value.")
 		print("Please pick only one.")
@@ -379,8 +379,8 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 			snr = snr_onpulse(np.nansum(dspec[0], axis=0), time_ms, frac=0.95)  
 			if tau_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, scatter_idx, ref_freq)
-			if noise:
-				dspec, snr = add_noise(dynspec=dspec, t_sys=75, f_res=f_res, t_res=t_res, 
+			if tsys > 0:
+				dspec, snr = add_noise(dynspec=dspec, t_sys=tsys, f_res=f_res, t_res=t_res, 
 													time_ms=time_ms, plot_multiple_frb=plot_multiple_frb)
 			
 			# Update dspec_params with new time and frequency arrays
