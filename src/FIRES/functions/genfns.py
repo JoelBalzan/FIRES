@@ -41,7 +41,7 @@ def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb):
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb):
 	"""
 	Generate dynamic spectrum for Gaussian pulses.
 	
@@ -117,9 +117,13 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 			)  # Stokes Q, U, V
 
 		dynspec += temp_dynspec
-	snr = None
-	if noise:
-		dynspec, snr = add_noise(dynspec, 75, (freq_mhz[1] - freq_mhz[0]) * 1e6, (time_res_ms) / 1000, time_ms, plot_multiple_frb)
+
+	if tsys > 0:
+		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
+		t_res_s = time_res_ms / 1000
+		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, time_ms, plot_multiple_frb)
+	else:
+		snr = None
 
 	return dynspec, snr, None
 
@@ -127,7 +131,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, noise, tau_ms, sc
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
-					noise, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb, variation_parameter=None, xname=None):
+					tsys, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb, variation_parameter=None, xname=None):
 	"""
 	Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
 	Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -279,8 +283,11 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	# Calculate variance for each parameter in var_params
 	var_params = {key: np.var(values) for key, values in all_params.items()}
 
-	snr = None
-	if noise:
-		dynspec, snr = add_noise(dynspec, 75, (freq_mhz[1] - freq_mhz[0])*1e6, (time_res_ms)/1000, time_ms, plot_multiple_frb)
+	if tsys > 0:
+		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
+		t_res_s = time_res_ms / 1000
+		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, time_ms, plot_multiple_frb)
+	else:
+		snr = None
 
 	return dynspec, snr, var_params
