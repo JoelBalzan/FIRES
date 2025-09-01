@@ -51,7 +51,7 @@ def main():
 		default=[0.0],
 		metavar="",
 		help=("Scattering time scale(s) in milliseconds.\n"
-			  "Provide one or more values. Use start,stop,step for ranges. Default is 0.0 ms."
+			  "Provide one or more values for pa_var or lfrac plots. Use start,stop,step for ranges. Default is 0.0 ms."
 		   )
 	)
 	parser.add_argument(
@@ -169,7 +169,7 @@ def main():
 		default="linear",
 		choices=['linear', 'logx', 'logy', 'loglog'],
 		metavar="",
-		help="Scale for plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
+		help="Scale for pa_var and lfrac plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
 	)
 	parser.add_argument(
 		"--fit",
