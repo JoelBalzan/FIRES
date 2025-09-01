@@ -21,6 +21,7 @@ src/*/__pycache__/
 simfrbs/
 plots/
 paper/
+paper/*
 
 # other
 .aider*
