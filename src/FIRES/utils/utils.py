@@ -143,7 +143,7 @@ class DynspecParams(NamedTuple):
     time_res_ms    : float
     seed           : int
     nseed          : int
-    noise          : float
+    tsys           : float
     tau_ms         : float
     sc_idx         : float
     ref_freq_mhz   : float
