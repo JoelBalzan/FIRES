@@ -1,118 +1,106 @@
 # FIRES: The Fast, Intense Radio Emission Simulator
 
-FIRES is a Python package designed to simulate Fast Radio Bursts (FRBs) with scattering and polarization effects. The simulation generates dynamic spectra for Gaussian pulses, applies scattering, and provides tools for visualization and analysis.
+FIRES is a Python package to simulate Fast Radio Bursts (FRBs) with scattering and polarization effects. It can generate dynamic spectra for Gaussian pulses, apply scattering, add noise, and provides tools for visualization and simple fitting.
 
 ## Features
 
-- **Customizable FRB Simulations**:
-  - Simulate FRBs with adjustable scattering timescales.
-  - Generate Gaussian or micro-shot pulse distributions.
-  - Add noise and apply scattering effects.
-
-- **Data Output**:
-  - Save simulated FRB data to disk in `.pkl` format.
-  - Generate plots for visualizing FRB properties.
-
-- **Plotting Options**:
-  - Visualize Stokes parameters (`IQUV`), linear polarization position angle (`PA`), and other properties.
-  - Generate plots for dynamic spectra, polarization angle, and more.
-
+- Customizable FRB simulations
+  - Single Gaussian pulse or micro-shot ensembles (mgauss)
+  - Sweep over multiple scattering timescales in one run
+  - Add system noise via system temperature (K)
+- Analysis and plotting
+  - Plot IQUV, L and PA, dPA/dt, RM, PA variance, and L/I
+  - Windowing by phase and frequency (quarters or full band)
+  - Optional chi-squared Gaussian fit to final profiles
+- Output
+  - Save simulated data and plots to disk
 
 ## Project Structure
 
-- **Core Scripts**:
-  - `src/FIRES/main.py`: Entry point for the FRB simulation package.
-  - `src/FIRES/functions/genfrb.py`: Main script for generating and saving simulated FRB data.
-  - `src/FIRES/functions/processfrb.py`: Functions for analyzing and visualizing FRB data.
-  - `src/FIRES/functions/plotfns.py`: Plotting functions for FRB data.
-
-- **Utilities**:
-  - `src/FIRES/utils/obsparams.txt`: Observation parameters for simulations.
-  - `src/FIRES/utils/gparams.txt`: Gaussian parameters for pulse generation.
+- Core
+  - `src/FIRES/main.py` — CLI entry point
+  - `src/FIRES/functions/genfrb.py` — FRB generation
+  - `src/FIRES/functions/plotmodes.py` — Plot mode registry and plot functions
+- Utilities
+  - `src/FIRES/utils/utils.py` — helpers, defaults, fitting
+  - `src/FIRES/utils/obsparams.txt` — observation parameters
+  - `src/FIRES/utils/gparams.txt` — Gaussian/micro-shot parameters
 
 ## Installation
-### From PyPi: CURRENTLY UNAVAILABLE
+
+From GitHub
 ```bash
-pip install FIRES
+git clone https://github.com/JoelBalzan/FIRES.git
+cd FIRES
+pip install -r requirements.txt
+pip install -e .
 ```
-
-### From GitHub
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/JoelBalzan/FIRES.git
-    cd FIRES
-    ```
-
-2. Install the required dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. Install the package in editable mode:
-    ```bash
-    pip install -e .
-    ```
 
 ## Usage
 
-The `FIRES` command-line tool provides several options to customize the simulation of Fast Radio Bursts (FRBs):
+After installation, run:
+```bash
+FIRES --help
+```
 
-### Command-Line Options
+If the console entry is unavailable:
+```bash
+python -m FIRES.main --help
+```
 
-| **Flag**                  | **Type**   | **Default**       | **Description**                                                                                     |
-|---------------------------|------------|-------------------|-----------------------------------------------------------------------------------------------------|
-| `-t`, `--tau_ms`          | `float`    | `0.0`             | Scattering time scale(s) in milliseconds. Provide single values or ranges `(start,stop,step)`.      |
-| `-f`, `--frb_identifier`  | `str`      | `FRB`             | Identifier for the simulated FRB.                                                                   |
-| `-o`, `--obs_params`      | `str`      | obs_params_path   | Path to observation parameters file.                                                                |
-| `-g`, `--gauss_params`    | `str`      | gauss_params_path | Path to Gaussian parameters file.                                                                   |
-| `-d`, `--output-dir`      | `str`      | `simfrbs/`        | Directory to save the simulated FRB data.                                                           |
-| `--write`                 | `flag`     | `False`           | Save the simulation to disk.                                                                        |
-| `-p`, `--plot`            | `str`      | `lvpa`            | Generate plots. Options: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `lfrac`.             |
-| `-s`, `--save-plots`      | `flag`     | `False`           | Save plots to disk.                                                                                 |
-| `--show-plots`            | `bool`     | `True`            | Display plots. Set to `False` to disable plot display.                                              |
-| `--figsize`               | `float`    | `[6, 10]`         | Figure size for plots (width and height in inches).                                                 |
-| `--plot-scale`            | `str`      | `linear`          | Scale for plots: `linear`, `logx`, `logy`, `loglog`.                                                |
-| `--fit`                   | `str`      | `None`            | Fit function for pa_var and lfrac plots. Options: `power`, `exp`, or `power N`.                     |
-| `--phase-window`          | `str`      | `all`             | Window for plotting PA variance and L fraction: `first`, `last`, or `all`.                          |
-| `--freq-window`           | `str`      | `all`             | Frequency window for plotting PA variance and L fraction: `1q`, `2q`, `3q`, `4q`, or `all`.         |
-| `--tz`                    | `float`    | `[0, 0]`          | Time zoom range for plots (start and end in ms).                                                    |
-| `--fz`                    | `float`    | `[0, 0]`          | Frequency zoom range for plots (start and end in MHz).                                              |
-| `-m`, `--mode`            | `str`      | `gauss`           | Mode for generating pulses: `gauss` or `mgauss`.                                                    |
-| `--n-gauss`               | `int`      | *Required*        | Number of micro-shots for each main Gaussian (if `--mode` is `mgauss`).                             |
-| `--seed`                  | `int`      | `None`            | Seed for repeatability in `mgauss` mode.                                                            |
-| `--nseed`                 | `int`      | `1`               | Number of realizations to generate at each scattering timescale for `mgauss` mode.                  |
-| `--mg-width`              | `float`    | `[10, 50]`        | Min and max percentage of the main Gaussian width for micro-shots.                                  |
-| `--noise`                   | `float`    | `0`               | Signal-to-noise ratio (noise) for the simulated FRB. Set to `0` for no noise.                         |
-| `--scatter`               | `flag`     | `True`            | Enable scattering.                                                                                  |
-| `--no-scatter`            | `flag`     | `False`           | Disable scattering. Overrides `--scatter`.                                                          |
-| `--ncpu`                  | `int`      | `1`               | Number of CPUs to use for parallel processing.                                                      |
-| `--chi2-fit`              | `flag`     | `False`           | Enable chi-squared fitting on the final profiles.                                                   |
-| `--data`                  | `str`      | `None`            | Path to data file. Use existing data instead of generating new.                                     |
+### Command-Line Options (current)
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| -t, --tau_ms | str, nargs+ | 0.0 | Scattering timescale(s) in ms. Accepts single values, lists, and ranges. Examples: `-t 0.5`, `-t 0.1 0.3 1.0`, `-t 0.1,2.0,0.1` (start,stop,step). |
+| -f, --frb_identifier | str | FRB | Identifier for the simulation. |
+| -o, --obs_params | str | utils default | Path to observation parameters file. |
+| -g, --gauss_params | str | utils default | Path to Gaussian/micro-shot parameters file. |
+| -d, --output-dir | str | simfrbs/ | Output directory. |
+| --write | flag | False | Save simulated data to disk. |
+| -p, --plot | str, nargs+ | lvpa | Plot modes: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `lfrac`. Note: `pa_var` and `lfrac` require multiple tau values. |
+| -s, --save-plots | flag | False | Save plots to disk. |
+| --show-plots | bool | True | Show plots interactively. |
+| --figsize | float float | None | Figure size (inches): width height. |
+| -e, --extension | str | pdf | File extension for saved plots. |
+| --plot-scale | str | linear | Plot scale for `pa_var`/`lfrac`: `linear`, `logx`, `logy`, `loglog`. |
+| --fit | str, nargs+ | None | Fit for `pa_var`/`lfrac`: `exp`, `power`, `log`, `linear`, `constant`, `broken-power`, or `power,N` / `poly,N`. |
+| --phase-window | str | all | Phase window: `first`, `last`, `all`, `leading`, `trailing`, `total` (synonyms accepted). |
+| --freq-window | str | full | Frequency window: `1q`, `2q`, `3q`, `4q`, `full` or `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`. |
+| -m, --mode | str | gauss | Pulse mode: `gauss`, `mgauss`. |
+| --seed | int | None | RNG seed (mgauss). |
+| --nseed | int | 1 | Number of realisations per tau (mgauss). |
+| --tsys | float | 0.0 | System temperature in K (noise level). |
+| --ncpu | int | 1 | CPUs for parallel processing. |
+| --chi2-fit | flag | False | Chi-squared Gaussian fit on final profiles (non-`pa_var` runs). |
+| --data | str | None | Use existing data file instead of generating. |
+
+Notes
+- Windows: long names map to short codes internally.
+- Some plot modes operate on single FRBs, while `pa_var`/`lfrac` aggregate across many tau values.
 
 ### Examples
 
-#### Basic Simulation
-Simulate an FRB with a scattering timescale of 0.5 ms and noise of 2:
+- Single FRB, plot IQUV, add noise, show interactively
 ```bash
-FIRES -t 0.5 --plot iquv --mode gauss --noise 10
+FIRES -t 0.5 --plot iquv --tsys 50
 ```
 
-#### Simulate an FRB with micro-shots:
+- Micro-shot mode with standard dynamic spectrum, pulse profile and PA profile
 ```bash
-FIRES -t 0.5 --plot lvpa --mode mgauss --n-gauss 30 20 --mg-width 10 40
+FIRES -m mgauss -t 0.05 --plot lvpa --save-plots
 ```
 
-#### Generate and save all plots for the simulated FRB:
+- Micro-shot mode with fixed seed and multiple realisations
 ```bash
-FIRES -t 0.5 --plot all --save-plots
+FIRES --mode mgauss -t 0,10,1 --seed 42 --nseed 10 --plot pa_var lfrac --phase-window leading --freq-window 4q --plot-scale loglog
 ```
 
-For more detailed instructions, see the [Wiki](https://github.com/JoelBalzan/FIRES/wiki).
 
 ## Acknowledgements
 
-This project is based on the work by Tehya Conroy and Apurba Bera.
+Based on work by Tehya Conroy and Apurba Bera.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT
