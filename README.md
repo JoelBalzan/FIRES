@@ -5,7 +5,7 @@ FIRES is a Python package to simulate Fast Radio Bursts (FRBs) with scattering a
 ## Features
 
 - Customisable FRB simulations
-  - Single Gaussian pulse or micro-shot ensembles (mgauss)
+  - Single Gaussian pulse or micro-shot ensembles (psn)
   - Sweep over multiple scattering timescales in one run
   - Add system noise via system temperature (K)
 - Analysis and plotting
@@ -67,9 +67,9 @@ python -m FIRES.main --help
 | --fit | str, nargs+ | None | Fit for `pa_var`/`lfrac`: `exp`, `power`, `log`, `linear`, `constant`, `broken-power`, or `power,N` / `poly,N`. |
 | --phase-window | str | all | Phase window: `first`, `last`, `all`, `leading`, `trailing`, `total` (synonyms accepted). |
 | --freq-window | str | full | Frequency window: `1q`, `2q`, `3q`, `4q`, `full` or `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`. |
-| -m, --mode | str | gauss | Pulse mode: `gauss`, `mgauss`. |
-| --seed | int | None | RNG seed (mgauss). |
-| --nseed | int | 1 | Number of realisations per tau (mgauss). |
+| -m, --mode | str | gauss | Pulse mode: `gauss`, `psn`. |
+| --seed | int | None | RNG seed (psn). |
+| --nseed | int | 1 | Number of realisations per tau (psn). |
 | --tsys | float | 0.0 | System temperature in K (noise level). |
 | --ncpu | int | 1 | CPUs for parallel processing. |
 | --chi2-fit | flag | False | Chi-squared Gaussian fit on final profiles (non-`pa_var` runs). |
@@ -88,12 +88,12 @@ FIRES -t 0.5 --plot iquv --tsys 50
 
 - Micro-shot mode with standard dynamic spectrum, pulse profile and PA profile
 ```bash
-FIRES -m mgauss -t 0.05 --plot lvpa --save-plots
+FIRES -m psn -t 0.05 --plot lvpa --save-plots
 ```
 
 - Micro-shot mode with fixed seed and multiple realisations
 ```bash
-FIRES --mode mgauss -t 0,10,1 --seed 42 --nseed 10 --plot pa_var lfrac --phase-window leading --freq-window 4q --plot-scale loglog
+FIRES --mode psn -t 0,10,1 --seed 42 --nseed 10 --plot pa_var lfrac --phase-window leading --freq-window 4q --plot-scale loglog
 ```
 
 

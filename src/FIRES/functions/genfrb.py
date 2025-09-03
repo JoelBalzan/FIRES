@@ -225,7 +225,7 @@ def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	# Choose the correct function
 	if mode == 'gauss':
 		dynspec_func = gauss_dynspec
-	else:  # mode == 'mgauss'
+	else:  # mode == 'psn'
 		dynspec_func = m_gauss_dynspec
 
 	# Get the argument names for the selected function
@@ -238,7 +238,7 @@ def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 		if k in allowed_args and k not in ("xname")
 	}
  
-	if mode == 'mgauss':
+	if mode == 'psn':
 		return m_gauss_dynspec(**params_filtered, variation_parameter=var, xname=xname, plot_multiple_frb=plot_multiple_frb)
 	elif mode == 'gauss':
 		return gauss_dynspec(**params_filtered, plot_multiple_frb=plot_multiple_frb)
@@ -405,7 +405,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
 					f"seed_{seed}_PA_{gdict['PA'][-1]:.2f}.pkl"
 				)
-			else:  # mode == 'mgauss'
+			else:  # mode == 'psn'
 				out_file = (
 					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
 					f"seed_{seed}_nseed_{nseed}_PA_{gdict['PA'][-1]:.2f}.pkl"
