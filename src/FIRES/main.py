@@ -192,10 +192,10 @@ def main():
 		"-m", "--mode",
 		type=str,
 		default='gauss',
-		choices=['gauss', 'mgauss'],
+		choices=['gauss', 'psn'],
 		metavar="",
-		help=("Mode for generating pulses: 'gauss' or 'mgauss'. Default is 'gauss.'\n"
-			  "'mgauss' will generate a gaussian distribution of gaussian micro-shots."
+		help=("Mode for generating pulses: 'gauss' or 'psn'. Default is 'gauss.'\n"
+			  "'psn' will generate a gaussian distribution of gaussian micro-shots."
 		   )
 	)
 	parser.add_argument(
@@ -203,14 +203,14 @@ def main():
 		type=int,
 		default=None,
 		metavar="",
-		help="Set seed for repeatability in mgauss mode."
+		help="Set seed for repeatability in psn mode."
 	)
 	parser.add_argument(
 		"--nseed",
 		type=int,
 		default=1,
 		metavar="",
-		help="How many realisations to generate at each scattering timescale for mgauss mode."
+		help="How many realisations to generate at each scattering timescale for psn mode."
 	)
 	parser.add_argument(
 		"--tsys",
