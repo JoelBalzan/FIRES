@@ -38,6 +38,19 @@ def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 	stokes_v = temp_dynspec * vfrac
 	return stokes_q, stokes_u, stokes_v
 
+def _init_seed(seed: int | None) -> int:
+	"""
+	Ensure a concrete seed. If None, draw one from OS entropy, set NumPy RNG, and print it.
+	Returns the seed used.
+	"""
+	if seed is None:
+		seed = int(np.random.SeedSequence().generate_state(1)[0])
+		np.random.seed(seed)
+		print(f"[FIRES] Using random seed: {seed}")
+	else:
+		np.random.seed(seed)
+	return seed
+
 
 
 # -------------------------- FRB generator functions ---------------------------
@@ -62,8 +75,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, tau_ms, sc_
 	"""
 
 
-	if seed is not None:
-		np.random.seed(seed)
+	seed = _init_seed(seed)
 		
 	t0              = gdict['t0']
 	width_ms        = gdict['width_ms']
@@ -137,8 +149,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	Optionally apply a Gaussian spectral profile to create band-limited pulses.
 	"""
 	# Set the random seed for reproducibility
-	if seed is not None:
-		np.random.seed(seed)
+	seed = _init_seed(seed)
 	
 	t0              = gdict['t0']
 	width_ms        = gdict['width_ms']
