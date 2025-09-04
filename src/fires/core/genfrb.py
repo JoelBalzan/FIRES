@@ -457,6 +457,42 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 					# Ensure inclusion of the final point
 					xvals = np.arange(start, stop + step/2, step)
 
+					# If running under Slurm array, split xvals across tasks
+					# Falls back to env FIRESSWEEP_COUNT/ID for local testing.
+					def _slurm_array_size():
+						cnt = os.environ.get("SLURM_ARRAY_TASK_COUNT")
+						if cnt is not None:
+							return int(cnt)
+						# Derive count from MIN/MAX if COUNT is not provided
+						min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
+						max_s = os.environ.get("SLURM_ARRAY_TASK_MAX")
+						if max_s is not None:
+							min_i = int(min_s) if min_s is not None else 0
+							return int(max_s) - min_i + 1
+						# Custom override for non-Slurm runs
+						return int(os.environ.get("FIRESSWEEP_COUNT", "1"))
+					def _slurm_array_id():
+						min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
+						task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+						if task_id is not None:
+							if min_s is not None:
+								return int(task_id) - int(min_s)
+							return int(task_id)
+						# Custom override for non-Slurm runs
+						return int(os.environ.get("FIRESSWEEP_ID", "0"))
+					_array_count = _slurm_array_size()
+					_array_id = _slurm_array_id()
+					if _array_count > 1:
+						total = len(xvals)
+						chunk = (total + _array_count - 1) // _array_count  # ceil division
+						start_idx = _array_id * chunk
+						end_idx = min(start_idx + chunk, total)
+						if start_idx >= total:
+							print(f"Array task {_array_id}/{_array_count}: no assigned xvals (start_idx={start_idx} >= {total}).")
+							sys.exit(0)
+						xvals = xvals[start_idx:end_idx]
+						print(f"Array task {_array_id}/{_array_count}: processing xvals[{start_idx}:{end_idx}] out of {total}")
+
 					# Find the corresponding key in gdict for col_idx
 					gdict_keys = list(gdict.keys())
 					xname = gdict_keys[col_idx] + '_var'
