@@ -24,8 +24,8 @@ from scipy.optimize import curve_fit
 # --------------------------	Define paths	-------------------------------
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(current_dir)
-obs_params_path = os.path.join(parent_dir, "utils/obsparams.txt")
-gauss_params_path = os.path.join(parent_dir, "utils/gparams.txt")
+obs_params_path = os.path.join(parent_dir, "../../parfiles/obsparams.txt")
+gauss_params_path = os.path.join(parent_dir, "../../parfiles/gparams.txt")
 
 
 #    --------------------------	Define parameters	-------------------------------
