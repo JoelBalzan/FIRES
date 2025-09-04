@@ -1,106 +1,168 @@
-# FIRES: The Fast, Intense Radio Emission Simulator
+# FIRES: Fast, Intense Radio Emission Simulator
 
-FIRES is a Python package to simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects. It can generate dynamic spectra for Gaussian pulses, apply scattering, add noise, and provides tools for visualisation and simple fitting.
+FIRES is a Python package to simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects. It can generate dynamic spectra for Gaussian pulses or micro-shot ensembles, apply scattering, add noise, and provide plotting and simple fitting utilities.
 
-## Features
-
-- Customisable FRB simulations
-  - Single Gaussian pulse or micro-shot ensembles (psn)
-  - Sweep over multiple scattering timescales in one run
-  - Add system noise via system temperature (K)
-- Analysis and plotting
-  - Plot IQUV, L and PA, dPA/dt, RM, PA variance, and L/I
-  - Windowing by phase and frequency (quarters or full band)
-  - Optional chi-squared Gaussian fit to final profiles
-- Output
-  - Save simulated data and plots to disk
-
-## Project Structure
-
-- Core
-  - `src/FIRES/main.py` — CLI entry point
-  - `src/FIRES/functions/genfrb.py` — FRB generation
-  - `src/FIRES/functions/plotmodes.py` — Plot mode registry and plot functions
-- Utilities
-  - `src/FIRES/utils/utils.py` — helpers, defaults, fitting
-  - `src/FIRES/utils/obsparams.txt` — observation parameters
-  - `src/FIRES/utils/gparams.txt` — Gaussian/micro-shot parameters
+- Python ≥ 3.10
+- Configurable via TOML (user-editable)
+- Console entry point: `fires` (or `python -m fires`)
 
 ## Installation
 
-From GitHub
+From GitHub:
 ```bash
 git clone https://github.com/JoelBalzan/FIRES.git
 cd FIRES
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
-## Usage
-
-After installation, run:
+Upgrade later:
 ```bash
-FIRES --help
+git pull
+pip install -e .
 ```
 
-If the console entry is unavailable:
+## Quickstart
+
+Show help:
 ```bash
-python -m FIRES.main --help
+fires --help
 ```
 
-### Command-Line Options (current)
+Single FRB, plot IQUV, add noise:
+```bash
+fires -t 0.5 --plot iquv --tsys 50
+```
 
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| -t, --tau_ms | str, nargs+ | 0.0 | Scattering timescale(s) in ms. Accepts single values, lists, and ranges. Examples: `-t 0.5`, `-t 0.1 0.3 1.0`, `-t 0.1,2.0,0.1` (start,stop,step). |
-| -f, --frb_identifier | str | FRB | Identifier for the simulation. |
-| -o, --obs_params | str | utils default | Path to observation parameters file. |
-| -g, --gauss_params | str | utils default | Path to Gaussian/micro-shot parameters file. |
-| -d, --output-dir | str | simfrbs/ | Output directory. |
-| --write | flag | False | Save simulated data to disk. |
-| -p, --plot | str, nargs+ | lvpa | Plot modes: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `l_var`. Note: `pa_var` and `l_var` require multiple tau values. |
-| -s, --save-plots | flag | False | Save plots to disk. |
-| --show-plots | bool | True | Show plots interactively. |
-| --figsize | float float | None | Figure size (inches): width height. |
-| -e, --extension | str | pdf | File extension for saved plots. |
-| --plot-scale | str | linear | Plot scale for `pa_var`/`l_var`: `linear`, `logx`, `logy`, `loglog`. |
-| --fit | str, nargs+ | None | Fit for `pa_var`/`l_var`: `exp`, `power`, `log`, `linear`, `constant`, `broken-power`, or `power,N` / `poly,N`. |
-| --phase-window | str | all | Phase window: `first`, `last`, `all`, `leading`, `trailing`, `total` (synonyms accepted). |
-| --freq-window | str | full | Frequency window: `1q`, `2q`, `3q`, `4q`, `full` or `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`. |
-| -m, --mode | str | gauss | Pulse mode: `gauss`, `psn`. |
-| --seed | int | None | RNG seed (psn). |
-| --nseed | int | 1 | Number of realisations per tau (psn). |
-| --tsys | float | 0.0 | System temperature in K (noise level). |
-| --ncpu | int | 1 | CPUs for parallel processing. |
-| --chi2-fit | flag | False | Chi-squared Gaussian fit on final profiles (non-`pa_var` runs). |
-| --data | str | None | Use existing data file instead of generating. |
+Micro-shot mode with LV+PA plot, save plots:
+```bash
+fires -m psn -t 0.05 --plot lvpa --save-plots
+```
+
+Sweep scattering times, aggregate plots:
+```bash
+fires -t 0.1,10,0.5 --plot pa_var l_var --plot-scale loglog
+```
+
+## Configuration (TOML)
+
+Defaults ship with the package and are copied to your user config on first run.
+
+- Package defaults:
+  - `src/fires/data/obsparams.toml`
+  - `src/fires/data/gparams.toml`
+- User config directory (Linux, XDG): `~/.config/fires/`
+  - Editable copies: `~/.config/fires/obsparams.toml`, `~/.config/fires/gparams.toml`
+
+Manage config:
+```bash
+# Create editable defaults in ~/.config/fires
+fires --init-config
+
+# Edit in your $EDITOR (VISUAL/EDITOR), falls back to nano
+fires --edit-config obsparams
+fires --edit-config gparams
+```
+
+Override file locations at runtime:
+- `--obs_params /path/to/obsparams.toml`
+- `--gauss_params /path/to/gparams.toml`
+- `--config-dir /path/to/my/configdir` (to use a different config folder)
 
 Notes
-- Windows: long names map to short codes internally.
-- Some plot modes operate on single FRBs, while `pa_var`/`l_var` aggregate across many tau values.
+- TOML is preferred; legacy `.txt` configs are still read for compatibility.
+- The tool searches in order: explicit file path → `--config-dir` (or `~/.config/fires`) → packaged defaults.
 
-### Examples
+## Command-line options (core)
 
-- Single FRB, plot IQUV, add noise, show interactively
-```bash
-FIRES -t 0.5 --plot iquv --tsys 50
+- `-t, --tau_ms <values>`: Scattering time(s) in ms. Accepts:
+  - Single: `-t 0.5`
+  - List: `-t 0.1 0.3 1.0`
+  - Range: `-t 0.1,2.0,0.1` (start,stop,step)
+- `-f, --frb_identifier <str>`: Simulation identifier.
+- `-o, --obs_params <file>`: Path to observation parameters (TOML or legacy TXT).
+- `-g, --gauss_params <file>`: Path to Gaussian/micro-shot parameters (TOML or legacy TXT).
+- `-d, --output-dir <dir>`: Output directory (default: `simfrbs/`).
+- `--write`: Save simulated data to disk.
+- `-p, --plot <modes...>`: One or more of: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `l_var`.
+- `-s, --save-plots`: Save plots to disk.
+- `--phase-window <name>`: `first`, `last`, `all`, `leading`, `trailing`, `total`.
+- `--freq-window <name>`: `1q`, `2q`, `3q`, `4q`, `full` (aka `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`).
+- `--verbose`: Verbose output.
+
+Config management:
+- `--config-dir <dir>`: Override user config directory.
+- `--init-config`: Create editable defaults in the user config directory.
+- `--edit-config {gparams,obsparams}`: Open the chosen config in your editor.
+
+Tip
+- Some plot modes aggregate across multiple tau values (`pa_var`, `l_var`); pass a list or range to `--tau_ms`.
+
+## Example TOML snippets
+
+Check the packaged defaults in `src/fires/data/*.toml` for the authoritative keys. A minimal shape might look like:
+
+`obsparams.toml`
+```toml
+# Telescope/observation setup
+# sample keys shown as an example; see packaged defaults for real keys
+band_MHz = 1400.0
+nchan = 256
+tsamp_ms = 0.064
+tobs_ms = 100.0
+rm_rad_m2 = 0.0
+dm_pc_cm3 = 0.0
 ```
 
-- Micro-shot mode with standard dynamic spectrum, pulse profile and PA profile
-```bash
-FIRES -m psn -t 0.05 --plot lvpa --save-plots
+`gparams.toml`
+```toml
+# Gaussian or micro-shot pulse parameters
+# sample keys shown as an example; see packaged defaults for real keys
+mode = "gauss"          # "gauss" or "psn"
+fwhm_ms = 1.0
+amplitude = 1.0
+pol_frac = 1.0
+# psn-specific (if mode == "psn")
+nshots = 50
+shot_fwhm_ms = 0.1
 ```
 
-- Micro-shot mode with fixed seed and multiple realisations
-```bash
-FIRES --mode psn -t 0,10,1 --seed 42 --nseed 10 --plot pa_var l_var --phase-window leading --freq-window 4q --plot-scale loglog
+## Project structure
+
+```
+src/
+  fires/
+    __init__.py
+    __main__.py          # console entry: fires
+    core/                # simulation core
+      basicfns.py
+      genfns.py
+      genfrb.py
+    plotting/            # plotting API and modes
+      plotfns.py
+      plotmodes.py
+    utils/               # helpers, config loader
+      utils.py
+      config.py
+    data/                # packaged default configs (TOML)
+      obsparams.toml
+      gparams.toml
 ```
 
+## Development
 
-## Acknowledgements
+```bash
+# In repo root
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+# Lint/format/test as applicable
+```
 
-Based on work by Tehya Conroy and Apurba Bera.
+Run from source:
+```bash
+python -m fires --help
+```
 
-## License
-
-MIT
+##
