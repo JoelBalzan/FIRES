@@ -58,13 +58,13 @@ python -m FIRES.main --help
 | -g, --gauss_params | str | utils default | Path to Gaussian/micro-shot parameters file. |
 | -d, --output-dir | str | simfrbs/ | Output directory. |
 | --write | flag | False | Save simulated data to disk. |
-| -p, --plot | str, nargs+ | lvpa | Plot modes: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `lfrac`. Note: `pa_var` and `lfrac` require multiple tau values. |
+| -p, --plot | str, nargs+ | lvpa | Plot modes: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `l_var`. Note: `pa_var` and `l_var` require multiple tau values. |
 | -s, --save-plots | flag | False | Save plots to disk. |
 | --show-plots | bool | True | Show plots interactively. |
 | --figsize | float float | None | Figure size (inches): width height. |
 | -e, --extension | str | pdf | File extension for saved plots. |
-| --plot-scale | str | linear | Plot scale for `pa_var`/`lfrac`: `linear`, `logx`, `logy`, `loglog`. |
-| --fit | str, nargs+ | None | Fit for `pa_var`/`lfrac`: `exp`, `power`, `log`, `linear`, `constant`, `broken-power`, or `power,N` / `poly,N`. |
+| --plot-scale | str | linear | Plot scale for `pa_var`/`l_var`: `linear`, `logx`, `logy`, `loglog`. |
+| --fit | str, nargs+ | None | Fit for `pa_var`/`l_var`: `exp`, `power`, `log`, `linear`, `constant`, `broken-power`, or `power,N` / `poly,N`. |
 | --phase-window | str | all | Phase window: `first`, `last`, `all`, `leading`, `trailing`, `total` (synonyms accepted). |
 | --freq-window | str | full | Frequency window: `1q`, `2q`, `3q`, `4q`, `full` or `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`. |
 | -m, --mode | str | gauss | Pulse mode: `gauss`, `psn`. |
@@ -77,7 +77,7 @@ python -m FIRES.main --help
 
 Notes
 - Windows: long names map to short codes internally.
-- Some plot modes operate on single FRBs, while `pa_var`/`lfrac` aggregate across many tau values.
+- Some plot modes operate on single FRBs, while `pa_var`/`l_var` aggregate across many tau values.
 
 ### Examples
 
@@ -93,7 +93,7 @@ FIRES -m psn -t 0.05 --plot lvpa --save-plots
 
 - Micro-shot mode with fixed seed and multiple realisations
 ```bash
-FIRES --mode psn -t 0,10,1 --seed 42 --nseed 10 --plot pa_var lfrac --phase-window leading --freq-window 4q --plot-scale loglog
+FIRES --mode psn -t 0,10,1 --seed 42 --nseed 10 --plot pa_var l_var --phase-window leading --freq-window 4q --plot-scale loglog
 ```
 
 
