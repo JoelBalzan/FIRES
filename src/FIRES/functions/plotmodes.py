@@ -20,8 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-from FIRES.functions.basicfns import process_dynspec, boxcar_width
-from FIRES.functions.plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
+from .basicfns import process_dynspec, boxcar_width
+from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
 

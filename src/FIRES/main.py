@@ -19,9 +19,9 @@ import sys
 import traceback
 from inspect import signature
 
-from FIRES.functions.genfrb import generate_frb
-from FIRES.utils.utils import chi2_fit, gaussian_model, window_map, obs_params_path, gauss_params_path
-from FIRES.functions.plotmodes import plot_modes
+from .functions.genfrb import generate_frb
+from .utils.utils import chi2_fit, gaussian_model, window_map, obs_params_path, gauss_params_path
+from .functions.plotmodes import plot_modes
 
 
 def str2bool(v):
