@@ -3,7 +3,7 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fires"  # consider lowercase for the distribution name
+name = "fires"
 version = "0.1.0"
 description = "A package to simulate Fast Radio Bursts (FRBs) with scattering."
 authors = [{ name = "Joel Balzan", email = "jbalzan.astro@gmail.com" }]
@@ -11,15 +11,17 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 keywords = ["FRB", "scattering", "simulations"]
-# Add your runtime dependencies if any:
-# dependencies = ["numpy", "matplotlib"]
+dependencies = [
+  "platformdirs>=3.0",
+  'tomli>=2.0; python_version < "3.11"',
+  "tomli-w>=1.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/JoelBalzan/FIRES"
 
 [project.scripts]
 fires = "fires.__main__:main"
-FIRES = "fires.__main__:main"  # optional alias for convenience/back-compat
 
 [tool.setuptools]
 include-package-data = true
@@ -29,4 +31,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fires.data" = ["*.txt"]
+"fires.data" = ["*.toml", "*.txt"]

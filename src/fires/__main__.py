@@ -22,7 +22,7 @@ from inspect import signature
 from .core.genfrb import generate_frb
 from .utils.utils import chi2_fit, gaussian_model, window_map, obs_params_path, gauss_params_path
 from .plotting.plotmodes import plot_modes
-
+from .utils import config as cfg
 
 def str2bool(v):
 	if isinstance(v, bool):
@@ -40,7 +40,7 @@ def main():
 		print("For help, run:\n  FIRES --help\n")
 		return
 
-	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarization effects",
+	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects",
 								  formatter_class=argparse.RawTextHelpFormatter)
 
 	# Input Parameters
@@ -75,6 +75,22 @@ def main():
 		metavar="",
 		help="Gaussian parameters for the simulated FRB."
 	)
+	parser.add_argument(
+		"--config-dir", 
+		type=str, 
+		help="Override user config dir (default: ~/.config/fires)"
+	)
+	parser.add_argument(
+		"--init-config", 
+		action="store_true", 
+		help="Create user config from packaged defaults"
+	)
+	parser.add_argument(
+		"--edit-config", 
+		choices=["gparams", "obsparams"], 
+		help="Open config in $EDITOR"
+	)
+
 
 	# Output Options
 	parser.add_argument(
@@ -236,6 +252,20 @@ def main():
 
 	args = parser.parse_args()
 
+	# Handle config management
+	if args.init_config:
+		cfg.ensure_user_config()
+	if args.edit_config:
+		cfg.edit_params(args.edit_config, config_dir=args.config_dir)
+		return
+
+	# Resolve parameter file paths (prefer user config unless explicitly overridden)
+	override_obs   = args.obs_params  if args.obs_params  != obs_params_path else None
+	override_gauss = args.gauss_params if args.gauss_params != gauss_params_path else None
+	resolved_obs   = str(cfg.find_config_file("obsparams", config_dir=args.config_dir, override_path=override_obs))
+	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir, override_path=override_gauss))
+
+
 	# Map long freq-window names to abbreviated forms
 	if args.freq_window in window_map:
 		args.freq_window = window_map[args.freq_window]
@@ -291,8 +321,8 @@ def main():
 				data         = args.data,
 				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
-				obs_file     = args.obs_params,
-				gauss_file   = args.gauss_params,
+				obs_file     = resolved_obs,
+				gauss_file   = resolved_gauss,
 				out_dir      = args.output_dir,
 				write        = args.write,
 				mode         = args.mode,
@@ -309,8 +339,8 @@ def main():
 				data         = args.data,
 				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
-				obs_file     = args.obs_params,
-				gauss_file   = args.gauss_params,
+				obs_file     = resolved_obs,
+				gauss_file   = resolved_gauss,
 				out_dir      = args.output_dir,
 				write        = args.write,
 				mode         = args.mode,
