@@ -21,12 +21,24 @@ from collections import namedtuple
 from scipy.optimize import curve_fit
 
 
-# --------------------------	Define paths	-------------------------------
-current_dir = os.path.dirname(__file__)
-parent_dir = os.path.dirname(current_dir)
-obs_params_path = os.path.join(parent_dir, "../../parfiles/obsparams.txt")
-gauss_params_path = os.path.join(parent_dir, "../../parfiles/gparams.txt")
+# importlib.resources for packaged data
+from importlib import resources as importlib_resources
+try:
+    from importlib.resources import files as resource_files  # Py3.9+
+except Exception:
+    resource_files = None
 
+# --------------------------	Define paths	-------------------------------
+OBS_PARAMS_PACKAGE = "FIRES.utils"
+OBS_PARAMS_RESOURCE = "obsparams.txt"
+GAUSS_PARAMS_RESOURCE = "gparams.txt"
+
+def _open_text_resource(package: str, name: str):
+    """Return a readable text handle to a packaged resource."""
+    if resource_files is not None:
+        return (resource_files(package) / name).open("r", encoding="utf-8")
+    # Fallback for older Python
+    return importlib_resources.open_text(package, name, encoding="utf-8")
 
 #    --------------------------	Define parameters	-------------------------------
 def get_parameters(filename):
@@ -54,7 +66,37 @@ def get_parameters(filename):
     return parameters
 
 
-#
+# load parameters from packaged resources
+def get_parameters_from_resource(package: str, resource_name: str):
+    """Parse a key=value or key: value parameter file shipped as package data."""
+    parameters = {}
+    try:
+        with _open_text_resource(package, resource_name) as file:
+            for line in file:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                elif ':' in line:
+                    key, value = line.split(':', 1)
+                else:
+                    continue
+                import re
+                value = re.sub(r'\[.*?\]', '', value).strip()
+                parameters[key.strip()] = value
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Resource '{resource_name}' not found in package '{package}'.")
+    return parameters
+
+def get_obs_parameters():
+    """Load default observing parameters from packaged resource."""
+    return get_parameters_from_resource(OBS_PARAMS_PACKAGE, OBS_PARAMS_RESOURCE)
+
+def get_gauss_parameters():
+    """Load default Gaussian parameters from packaged resource."""
+    return get_parameters_from_resource(OBS_PARAMS_PACKAGE, GAUSS_PARAMS_RESOURCE)
+
 
 def chi2_fit(x_data, y_data, y_err, model_func, initial_guess):
     """
