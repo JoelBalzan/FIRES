@@ -35,13 +35,14 @@ def str2bool(v):
 		raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def main():
-	if len(sys.argv) == 1:
-		print("FIRES: The Fast, Intense Radio Emission Simulator \n")
-		print("For help, run:\n  FIRES --help\n")
-		return
-
 	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects",
 								  formatter_class=argparse.RawTextHelpFormatter)
+
+	# Show help when no args are provided (no traceback)
+	if len(sys.argv) == 1:
+		parser.print_help()
+		return 0
+
 
 	# Input Parameters
 	parser.add_argument(
@@ -272,9 +273,17 @@ def main():
 	if args.phase_window in window_map:
 		args.phase_window = window_map[args.phase_window]
 
+	if args.plot[0] not in plot_modes and args.plot[0] not in ("all", "None"):
+			parser.error(f"Invalid plot mode: {args.plot[0]}")
+
 	# Parse scattering timescale(s)
-	
-	if len(args.tau_ms) > 1:
+	# If multiple values (or a single comma-range), require pa_var/l_var
+	multi_requested = len(args.tau_ms) > 1 or any("," in v for v in args.tau_ms)
+
+	if multi_requested and not any(m in ("pa_var", "l_var") for m in args.plot):
+		parser.error("Multiple scattering timescales provided, but selected plot mode(s) do not support multiple values. "
+		             "Use 'pa_var' or 'l_var', or pass a single value to --tau_ms.")
+	elif multi_requested:
 		scattering_timescales = np.array([])
 		for value in args.tau_ms:
 			if "," in value:  # Check if it's a range (comma-separated)
@@ -289,7 +298,7 @@ def main():
 						values = list(map(float, parts))
 						scattering_timescales = np.concatenate((scattering_timescales, values))
 				except ValueError:
-					raise ValueError("Invalid range format for scattering timescales. Use 'start,stop,step' or comma-separated values.")
+					parser.error("Invalid range format for --tau_ms. Use 'start,stop,step' or comma-separated values.")
 			else:
 				scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
 
@@ -308,11 +317,9 @@ def main():
 		os.makedirs(args.output_dir, exist_ok=True)
 		print(f"Output directory: '{data_directory}' \n")
   
-	if args.plot[0] not in plot_modes:
-		raise ValueError(f"Invalid plot mode: {args.plot[0]}")
-	selected_plot_mode = plot_modes[args.plot[0]]
 
-	
+	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
+
 	try:
 		if selected_plot_mode.requires_multiple_frb:
 			print(f"Processing with {args.ncpu} threads. \n")
@@ -412,11 +419,13 @@ def main():
 		else:
 			print("No plots generated. \n")
 	except Exception as e:
-		print(f"An error occurred during the simulation: {e} \n")
+		# Clean error by default; full traceback only with --verbose
+		print(f"Error: {e}", file=sys.stderr)
 		if args.verbose:
 			traceback.print_exc()
+		return 1
 
 
 
 if __name__ == "__main__":
-	main()
+	sys.exit(main())
