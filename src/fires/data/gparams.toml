@@ -3,10 +3,11 @@
 #	Each row represents a Gaussian component --- add as many as you like --- EXCEPT:
 #   
 #   THE THIRD LAST ROW REPRESENTS THE GAUSSIAN STANDARD DEVIATION (ONLY FOR THE psn MODE)
-#   THE SECOND LAST ROW REPRESENTS A VARIANCE RANGE FROM THIRD LAST ROW FOR PLOTTING 
-#   THE LAST ROW IS THE STEP SIZE BETWEEN THIRD AND SECOND LAST ROWS
-#       - only one value can be varied --- make sure only one value in the final row is != 0
-#       - last 3 columns cannot be varied
+#   IF YOU WANT TO PLOT SOMETHING LIKE L/I VS. PA VARIANCE:
+#      THE SECOND LAST ROW REPRESENTS A VARIANCE RANGE FROM THIRD LAST ROW FOR PLOTTING 
+#      THE LAST ROW IS THE STEP SIZE BETWEEN THIRD AND SECOND LAST ROWS
+#           - only one value can be varied --- make sure only one value in the final row is != 0
+#           - last 3 columns cannot be varied
 #
 #	Columns:
 #	t0  		    - Time offset of the Gaussian pulse in milliseconds
