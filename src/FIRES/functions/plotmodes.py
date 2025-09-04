@@ -200,9 +200,9 @@ def median_percentiles(yvals, x, ndigits=3):
 		key = round(float(var), ndigits)
 		v = vals_rounded.get(key, None)
 		if v is not None and isinstance(v, (list, np.ndarray)) and len(v) > 0:
-			median_val = np.median(v)
-			lower_percentile = np.percentile(v, 16)
-			upper_percentile = np.percentile(v, 84)
+			median_val = np.nanmedian(v)
+			lower_percentile = np.nanpercentile(v, 16)
+			upper_percentile = np.nanpercentile(v, 84)
 			med_vals.append(median_val)
 			percentile_errs.append((lower_percentile, upper_percentile))
 		else:
@@ -763,7 +763,8 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	dspec_params = frb_dict["dspec_params"]
 	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
-	y = weight_dict(xvals, yvals, var_params, "PA")
+	# Use correct weighting key name
+	y = weight_dict(xvals, yvals, var_params, "var_PA")
 	med_vals, percentile_errs = median_percentiles(y, xvals)
  
 	x, xname = weight_x_get_xname(frb_dict, weight_x_by="width_ms")
@@ -776,15 +777,17 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if fit is not None:
-		fit_and_plot(ax, x, med_vals, fit, label=None)
+		# Parse fit argument for type/degree
+		fit_type, fit_degree = parse_fit_arg(fit)
+		fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 		ax.legend()
-	yname = get_weighted_y_name(yname, "var_PA")
+	yname = get_weighted_y_name(r"Var($\psi$)", "var_PA")
 	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
 		name = make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
-		name = os.path.join(out_dir, name + ".pdf")
+		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, bbox_inches='tight', dpi=600)
 		print(f"Saved figure to {name}  \n")
 
@@ -908,27 +911,32 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	dspec_params = frb_dict["dspec_params"]
 	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
-	y = weight_dict(xvals, yvals, var_params, "lfrac")
+	# No weighting for L/I by default (use raw values)
+	y = weight_dict(xvals, yvals, var_params, None)
 	med_vals, percentile_errs = median_percentiles(y, xvals)
  
-	x, xname = weight_x_get_xname(frb_dict, weight_x_by=width_ms)
+	# Fix: pass parameter name, not a numeric value
+	x, xname = weight_x_get_xname(frb_dict, weight_x_by="width_ms")
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
  
 	fig, ax = plt.subplots(figsize=figsize)
-	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$')
+	ax.plot(x, med_vals, color='black', label='L/I', linewidth=2)
 	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if fit is not None:
-		fit_and_plot(ax, x, med_vals, fit, label=None)
+		# Parse fit argument for type/degree
+		fit_type, fit_degree = parse_fit_arg(fit)
+		fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 		ax.legend()
-	yname = get_weighted_y_name("var_PA", "lfrac")
+	# Proper y-axis label
+	yname = get_weighted_y_name(r"L/I", None)
 	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
 		name = make_plot_fname("lfrac", scale, fname, freq_window, phase_window)
-		name = os.path.join(out_dir, name + ".pdf")
+		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, bbox_inches='tight', dpi=600)
 		print(f"Saved figure to {name}  \n")
 
