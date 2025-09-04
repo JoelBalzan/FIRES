@@ -2,10 +2,6 @@
 
 FIRES is a Python package to simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects. It can generate dynamic spectra for Gaussian pulses or micro-shot ensembles, apply scattering, add noise, and provide plotting and simple fitting utilities.
 
-- Python ≥ 3.10
-- Configurable via TOML (user-editable)
-- Console entry point: `fires` (or `python -m fires`)
-
 ## Installation
 
 From GitHub:
