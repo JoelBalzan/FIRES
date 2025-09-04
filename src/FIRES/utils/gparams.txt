@@ -1,0 +1,39 @@
+#	Parameters for Gaussian components	
+#
+#	Each row represents a Gaussian component --- add as many as you like --- EXCEPT:
+#   
+#   THE THIRD LAST ROW REPRESENTS THE GAUSSIAN STANDARD DEVIATION (ONLY FOR THE psn MODE)
+#   THE SECOND LAST ROW REPRESENTS A VARIANCE RANGE FROM THIRD LAST ROW FOR PLOTTING 
+#   THE LAST ROW IS THE STEP SIZE BETWEEN THIRD AND SECOND LAST ROWS
+#       - only one value can be varied --- make sure only one value in the final row is != 0
+#       - last 3 columns cannot be varied
+#
+#	Columns:
+#	t0  		    - Time offset of the Gaussian pulse in milliseconds
+#	width_ms		- Width of the Gaussian pulse in milliseconds
+#	peak_amp		- Peak amplitude of the Gaussian pulse
+#	spec_idx		- Spectral index of the Gaussian pulse
+#	DM			    - Dispersion measure in pc/cm^3
+#	RM			    - Rotation measure in rad/m^2
+#	PA		        - Polarization angle in degrees
+#	(L/I)		    - Linear polarization fraction
+#	(V/I)		    - Circular polarization fraction
+#	dPA             - Change in polarization angle with time in deg/ms
+#   band_centre_mhz - Central frequency of the Gaussian
+#   band_width_mhz  - Frequency bandwidth of the Gaussian
+#   ngauss          - Number of micro-gausssians used to generate the pulse in psn mode
+#   mg_width_low    - Lower width range of the micro-gaussians as a percentage of width_ms
+#   mg_width_high   - Higher width range of the micro-gaussians as a percentage of width_ms
+
+##########################################################################################################################################################################
+#t0     width_ms	peak_amp	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	     band_centre_mhz    band_width_mhz   ngauss  mg_width_low    mg_width_high   #
+#(ms)                                            (rad/m2)  (deg)                   (deg/ms)                                              (%width_ms)     (%width_ms)     #
+##########################################################################################################################################################################
+0.0     0.5 	    10  	    0.0 	    0.0		0.0		30  	1.0 	0.0 	0.0      0.0                0.0              100     10              20              # gausssian 
+##########################################################################################################################################################################
+0.0	    0.0         0.0 	    0.0		    0.0		0.0		18      0.0		0.0 	0.0		 0.0                0.0              0.0     0.0             0.0             # psn std dev
+0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.0     0.0		0.0 	0.0		 0.0                0.0              0.0     0.0             0.0             # plot var range   
+0.0	    0.0         0.0 	    0.0		    0.0		0.0		0.0     0.0		0.0 	0.0		 0.0                0.0              0.0     0.0             0.0             # plot var step    
+##########################################################################################################################################################################
+
+

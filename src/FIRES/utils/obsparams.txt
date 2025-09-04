@@ -1,0 +1,23 @@
+# Observation Parameters
+# ----------------------
+# f0: Starting frequency in MHz
+# f1: Ending frequency in MHz
+# f_res: Frequency resolution in MHz
+# t0: Starting time in milliseconds
+# t1: Ending time in milliseconds
+# t_res: Time resolution in milliseconds
+# scattering_index: Scattering index
+# reference_freq: reference frequency for scattering and dispersion in MHz
+
+
+########################
+f0    = 1463.5          
+f1    = 1799.5          
+f_res = 1               
+t0    = -1             
+t1    = 8              
+t_res = 0.005            
+########################
+scattering_index = -4   
+reference_freq   = 1000 
+########################
