@@ -17,8 +17,8 @@
 import numpy as np
 
 from ..utils.utils import *
-from ..functions.basicfns import *
-from ..functions.plotfns import *
+from .basicfns import *
+from ..plotting.plotfns import *
 
 GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) 
 

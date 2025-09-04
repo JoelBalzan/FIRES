@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 from ..utils.utils import *
-from .basicfns import *
+from ..core.basicfns import *
 
 
 #	----------------------------------------------------------------------------------------------------------
