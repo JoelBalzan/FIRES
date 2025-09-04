@@ -21,7 +21,7 @@ from scipy.signal import fftconvolve
 from scipy.ndimage import gaussian_filter1d
 from RMtools_1D.do_RMclean_1D import run_rmclean
 from RMtools_1D.do_RMsynth_1D import run_rmsynth
-from FIRES.utils.utils import *
+from ..utils.utils import *
 
 #	---------------------------------------------------------------------------------
 

@@ -25,9 +25,9 @@ from tqdm import tqdm
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor
 
-from FIRES.functions.basicfns import scatter_stokes_chan, add_noise
-from FIRES.functions.genfns import *
-from FIRES.utils.utils import *
+from .basicfns import scatter_stokes_chan, add_noise
+from .genfns import *
+from ..utils.utils import *
 
 
 

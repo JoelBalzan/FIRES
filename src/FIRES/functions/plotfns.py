@@ -18,8 +18,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from FIRES.utils.utils import *
-from FIRES.functions.basicfns import *
+from ..utils.utils import *
+from .basicfns import *
 
 
 #	----------------------------------------------------------------------------------------------------------
