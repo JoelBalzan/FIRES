@@ -78,7 +78,7 @@ Notes
 
 - `-t, --tau_ms <values>`: Scattering time(s) in ms. Accepts:
   - Single: `-t 0.5`
-  - List: `-t 0.1 0.3 1.0`
+  - List: `-t 0.1 0.3 1.0` (only for *_var plots)
   - Range: `-t 0.1,2.0,0.1` (start,stop,step)
 - `-f, --frb_identifier <str>`: Simulation identifier.
 - `-o, --obs_params <file>`: Path to observation parameters (TOML or legacy TXT).
@@ -87,7 +87,7 @@ Notes
 - `--write`: Save simulated data to disk.
 - `-p, --plot <modes...>`: One or more of: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `l_var`.
 - `-s, --save-plots`: Save plots to disk.
-- `--phase-window <name>`: `first`, `last`, `all`, `leading`, `trailing`, `total`.
+- `--phase-window <name>`: `first`, `last`, `all` (aka `leading`, `trailing`, `total`).
 - `--freq-window <name>`: `1q`, `2q`, `3q`, `4q`, `full` (aka `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`).
 - `--verbose`: Verbose output.
 
@@ -101,32 +101,7 @@ Tip
 
 ## Example TOML snippets
 
-Check the packaged defaults in `src/fires/data/*.toml` for the authoritative keys. A minimal shape might look like:
-
-`obsparams.toml`
-```toml
-# Telescope/observation setup
-# sample keys shown as an example; see packaged defaults for real keys
-band_MHz = 1400.0
-nchan = 256
-tsamp_ms = 0.064
-tobs_ms = 100.0
-rm_rad_m2 = 0.0
-dm_pc_cm3 = 0.0
-```
-
-`gparams.toml`
-```toml
-# Gaussian or micro-shot pulse parameters
-# sample keys shown as an example; see packaged defaults for real keys
-mode = "gauss"          # "gauss" or "psn"
-fwhm_ms = 1.0
-amplitude = 1.0
-pol_frac = 1.0
-# psn-specific (if mode == "psn")
-nshots = 50
-shot_fwhm_ms = 0.1
-```
+Check the packaged defaults in `src/fires/data/*.toml` 
 
 ## Project structure
 
