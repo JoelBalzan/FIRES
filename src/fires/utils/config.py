@@ -10,7 +10,7 @@ from platformdirs import AppDirs
 from importlib import resources
 
 try:
-    import tomllib  # py311+
+    import tomllib  # type: ignore # py311+
 except ModuleNotFoundError:
     import tomli as tomllib  # py310
 
