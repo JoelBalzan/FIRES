@@ -19,9 +19,9 @@ import sys
 import traceback
 from inspect import signature
 
-from .functions.genfrb import generate_frb
+from .core.genfrb import generate_frb
 from .utils.utils import chi2_fit, gaussian_model, window_map, obs_params_path, gauss_params_path
-from .functions.plotmodes import plot_modes
+from .plotting.plotmodes import plot_modes
 
 
 def str2bool(v):

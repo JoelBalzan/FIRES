@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-from .basicfns import process_dynspec, boxcar_width
+from ..core.basicfns import process_dynspec, boxcar_width
 from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 

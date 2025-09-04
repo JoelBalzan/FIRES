@@ -18,10 +18,10 @@ keywords = ["FRB", "scattering", "simulations"]
 packages.find = {where = ["src"]}  # Note the corrected syntax
 
 [tool.setuptools.package-data]
-"FIRES.utils" = ["obsparams.txt", "gparams.txt"]
+"FIRES.data" = ["obsparams.txt", "gparams.txt"]
 
 [project.urls]
 Homepage = "https://github.com/JoelBalzan/FIRES"
 
 [project.scripts]
-FIRES = "FIRES.main:main"
+FIRES = "fires.__main__:main"
