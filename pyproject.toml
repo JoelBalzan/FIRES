@@ -3,25 +3,30 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "FIRES"
+name = "fires"  # consider lowercase for the distribution name
 version = "0.1.0"
 description = "A package to simulate Fast Radio Bursts (FRBs) with scattering."
-authors = [
-    { name = "Joel Balzan", email = "jbalzan.astro@gmail.com" }
-]
+authors = [{ name = "Joel Balzan", email = "jbalzan.astro@gmail.com" }]
 readme = "README.md"
-license = "MIT"
-requires-python = ">=3.6"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
 keywords = ["FRB", "scattering", "simulations"]
-
-[tool.setuptools]
-packages.find = {where = ["src"]}  # Note the corrected syntax
-
-[tool.setuptools.package-data]
-"FIRES.data" = ["obsparams.txt", "gparams.txt"]
+# Add your runtime dependencies if any:
+# dependencies = ["numpy", "matplotlib"]
 
 [project.urls]
 Homepage = "https://github.com/JoelBalzan/FIRES"
 
 [project.scripts]
-FIRES = "fires.__main__:main"
+fires = "fires.__main__:main"
+FIRES = "fires.__main__:main"  # optional alias for convenience/back-compat
+
+[tool.setuptools]
+include-package-data = true
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"fires.data" = ["*.txt"]
