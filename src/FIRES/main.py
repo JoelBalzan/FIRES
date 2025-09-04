@@ -51,7 +51,7 @@ def main():
 		default=[0.0],
 		metavar="",
 		help=("Scattering time scale(s) in milliseconds.\n"
-			  "Provide one or more values for pa_var or lfrac plots. Use start,stop,step for ranges. Default is 0.0 ms."
+			  "Provide one or more values for pa_var or l_var plots. Use start,stop,step for ranges. Default is 0.0 ms."
 		   )
 	)
 	parser.add_argument(
@@ -124,7 +124,7 @@ def main():
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'lfrac'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_var'],
 		metavar="",
 		help=(
 			"Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
@@ -133,7 +133,7 @@ def main():
 			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) vs. time.\n"
 			"  'RM': Plot the rotation measure (RM) vs. frequency from RM-Tools.\n"
 			"  'pa_var': Plot the variance of the polarization angle (PA) vs. scattering timescale or microshot variation.\n"
-			"  'lfrac': Plot the fraction of linear polarization (L/I) vs. scattering timescale or microshot variation.\n"
+			"  'l_var': Plot the fraction of linear polarization (L/I) vs. scattering timescale or microshot variation.\n"
 			"Pass 'None' to disable all plots."
 		)
 	)
@@ -169,14 +169,14 @@ def main():
 		default="linear",
 		choices=['linear', 'logx', 'logy', 'loglog'],
 		metavar="",
-		help="Scale for pa_var and lfrac plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
+		help="Scale for pa_var and l_var plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
 	)
 	parser.add_argument(
 		"--fit",
 		nargs="+",
 		default=None,
 		metavar="",
-		help=("Fit function for pa_var and lfrac plots.\n"
+		help=("Fit function for pa_var and l_var plots.\n"
   			 "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
 	  		)
 	)

@@ -73,8 +73,8 @@ param_map = {
 	"DM"             : r"\mathrm{DM}_0",
 	"RM"             : r"\mathrm{RM}_0",
 	"PA"             : r"\psi_0",
-	"lfrac"          : r"(L/I)_0",
-	"vfrac"          : r"(V/I)_0",
+	"lfrac"          : r"(L_0/I)",
+	"vfrac"          : r"(V_0/I)",
 	"dPA"            : r"\Delta\psi_0",
 	"band_centre_mhz": r"\nu_{\mathrm{c},0}",
 	"band_width_mhz" : r"\Delta \nu_0",
@@ -631,7 +631,7 @@ def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight
 	colours : dict
 		Default color palette.
 	weight_key : str
-		Key to use for weighting y-values ("PA", "lfrac", or any parameter name).
+		Key to use for weighting y-values ("PA", "l_var", or any parameter name).
 	weight_x_by : str or None, optional
 		Parameter to weight/normalize x-axis by.
 	"""
@@ -894,11 +894,11 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		figsize = (10, 9)
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by="width_ms", yname=yname)
+		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="l_var", weight_x_by="width_ms", yname=yname)
 		if show_plots:
 			plt.show()
 		if save:
-			name = make_plot_fname("lfrac", scale, fname, freq_window, phase_window)
+			name = make_plot_fname("l_var", scale, fname, freq_window, phase_window)
 			name = os.path.join(out_dir, name + "." + extension)
 			fig.savefig(name, bbox_inches='tight', dpi=600)
 			print(f"\nSaved figure to {name}  \n")
@@ -935,7 +935,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	if show_plots:
 		plt.show()
 	if save:
-		name = make_plot_fname("lfrac", scale, fname, freq_window, phase_window)
+		name = make_plot_fname("l_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, bbox_inches='tight', dpi=600)
 		print(f"Saved figure to {name}  \n")
@@ -950,8 +950,8 @@ pa_var = PlotMode(
 	requires_multiple_frb=True  
 )
 
-lfrac = PlotMode(
-	name="lfrac",
+l_var = PlotMode(
+	name="l_var",
 	process_func=process_lfrac,
 	plot_func=plot_lfrac_var,
 	requires_multiple_frb=True  
@@ -987,9 +987,9 @@ RM = PlotMode(
 
 plot_modes = {
 	"pa_var": pa_var,
+	"l_var": l_var,
 	"iquv": iquv,
 	"lvpa": lvpa,
 	"dpa": dpa,
 	"RM": RM,
-	"lfrac": lfrac,
 }
