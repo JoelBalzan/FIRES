@@ -203,10 +203,10 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
  
 	# Linear polarisation
 	I = np.nansum(dspec[0,:], axis=0)  # Stokes I
-	L = np.sqrt(np.nansum(dspec[1,:], axis=0)**2 + np.nansum(dspec[2,:], axis=0)**2)
 	Q = np.nansum(dspec[1,:], axis=0)  # Stokes Q
 	U = np.nansum(dspec[2,:], axis=0)  # Stokes U
 	V = np.nansum(dspec[3,:], axis=0)  # Stokes V
+	L = np.sqrt(Q**2 + U**2)
 	
 	if figsize is None:
 		figsize = (7, 9)
