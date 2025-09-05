@@ -76,8 +76,8 @@ def load_data(data, freq_mhz, time_ms):
 	
 		summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
 		summary = get_parameters(os.path.join(data, summary_file[0]))
-		cfreq_mhz = float(summary['cfreq'])
-		bw_mhz = float(summary['bw'])
+		cfreq_mhz = float(summary['centre_freq_frb'])
+		bw_mhz = CelebiNchan #float(summary['bw'])
 		freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
 
 		# Default time resolution in ms (3 microseconds) 
