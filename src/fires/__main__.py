@@ -83,13 +83,6 @@ def main():
 		help="Gaussian parameters for the simulated FRB."
 	)
 	parser.add_argument(
-		"--gparam",
-		action="append",
-		default=[],
-		metavar="KEY=VALUE",
-		help="Override a parameter in the gparams file (can be used multiple times). Use dotted keys for nesting, e.g., 'pulse.width_ms=0.2'."
-	)
-	parser.add_argument(
 		"--config-dir", 
 		type=str, 
 		help="Override user config dir (default: ~/.config/fires)"
@@ -278,79 +271,6 @@ def main():
 	override_gauss = args.gauss_params if args.gauss_params != gauss_params_path else None
 	resolved_obs   = str(cfg.find_config_file("obsparams", config_dir=args.config_dir, override_path=override_obs))
 	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir, override_path=override_gauss))
-
-# Apply gparam overrides if provided
-	if args.gparam:
-		ext = Path(resolved_gauss).suffix.lower()
-		def parse_value(raw):
-			try:
-				return ast.literal_eval(raw)
-			except Exception:
-				low = str(raw).lower()
-				if low in ("true", "false"):
-					return low == "true"
-				return raw
-		def set_dotted(d, dotted, value):
-			cur = d
-			parts = dotted.split(".")
-			for p in parts[:-1]:
-				if p not in cur or not isinstance(cur[p], dict):
-					cur[p] = {}
-				cur = cur[p]
-			cur[parts[-1]] = value
-		# Load
-		if ext in (".yml", ".yaml"):
-			try:
-				import yaml
-			except ImportError as e:
-				raise SystemExit("PyYAML is required to use --gparam with YAML gparams (pip install pyyaml)") from e
-			with open(resolved_gauss, "r") as f:
-				gcfg = yaml.safe_load(f) or {}
-		elif ext == ".toml":
-			try:
-				import tomllib  # type: ignore # py311+
-				with open(resolved_gauss, "rb") as f:
-					gcfg = tomllib.load(f)
-			except Exception:
-				try:
-					import toml
-					gcfg = toml.load(resolved_gauss)
-				except ImportError as e:
-					raise SystemExit("toml (or Python 3.11's tomllib) is required to use --gparam with TOML gparams (pip install toml)") from e
-		elif ext == ".json":
-			import json
-			with open(resolved_gauss, "r") as f:
-				gcfg = json.load(f)
-		else:
-			raise SystemExit(f"Unsupported gparams format '{ext}' for --gparam overrides. Use YAML, TOML, or JSON.")
-		# Apply overrides
-		for kv in args.gparam:
-			if "=" not in kv:
-				raise SystemExit(f"--gparam expects KEY=VALUE, got '{kv}'")
-			k, v = kv.split("=", 1)
-			set_dotted(gcfg, k.strip(), parse_value(v.strip()))
-		# Write temp file and use that
-		suffix = ext or ".yaml"
-		tf = tempfile.NamedTemporaryFile(prefix="fires_gparams_", suffix=suffix, delete=False)
-		tmp_path = tf.name
-		tf.close()
-		if ext in (".yml", ".yaml"):
-			import yaml
-			with open(tmp_path, "w") as f:
-				yaml.safe_dump(gcfg, f, sort_keys=False)
-		elif ext == ".toml":
-			try:
-				import toml
-				with open(tmp_path, "w") as f:
-					toml.dump(gcfg, f)
-			except ImportError:
-				raise SystemExit("toml is required to write TOML when using --gparam (pip install toml)")
-		else:  # json
-			import json
-			with open(tmp_path, "w") as f:
-				json.dump(gcfg, f, indent=2)
-		resolved_gauss = tmp_path
-		print(f"Using overridden gparams: {resolved_gauss}")
 
 
 	# Map long freq-window names to abbreviated forms
