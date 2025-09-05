@@ -121,6 +121,9 @@ solar_radius_cm			    =	6.957e10					#	Solar radius in cm
 astronomical_unit_cm	    =	1.496e13					#	1 AU in cm
 inch_to_cm				    =	2.54
 
+# CELEBI 
+Raw_time_res_ms		=	1.0e-3/336.0		#	Time resolution of Raw data files in ms
+CelebiNchan			=	336					#	Number of channels in CELEBI output files
 
 
 simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'dynamic_spectrum', 'dspec_params', 'snr'])
