@@ -54,84 +54,39 @@ def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 
 
 def load_data(data, freq_mhz, time_ms):
-    """
-    Load data from files with optional downsampling.
-    
-    Args:
-        data: Path to data directory or file
-        freq_mhz: Frequency array (will be updated if loading from directory)
-        time_ms: Time array (will be updated if loading from directory)
-        downsample_factor: Integer factor to downsample by (default: 1, no downsampling)
-    
-    Returns:
-        dspec: Dynamic spectrum array
-        freq_mhz: Updated frequency array
-        time_ms: Updated time array
-    """
-    print(f"Loading data from {data}...")
+	"""
+	Load data from files with optional downsampling.
+	
+	Args:
+		data: Path to data directory or file
+		freq_mhz: Frequency array (will be updated if loading from directory)
+		time_ms: Time array (will be updated if loading from directory)
+		downsample_factor: Integer factor to downsample by (default: 1, no downsampling)
+	
+	Returns:
+		dspec: Dynamic spectrum array
+		freq_mhz: Updated frequency array
+		time_ms: Updated time array
+	"""
+	print(f"Loading data from {data}...")
 
-    if isinstance(data, str):
-        if os.path.isdir(data):
-            # Expect exactly one file for each Stokes parameter: I, Q, U, V
-            stokes_labels = ['I', 'Q', 'U', 'V']
-            stokes_files = []
-            for s in stokes_labels:
-                # Find the file for this Stokes parameter
-                matches = [f for f in os.listdir(data) if s in f and f.endswith('.npy')]
-                
-                if len(matches) != 1:
-                    raise ValueError(f"Expected one file for Stokes {s}, found {len(matches)}")
-                
-                file_path = os.path.join(data, matches[0])
-                print(f"Stokes {s}: {matches[0]}")
-                stokes_files.append(file_path)
-            # Load and stack
-            arrs = [np.load(f) for f in stokes_files]  # each (nchan, ntime)
-            dspec = np.stack(arrs, axis=0)  # shape: (4, nchan, ntime)
-            
-            # Flip data vertically
-            dspec = np.flip(dspec, axis=1)
+	if isinstance(data, str):
+		dspec = np.load(data) if data.endswith('.npy') else None
+		dspec = np.flip(dspec, axis=1)
+	
+		summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
+		summary = get_parameters(os.path.join(data, summary_file[0]))
+		cfreq_mhz = float(summary['cfreq'])
+		bw_mhz = float(summary['bw'])
+		freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
 
-            summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
-            summary = get_parameters(os.path.join(data, summary_file[0]))
-            cfreq_mhz = float(summary['cfreq'])
-            bw_mhz = float(summary['bw'])
-            freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
+		# Default time resolution in ms (3 microseconds) 
+		time_res_ms = Raw_time_res_ms
+		time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
+		print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
+		
 
-            # Default time resolution in ms (3 microseconds) 
-            DEFAULT_TIME_RES_MS = 3e-6
-            time_res_ms = DEFAULT_TIME_RES_MS
-            time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
-            print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
-            
-        elif data.endswith('.pkl'):
-            with open(data, 'rb') as f:
-                dspec = pkl.load(f)['dspec']
-            # Flip data vertically
-            if dspec.ndim == 3:
-                dspec = np.flip(dspec, axis=1)
-            else:
-                dspec = np.flip(dspec, axis=0)
-
-        elif data.endswith('.npy'):
-            arr = np.load(data)
-            if arr.ndim == 2:
-                dspec = arr[np.newaxis, ...]  # shape: (1, nchan, ntime)
-                # Flip data vertically
-                dspec = np.flip(dspec, axis=1)
-            else:
-                dspec = arr
-                # Flip data vertically
-                if dspec.ndim == 3:
-                    dspec = np.flip(dspec, axis=1)
-                else:
-                    dspec = np.flip(dspec, axis=0)
-        else:
-            raise ValueError("Unsupported file format: only .pkl and .npy are supported")
-    else:
-        raise ValueError("Unsupported data type for 'data'")
-
-    return dspec, freq_mhz, time_ms
+	return dspec, freq_mhz, time_ms
 
 
 def load_multiple_data_grouped(data):
