@@ -13,12 +13,6 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Upgrade later:
-```bash
-git pull
-pip install -e .
-```
-
 ## Quickstart
 
 Show help:
