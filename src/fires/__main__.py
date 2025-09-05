@@ -284,33 +284,34 @@ def main():
 
 	# Parse scattering timescale(s)
 	# If multiple values (or a single comma-range), require pa_var/l_var
-	multi_requested = len(args.tau_ms) > 1 or any("," in v for v in args.tau_ms)
-
+	multi_requested = len(args.tau_ms) > 1 or any("," in str(v) for v in args.tau_ms)
+	
 	if multi_requested and not any(m in ("pa_var", "l_var") for m in args.plot):
 		parser.error("Multiple scattering timescales provided, but selected plot mode(s) do not support multiple values. "
 					 "Use 'pa_var' or 'l_var', or pass a single value to --tau_ms.")
-	elif multi_requested:
-		scattering_timescales = np.array([])
-		for value in args.tau_ms:
-			if "," in value:  # Check if it's a range (comma-separated)
-				try:
-					parts = value.split(",")
-					if len(parts) == 3:  # start,stop,step format
-						start, stop, step = map(float, parts)
-						range_values = np.arange(start, stop + step, step)  # Include the stop value
-						scattering_timescales = np.concatenate((scattering_timescales, range_values))  # Append to array
-					else:
-						# Multiple individual values separated by commas
-						values = list(map(float, parts))
-						scattering_timescales = np.concatenate((scattering_timescales, values))
-				except ValueError:
-					parser.error("Invalid range format for --tau_ms. Use 'start,stop,step' or comma-separated values.")
-			else:
-				scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
-
-		args.tau_ms = scattering_timescales
-	else:
+	
+	scattering_timescales = np.array([])
+	for value in args.tau_ms:
+		if isinstance(value, str) and "," in value:  # Check if it's a range (comma-separated)
+			try:
+				parts = value.split(",")
+				if len(parts) == 3:  # start,stop,step format
+					start, stop, step = map(float, parts)
+					range_values = np.arange(start, stop + step, step)  # Include the stop value
+					scattering_timescales = np.concatenate((scattering_timescales, range_values))  # Append to array
+				else:
+					# Multiple individual values separated by commas
+					values = list(map(float, parts))
+					scattering_timescales = np.concatenate((scattering_timescales, values))
+			except ValueError:
+				parser.error("Invalid range format for --tau_ms. Use 'start,stop,step' or comma-separated values.")
+		else:
+			scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
+	
+	if scattering_timescales.size == 0:
 		args.tau_ms = np.array([float(args.tau_ms[0])])  # Convert single value to array
+	else:
+		args.tau_ms = scattering_timescales
 
 	print(f"Scattering timescales: {args.tau_ms} ms \n")
 
