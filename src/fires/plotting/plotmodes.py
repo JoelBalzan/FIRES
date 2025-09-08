@@ -813,7 +813,7 @@ def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	U = iquvt[2]
 	V = iquvt[3]
  
-	_, left, right = boxcar_width(I, time_ms, frac=0.95)
+	left, right = boxcar_width(I, frac=0.95)
 	onpulse_mask = np.zeros(I.shape, dtype=bool)
 	onpulse_mask[left:right+1] = True  # Include on-pulse region
 

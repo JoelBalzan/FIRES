@@ -236,7 +236,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 
-	_, left, right = boxcar_width(I, time_ms, frac=0.95)
+	left, right = boxcar_width(I, frac=0.95)
 	axs[1].axvspan(time_ms[left], time_ms[right], color='lightskyblue', alpha=0.2, zorder=0)
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
