@@ -113,7 +113,7 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 	"""
 
 
-	_, left, right = boxcar_width(np.nansum(dynspec[0], axis=0), time_ms, frac=0.95)
+	left, right = boxcar_width(np.nansum(dynspec[0], axis=0), frac=0.95)
 
 	# Calculate the mean spectra for each Stokes parameter
 	ispec   = np.nansum(dynspec[0, :, left:right], axis=1)
@@ -393,7 +393,7 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict):
 
 	# Use Stokes I to find the on-pulse window
 	I = np.nansum(corrdspec[0], axis=0)
-	_, left, right = boxcar_width(I, time_ms, frac=0.95)
+	left, right = boxcar_width(I, frac=0.95)
 
 	# Estimate noise in each Stokes parameter using off-pulse region
 	offpulse_mask = np.ones(I.shape, dtype=bool)
@@ -414,7 +414,7 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict):
 
 
 
-def boxcar_width(profile, time_ms, frac=0.95):
+def boxcar_width(profile, frac=0.95):
 	"""
 	Find the minimum contiguous time window that contains a specified fraction of the total burst energy.
 	
@@ -422,8 +422,6 @@ def boxcar_width(profile, time_ms, frac=0.95):
 	-----------
 	profile : array_like
 		1D intensity profile (typically integrated over frequency)
-	time_ms : array_like  
-		Time axis corresponding to profile bins, in milliseconds
 	frac : float, optional
 		Fraction of total flux to enclose (default: 0.95 for 95%)
 		
@@ -436,7 +434,6 @@ def boxcar_width(profile, time_ms, frac=0.95):
 		- best_end: Ending index of optimal window
 	"""
 	prof = np.nan_to_num(np.squeeze(profile))
-	time_ms = np.squeeze(time_ms)
 	n = len(prof)
 	
 	# Target flux to enclose
@@ -463,8 +460,7 @@ def boxcar_width(profile, time_ms, frac=0.95):
 				min_width = width
 				best_start, best_end = start, end
 
-	width_ms = time_ms[best_end] - time_ms[best_start] if min_width < n else 0.0
-	return width_ms, best_start, best_end
+	return best_start, best_end
 
  
 def scatter_stokes_chan(chan, time_res_ms, tau_cms):
@@ -586,7 +582,7 @@ def snr_onpulse(profile, time_ms, frac=0.95):
 	Calculate S/N using the on-pulse window and off-pulse RMS.
 	"""
 	# Find on-pulse window
-	_, left, right = boxcar_width(profile, time_ms, frac=frac)
+	left, right = boxcar_width(profile, frac=frac)
 	onpulse = profile[left:right+1]
 	# Off-pulse mask
 	mask = np.ones_like(profile, dtype=bool)
