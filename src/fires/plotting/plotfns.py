@@ -183,7 +183,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension):
+def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension, legend, info):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -240,7 +240,6 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].axvspan(time_ms[left], time_ms[right], color='lightskyblue', alpha=0.2, zorder=0)
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
-	axs[1].legend(loc='upper right')
 	axs[1].set_ylabel("Flux Density [arb.]")
 	axs[1].yaxis.set_label_coords(-0.09, 0.5)  # Adjust y-label position
 	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
@@ -250,15 +249,6 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
 	else:
 		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}$" % (tau_ms[0])
-
-	axs[1].text(
-		0.82, 0.90,  # x, y in axes fraction coordinates 
-		axs_1_text,
-		ha='right', va='top',
-		transform=axs[1].transAxes,
-		color='black',
-		bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.2')
-	)
 
 
 	#mn = np.mean(dspec[0])
@@ -275,6 +265,18 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[2].set_ylabel("Freq. [MHz]")
 	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
 
+	if legend:
+		axs[1].legend(loc='upper right')
+
+	if info:
+		axs[1].text(
+		0.82, 0.90,  # x, y in axes fraction coordinates 
+		axs_1_text,
+		ha='right', va='top',
+		transform=axs[1].transAxes,
+		color='black',
+		bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.2')
+		)
 
 	if show_plots:
 		plt.show()

@@ -142,6 +142,7 @@ def main():
 		action="store_true",
 		help="Enable verbose output."
 	)
+
 	# Plotting Options
 	parser.add_argument(
 		"-p", "--plot",
@@ -203,6 +204,17 @@ def main():
   			 "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
 	  		)
 	)
+	parser.add_argument(
+		"--no-legend",
+		action="store_false",
+		help="Disable legends in plots."
+	)
+	parser.add_argument(
+		"--no-info",
+		action="store_false",
+		help="Disable info text in plots."
+	)
+
 	# Simulation Options
 	parser.add_argument(
 		"--data",
@@ -410,6 +422,8 @@ def main():
 						"freq_window" : args.freq_window,
 						"fit"         : args.fit,
 						"extension"   : args.extension,
+						"legend"      : args.no_legend,
+						"info"        : args.no_info,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
