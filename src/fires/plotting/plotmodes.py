@@ -115,7 +115,7 @@ class PlotMode:
 		
 
 # --------------------------	Plot modes definitions	---------------------------
-def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, show_plots, extension):
+def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, show_plots, extension, legend, info):
 	"""
 	Call basic plot functions
 	"""
@@ -131,14 +131,14 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, sh
 	snr = frb_data.snr
 	
 	if mode == "all":
-		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension)
+		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, legend, info)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 	elif mode == "lvpa":
-		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension)
+		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, legend, info)
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 	elif mode == "RM":
@@ -610,7 +610,7 @@ def print_avg_snrs(subdict):
 		
 
 
-def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None):
+def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, legend=True):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 
@@ -668,7 +668,8 @@ def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight
 		print_avg_snrs(subdict)
 
 	ax.grid(True, linestyle='--', alpha=0.6)
-	ax.legend()
+	if legend:
+		ax.legend()
 	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 
 
@@ -693,7 +694,7 @@ def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension):
+def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
 	"""
 	Plot the variance of the polarization angle (PA) as a function of scattering parameters.
 	
@@ -746,7 +747,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	# If frb_dict contains multiple runs, plot each on the same axes
 	if is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="var_PA", weight_x_by="width_ms", yname=yname)
+		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="var_PA", weight_x_by="width_ms", yname=yname, legend=legend)
 		if show_plots:
 			plt.show()
 		if save:
