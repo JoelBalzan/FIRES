@@ -32,10 +32,10 @@ plt.rcParams['savefig.dpi'] 	= 600
 plt.rcParams['font.family']		= 'sans-serif'  
 plt.rcParams['text.usetex'] 	= True
 
-plt.rcParams['font.size'] 		= 14
+plt.rcParams['font.size'] 		= 20
 plt.rcParams['axes.labelsize']  = 20
 plt.rcParams['axes.titlesize']  = 20
-plt.rcParams['legend.fontsize'] = 14
+plt.rcParams['legend.fontsize'] = 20
 plt.rcParams['xtick.labelsize'] = 20
 plt.rcParams['ytick.labelsize'] = 20
 
