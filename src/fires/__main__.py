@@ -341,7 +341,8 @@ def main():
 
 	try:
 		if selected_plot_mode.requires_multiple_frb:
-			print(f"Processing with {args.ncpu} threads. \n")
+			if args.data is None:
+				print(f"Processing with {args.ncpu} threads. \n")
    
 			frb_dict = generate_frb(
 				data         = args.data,
