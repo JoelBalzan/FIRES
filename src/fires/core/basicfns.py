@@ -207,84 +207,77 @@ def est_profiles(dynspec, noise_stokes, left, right):
 
 		iquvt = np.nansum(dynspec, axis=1)
 
-		itsub = iquvt[0]
-		qtsub = iquvt[1]
-		utsub = iquvt[2]
-		vtsub = iquvt[3]
+		Its = iquvt[0]
+		Qts = iquvt[1]
+		Uts = iquvt[2]
+		Vts = iquvt[3]
+
+		Its_rms = noise_stokes[0]
+		Qts_rms = noise_stokes[1]
+		Uts_rms = noise_stokes[2]
+		Vts_rms = noise_stokes[3]
 		
 		# Calculate the linear polarization intensity
-		lts  = np.sqrt(utsub ** 2 + qtsub ** 2)			
-		elts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2) / lts
-		# Calculate the total polarization intensity
-		pts  = np.sqrt(lts ** 2 + vtsub ** 2)
-		epts = np.sqrt((qtsub * noise_stokes[1]) ** 2 + (utsub * noise_stokes[2]) ** 2 + (vtsub * noise_stokes[3]) ** 2) / pts
-  
-		# Calculate the polarization angles
-		phits  = np.rad2deg(0.5 * np.arctan2(utsub, qtsub))
-		dphits = np.rad2deg(0.5 * np.sqrt((utsub * noise_stokes[1]) ** 2 + (qtsub * noise_stokes[2]) ** 2) / (utsub ** 2 + qtsub ** 2))
-		psits  = np.rad2deg(0.5 * np.arctan2(vtsub, lts))
-		dpsits = np.rad2deg(0.5 * np.sqrt((vtsub * elts) ** 2 + (lts * noise_stokes[3]) ** 2) / (vtsub ** 2 + lts ** 2))
-  
+		Lts  = np.sqrt(Uts ** 2 + Qts ** 2)
+		eps = 1e-12
 		
+		# Debias L using Everett & Weisberg+2001 method
+		Lts_true = np.sqrt((Lts/Its_rms)**2 - 1*Its_rms)
+		Lts_true[np.isnan(Lts_true)] = 0.0
+		Lts_true[Lts/Its_rms < 1.57] = 0.0
+
+		eLts = np.sqrt((Qts**2 * Qts_rms**2) + (Uts**2 * Uts_rms**2)) / np.maximum(Lts_true, eps)
+		Lmask = Lts_true != 0.0
+		eLts[~Lmask] = np.nan
+		Lts_true[~Lmask] = np.nan
+		
+		# Calculate the total polarization intensity
+		Pts  = np.sqrt(Lts ** 2 + Vts ** 2)
+		# Correct error propagation for P = sqrt(L^2 + V^2)
+		ePts = np.sqrt((Lts**2 * eLts**2) + (Vts**2 * Vts_rms**2)) / np.maximum(Pts, eps)
+
+		# Calculate the polarization angles
+		phits  = np.rad2deg(0.5 * np.arctan2(Uts, Qts))
+		ephits = np.rad2deg(0.5 * np.sqrt(Uts**2 * Qts_rms**2 + Qts**2 * Uts_rms**2) / np.maximum(Uts**2 + Qts**2, eps))
+		psits  = np.rad2deg(0.5 * np.arctan2(Vts, Lts))
+		epsits = np.rad2deg(0.5 * np.sqrt(Vts**2 * eLts**2 + Lts**2 * Vts_rms**2) / np.maximum(Vts**2 + Lts**2, eps))
+
 		
 		# Calculate the fractional polarizations
-		qfrac = qtsub / itsub
-		ufrac = utsub / itsub
-		vfrac = vtsub / itsub
-  
-		lfrac = lts / itsub
-		pfrac = pts / itsub		
-  
+		qfrac = Qts / Its
+		ufrac = Uts / Its
+		vfrac = Vts / Its
+
+		lfrac = Lts / Its
+		pfrac = Pts / Its
+
 		# Calculate the errors in fractional polarizations
-		evfrac = np.abs(vfrac) * np.sqrt((noise_stokes[3] / vtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		eqfrac = np.abs(qfrac) * np.sqrt((noise_stokes[1] / qtsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		eufrac = np.abs(ufrac) * np.sqrt((noise_stokes[2] / utsub) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		elfrac = np.abs(lfrac) * np.sqrt((elts / lts) ** 2 + (noise_stokes[0] / itsub) ** 2)
-		epfrac = np.abs(pfrac) * np.sqrt((epts / pts) ** 2 + (noise_stokes[0] / itsub) ** 2)  
-  
-  
+		evfrac = np.abs(vfrac) * np.sqrt((Vts_rms / Vts) ** 2 + (Its_rms / Its) ** 2)
+		eqfrac = np.abs(qfrac) * np.sqrt((Qts_rms / Qts) ** 2 + (Its_rms / Its) ** 2)
+		eufrac = np.abs(ufrac) * np.sqrt((Uts_rms / Uts) ** 2 + (Its_rms / Its) ** 2)
+		elfrac = np.abs(lfrac) * np.sqrt((eLts / Lts) ** 2 + (Its_rms / Its) ** 2)
+		epfrac = np.abs(pfrac) * np.sqrt((ePts / Pts) ** 2 + (Its_rms / Its) ** 2)
+
+
+
+
+
 		# Set large errors to NaN
-		mask = itsub < noise_stokes[0]
+		mask = Lts_true < (1.0 * Its_rms)  # Mask where L is less than 2-sigma
 		phits[mask]  = np.nan
-		dphits[mask] = np.nan
+		ephits[mask] = np.nan
 		psits[mask]  = np.nan
-		dpsits[mask] = np.nan
+		epsits[mask] = np.nan
 
-		# Mask PA where linear polarization is not significant
-		lts_noise = np.sqrt(noise_stokes[1]**2 + noise_stokes[2]**2)
-		snr_L = lts / lts_noise
-		
-		#Use median + N*MAD (Median Absolute Deviation) for robustness
-		valid_snr = snr_L[~np.isnan(snr_L) & ~np.isinf(snr_L)]
-		if len(valid_snr) > 0:
-			#median_snr = np.nanmedian(valid_snr)
-			#mad_snr = np.nanmedian(np.abs(valid_snr - median_snr))
-			#snr_threshold = median_snr + 2.0 * mad_snr  # 2-sigma equivalent
-			
-			# use percentile-based threshold
-			#snr_threshold = np.nanpercentile(valid_snr, 75)  # 75th percentile
-			
-			# scale with peak SNR
-			peak_snr = np.nanmax(valid_snr)
-			snr_threshold = 0.03 * peak_snr  # 3% of peak SNR
 
-			# Ensure minimum threshold to avoid noise
-			snr_threshold = max(snr_threshold, 3.0)
-		else:
-			snr_threshold = 5.0  # Fallback if no valid SNR values
-			
-		low_snr_mask = snr_L < snr_threshold
-		phits[low_snr_mask] = np.nan
-		dphits[low_snr_mask] = np.nan
-  
 		# Mask PA outside all signal windows using on-pulse finder
 		pa_mask = np.zeros_like(phits, dtype=bool)
 		pa_mask[left:right+1] = True
 		phits[~pa_mask] = np.nan
-		dphits[~pa_mask] = np.nan
+		ephits[~pa_mask] = np.nan
 
 		# Return the time profiles as a frb_time_series object
-	return frb_time_series(iquvt, lts, elts, pts, epts, phits, dphits, psits, dpsits, qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac)
+	return frb_time_series(iquvt, Lts, eLts, Pts, ePts, phits, ephits, psits, epsits, qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac)
 
 
 def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
@@ -327,9 +320,9 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 	# Calculate the noise for each Stokes parameter
 	noispec0 = noisespec / np.sqrt(float(right_window_ms + 1 - left_window_ms))
 	lspec  = np.sqrt(uspec ** 2 + qspec ** 2)
-	dlspec = np.sqrt((uspec * noispec0[2]) ** 2 + (qspec * noispec0[1]) ** 2) / lspec
+	dlspec = np.sqrt((uspec * noispec0[2]) ** 2 + (qspec * noispec0[1]) ** 2) / np.maximum(lspec, 1e-12)
 	pspec  = np.sqrt(lspec ** 2 + vspec ** 2)
-	dpspec = np.sqrt((vspec * dlspec) ** 2 + (lspec * noispec0[3]) ** 2) / pspec
+	dpspec = np.sqrt((lspec * dlspec) ** 2 + (vspec * noispec0[3]) ** 2) / np.maximum(pspec, 1e-12)
 
 	# Calculate the fractional polarizations
 	qfracspec = qspec / ispec
@@ -348,10 +341,10 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 
 	# Calculate the polarization angles
 	phispec  = np.rad2deg(0.5 * np.arctan2(uspec, qspec))		
-	dphispec = np.rad2deg(0.5 * np.sqrt((uspec * noispec0[1]) ** 2 + (qspec * noispec0[2]) ** 2) / (uspec ** 2 + qspec ** 2))
+	dphispec = np.rad2deg(0.5 * np.sqrt(uspec**2 * noispec0[1]**2 + qspec**2 * noispec0[2]**2) / np.maximum(uspec ** 2 + qspec ** 2, 1e-12))
 
 	psispec  = np.rad2deg(0.5 * np.arctan2(vspec, lspec))		
-	dpsispec = np.rad2deg(0.5 * np.sqrt((vspec * dlspec) ** 2 + (lspec * noispec0[2]) ** 2) / (vspec ** 2 + lspec ** 2))
+	dpsispec = np.rad2deg(0.5 * np.sqrt(vspec**2 * noispec0[3]**2 + lspec**2 * dlspec**2) / np.maximum(vspec ** 2 + lspec ** 2, 1e-12))
 
 	# Return the spectra as a frb_spectrum object
 	return frb_spectrum(iquvspec, noispec0, lspec, dlspec, pspec, dpspec, qfracspec, dqfrac, ufracspec, dufrac, vfracspec, dvfrac, lfracspec, dlfrac, pfracspec, dpfrac, phispec, dphispec, psispec, dpsispec)
