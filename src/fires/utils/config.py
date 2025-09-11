@@ -4,7 +4,8 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
+from datetime import datetime
 
 from platformdirs import AppDirs
 from importlib import resources
@@ -35,17 +36,44 @@ def default_package_path(kind: str) -> Optional[Path]:
             continue
     return None
 
-def ensure_user_config() -> Path:
+def ensure_user_config(update: bool = False, backup: bool = True) -> Path:
+    """
+    Ensure user config directory exists and contains default config files.
+
+    Parameters:
+        update: If True, always copy (overwrite) current package versions into the user config dir.
+        backup: If True and overwriting, create a timestamped .bak copy of the existing file.
+
+    Returns:
+        Path to the user config directory.
+    """
     cfg_dir = user_config_dir()
     cfg_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     for kind, _candidates in DEFAULT_FILES.items():
         pkg = default_package_path(kind)
         if not pkg:
             continue
         target = cfg_dir / pkg.name
-        if not target.exists():
+        if target.exists():
+            if update:
+                if backup:
+                    bak = target.with_suffix(target.suffix + f".{timestamp}.bak")
+                    try:
+                        shutil.copy2(target, bak)
+                    except Exception:
+                        pass
+                shutil.copy2(pkg, target)
+        else:
             shutil.copy2(pkg, target)
     return cfg_dir
+
+def init_user_config(overwrite: bool = True, backup: bool = True) -> Path:
+    """
+    Public helper for CLI --init-config.
+    overwrite=True forces sync from packaged defaults.
+    """
+    return ensure_user_config(update=overwrite, backup=backup)
 
 def _coerce(s: str) -> Any:
     sl = s.lower()
