@@ -66,10 +66,6 @@ Notes
 
 ## Command-line options (core)
 
-- `-t, --tau_ms <values>`: Scattering time(s) in ms. Accepts:
-  - Single: `-t 0.5`
-  - List: `-t 0.1 0.3 1.0` (only for *_var plots)
-  - Range: `-t 0.1,2.0,0.1` (start,stop,step)
 - `-f, --frb_identifier <str>`: Simulation identifier.
 - `-o, --obs_params <file>`: Path to observation parameters (TOML or legacy TXT).
 - `-g, --gauss_params <file>`: Path to Gaussian/micro-shot parameters (TOML or legacy TXT).
