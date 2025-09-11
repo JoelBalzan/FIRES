@@ -149,7 +149,7 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 		print(f"Invalid mode: {mode} \n")
 
 
-def get_freq_window_indices(freq_mhz, freq_window):
+def _apply_faraday_rotation(freq_mhz, freq_window):
 	q = int(len(freq_mhz) / 4)
 	windows = {
 		"lowest-quarter": slice(0, q),
@@ -160,7 +160,7 @@ def get_freq_window_indices(freq_mhz, freq_window):
 	}
 	return windows.get(freq_window, None)
 
-def get_phase_window_indices(phase_window, peak_index):
+def _get_phase_window_indices(phase_window, peak_index):
 	"""
 	Returns a slice object for the desired phase window.
 	"""
@@ -173,7 +173,7 @@ def get_phase_window_indices(phase_window, peak_index):
 
 
 
-def median_percentiles(yvals, x, ndigits=3):
+def _median_percentiles(yvals, x, ndigits=3):
 	"""
 	Calculate median values and percentile-based error bars from grouped data.
 
@@ -213,7 +213,7 @@ def median_percentiles(yvals, x, ndigits=3):
 	return med_vals, percentile_errs
 
 
-def weight_dict(xvals, yvals, weight_params, weight_by=None):
+def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 	"""
 	Normalize values in yvals by weights from weight_params for a specific variable or by any parameter.
 
@@ -254,8 +254,8 @@ def weight_dict(xvals, yvals, weight_params, weight_by=None):
 			
 		for var in xvals:
 			y_values = yvals.get(var, [])
-			var_weight_dict = weight_params.get(var, {})
-			weights = var_weight_dict.get(weight_by, [])
+			var__weight_dict = weight_params.get(var, {})
+			weights = var__weight_dict.get(weight_by, [])
 
 			if y_values and weights and len(y_values) == len(weights):
 				normalized_vals[var] = [
@@ -295,7 +295,7 @@ def weight_dict(xvals, yvals, weight_params, weight_by=None):
 	return normalized_vals
 	
 
-def set_scale_and_labels(ax, scale, xname, yname, x=None):
+def _set_scale_and_labels(ax, scale, xname, yname, x=None):
 	# Set labels (same for all scales now)
 	ax.set_xlabel(rf"${xname}$")
 	ax.set_ylabel(rf"${yname}$")
@@ -326,7 +326,7 @@ def set_scale_and_labels(ax, scale, xname, yname, x=None):
 					ax.set_xlim(center - margin, center + margin)
 
 
-def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
+def _make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
 	"""
 	Generate a plot filename with freq/phase window at the front if not 'all'.
 	"""
@@ -337,14 +337,14 @@ def make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="al
 	return "_".join(parts)
 
 
-def is_multi_run_dict(frb_dict):
+def _is_multi_run_dict(frb_dict):
 	"""
 	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'tau_ms' keys).
 	"""
 	return all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
 
 
-def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'):
+def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'):
 	"""
 	Fit the data (x, y) with the specified function and plot the fit on ax.
 	"""
@@ -353,46 +353,46 @@ def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black')
 	y = np.asarray(y)
 	
 	
-	def power_law(x, a, n): 
+	def _power_law(x, a, n): 
 		return a * x**n
-	def power_fixed_n(x, a): 
+	def _power_fixed_n(x, a): 
 		return a * x**fit_degree
-	def broken_power_law(x, a, n1, n2, x_break): 
+	def _broken_power_law(x, a, n1, n2, x_break): 
 		return np.where(x < x_break, a * x**n1, a * x_break**(n1-n2) * x**n2)
-	def exponential(x, a, b): 
+	def _exponential(x, a, b): 
 		return a * np.exp(b * x)
 
-	def fit_power_fixed_n(x_fit, y_fit):
-		popt, _ = curve_fit(power_fixed_n, x_fit, y_fit, p0=[np.max(y_fit)])
-		y_model = power_fixed_n(x_fit, *popt)
+	def _fit_power_fixed_n(x_fit, y_fit):
+		popt, _ = curve_fit(_power_fixed_n, x_fit, y_fit, p0=[np.max(y_fit)])
+		y_model = _power_fixed_n(x_fit, *popt)
 		return y_model, f"Power (n={fit_degree})"
 	
-	def fit_power_law(x_fit, y_fit):
-		popt, _ = curve_fit(power_law, x_fit, y_fit, p0=[np.max(y_fit), 1])
-		y_model = power_law(x_fit, *popt)
+	def _fit_power_law(x_fit, y_fit):
+		popt, _ = curve_fit(_power_law, x_fit, y_fit, p0=[np.max(y_fit), 1])
+		y_model = _power_law(x_fit, *popt)
 		return y_model, f"Power (n={popt[1]:.2f})"
 	
-	def fit_exponential(x_fit, y_fit):
-		popt, _ = curve_fit(exponential, x_fit, y_fit, p0=[np.max(y_fit), -1])
-		y_model = exponential(x_fit, *popt)
+	def _fit_exponential(x_fit, y_fit):
+		popt, _ = curve_fit(_exponential, x_fit, y_fit, p0=[np.max(y_fit), -1])
+		y_model = _exponential(x_fit, *popt)
 		return y_model, f"Exp (b={popt[1]:.2f})"
 	
-	def fit_linear(x_fit, y_fit):
+	def _fit_linear(x_fit, y_fit):
 		popt = np.polyfit(x_fit, y_fit, 1)
 		y_model = np.polyval(popt, x_fit)
 		return y_model, f"Linear (m={popt[0]:.2f})"
 	
-	def fit_constant(x_fit, y_fit):
+	def _fit_constant(x_fit, y_fit):
 		popt = np.mean(y_fit)
 		y_model = np.full_like(x_fit, popt)
 		return y_model, f"Const ({popt:.2f})"
 	
-	def fit_poly(x_fit, y_fit):
+	def _fit_poly(x_fit, y_fit):
 		popt = np.polyfit(x_fit, y_fit, fit_degree)
 		y_model = np.polyval(popt, x_fit)
 		return y_model, f"Poly (deg={fit_degree})"
 	
-	def fit_log(x_fit, y_fit):
+	def _fit_log(x_fit, y_fit):
 		if np.any(x_fit <= 0):
 			print("Log fit requires positive x values. Skipping fit.")
 			return None, None
@@ -400,23 +400,23 @@ def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black')
 		y_model = np.polyval(popt, np.log10(x_fit))
 		return y_model, f"Log (m={popt[0]:.2f})"
 	
-	def fit_broken_power_law(x_fit, y_fit):
+	def _fit_broken_power_law(x_fit, y_fit):
 		p0 = [np.max(y_fit), 1, 0, np.median(x_fit)]
 		bounds = ([0, -np.inf, -np.inf, np.min(x_fit)], [np.inf, np.inf, np.inf, np.max(x_fit)])
-		popt, _ = curve_fit(broken_power_law, x_fit, y_fit, p0=p0, bounds=bounds)
-		y_model = broken_power_law(x_fit, *popt)
+		popt, _ = curve_fit(_broken_power_law, x_fit, y_fit, p0=p0, bounds=bounds)
+		y_model = _broken_power_law(x_fit, *popt)
 		return y_model, (f"Broken power\n"
 				  		 r"$(n_1={:.2f},\ n_2={:.2f},\ x_b={:.2f})$".format(popt[1], popt[2], popt[3]))
 
 	fit_handlers = {
-		"power_fixed_n": fit_power_fixed_n,
-		"power": fit_power_law if fit_degree is None else fit_power_fixed_n,
-		"exp": fit_exponential,
-		"linear": fit_linear,
-		"constant": fit_constant,
-		"poly": fit_poly,
-		"log": fit_log,
-		"broken-power": fit_broken_power_law
+		"power_fixed_n": _fit_power_fixed_n,
+		"power": _fit_power_law if fit_degree is None else _fit_power_fixed_n,
+		"exp": _fit_exponential,
+		"linear": _fit_linear,
+		"constant": _fit_constant,
+		"poly": _fit_poly,
+		"log": _fit_log,
+		"broken-power": _fit_broken_power_law
 	}
 
 	# Remove NaNs and non-positive x for log fits
@@ -441,7 +441,7 @@ def fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black')
 
 
 
-def weight_x_get_xname(frb_dict, weight_x_by=None):
+def _weight_x_get_xname(frb_dict, weight_x_by=None):
 	"""
 	Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
 	Now supports any intrinsic parameter or variation parameter with flexible weighting.
@@ -506,7 +506,7 @@ def weight_x_get_xname(frb_dict, weight_x_by=None):
 	return x, xname
 
 
-def get_weighted_y_name(yname, weight_y_by):
+def _get_weighted_y_name(yname, weight_y_by):
 	"""
 	Get LaTeX formatted y-axis name based on the weighting parameter and plot type.
 	
@@ -538,7 +538,7 @@ def get_weighted_y_name(yname, weight_y_by):
 	return "Y"  # Default fallback
 
 
-def parse_fit_arg(fit_item):
+def _parse_fit_arg(fit_item):
 	"""
 	Parse a fit argument string like 'poly,2' or 'poly' into (fit_type, fit_degree).
 	"""
@@ -574,7 +574,7 @@ def parse_fit_arg(fit_item):
 		return None, None
 
 
-def print_avg_snrs(subdict):
+def _print_avg_snrs(subdict):
 	snrs = subdict.get("snrs", [])
 	# Handle dict or list
 	if isinstance(snrs, dict):
@@ -612,7 +612,7 @@ def print_avg_snrs(subdict):
 		
 
 
-def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, legend=True):
+def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, legend=True):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 
@@ -638,7 +638,7 @@ def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight
 		Parameter to weight/normalize x-axis by.
 	"""
 	 # Determine y-axis name if not provided
-	yname = get_weighted_y_name(yname, weight_y_by)
+	yname = _get_weighted_y_name(yname, weight_y_by)
 
 	colour_list = list(colours.values())
 	for idx, (run, subdict) in enumerate(frb_dict.items()):
@@ -649,11 +649,11 @@ def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight
 		yvals = subdict["yvals"]
 		var_params = subdict["var_params"]
   
-		y = weight_dict(xvals, yvals, var_params, weight_by=weight_y_by)
-		med_vals, percentile_errs = median_percentiles(y, xvals)
+		y = _weight_dict(xvals, yvals, var_params, weight_by=weight_y_by)
+		med_vals, percentile_errs = _median_percentiles(y, xvals)
 
 		# Use flexible weighting for x-values
-		x, xname = weight_x_get_xname(subdict, weight_x_by=weight_x_by)
+		x, xname = _weight_x_get_xname(subdict, weight_x_by=weight_x_by)
 		lower = np.array([lower for (lower, upper) in percentile_errs])
 		upper = np.array([upper for (lower, upper) in percentile_errs])
 
@@ -661,31 +661,31 @@ def plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight
 		ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
 		if fit is not None:
 			if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
-				fit_type, fit_degree = parse_fit_arg(fit[idx])
+				fit_type, fit_degree = _parse_fit_arg(fit[idx])
 			else:
-				fit_type, fit_degree = parse_fit_arg(fit)
-			fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
+				fit_type, fit_degree = _parse_fit_arg(fit)
+			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
 		else:
 			print("No fit provided, skipping fit plotting.")
-		print_avg_snrs(subdict)
+		_print_avg_snrs(subdict)
 
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if legend:
 		ax.legend()
-	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 
 
 
-def process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
+def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
-	slc = get_freq_window_indices(freq_mhz, freq_window)
+	slc = _apply_faraday_rotation(freq_mhz, freq_window)
 	freq_mhz = freq_mhz[slc]
 	dspec = dspec[:, slc, :]
 		
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, time_ms, gdict)
 	
 	peak_index = np.argmax(ts_data.iquvt[0])
-	phase_slc = get_phase_window_indices(phase_window, peak_index)
+	phase_slc = _get_phase_window_indices(phase_window, peak_index)
 
 	phits = ts_data.phits[phase_slc]
 	dphits = ts_data.dphits[phase_slc]
@@ -747,13 +747,13 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	if figsize is None:
 		figsize = (10, 9)
 	# If frb_dict contains multiple runs, plot each on the same axes
-	if is_multi_run_dict(frb_dict):
+	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="var_PA", weight_x_by="width_ms", yname=yname, legend=legend)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="var_PA", weight_x_by="width_ms", yname=yname, legend=legend)
 		if show_plots:
 			plt.show()
 		if save:
-			name = make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
+			name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 			name = os.path.join(out_dir, name + "." + extension)
 			fig.savefig(name, bbox_inches='tight', dpi=600)
 			print(f"\nSaved figure to {name}  \n")
@@ -763,14 +763,12 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	xvals = frb_dict["xvals"]
 	yvals = frb_dict["yvals"]
 	var_params = frb_dict["var_params"]
-	dspec_params = frb_dict["dspec_params"]
-	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
 	# Use correct weighting key name
-	y = weight_dict(xvals, yvals, var_params, "var_PA")
-	med_vals, percentile_errs = median_percentiles(y, xvals)
+	y = _weight_dict(xvals, yvals, var_params, "var_PA")
+	med_vals, percentile_errs = _median_percentiles(y, xvals)
  
-	x, xname = weight_x_get_xname(frb_dict, weight_x_by="width_ms")
+	x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
  
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
@@ -781,29 +779,29 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if fit is not None:
 		# Parse fit argument for type/degree
-		fit_type, fit_degree = parse_fit_arg(fit)
-		fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
+		fit_type, fit_degree = _parse_fit_arg(fit)
+		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 		ax.legend()
-	yname = get_weighted_y_name(r"Var($\psi$)", "var_PA")
-	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+	yname = _get_weighted_y_name(r"Var($\psi$)", "var_PA")
+	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
-		name = make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
+		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, bbox_inches='tight', dpi=600)
 		print(f"Saved figure to {name}  \n")
 
 
-def process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
+def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
 	if freq_window != "full-band":
-		freq_slc = get_freq_window_indices(freq_mhz, freq_window)
+		freq_slc = _apply_faraday_rotation(freq_mhz, freq_window)
 		freq_mhz = freq_mhz[freq_slc]
 		dspec = dspec[:, freq_slc, :]
 	if phase_window != "total":
 		peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
-		phase_slc = get_phase_window_indices(phase_window, peak_index)
+		phase_slc = _get_phase_window_indices(phase_window, peak_index)
 		time_ms = time_ms[phase_slc]
 		dspec = dspec[:, :, phase_slc]
 
@@ -895,13 +893,13 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 
 	if figsize is None:
 		figsize = (10, 9)
-	if is_multi_run_dict(frb_dict):
+	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="l_var", weight_x_by="width_ms", yname=yname)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="l_var", weight_x_by="width_ms", yname=yname)
 		if show_plots:
 			plt.show()
 		if save:
-			name = make_plot_fname("l_var", scale, fname, freq_window, phase_window)
+			name = _make_plot_fname("l_var", scale, fname, freq_window, phase_window)
 			name = os.path.join(out_dir, name + "." + extension)
 			fig.savefig(name, bbox_inches='tight', dpi=600)
 			print(f"\nSaved figure to {name}  \n")
@@ -915,11 +913,11 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	width_ms = np.array(dspec_params[0]["width_ms"])[0]
  
 	# No weighting for L/I by default (use raw values)
-	y = weight_dict(xvals, yvals, var_params, None)
-	med_vals, percentile_errs = median_percentiles(y, xvals)
+	y = _weight_dict(xvals, yvals, var_params, None)
+	med_vals, percentile_errs = _median_percentiles(y, xvals)
  
 	# Fix: pass parameter name, not a numeric value
-	x, xname = weight_x_get_xname(frb_dict, weight_x_by="width_ms")
+	x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
  
@@ -929,16 +927,16 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if fit is not None:
 		# Parse fit argument for type/degree
-		fit_type, fit_degree = parse_fit_arg(fit)
-		fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
+		fit_type, fit_degree = _parse_fit_arg(fit)
+		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 		ax.legend()
 	# Proper y-axis label
-	yname = get_weighted_y_name(r"L/I", None)
-	set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+	yname = _get_weighted_y_name(r"L/I", None)
+	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
-		name = make_plot_fname("l_var", scale, fname, freq_window, phase_window)
+		name = _make_plot_fname("l_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, bbox_inches='tight', dpi=600)
 		print(f"Saved figure to {name}  \n")
@@ -948,14 +946,14 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 
 pa_var = PlotMode(
 	name="pa_var",
-	process_func=process_pa_var,
+	process_func=_process_pa_var,
 	plot_func=plot_pa_var,
 	requires_multiple_frb=True  
 )
 
 l_var = PlotMode(
 	name="l_var",
-	process_func=process_lfrac,
+	process_func=_process_lfrac,
 	plot_func=plot_lfrac_var,
 	requires_multiple_frb=True  
 )

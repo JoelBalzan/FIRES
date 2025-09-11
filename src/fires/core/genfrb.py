@@ -31,7 +31,7 @@ from ..utils.utils import *
 
 
 
-def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
+def _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 	"""
 	Scatter all Stokes channels of a loaded dynamic spectrum.
 	Args:
@@ -53,7 +53,7 @@ def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 	return dspec_scattered
 
 
-def load_data(frb_id, data, freq_mhz, time_ms):
+def _load_data(frb_id, data, freq_mhz, time_ms):
 	"""
 	Load data from files with optional downsampling.
 	
@@ -84,7 +84,7 @@ def load_data(frb_id, data, freq_mhz, time_ms):
 	return dspec, freq_mhz, time_ms
 
 
-def load_multiple_data_grouped(data):
+def _load_multiple_data_grouped(data):
 	"""
 	Group simulation outputs by freq and phase info (everything after freq_ and phase_).
 	Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
@@ -168,7 +168,7 @@ def load_multiple_data_grouped(data):
 	return all_results
 
 
-def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
+def _generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	"""Generate dynamic spectrum based on mode."""
 	var = var if plot_multiple_frb else None
 
@@ -194,7 +194,7 @@ def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 		return gauss_dynspec(**params_filtered, plot_multiple_frb=plot_multiple_frb)
 
 
-def process_task(task, xname, mode, plot_mode, **params):
+def _process_task(task, xname, mode, plot_mode, **params):
 	"""
 	Process a single task (combination of timescale and realization).
 	Dynamically uses the provided process_func for mode-specific processing.
@@ -206,7 +206,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
-	dspec, snr, var_params = generate_dynspec(
+	dspec, snr, var_params = _generate_dynspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -323,10 +323,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 	if plot_multiple_frb == False:
 		
 		if data != None:
-			dspec, freq_mhz, time_ms = load_data(frb_id, data, freq_mhz, time_ms)
+			dspec, freq_mhz, time_ms = _load_data(frb_id, data, freq_mhz, time_ms)
 			snr = snr_onpulse(np.nansum(dspec[0], axis=0), time_ms, frac=0.95)  
 			if tau_ms[0] > 0:
-				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
+				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if tsys > 0:
 				dspec, snr = add_noise(dynspec=dspec, t_sys=tsys, f_res=f_res, t_res=t_res, 
 													time_ms=time_ms, plot_multiple_frb=plot_multiple_frb)
@@ -335,7 +335,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
 
 		else:
-			dspec, snr, _ = generate_dynspec(
+			dspec, snr, _ = _generate_dynspec(
 			xname=None,
 			mode=mode,
 			var=None,
@@ -366,7 +366,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 		if data != None:
 			files = [f for f in os.listdir(data) if f.endswith('.pkl')]
 			if len(files) > 1:
-				frb_dict = load_multiple_data_grouped(data)
+				frb_dict = _load_multiple_data_grouped(data)
 			elif len(files) == 1:
 				with open(os.path.join(data, files[0]), 'rb') as f:
 					frb_dict = pkl.load(f)
@@ -432,7 +432,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 
 				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 					partial_func = functools.partial(
-						process_task,
+						_process_task,
 						xname=xname,
 						mode=mode,
 						plot_mode=plot_mode,
