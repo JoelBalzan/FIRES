@@ -238,9 +238,9 @@ def est_profiles(dynspec, noise_stokes, left, right):
 
 		# Calculate the polarization angles
 		phits  = np.rad2deg(0.5 * np.arctan2(Uts, Qts))
-		ephits = np.rad2deg(0.5 * np.sqrt(Uts**2 * Qts_rms**2 + Qts**2 * Uts_rms**2) / np.maximum(Uts**2 + Qts**2, eps))
+		ephits = np.rad2deg(0.5 * np.sqrt(Uts**2 * Qts_rms**2 + Qts**2 * Uts_rms**2) / (Uts**2 + Qts**2))
 		psits  = np.rad2deg(0.5 * np.arctan2(Vts, Lts))
-		epsits = np.rad2deg(0.5 * np.sqrt(Vts**2 * eLts**2 + Lts**2 * Vts_rms**2) / np.maximum(Vts**2 + Lts**2, eps))
+		epsits = np.rad2deg(0.5 * np.sqrt(Vts**2 * eLts**2 + Lts**2 * Vts_rms**2) / (Vts**2 + Lts**2))
 
 		
 		# Calculate the fractional polarizations
