@@ -59,20 +59,6 @@ def main():
 		help="Identifier for the simulated FRB."
 	)
 	parser.add_argument(
-		"-o", "--obs_params",
-		type=str,
-		default=obs_params_path, 
-		metavar="",
-		help="Observation parameters for the simulated FRB."
-	)
-	parser.add_argument(
-		"-g", "--gauss_params",
-		type=str,
-		default=gauss_params_path,  
-		metavar="",
-		help="Gaussian parameters for the simulated FRB."
-	)
-	parser.add_argument(
 		"--config-dir", 
 		type=str, 
 		help="Override user config dir (default: ~/.config/fires)"
@@ -91,7 +77,7 @@ def main():
 
 	# Output Options
 	parser.add_argument(
-		"-d", "--output-dir",
+		"-o", "--output-dir",
 		type=str,
 		default="simfrbs/",
 		metavar="",
@@ -207,7 +193,7 @@ def main():
 
 	# Simulation Options
 	parser.add_argument(
-		"--data",
+		"-d", "--data",
 		type=str,
 		default=None,
 		metavar="",
@@ -271,11 +257,9 @@ def main():
 		cfg.edit_params(args.edit_config, config_dir=args.config_dir)
 		return
 
-	# Resolve parameter file paths (prefer user config unless explicitly overridden)
-	override_obs   = args.obs_params  if args.obs_params  != obs_params_path else None
-	override_gauss = args.gauss_params if args.gauss_params != gauss_params_path else None
-	resolved_obs   = str(cfg.find_config_file("obsparams", config_dir=args.config_dir, override_path=override_obs))
-	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir, override_path=override_gauss))
+	# Resolve parameter file paths 
+	resolved_obs   = str(cfg.find_config_file("obsparams", config_dir=args.config_dir))
+	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir))
 
 
 	# Map long freq-window names to abbreviated forms

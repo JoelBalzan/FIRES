@@ -106,9 +106,7 @@ def _read_toml(p: Path) -> Dict[str, Any]:
     with p.open("rb") as f:
         return tomllib.load(f)
 
-def find_config_file(kind: str, config_dir: Optional[Path] = None, override_path: Optional[Path] = None) -> Path:
-    if override_path:
-        return Path(override_path)
+def find_config_file(kind: str, config_dir: Optional[Path] = None) -> Path:
     cfg_dir = Path(config_dir) if config_dir else user_config_dir()
     for fname in DEFAULT_FILES[kind]:
         cand = cfg_dir / fname
