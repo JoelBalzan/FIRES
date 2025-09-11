@@ -20,7 +20,7 @@ src/*/__pycache__/
 # Data folders
 simfrbs/
 plots/
-paper/
+#paper/
 #paper/*
 
 # other
