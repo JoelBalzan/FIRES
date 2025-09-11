@@ -94,12 +94,12 @@ def _load_multiple_data_grouped(data):
 	
 	print(f"Loading grouped data from {data}...")
 
-	def extract_sc_value(fname):
-		# Match _sc_<number> or _sc_<number>-<number>
-		m = re.search(r'_sc_([0-9.]+)(?:-([0-9.]+))?', fname)
+	def extract_xvals_value(fname):
+		# Match _xvals_<number> or _xvals_<number>-<number>
+		m = re.search(r'_xvals_([0-9.]+)(?:-([0-9.]+))?', fname)
 		if m:
 			return float(m.group(1))
-		return float('inf')  # Put files without _sc_ at the end
+		return float('inf')  # Put files without _xvals_ at the end
 	
 	def extract_freq_phase_key(fname):
 		# Extract freq and phase info from filename
@@ -112,7 +112,7 @@ def _load_multiple_data_grouped(data):
 		return "unknown"  # fallback for files that don't match pattern
 	
 	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
-	file_names = sorted(file_names, key=extract_sc_value)
+	file_names = sorted(file_names, key=extract_xvals_value)
 	groups = defaultdict(list)
 	for fname in file_names:
 		freq_phase_key = extract_freq_phase_key(fname)
