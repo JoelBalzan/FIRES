@@ -457,7 +457,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 		- "tau_ms": Normalize by scattering time
 		- Any other parameter name for custom normalization
 	"""
-	xname_raw = frb_dict["xname"]
+	xname_raw = frb_dict["xname"].removesuffix("_var")
 	xvals_raw = np.array(frb_dict["xvals"])
 
 	dspec_params = frb_dict["dspec_params"]
