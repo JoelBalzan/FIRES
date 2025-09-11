@@ -24,15 +24,15 @@ GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2))
 
 #    --------------------------	Functions ---------------------------
 
-def apply_faraday_rotation(pol_angle_arr, RM, lambda_sq, median_lambda_sq):
+def _apply_faraday_rotation(pol_angle_arr, RM, lambda_sq, median_lambda_sq):
 	return np.deg2rad(pol_angle_arr) + RM * (lambda_sq - median_lambda_sq)
 
 
-def calculate_dispersion_delay(DM, freq, ref_freq):
+def _calculate_dispersion_delay(DM, freq, ref_freq):
 	return 4.15 * DM * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
 
 
-def calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
+def _calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 	stokes_q = temp_dynspec * lfrac * np.cos(2 * faraday_rot_angle)
 	stokes_u = temp_dynspec * lfrac * np.sin(2 * faraday_rot_angle)
 	stokes_v = temp_dynspec * vfrac
@@ -114,18 +114,18 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, sc_idx, ref
 			norm_amp *= spectral_profile
 
 		for c in range(len(freq_mhz)):
-			faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, RM[g], lambda_sq[c], median_lambda_sq)
+			faraday_rot_angle = _apply_faraday_rotation(pol_angle_arr, RM[g], lambda_sq[c], median_lambda_sq)
 			temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
 			
 			if int(DM[g]) != 0:
-				disp_delay_ms = calculate_dispersion_delay(DM[g], freq_mhz[c], ref_freq_mhz)
+				disp_delay_ms = _calculate_dispersion_delay(DM[g], freq_mhz[c], ref_freq_mhz)
 				temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 			
 			# Apply scattering if enabled
 			if tau_ms > 0:
 				temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], time_res_ms, tau_cms[c])
 
-			temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
+			temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = _calculate_stokes(
 				temp_dynspec[0, c], lfrac[g], vfrac[g], faraday_rot_angle
 			)  # Stokes Q, U, V
 
@@ -286,13 +286,13 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 
 			for c in range(len(freq_mhz)):
 				# Apply Faraday rotation
-				faraday_rot_angle = apply_faraday_rotation(pol_angle_arr, var_RM, lambda_sq[c], median_lambda_sq)
+				faraday_rot_angle = _apply_faraday_rotation(pol_angle_arr, var_RM, lambda_sq[c], median_lambda_sq)
 				# Add the Gaussian pulse to the temporary dynamic spectrum
 				temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_t0, var_width_ms / GAUSSIAN_FWHM_FACTOR)
 
 				# Calculate the dispersion delay
 				if int(var_DM) != 0:
-					disp_delay_ms = calculate_dispersion_delay(var_DM, freq_mhz[c], ref_freq_mhz)
+					disp_delay_ms = _calculate_dispersion_delay(var_DM, freq_mhz[c], ref_freq_mhz)
 					temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 
 				# Apply scattering if enabled
@@ -300,7 +300,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 					temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], time_res_ms, tau_cms[c])
 
 				# Calculate Stokes Q, U, V
-				temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = calculate_stokes(
+				temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = _calculate_stokes(
 					temp_dynspec[0, c], var_lfrac, var_vfrac, faraday_rot_angle
 				)
 
