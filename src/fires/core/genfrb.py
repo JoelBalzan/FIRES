@@ -53,7 +53,7 @@ def scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mh
 	return dspec_scattered
 
 
-def load_data(data, freq_mhz, time_ms):
+def load_data(frb_id, data, freq_mhz, time_ms):
 	"""
 	Load data from files with optional downsampling.
 	
@@ -70,22 +70,17 @@ def load_data(data, freq_mhz, time_ms):
 	"""
 	print(f"Loading data from {data}...")
 
-	if isinstance(data, str):
-		dspec = np.load(data) if data.endswith('.npy') else None
-		dspec = np.flip(dspec, axis=1)
+	dspec = np.load(data) if data.endswith('.npy') else None
+	dspec = np.flip(dspec, axis=1)  # Flip frequency axis if needed
 	
-		summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
-		summary = get_parameters(os.path.join(data, summary_file[0]))
-		cfreq_mhz = float(summary['centre_freq_frb'])
-		bw_mhz = CelebiNchan #float(summary['bw'])
-		freq_mhz = np.linspace(cfreq_mhz - bw_mhz / 2, cfreq_mhz + bw_mhz / 2, dspec.shape[1])
+	#summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
+	summary = get_parameters("parameters.txt")
+	cfreq_mhz = float(summary['centre_freq_frb'])
+	freq_mhz = np.flip(np.load(f"{frb_id}_freq.npy")) #np.linspace(cfreq_mhz - bw_MHz / 2, cfreq_mhz + bw_MHz / 2, dspec.shape[1])
 
-		# Default time resolution in ms (3 microseconds) 
-		time_res_ms = Raw_time_res_ms
-		time_ms = np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
-		print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
+	time_ms = np.load(f"{frb_id}_time.npy") #np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
+	print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
 		
-
 	return dspec, freq_mhz, time_ms
 
 
@@ -330,7 +325,7 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 	if plot_multiple_frb == False:
 		
 		if data != None:
-			dspec, freq_mhz, time_ms = load_data(data, freq_mhz, time_ms)
+			dspec, freq_mhz, time_ms = load_data(frb_id, data, freq_mhz, time_ms)
 			snr = snr_onpulse(np.nansum(dspec[0], axis=0), time_ms, frac=0.95)  
 			if tau_ms > 0:
 				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, scatter_idx, ref_freq)
