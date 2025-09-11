@@ -54,7 +54,7 @@ def _init_seed(seed: int | None) -> int:
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb):
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, sc_idx, ref_freq_mhz, plot_multiple_frb):
 	"""
 	Generate dynamic spectrum for Gaussian pulses.
 	
@@ -81,6 +81,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, tau_ms, sc_
 	width_ms        = gdict['width_ms']
 	peak_amp        = gdict['peak_amp']
 	spec_idx        = gdict['spec_idx']
+	tau_ms 	   		= gdict['tau_ms']
 	PA              = gdict['PA']
 	DM              = gdict['DM']
 	RM              = gdict['RM']
@@ -143,7 +144,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, tau_ms, sc_
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
-					tsys, tau_ms, sc_idx, ref_freq_mhz, plot_multiple_frb, variation_parameter=None, xname=None):
+					tsys, sc_idx, ref_freq_mhz, plot_multiple_frb, variation_parameter=None, xname=None):
 	"""
 	Generate dynamic spectrum for multiple main Gaussians, each with a distribution of micro-shots.
 	Optionally apply a Gaussian spectral profile to create band-limited pulses.
@@ -155,6 +156,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	width_ms        = gdict['width_ms']
 	peak_amp        = gdict['peak_amp']
 	spec_idx        = gdict['spec_idx']
+	tau_ms 	   		= gdict['tau_ms']
 	PA              = gdict['PA']
 	DM              = gdict['DM']
 	RM              = gdict['RM']
@@ -174,21 +176,23 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	if variation_parameter is not None:
 		if xname in var_dict:
 			var_dict[xname][0] = variation_parameter
-		elif xname == "tau_ms":
-			tau_ms = variation_parameter
+		else:
+			raise ValueError(f"Variation parameter '{xname}' not found in var_dict.")
 			
 	peak_amp_var        = var_dict['peak_amp_var'][0]
+	spec_idx_var        = var_dict['spec_idx_var'][0]
+	tau_ms_var          = var_dict['tau_ms_var'][0]
 	pol_angle_var       = var_dict['PA_var'][0]
-	lin_pol_frac_var    = var_dict['lfrac_var'][0]
-	circ_pol_frac_var   = var_dict['vfrac_var'][0]
-	delta_pol_angle_var = var_dict['dPA_var'][0]
-	rm_var              = var_dict['RM_var'][0]
 	dm_var              = var_dict['DM_var'][0]
+	rm_var              = var_dict['RM_var'][0]
+	lfrac_var   		= var_dict['lfrac_var'][0]
+	vfrac_var   		= var_dict['vfrac_var'][0]
+	dPA_var 			= var_dict['dPA_var'][0]
 	band_centre_mhz_var = var_dict['band_centre_mhz_var'][0]
 	band_width_mhz_var  = var_dict['band_width_mhz_var'][0]
 	
 
-	if lin_pol_frac_var > 0.0 and circ_pol_frac_var > 0.0:
+	if lfrac_var > 0.0 and vfrac_var > 0.0:
 		raise ValueError("Both linear and circular polarization variations cannot be > 0.0. "
 						"Set one to 0.0 before calling this function.")
 
@@ -203,15 +207,17 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 		tau_cms = np.zeros_like(freq_mhz)
 
 	all_params = {
+		'var_t0'             : [],
 		'var_peak_amp'       : [],
 		'var_width_ms'       : [],
-		'var_t0'             : [],
+		'var_spec_idx'       : [],
+		'var_tau_ms'         : [],
 		'var_PA'             : [],
+		'var_DM'             : [],
+		'var_RM'             : [],
 		'var_lfrac'          : [],
 		'var_vfrac'          : [],
 		'var_dPA'            : [],
-		'var_RM'             : [],
-		'var_DM'             : [],
 		'var_band_centre_mhz': [],
 		'var_band_width_mhz' : []
 	}
@@ -219,38 +225,48 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
 		for _ in range(int(ngauss[g])):
+			var_t0              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR) 
 			# Generate random variations for the micro-Gaussian parameters
 			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var)
 			# Sample the micro width as a percentage of the main width
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
-			var_t0              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR) 
+			var_spec_idx        = np.random.normal(spec_idx[g], spec_idx_var)
+			var_tau_ms        	= np.random.normal(tau_ms[g], tau_ms_var)
+			# Ensure non-negative scattering timescale
+			if var_tau_ms < 0.0:
+				var_tau_ms = 0.0
+			# Recalculate frequency-dependent scattering timescale for the micro-shot
+			if var_tau_ms > 0:
+				tau_cms = var_tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
 			var_PA              = np.random.normal(PA[g], pol_angle_var)
-			var_lfrac           = np.random.normal(lfrac[g], lin_pol_frac_var)
-			var_vfrac           = np.random.normal(vfrac[g], circ_pol_frac_var)
-			var_dPA             = np.random.normal(dPA[g], delta_pol_angle_var)
-			var_RM              = np.random.normal(RM[g], rm_var)
 			var_DM              = np.random.normal(DM[g], dm_var)
+			var_RM              = np.random.normal(RM[g], rm_var)
+			var_lfrac           = np.random.normal(lfrac[g], lfrac_var)
+			var_vfrac           = np.random.normal(vfrac[g], vfrac_var)
+			var_dPA             = np.random.normal(dPA[g], dPA_var)
 			var_band_centre_mhz = np.random.normal(band_centre_mhz[g], band_centre_mhz_var)
 			var_band_width_mhz  = np.random.normal(band_width_mhz[g], band_width_mhz_var)
 
-			if circ_pol_frac_var > 0.0:
+			if vfrac_var > 0.0:
 				var_vfrac = np.clip(var_vfrac, 0.0, 1.0)
 				var_lfrac = np.clip(1.0 - var_vfrac, 0.0, 1.0)
 
-			elif lin_pol_frac_var > 0.0:
+			elif lfrac_var > 0.0:
 				var_lfrac = np.clip(var_lfrac, 0.0, 1.0)
 				var_vfrac = np.clip(1.0 - var_lfrac, 0.0, 1.0)
 
 			# Append values to the respective lists in `all_params`
+			all_params['var_t0'].append(var_t0)
 			all_params['var_peak_amp'].append(var_peak_amp)
 			all_params['var_width_ms'].append(var_width_ms)
-			all_params['var_t0'].append(var_t0)
+			all_params['var_spec_idx'].append(var_spec_idx)
+			all_params['var_tau_ms'].append(var_tau_ms)
+			all_params['var_DM'].append(var_DM)
+			all_params['var_RM'].append(var_RM)
 			all_params['var_PA'].append(var_PA)
 			all_params['var_lfrac'].append(var_lfrac)
 			all_params['var_vfrac'].append(var_vfrac)
 			all_params['var_dPA'].append(var_dPA)
-			all_params['var_RM'].append(var_RM)
-			all_params['var_DM'].append(var_DM)
 			all_params['var_band_centre_mhz'].append(var_band_centre_mhz)
 			all_params['var_band_width_mhz'].append(var_band_width_mhz)
 

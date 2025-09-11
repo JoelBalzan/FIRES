@@ -52,16 +52,6 @@ def main():
 
 	# Input Parameters
 	parser.add_argument(
-		"-t", "--tau_ms",
-		type=str,
-		nargs="+",  # Allow multiple values
-		default=[0.0],
-		metavar="",
-		help=("Scattering time scale(s) in milliseconds.\n"
-			  "Provide one or more values for pa_var or l_var plots. Use start,stop,step for ranges. Default is 0.0 ms."
-		   )
-	)
-	parser.add_argument(
 		"-f", "--frb_identifier",
 		type=str,
 		default="FRB",
@@ -294,39 +284,6 @@ def main():
 	if args.plot[0] not in plot_modes and args.plot[0] not in ("all", "None"):
 			parser.error(f"Invalid plot mode: {args.plot[0]}")
 
-	# Parse scattering timescale(s)
-	# If multiple values (or a single comma-range), require pa_var/l_var
-	multi_requested = len(args.tau_ms) > 1 or any("," in str(v) for v in args.tau_ms)
-	
-	if multi_requested and not any(m in ("pa_var", "l_var") for m in args.plot):
-		parser.error("Multiple scattering timescales provided, but selected plot mode(s) do not support multiple values. "
-					 "Use 'pa_var' or 'l_var', or pass a single value to --tau_ms.")
-	
-	scattering_timescales = np.array([])
-	for value in args.tau_ms:
-		if isinstance(value, str) and "," in value:  # Check if it's a range (comma-separated)
-			try:
-				parts = value.split(",")
-				if len(parts) == 3:  # start,stop,step format
-					start, stop, step = map(float, parts)
-					range_values = np.arange(start, stop + step, step)  # Include the stop value
-					scattering_timescales = np.concatenate((scattering_timescales, range_values))  # Append to array
-				else:
-					# Multiple individual values separated by commas
-					values = list(map(float, parts))
-					scattering_timescales = np.concatenate((scattering_timescales, values))
-			except ValueError:
-				parser.error("Invalid range format for --tau_ms. Use 'start,stop,step' or comma-separated values.")
-		else:
-			scattering_timescales = np.append(scattering_timescales, float(value))  # Append single value
-	
-	if scattering_timescales.size == 0:
-		args.tau_ms = np.array([float(args.tau_ms[0])])  # Convert single value to array
-	else:
-		args.tau_ms = scattering_timescales
-
-	print(f"Scattering timescales: {args.tau_ms} ms \n")
-
 	# Set the global data directory variable
 	global data_directory
 	data_directory = args.output_dir
@@ -346,7 +303,6 @@ def main():
    
 			frb_dict = generate_frb(
 				data         = args.data,
-				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
 				obs_file     = resolved_obs,
 				gauss_file   = resolved_gauss,
@@ -364,7 +320,6 @@ def main():
 		else:
 			FRB, noisespec, gdict = generate_frb(
 				data         = args.data,
-				tau_ms   	 = args.tau_ms,
 				frb_id       = args.frb_identifier,
 				obs_file     = resolved_obs,
 				gauss_file   = resolved_gauss,
@@ -416,7 +371,6 @@ def main():
 						"out_dir"     : data_directory,
 						"save"        : args.save_plots,
 						"figsize"     : args.figsize,
-						"tau_ms"  	  : args.tau_ms,
 						"show_plots"  : args.show_plots,
 						"scale"       : args.plot_scale,
 						"phase_window": args.phase_window,
