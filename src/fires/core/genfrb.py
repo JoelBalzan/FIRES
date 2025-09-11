@@ -446,7 +446,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 			
 			yvals = {v: [] for v in xvals}
 			errs = {v: [] for v in xvals}
-			var_params = {v: {key: [] for key in ['var_peak_amp', 'var_width_ms', 'var_t0', 'var_PA', 'var_lfrac', 'var_vfrac', 
+			var_params = {v: {key: [] for key in ['var_peak_amp', 'var_spec_idx', 'var_tau_ms', 'var_width_ms', 'var_t0', 'var_PA', 'var_lfrac', 'var_vfrac', 
 													'var_dPA', 'var_RM', 'var_DM', 'var_band_centre_mhz', 'var_band_width_mhz']} for v in xvals}
 			snrs = {v: [] for v in xvals}
 
