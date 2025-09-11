@@ -38,7 +38,7 @@ def _calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
 	stokes_v = temp_dynspec * vfrac
 	return stokes_q, stokes_u, stokes_v
 
-def _init_seed(seed: int | None) -> int:
+def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 	"""
 	Ensure a concrete seed. If None, draw one from OS entropy, set NumPy RNG, and print it.
 	Returns the seed used.
@@ -46,7 +46,8 @@ def _init_seed(seed: int | None) -> int:
 	if seed is None:
 		seed = int(np.random.SeedSequence().generate_state(1)[0])
 		np.random.seed(seed)
-		print(f"[FIRES] Using random seed: {seed}")
+		if not plot_multiple_frb:
+			print(f"[FIRES] Using random seed: {seed}")
 	else:
 		np.random.seed(seed)
 	return seed
@@ -75,8 +76,8 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, sc_idx, ref
 	"""
 
 
-	seed = _init_seed(seed)
-		
+	seed = _init_seed(seed, plot_multiple_frb)
+
 	t0              = gdict['t0']
 	width_ms        = gdict['width_ms']
 	peak_amp        = gdict['peak_amp']
@@ -150,7 +151,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	Optionally apply a Gaussian spectral profile to create band-limited pulses.
 	"""
 	# Set the random seed for reproducibility
-	seed = _init_seed(seed)
+	seed = _init_seed(seed, plot_multiple_frb)
 	
 	t0              = gdict['t0']
 	width_ms        = gdict['width_ms']
@@ -191,11 +192,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	band_centre_mhz_var = var_dict['band_centre_mhz_var'][0]
 	band_width_mhz_var  = var_dict['band_width_mhz_var'][0]
 	
-
-	if lfrac_var > 0.0 and vfrac_var > 0.0:
-		raise ValueError("Both linear and circular polarization variations cannot be > 0.0. "
-						"Set one to 0.0 before calling this function.")
-
 			
 	dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
 	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
