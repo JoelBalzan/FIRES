@@ -150,7 +150,6 @@ class DynspecParams(NamedTuple):
     seed           : int
     nseed          : int
     tsys           : float
-    tau_ms         : float
     sc_idx         : float
     ref_freq_mhz   : float
     phase_window   : str

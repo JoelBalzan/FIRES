@@ -115,13 +115,15 @@ class PlotMode:
 		
 
 # --------------------------	Plot modes definitions	---------------------------
-def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, tau_ms, show_plots, extension, legend, info):
+def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots, extension, legend, info):
 	"""
 	Call basic plot functions
 	"""
 	dspec_params = frb_data.dspec_params
 	freq_mhz = dspec_params.freq_mhz
 	time_ms = dspec_params.time_ms
+
+	tau_ms = dspec_params.gdict['tau_ms']
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
 		frb_data.dynamic_spectrum, freq_mhz, time_ms, gdict

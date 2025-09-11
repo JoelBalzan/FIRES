@@ -170,7 +170,7 @@ def load_multiple_data_grouped(data):
 
 def generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	"""Generate dynamic spectrum based on mode."""
-	var = var if plot_multiple_frb else params["tau_ms"]
+	var = var if plot_multiple_frb else None
 
 	# Choose the correct function
 	if mode == 'gauss':
@@ -223,8 +223,8 @@ def process_task(task, xname, mode, plot_mode, **params):
 	process_func_args = {'dspec': dspec}
 	# Add other allowed arguments from params if present
 	process_func_args.update({
-		k: (var if k == "tau_ms" else params[k])
-		for k in allowed_args if k in params and k != 'dspec'
+		k: params[k]
+		for k in allowed_args if k in params and k not in ('dspec')
 	})
 
 	xvals, result_err = process_func(**process_func_args)
@@ -232,7 +232,7 @@ def process_task(task, xname, mode, plot_mode, **params):
 	return var, xvals, result_err, var_params, snr
 
 
-def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
+def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 				 obs_file, gauss_file, tsys, n_cpus, plot_mode, phase_window, freq_window):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
@@ -262,17 +262,18 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 		'width_ms'       : gauss_params[:-3, 1],
 		'peak_amp'       : gauss_params[:-3, 2],
 		'spec_idx'       : gauss_params[:-3, 3],
-		'DM'             : gauss_params[:-3, 4],
-		'RM'             : gauss_params[:-3, 5],
-		'PA'             : gauss_params[:-3, 6],
-		'lfrac'          : gauss_params[:-3, 7],
-		'vfrac'          : gauss_params[:-3, 8],
-		'dPA'            : gauss_params[:-3, 9],
-		'band_centre_mhz': gauss_params[:-3, 10],
-		'band_width_mhz' : gauss_params[:-3, 11],
-		'ngauss'         : gauss_params[:-3, 12],
-		'mg_width_low'   : gauss_params[:-3, 13],
-		'mg_width_high'  : gauss_params[:-3, 14]
+		'tau_ms'         : gauss_params[:-3, 4],
+		'DM'             : gauss_params[:-3, 5],
+		'RM'             : gauss_params[:-3, 6],
+		'PA'             : gauss_params[:-3, 7],
+		'lfrac'          : gauss_params[:-3, 8],
+		'vfrac'          : gauss_params[:-3, 9],
+		'dPA'            : gauss_params[:-3, 10],
+		'band_centre_mhz': gauss_params[:-3, 11],
+		'band_width_mhz' : gauss_params[:-3, 12],
+		'ngauss'         : gauss_params[:-3, 13],
+		'mg_width_low'   : gauss_params[:-3, 14],
+		'mg_width_high'  : gauss_params[:-3, 15]
 	}
 	
 	var_dict = {
@@ -280,14 +281,15 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 		'width_ms_var'       : gauss_params[-3:, 1],
 		'peak_amp_var'       : gauss_params[-3:, 2],
 		'spec_idx_var'       : gauss_params[-3:, 3],
-		'DM_var'             : gauss_params[-3:, 4],
-		'RM_var'             : gauss_params[-3:, 5],
-		'PA_var'             : gauss_params[-3:, 6],
-		'lfrac_var'          : gauss_params[-3:, 7],
-		'vfrac_var'          : gauss_params[-3:, 8],
-		'dPA_var'            : gauss_params[-3:, 9],
-		'band_centre_mhz_var': gauss_params[-3:, 10],
-		'band_width_mhz_var' : gauss_params[-3:, 11]
+		'tau_ms_var'         : gauss_params[-3:, 4],
+		'DM_var'             : gauss_params[-3:, 5],
+		'RM_var'             : gauss_params[-3:, 6],
+		'PA_var'             : gauss_params[-3:, 7],
+		'lfrac_var'          : gauss_params[-3:, 8],
+		'vfrac_var'          : gauss_params[-3:, 9],
+		'dPA_var'            : gauss_params[-3:, 10],
+		'band_centre_mhz_var': gauss_params[-3:, 11],
+		'band_width_mhz_var' : gauss_params[-3:, 12]
 	}
 
 	# Create dynamic spectrum parameters
@@ -301,18 +303,14 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 		seed            = seed,
 		nseed           = nseed,
 		tsys            = tsys,
-		tau_ms          = tau_ms,
 		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
 		phase_window    = phase_window,
 		freq_window     = freq_window
 	)
 
-	if np.any(gauss_params[-1,:] != 0.0) and len(tau_ms) > 1:
-		print("WARNING: The last row of gauss_params is not all zeros, but tau_ms has more than one value.")
-		print("Please pick only one.")
-		sys.exit(1)
-  
+	tau_ms = gdict['tau_ms']
+
 	if len(np.where(gauss_params[-1,:] != 0.0)[0]) > 1:
 		print("WARNING: More than one value in the last row of gauss_params is not 0.")
 		print("Please ensure that only one value is non-zero in the last row.")
@@ -327,8 +325,8 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 		if data != None:
 			dspec, freq_mhz, time_ms = load_data(frb_id, data, freq_mhz, time_ms)
 			snr = snr_onpulse(np.nansum(dspec[0], axis=0), time_ms, frac=0.95)  
-			if tau_ms > 0:
-				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, scatter_idx, ref_freq)
+			if tau_ms[0] > 0:
+				dspec = scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if tsys > 0:
 				dspec, snr = add_noise(dynspec=dspec, t_sys=tsys, f_res=f_res, t_res=t_res, 
 													time_ms=time_ms, plot_multiple_frb=plot_multiple_frb)
@@ -375,11 +373,62 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 			else:
 				print(f"No .pkl files found in {data}.")
 				sys.exit(1)
-		else:
+		else:		
 			if np.all(gauss_params[-1,:] == 0.0):
-				# Create a list of tasks (timescale, realization)
-				tasks = list(product(tau_ms, range(nseed)))
-				xname = 'tau_ms'
+				# For var plots, a sweep must be defined in the last three rows
+				print("No sweep defined in gparams (last row all zeros), but a multi-FRB plot mode was requested.")
+				print("Define start/stop/step in the last three rows for exactly one column.")
+				sys.exit(1)
+			else:
+				# Find which column in gauss_params the final entry is not zero
+				col_idx = np.where(gauss_params[-1, :] != 0.0)[0][0]
+				start = gauss_params[-3, col_idx]
+				stop = gauss_params[-2, col_idx]
+				step = gauss_params[-1, col_idx]
+				# Ensure inclusion of the final point
+				xvals = np.arange(start, stop + step/2, step)
+
+				# If running under Slurm array, split xvals across tasks
+				# Falls back to env FIRESSWEEP_COUNT/ID for local testing.
+				def _slurm_array_size():
+					cnt = os.environ.get("SLURM_ARRAY_TASK_COUNT")
+					if cnt is not None:
+						return int(cnt)
+					# Derive count from MIN/MAX if COUNT is not provided
+					min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
+					max_s = os.environ.get("SLURM_ARRAY_TASK_MAX")
+					if max_s is not None:
+						min_i = int(min_s) if min_s is not None else 0
+						return int(max_s) - min_i + 1
+					# Custom override for non-Slurm runs
+					return int(os.environ.get("FIRESSWEEP_COUNT", "1"))
+				def _slurm_array_id():
+					min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
+					task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+					if task_id is not None:
+						if min_s is not None:
+							return int(task_id) - int(min_s)
+						return int(task_id)
+					# Custom override for non-Slurm runs
+					return int(os.environ.get("FIRESSWEEP_ID", "0"))
+				_array_count = _slurm_array_size()
+				_array_id = _slurm_array_id()
+				if _array_count > 1:
+					total = len(xvals)
+					chunk = (total + _array_count - 1) // _array_count  # ceil division
+					start_idx = _array_id * chunk
+					end_idx = min(start_idx + chunk, total)
+					if start_idx >= total:
+						print(f"Array task {_array_id}/{_array_count}: no assigned xvals (start_idx={start_idx} >= {total}).")
+						sys.exit(0)
+					xvals = xvals[start_idx:end_idx]
+					print(f"Array task {_array_id}/{_array_count}: processing xvals[{start_idx}:{end_idx}] out of {total}")
+
+				# Find the corresponding key in gdict for col_idx
+				gdict_keys = list(gdict.keys())
+				xname = gdict_keys[col_idx] + "_var"
+	 
+				tasks = list(product(xvals, range(nseed)))
 
 				with ProcessPoolExecutor(max_workers=n_cpus) as executor:
 					partial_func = functools.partial(
@@ -388,97 +437,26 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 						mode=mode,
 						plot_mode=plot_mode,
 						**dspec_params._asdict()
-					)
-
+					)					
+	  
 					results = list(tqdm(executor.map(partial_func, tasks),
 										total=len(tasks),
-										desc="Processing scattering timescales and realisations"))
-			else:			
-				if np.count_nonzero(gauss_params[-1, :]) > 1:
-					print("More than one value in the last row of gauss_params is not 0:")
-					print(gauss_params[-1, :])
-					sys.exit(1)
-				else:
-					# Find which column in gauss_params the final entry is not zero
-					col_idx = np.where(gauss_params[-1, :] != 0.0)[0][0]
-					start = gauss_params[-3, col_idx]
-					stop = gauss_params[-2, col_idx]
-					step = gauss_params[-1, col_idx]
-					# Ensure inclusion of the final point
-					xvals = np.arange(start, stop + step/2, step)
+										desc=f"Processing {xname} variance and realisations"))
 
-					# If running under Slurm array, split xvals across tasks
-					# Falls back to env FIRESSWEEP_COUNT/ID for local testing.
-					def _slurm_array_size():
-						cnt = os.environ.get("SLURM_ARRAY_TASK_COUNT")
-						if cnt is not None:
-							return int(cnt)
-						# Derive count from MIN/MAX if COUNT is not provided
-						min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
-						max_s = os.environ.get("SLURM_ARRAY_TASK_MAX")
-						if max_s is not None:
-							min_i = int(min_s) if min_s is not None else 0
-							return int(max_s) - min_i + 1
-						# Custom override for non-Slurm runs
-						return int(os.environ.get("FIRESSWEEP_COUNT", "1"))
-					def _slurm_array_id():
-						min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
-						task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
-						if task_id is not None:
-							if min_s is not None:
-								return int(task_id) - int(min_s)
-							return int(task_id)
-						# Custom override for non-Slurm runs
-						return int(os.environ.get("FIRESSWEEP_ID", "0"))
-					_array_count = _slurm_array_size()
-					_array_id = _slurm_array_id()
-					if _array_count > 1:
-						total = len(xvals)
-						chunk = (total + _array_count - 1) // _array_count  # ceil division
-						start_idx = _array_id * chunk
-						end_idx = min(start_idx + chunk, total)
-						if start_idx >= total:
-							print(f"Array task {_array_id}/{_array_count}: no assigned xvals (start_idx={start_idx} >= {total}).")
-							sys.exit(0)
-						xvals = xvals[start_idx:end_idx]
-						print(f"Array task {_array_id}/{_array_count}: processing xvals[{start_idx}:{end_idx}] out of {total}")
-
-					# Find the corresponding key in gdict for col_idx
-					gdict_keys = list(gdict.keys())
-					xname = gdict_keys[col_idx] + '_var'
-	 
-					tasks = list(product(xvals, range(nseed)))
-
-					with ProcessPoolExecutor(max_workers=n_cpus) as executor:
-						partial_func = functools.partial(
-							process_task,
-							xname=xname,
-							mode=mode,
-							plot_mode=plot_mode,
-							**dspec_params._asdict()
-						)					
-	  
-						results = list(tqdm(executor.map(partial_func, tasks),
-											total=len(tasks),
-											desc=f"Processing {xname} variance and realisations"))
-
-			# Aggregate results by timescale
-			if 'tau_ms' in xname or np.all(gauss_params[-1, :] == 0.0):
-				xvals = tau_ms
 			
 			yvals = {v: [] for v in xvals}
 			errs = {v: [] for v in xvals}
 			var_params = {v: {key: [] for key in ['var_peak_amp', 'var_width_ms', 'var_t0', 'var_PA', 'var_lfrac', 'var_vfrac', 
-												'var_dPA', 'var_RM', 'var_DM', 'var_band_centre_mhz', 'var_band_width_mhz']} for v in xvals}
+													'var_dPA', 'var_RM', 'var_DM', 'var_band_centre_mhz', 'var_band_width_mhz']} for v in xvals}
 			snrs = {v: [] for v in xvals}
-			
+
 			for var, val, err, params_dict, snr in results:
 				yvals[var].append(val)
 				errs[var].append(err)
 				snrs[var].append(snr)
 				for key, value in params_dict.items():
 					var_params[var][key].append(value)
-			
+
 			frb_dict = {
 				"xname": xname,
 				"xvals": xvals,
@@ -492,13 +470,10 @@ def generate_frb(data, tau_ms, frb_id, out_dir, mode, seed, nseed, write,
 
 		if write:
 			# Create a descriptive filename
-			if xname == 'tau_ms':
-				xvals = f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}" if len(tau_ms) > 1 else f"{tau_ms[0]:.2f}"
-			else:
-				xvals = f"{xvals[0]:.2f}-{xvals[-1]:.2f}" if len(xvals) > 1 else f"{xvals[0]:.2f}"
+			xvals = f"{xvals[0]:.2f}-{xvals[-1]:.2f}" if len(xvals) > 1 else f"{xvals[0]:.2f}"
 
 			tau = f"{tau_ms[0]:.2f}" if len(tau_ms) == 1 else f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}"
-				
+
 			out_file = (
 				f"{out_dir}{frb_id}_plot_{plot_mode.name}_xname_{xname}_xvals_{xvals}_mode_{mode}_sc_{tau}_"
 				f"freq_{freq_window}_phase_{phase_window}.pkl"
