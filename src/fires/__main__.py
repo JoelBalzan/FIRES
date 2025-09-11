@@ -254,7 +254,7 @@ def main():
 	parser.add_argument(
 		"--chi2-fit",
 		action="store_true",
-		help="Enable chi-squared fitting on the final profiles (plot!=pa_var)."
+		help="Enable chi-squared fitting on the final profiles (plot != *_var)."
 	)
 
 
@@ -263,7 +263,10 @@ def main():
 
 	# Handle config management
 	if args.init_config:
-		cfg.ensure_user_config()
+		# Overwrite user config with packaged defaults, creating timestamped backups
+		cfg.init_user_config(overwrite=True, backup=True)
+		print(f"Config files synced to: {cfg.user_config_dir()}\n")
+		return 0
 	if args.edit_config:
 		cfg.edit_params(args.edit_config, config_dir=args.config_dir)
 		return
