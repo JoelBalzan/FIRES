@@ -342,7 +342,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 			plot_multiple_frb=False,
 			**dspec_params._asdict()
 		)
-		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, time_ms, gdict)
+		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, gdict)
 		frb_data = simulated_frb(
 			frb_id, dspec, dspec_params, snr
 		)

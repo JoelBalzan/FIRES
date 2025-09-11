@@ -352,7 +352,7 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 
 
 
-def process_dynspec(dynspec, freq_mhz, time_ms, gdict):
+def process_dynspec(dynspec, freq_mhz, gdict):
 	"""
 	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
 	
@@ -379,7 +379,7 @@ def process_dynspec(dynspec, freq_mhz, time_ms, gdict):
 	RM = gdict["RM"]
 
 	max_rm = RM[np.argmax(np.abs(RM))]
-	if max_rm > 0:
+	if np.abs(max_rm) > 0:
 		corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
 	else:
 		corrdspec = dynspec.copy()
