@@ -430,7 +430,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 
 				# Find the corresponding key in gdict for col_idx
 				gdict_keys = list(gdict.keys())
-				xname = gdict_keys[col_idx] + "_var"
+				xname = gdict_keys[col_idx]
 	 
 				tasks = list(product(xvals, range(nseed)))
 
