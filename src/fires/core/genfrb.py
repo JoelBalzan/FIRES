@@ -385,8 +385,12 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 				start = gauss_params[-3, col_idx]
 				stop = gauss_params[-2, col_idx]
 				step = gauss_params[-1, col_idx]
-				# Ensure inclusion of the final point
-				xvals = np.arange(start, stop + step/2, step)
+				if step <= 0:
+					raise ValueError("Sweep step must be > 0.")
+				n_steps = int(np.round((stop - start) / step))
+				n_steps = max(n_steps, 0)
+				end = start + n_steps * step
+				xvals = np.linspace(start, end, n_steps + 1)
 
 				# If running under Slurm array, split xvals across tasks
 				# Falls back to env FIRESSWEEP_COUNT/ID for local testing.
