@@ -328,7 +328,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = _load_data(frb_id, data, freq_mhz, time_ms)
-			snr = snr_onpulse(np.nansum(dspec[0], axis=0), time_ms, frac=0.95)  
+			snr = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95)  
 			if tau_ms[0] > 0:
 				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if tsys > 0:
