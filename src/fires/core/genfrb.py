@@ -419,10 +419,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 					start_idx = _array_id * chunk
 					end_idx = min(start_idx + chunk, total)
 					if start_idx >= total:
-						print(f"Array task {_array_id}/{_array_count}: no assigned xvals (start_idx={start_idx} >= {total}).")
+						print(f"Array task {_array_id}/{_array_count - 1}: no assigned xvals (start_idx={start_idx} >= {total}).")
 						sys.exit(0)
 					xvals = xvals[start_idx:end_idx]
-					print(f"Array task {_array_id}/{_array_count}: processing xvals[{start_idx}:{end_idx}] out of {total}")
+					print(f"Array task {_array_id}/{_array_count - 1}: processing xvals[{start_idx}:{end_idx}] out of {total}")
 
 				# Find the corresponding key in gdict for col_idx
 				gdict_keys = list(gdict.keys())
