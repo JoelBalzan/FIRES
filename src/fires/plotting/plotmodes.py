@@ -173,7 +173,7 @@ def _get_phase_window_indices(phase_window, peak_index):
 
 
 
-def _median_percentiles(yvals, x, ndigits=3):
+def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 	"""
 	Calculate median values and percentile-based error bars from grouped data.
 
@@ -185,6 +185,10 @@ def _median_percentiles(yvals, x, ndigits=3):
 		Array of parameter values for which to compute statistics  
 	ndigits : int, optional
 		Number of decimal places for rounding keys during lookup (default: 3)
+	atol : float, optional
+		Absolute tolerance for matching float keys (default: 1e-12)
+	rtol : float, optional
+		Relative tolerance for matching float keys (default: 1e-9)
 		
 	Returns:
 	--------
@@ -196,20 +200,46 @@ def _median_percentiles(yvals, x, ndigits=3):
  
 	med_vals = []
 	percentile_errs = []
-	# Round all keys in yvals for consistent lookup
-	vals_rounded = {round(float(k), ndigits): v for k, v in yvals.items()}
-	for var in x:
-		key = round(float(var), ndigits)
-		v = vals_rounded.get(key, None)
-		if v is not None and isinstance(v, (list, np.ndarray)) and len(v) > 0:
-			median_val = np.nanmedian(v)
-			lower_percentile = np.nanpercentile(v, 16)
-			upper_percentile = np.nanpercentile(v, 84)
-			med_vals.append(median_val)
-			percentile_errs.append((lower_percentile, upper_percentile))
+
+	# Prepare keys for fuzzy matching
+	if len(yvals) == 0:
+		return [np.nan] * len(x), [(np.nan, np.nan)] * len(x)
+
+	key_list = list(yvals.keys())
+	keys = np.array(key_list, dtype=float)
+
+	for var in np.asarray(x, dtype=float):
+		v = None
+		# Fast path: exact key match
+		if var in yvals:
+			v = yvals[var]
+		else:
+			# Find keys close to var within tolerance
+			close = np.isclose(keys, var, rtol=rtol, atol=atol)
+			if np.any(close):
+				idxs = np.where(close)[0]
+				# If multiple, pick nearest
+				if idxs.size > 1:
+					idx = idxs[np.argmin(np.abs(keys[idxs] - var))]
+				else:
+					idx = idxs[0]
+				v = yvals[key_list[idx]]
+			elif ndigits is not None:
+				# Optional coarse rounding fallback
+				diffs = np.abs(np.round(keys, ndigits) - np.round(var, ndigits))
+				idx = int(np.argmin(diffs))
+				v = yvals[key_list[idx]]
+
+		if isinstance(v, (list, np.ndarray)) and len(v) > 0:
+			v_arr = np.asarray(v, dtype=float)
+			med_vals.append(np.nanmedian(v_arr))
+			lower = np.nanpercentile(v_arr, 16)
+			upper = np.nanpercentile(v_arr, 84)
+			percentile_errs.append((lower, upper))
 		else:
 			med_vals.append(np.nan)
 			percentile_errs.append((np.nan, np.nan))
+
 	return med_vals, percentile_errs
 
 
