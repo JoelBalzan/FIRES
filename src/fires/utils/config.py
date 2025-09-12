@@ -142,9 +142,9 @@ def open_in_editor(p: Path) -> None:
     editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "nano"
     subprocess.call([editor, str(p)])
 
-def edit_params(kind: str, config_dir: Optional[Path] = None, override_path: Optional[Path] = None) -> Path:
+def edit_params(kind: str, config_dir: Optional[Path] = None) -> Path:
     ensure_user_config()
-    p = find_config_file(kind, config_dir, override_path)
+    p = find_config_file(kind, config_dir)
     cfg_dir = Path(config_dir) if config_dir else user_config_dir()
     if not str(p).startswith(str(cfg_dir)):
         local = cfg_dir / (p.name if p.suffix else DEFAULT_FILES[kind][0])
