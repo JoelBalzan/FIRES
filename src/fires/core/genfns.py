@@ -176,6 +176,16 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	"""
 	# Set the random seed for reproducibility
 	seed = _init_seed(seed, plot_multiple_frb)
+
+	# check if varying param from gparams.txt
+	if variation_parameter is not None:
+		if xname in gdict:
+			var_dict[xname + "_var"][0] = variation_parameter
+		else:
+			raise ValueError(f"Variation parameter '{xname}' not found in var_dict.")
+
+	# If sweeping a base parameter (e.g., 'tau_ms'), disable its micro-variance
+	var_dict = _disable_micro_variance_for_swept_base(var_dict, xname)
 	
 	t0              = gdict['t0']
 	width_ms        = gdict['width_ms']
@@ -197,15 +207,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	# Create width_range list with pairs of [mg_width_low, mg_width_high]
 	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
 
-	# check if varying scattering time scale or variable from gparams.txt
-	if variation_parameter is not None:
-		if xname in gdict:
-			var_dict[xname + "_var"][0] = variation_parameter
-		else:
-			raise ValueError(f"Variation parameter '{xname}' not found in var_dict.")
 
-	# If sweeping a base parameter (e.g., 'tau_ms'), disable its micro-variance
-	var_dict = _disable_micro_variance_for_swept_base(var_dict, xname)
 
 	peak_amp_var        = var_dict['peak_amp_var'][0]
 	spec_idx_var        = var_dict['spec_idx_var'][0]
