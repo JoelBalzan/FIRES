@@ -195,41 +195,45 @@ def _generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 
 
 def _process_task(task, xname, mode, plot_mode, **params):
-	"""
-	Process a single task (combination of timescale and realization).
-	Dynamically uses the provided process_func for mode-specific processing.
-	"""
-	var, realization = task
-	current_seed = params["seed"] + realization if params["seed"] is not None else None
-	params["seed"] = current_seed
-	
-	requires_multiple_frb = plot_mode.requires_multiple_frb
+    """
+    Process a single task (combination of timescale and realization).
+    Dynamically uses the provided process_func for mode-specific processing.
+    """
+    var, realization = task
+    base_seed = params.get("seed", None)
+    current_seed = (base_seed + realization) if base_seed is not None else None
 
-	# Generate dynamic spectrum
-	dspec, snr, var_params = _generate_dynspec(
-		xname=xname,
-		mode=mode,
-		var=var,
-		plot_multiple_frb=requires_multiple_frb,
-		**params
-	)
+    # Work on a per-call copy to avoid cross-task mutation
+    local_params = dict(params)
+    local_params["seed"] = current_seed
+    
+    requires_multiple_frb = plot_mode.requires_multiple_frb
 
-	process_func = plot_mode.process_func
+    # Generate dynamic spectrum
+    dspec, snr, var_params = _generate_dynspec(
+        xname=xname,
+        mode=mode,
+        var=var,
+        plot_multiple_frb=requires_multiple_frb,
+        **local_params
+    )
+
+    process_func = plot_mode.process_func
  
-	# Dynamically select only the needed arguments for process_func
-	sig = inspect.signature(process_func)
-	allowed_args = set(sig.parameters.keys())
-	# Always provide dspec as the first argument
-	process_func_args = {'dspec': dspec}
-	# Add other allowed arguments from params if present
-	process_func_args.update({
-		k: params[k]
-		for k in allowed_args if k in params and k not in ('dspec')
-	})
+    # Dynamically select only the needed arguments for process_func
+    sig = inspect.signature(process_func)
+    allowed_args = set(sig.parameters.keys())
+    # Always provide dspec as the first argument
+    process_func_args = {'dspec': dspec}
+    # Add other allowed arguments from local_params if present
+    process_func_args.update({
+        k: local_params[k]
+        for k in allowed_args if k in local_params and k not in ('dspec')
+    })
 
-	xvals, result_err = process_func(**process_func_args)
+    xvals, result_err = process_func(**process_func_args)
 
-	return var, xvals, result_err, var_params, snr
+    return var, xvals, result_err, var_params, snr
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
