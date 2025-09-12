@@ -177,12 +177,21 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	# Set the random seed for reproducibility
 	seed = _init_seed(seed, plot_multiple_frb)
 
+	# Work on copies to avoid in-place mutation leaking across tasks
+	gdict = {k: np.array(v, copy=True) for k, v in gdict.items()}
+	var_dict = {k: np.array(v, copy=True) for k, v in var_dict.items()}
+
 	# check if varying param from gparams.txt
 	if variation_parameter is not None:
+		# Apply sweep to the BASE parameter, not its variance
 		if xname in gdict:
-			var_dict[xname + "_var"][0] = variation_parameter
+			base = np.array(gdict[xname], copy=True)
+			if base.ndim == 0:
+				gdict[xname] = float(variation_parameter)
+			else:
+				gdict[xname] = np.full_like(base, float(variation_parameter), dtype=float)
 		else:
-			raise ValueError(f"Variation parameter '{xname}' not found in var_dict.")
+			raise ValueError(f"Variation parameter '{xname}' not found in gdict.")
 
 	# If sweeping a base parameter (e.g., 'tau_ms'), disable its micro-variance
 	var_dict = _disable_micro_variance_for_swept_base(var_dict, xname)
@@ -299,9 +308,11 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			
 			# Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
 			if band_width_mhz[g] != 0.:
-				centre_freq = band_centre_mhz[g] if band_centre_mhz[g] != 0. else np.median(freq_mhz)
-				spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, band_width_mhz[g] / GAUSSIAN_FWHM_FACTOR)
-				norm_amp *= spectral_profile
+				centre_freq = var_band_centre_mhz if var_band_centre_mhz != 0. else np.median(freq_mhz)
+				bw_sigma = var_band_width_mhz / GAUSSIAN_FWHM_FACTOR
+				if bw_sigma > 0:
+					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
+					norm_amp *= spectral_profile
 
 			pol_angle_arr = var_PA + (time_ms - var_t0) * var_dPA
 
