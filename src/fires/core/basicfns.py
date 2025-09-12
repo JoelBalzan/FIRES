@@ -523,7 +523,7 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, n_pol=1)
 	#snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
 	#print(f"Stokes I SNR (boxcar method): {snr:.2f}")
  
-	snr = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), time_ms, frac=0.95)
+	snr = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), frac=0.95, subtract_baseline=True, robust_rms=True)
 	if plot_multiple_frb == False:
 		print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
 
@@ -570,19 +570,54 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(profile, time_ms, frac=0.95):
+def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, template=None):
 	"""
-	Calculate S/N using the on-pulse window and off-pulse RMS.
+	Estimate S/N on a 1-D profile using an on-pulse window and off-pulse RMS.
+
+	Parameters
+	----------
+	profile : array_like
+		1-D time series.
+	frac : float
+		Fraction of total flux to enclose when selecting on-pulse window (via boxcar_width).
+	subtract_baseline : bool
+		Subtract off-pulse median before S/N calculation (reduces baseline bias).
+	robust_rms : bool
+		Use MAD-based estimator for off-pulse RMS (robust to outliers).
+	template : array_like or None
+		Optional matched-filter template (same length as profile). If provided,
+		S/N is (t^T d) / (sigma * sqrt(t^T t)) over the on-pulse window.
+
+	Returns
+	-------
+	float
+		Estimated S/N.
 	"""
-	# Find on-pulse window
-	left, right = boxcar_width(profile, frac=frac)
-	onpulse = profile[left:right+1]
-	# Off-pulse mask
-	mask = np.ones_like(profile, dtype=bool)
-	mask[left:right+1] = False
-	offpulse = profile[mask]
-	# Estimate RMS from off-pulse
-	rms = np.nanstd(offpulse)
-	# S/N calculation
-	snr = np.nansum(onpulse) / (rms * np.sqrt(len(onpulse)))
-	return snr
+	prof = np.asarray(profile, dtype=float)
+	left, right = boxcar_width(prof, frac=frac)
+	mask_on = np.zeros_like(prof, dtype=bool)
+	mask_on[left:right+1] = True
+	onpulse = prof[mask_on]
+	offpulse = prof[~mask_on]
+
+	if subtract_baseline:
+		baseline = np.nanmedian(offpulse)
+		onpulse = onpulse - baseline
+		offpulse = offpulse - baseline
+
+	if robust_rms:
+		mad = np.nanmedian(np.abs(offpulse - np.nanmedian(offpulse)))
+		sigma = 1.4826 * mad if mad > 0 else np.nanstd(offpulse)
+	else:
+		sigma = np.nanstd(offpulse)
+
+	N_on = int(np.count_nonzero(mask_on))
+
+	if template is not None:
+		t = np.asarray(template, dtype=float)
+		t = np.nan_to_num(t[mask_on], nan=0.0)
+		den = sigma * np.sqrt(np.sum(t**2))
+		num = np.sum(t * onpulse)
+		return (num / den) if den > 0 else 0.0
+
+	return np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1)))
