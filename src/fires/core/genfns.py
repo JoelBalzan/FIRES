@@ -52,6 +52,30 @@ def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 		np.random.seed(seed)
 	return seed
 
+def _disable_micro_variance_for_swept_base(var_dict, xname):
+	"""
+	If sweeping a base parameter (e.g., 'tau_ms'), disable its random micro-variance
+	by zeroing the corresponding '*_var' entry (e.g., 'tau_ms_var') so the sweep
+	reflects only the base change.
+	Returns a modified copy of var_dict (shallow copy; values may be arrays).
+	"""
+	if xname is None or xname.endswith("_var"):
+		return var_dict
+
+	var_key = xname + "_var"
+	if var_key is None or var_key not in var_dict:
+		return var_dict
+
+	# Shallow copy dict; copy value to avoid in-place side effects
+	new_var_dict = dict(var_dict)
+	val = new_var_dict[var_key]
+	arr = np.array(val, dtype=float, copy=True)
+	if arr.ndim == 0:
+		arr = np.array([arr], dtype=float)
+	arr[0] = 0.0
+	new_var_dict[var_key] = arr
+	return new_var_dict
+
 
 
 # -------------------------- FRB generator functions ---------------------------
@@ -175,11 +199,14 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 
 	# check if varying scattering time scale or variable from gparams.txt
 	if variation_parameter is not None:
-		if xname in var_dict:
-			var_dict[xname][0] = variation_parameter
+		if xname in gdict:
+			var_dict[xname + "_var"][0] = variation_parameter
 		else:
 			raise ValueError(f"Variation parameter '{xname}' not found in var_dict.")
-			
+
+	# If sweeping a base parameter (e.g., 'tau_ms'), disable its micro-variance
+	var_dict = _disable_micro_variance_for_swept_base(var_dict, xname)
+
 	peak_amp_var        = var_dict['peak_amp_var'][0]
 	spec_idx_var        = var_dict['spec_idx_var'][0]
 	tau_ms_var          = var_dict['tau_ms_var'][0]
@@ -196,11 +223,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
 	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
 	median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
-	# Calculate frequency-dependent scattering timescale
-	if tau_ms > 0:
-		tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
-	else:
-		tau_cms = np.zeros_like(freq_mhz)
 
 	all_params = {
 		'var_t0'             : [],
@@ -228,12 +250,13 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			var_spec_idx        = np.random.normal(spec_idx[g], spec_idx_var)
 			var_tau_ms        	= np.random.normal(tau_ms[g], tau_ms_var)
-			# Ensure non-negative scattering timescale
-			if var_tau_ms < 0.0:
-				var_tau_ms = 0.0
-			# Recalculate frequency-dependent scattering timescale for the micro-shot
-			if var_tau_ms > 0:
-				tau_cms = var_tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
+			# Choose effective scattering timescale (use varied value if > 0, else base)
+			tau_eff = var_tau_ms if var_tau_ms > 0 else float(tau_ms[g])
+			if tau_eff > 0:
+				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
+			else:
+				tau_cms = None
+			#print(tau_eff, var_tau_ms, tau_ms[g])  # Debugging line to check tau values
 			var_PA              = np.random.normal(PA[g], pol_angle_var)
 			var_DM              = np.random.normal(DM[g], dm_var)
 			var_RM              = np.random.normal(RM[g], rm_var)
@@ -270,7 +293,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			temp_dynspec = np.zeros_like(dynspec)
 
 			# Calculate the normalized amplitude for each frequency
-			norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** spec_idx[g]
+			norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** var_spec_idx
 			
 			# Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
 			if band_width_mhz[g] != 0.:
@@ -292,7 +315,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 					temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
 
 				# Apply scattering if enabled
-				if tau_ms > 0:
+				if tau_eff > 0:
 					temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], time_res_ms, tau_cms[c])
 
 				# Calculate Stokes Q, U, V
