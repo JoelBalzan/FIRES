@@ -149,7 +149,7 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 		print(f"Invalid mode: {mode} \n")
 
 
-def _apply_faraday_rotation(freq_mhz, freq_window):
+def _get_freq_window_indices(freq_window, freq_mhz):
 	q = int(len(freq_mhz) / 4)
 	windows = {
 		"lowest-quarter": slice(0, q),
@@ -708,7 +708,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
-	slc = _apply_faraday_rotation(freq_mhz, freq_window)
+	slc = _get_freq_window_indices(freq_mhz, freq_window)
 	freq_mhz = freq_mhz[slc]
 	dspec = dspec[:, slc, :]
 		
@@ -826,7 +826,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
 	if freq_window != "full-band":
-		freq_slc = _apply_faraday_rotation(freq_mhz, freq_window)
+		freq_slc = _get_freq_window_indices(freq_mhz, freq_window)
 		freq_mhz = freq_mhz[freq_slc]
 		dspec = dspec[:, freq_slc, :]
 	if phase_window != "total":
