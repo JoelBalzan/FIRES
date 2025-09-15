@@ -708,14 +708,19 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
-	slc = _get_freq_window_indices(freq_mhz, freq_window)
-	freq_mhz = freq_mhz[slc]
-	dspec = dspec[:, slc, :]
+
+
+	if freq_window != "full-band":
+		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
+		freq_mhz = freq_mhz[freq_slc]
+		dspec = dspec[:, freq_slc, :]
+	if phase_window != "total":
+		peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
+		phase_slc = _get_phase_window_indices(phase_window, peak_index)
+		time_ms = time_ms[phase_slc]
+		dspec = dspec[:, :, phase_slc]
 		
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
-	
-	peak_index = np.argmax(ts_data.iquvt[0])
-	phase_slc = _get_phase_window_indices(phase_window, peak_index)
 
 	phits = ts_data.phits[phase_slc]
 	dphits = ts_data.dphits[phase_slc]
@@ -826,7 +831,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
 	if freq_window != "full-band":
-		freq_slc = _get_freq_window_indices(freq_mhz, freq_window)
+		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
 		freq_mhz = freq_mhz[freq_slc]
 		dspec = dspec[:, freq_slc, :]
 	if phase_window != "total":
