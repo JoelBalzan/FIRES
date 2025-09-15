@@ -881,10 +881,9 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	ts_data, _, _, _ = process_dynspec(dspec_fpslc, freq_mhz, gdict)
 
 	I, Q, U, V = ts_data.iquvt
-	buffer_frac = gdict.get("offpulse_buffer_frac", None)
-	buffer_bins = gdict.get("offpulse_buffer_bins", None)
+	buffer_frac = gdict.get("buffer", None)
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-		I, frac=0.95, buffer_frac=buffer_frac, buffer_bins=buffer_bins
+		I, frac=0.95, buffer_frac=buffer_frac
 	)
 
 	I_masked = np.where(on_mask, I, np.nan)
