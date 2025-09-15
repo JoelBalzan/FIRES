@@ -75,6 +75,7 @@ Notes
 - `-s, --save-plots`: Save plots to disk.
 - `--phase-window <name>`: `first`, `last`, `all` (aka `leading`, `trailing`, `total`).
 - `--freq-window <name>`: `1q`, `2q`, `3q`, `4q`, `full` (aka `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`).
+- `--buffer <float>`: Window buffer between on- and off-pulse regions as a function of FRB width for noise calculation. (default: `0.25`)
 - `--verbose`: Verbose output.
 
 Config management:
@@ -83,7 +84,7 @@ Config management:
 - `--edit-config {gparams,obsparams}`: Open the chosen config in your editor.
 
 Tip
-- Some plot modes aggregate across multiple tau values (`pa_var`, `l_var`); pass a list or range to `--tau_ms`.
+- Some plot modes aggregate across multiple tau values (`pa_var`, `l_var`).
 
 ## Example TOML snippets
 
@@ -118,12 +119,6 @@ src/
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
-# Lint/format/test as applicable
-```
-
-Run from source:
-```bash
-python -m fires --help
 ```
 
 ##
