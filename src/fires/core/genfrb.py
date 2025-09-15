@@ -337,7 +337,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if tsys > 0:
 				dspec, snr = add_noise(dynspec=dspec, t_sys=tsys, f_res=f_res, t_res=t_res, 
-													time_ms=time_ms, plot_multiple_frb=plot_multiple_frb)
+													plot_multiple_frb=plot_multiple_frb)
 			
 			# Update dspec_params with new time and frequency arrays
 			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
