@@ -719,7 +719,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	if freq_window != "full-band":
 		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
 		freq_mhz = freq_mhz[freq_slc]
-		dspec_fslc = dspec[:, freq_slc, :]
+		dspec = dspec[:, freq_slc, :]
 
 	if phase_window != "total":
 		# Collapse to time profile and find peak robustly
@@ -736,9 +736,9 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 				stop = min(Its.size, peak_index + 1)
 				phase_slc = slice(start, stop)
 		time_ms = time_ms[phase_slc]
-		#dspec_pslc = dspec_fslc[:, :, phase_slc]
+		#dspec = dspec_fslc[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dynspec(dspec_fslc, freq_mhz, gdict)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
 
 	phits = ts_data.phits[phase_slc]
 	dphits = ts_data.dphits[phase_slc]
@@ -859,7 +859,7 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	if freq_window != "full-band":
 		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
 		freq_mhz = freq_mhz[freq_slc]
-		dspec_fslc = dspec[:, freq_slc, :]
+		dspec = dspec[:, freq_slc, :]
 
 	if phase_window != "total":
 		# Collapse to time profile and find peak robustly
@@ -876,9 +876,9 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 				stop = min(Its.size, peak_index + 1)
 				phase_slc = slice(start, stop)
 		time_ms = time_ms[phase_slc]
-		dspec_fpslc = dspec_fslc[:, :, phase_slc]
+		dspec = dspec[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dynspec(dspec_fpslc, freq_mhz, gdict)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
 
 	I, Q, U, V = ts_data.iquvt
 	buffer_frac = gdict.get("buffer", None)
