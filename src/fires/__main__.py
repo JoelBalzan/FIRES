@@ -309,7 +309,8 @@ def main():
 				n_cpus       = args.ncpu,
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
-				freq_window  = args.freq_window
+				freq_window  = args.freq_window,
+				buffer       = args.buffer
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
@@ -326,7 +327,8 @@ def main():
 				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
-				freq_window  = None
+				freq_window  = None,
+				buffer       = args.buffer
 			)
 			if args.chi2_fit:
 				print("Performing chi-squared fitting on the final profiles... \n")
