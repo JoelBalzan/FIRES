@@ -480,10 +480,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 			# Create a descriptive filename
 			xvals = f"{xvals[0]:.2f}-{xvals[-1]:.2f}" if len(xvals) > 1 else f"{xvals[0]:.2f}"
 
-			tau = f"{tau_ms[0]:.2f}" if len(tau_ms) == 1 else f"{tau_ms[0]:.2f}-{tau_ms[-1]:.2f}"
 
 			out_file = (
-				f"{out_dir}{frb_id}_plot_{plot_mode.name}_xname_{xname}_xvals_{xvals}_mode_{mode}_sc_{tau}_"
+				f"{out_dir}{frb_id}_plot_{plot_mode.name}_xname_{xname}_xvals_{xvals}_mode_{mode}_"
 				f"freq_{freq_window}_phase_{phase_window}.pkl"
 			)
 			with open(out_file, 'wb') as frb_file:
