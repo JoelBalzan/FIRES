@@ -236,8 +236,8 @@ def _process_task(task, xname, mode, plot_mode, **params):
     return var, xvals, result_err, var_params, snr
 
 
-def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
-				 obs_file, gauss_file, tsys, n_cpus, plot_mode, phase_window, freq_window):
+def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, 
+				tsys, n_cpus, plot_mode, phase_window, freq_window, buffer):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -277,7 +277,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write,
 		'band_width_mhz' : gauss_params[:-3, 12],
 		'ngauss'         : gauss_params[:-3, 13],
 		'mg_width_low'   : gauss_params[:-3, 14],
-		'mg_width_high'  : gauss_params[:-3, 15]
+		'mg_width_high'  : gauss_params[:-3, 15],
+		'buffer'         : buffer
 	}
 	
 	var_dict = {

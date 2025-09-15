@@ -395,7 +395,7 @@ def on_off_pulse_masks_from_profile(profile, frac=0.95, buffer_frac=None):
 	left, right = boxcar_width(prof, frac=frac)
 
 	width = max(1, int(right - left + 1))
-	buffer_bins = int(np.ceil(max(0.0, float(buffer_frac)) * width))
+	buffer_bins = int(float(buffer_frac) * width)
 
 	on_mask = make_onpulse_mask(prof.size, left, right)
 	off_mask = make_offpulse_mask(prof.size, left, right, buffer_bins=buffer_bins)
@@ -435,8 +435,7 @@ def process_dynspec(dynspec, freq_mhz, gdict):
 	left, right = boxcar_width(I, frac=0.95)
 
 	# New: buffer around on-pulse window for off-pulse noise estimation
-	buffer_frac = int(gdict.get("offpulse_buffer_frac", 0))
-	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
+	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=gdict["buffer"])
 
 	# Estimate noise using off-pulse region with buffer
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
@@ -530,7 +529,7 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 
 
 
-def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, n_pol=1):
+def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, buffer_frac, n_pol=1):
 	"""
 	Add Gaussian noise to a clean Stokes IQUV dynamic spectrum based on the radiometer equation.
 
@@ -562,7 +561,7 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, n_pol=1)
 	#snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
 	#print(f"Stokes I SNR (boxcar method): {snr:.2f}")
  
-	snr = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), frac=0.95, subtract_baseline=True, robust_rms=True)
+	snr = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
 	if plot_multiple_frb == False:
 		print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
 
@@ -641,7 +640,7 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, tem
 
 	# Buffer handling
 	width = max(1, int(right - left + 1))
-	buffer_bins = int(np.ceil(max(0.0, float(buffer_frac)) * width))
+	buffer_bins = int(float(buffer_frac) * width)
 
 	# Off-pulse mask with buffer
 	offpulse_mask = make_offpulse_mask(prof.size, left, right, buffer_bins=buffer_bins)

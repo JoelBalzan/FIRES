@@ -159,7 +159,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, sc_idx, ref
 	if tsys > 0:
 		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
 		t_res_s = time_res_ms / 1000
-		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, time_ms, plot_multiple_frb)
+		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, time_ms, plot_multiple_frb, buffer_frac=gdict["buffer"])
 	else:
 		snr = None
 
@@ -345,7 +345,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	if tsys > 0:
 		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
 		t_res_s = time_res_ms / 1000
-		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, time_ms, plot_multiple_frb)
+		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, time_ms, plot_multiple_frb, buffer_frac=gdict["buffer"])
 	else:
 		snr = None
 
