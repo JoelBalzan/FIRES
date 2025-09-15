@@ -114,6 +114,13 @@ def main():
 	  )
 	)
 	parser.add_argument(
+		"--buffer",
+		type=float,
+		default=0.25,
+		metavar="",
+		help="Buffer time in between on- and off-pulse regions as a fraction of the pulse width for noise estimation. Default is 0.25."
+	)
+	parser.add_argument(
 		"-v", "--verbose",
 		action="store_true",
 		help="Enable verbose output."

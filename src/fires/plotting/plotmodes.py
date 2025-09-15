@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-from ..core.basicfns import process_dynspec, boxcar_width
+from ..core.basicfns import process_dynspec, boxcar_width, on_off_pulse_masks_from_profile
 from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
@@ -150,32 +150,32 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 
 
 def _get_freq_window_indices(freq_window, freq_mhz):
-    q = int(len(freq_mhz) / 4)
-    windows = {
-        "lowest-quarter": slice(0, q),
-        "lower-mid-quarter": slice(q, 2*q),
-        "upper-mid-quarter": slice(2*q, 3*q),
-        "highest-quarter": slice(3*q, None),
-        "full-band": slice(None)
-    }
-    sl = windows.get(freq_window)
-    if sl is None:
-        raise ValueError(f"Unknown freq_window '{freq_window}'. Valid: {list(windows.keys())}")
-    return sl
+	q = int(len(freq_mhz) / 4)
+	windows = {
+		"lowest-quarter": slice(0, q),
+		"lower-mid-quarter": slice(q, 2*q),
+		"upper-mid-quarter": slice(2*q, 3*q),
+		"highest-quarter": slice(3*q, None),
+		"full-band": slice(None)
+	}
+	sl = windows.get(freq_window)
+	if sl is None:
+		raise ValueError(f"Unknown freq_window '{freq_window}'. Valid: {list(windows.keys())}")
+	return sl
 
 def _get_phase_window_indices(phase_window, peak_index):
-    """
-    Returns a slice object for the desired phase window.
-    """
-    phase_slices = {
-        "leading": slice(0, peak_index),
-        "trailing": slice(peak_index, None),
-        "total": slice(None)
-    }
-    sl = phase_slices.get(phase_window)
-    if sl is None:
-        raise ValueError(f"Unknown phase_window '{phase_window}'. Valid: {list(phase_slices.keys())}")
-    return sl
+	"""
+	Returns a slice object for the desired phase window.
+	"""
+	phase_slices = {
+		"leading": slice(0, peak_index),
+		"trailing": slice(peak_index, None),
+		"total": slice(None)
+	}
+	sl = phase_slices.get(phase_window)
+	if sl is None:
+		raise ValueError(f"Unknown phase_window '{phase_window}'. Valid: {list(phase_slices.keys())}")
+	return sl
 
 
 
@@ -713,46 +713,45 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
-    freq_slc = slice(None)
-    phase_slc = slice(None)
+	freq_slc = slice(None)
+	phase_slc = slice(None)
 
-    if freq_window != "full-band":
-        freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-        freq_mhz = freq_mhz[freq_slc]
-        dspec = dspec[:, freq_slc, :]
+	if freq_window != "full-band":
+		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
+		freq_mhz = freq_mhz[freq_slc]
+		dspec_fslc = dspec[:, freq_slc, :]
 
-    if phase_window != "total":
-        # Collapse to time profile and find peak robustly
-        Its = np.nansum(dspec, axis=(0, 1))
-        peak_index = int(np.nanargmax(Its))
-        phase_slc = _get_phase_window_indices(phase_window, peak_index)
-        # Avoid zero-length windows
-        if isinstance(phase_slc, slice):
-            start = 0 if phase_slc.start is None else phase_slc.start
-            stop = Its.size if phase_slc.stop is None else phase_slc.stop
-            if stop - start <= 0:
-                # Fallback to at least a single-sample window around the peak
-                start = max(0, peak_index - 1)
-                stop = min(Its.size, peak_index + 1)
-                phase_slc = slice(start, stop)
-        time_ms = time_ms[phase_slc]
-        dspec = dspec[:, :, phase_slc]
+	if phase_window != "total":
+		# Collapse to time profile and find peak robustly
+		Its = np.nansum(dspec, axis=(0, 1))
+		peak_index = int(np.nanargmax(Its))
+		phase_slc = _get_phase_window_indices(phase_window, peak_index)
+		# Avoid zero-length windows
+		if isinstance(phase_slc, slice):
+			start = 0 if phase_slc.start is None else phase_slc.start
+			stop = Its.size if phase_slc.stop is None else phase_slc.stop
+			if stop - start <= 0:
+				# Fallback to at least a single-sample window around the peak
+				start = max(0, peak_index - 1)
+				stop = min(Its.size, peak_index + 1)
+				phase_slc = slice(start, stop)
+		time_ms = time_ms[phase_slc]
+		#dspec_pslc = dspec_fslc[:, :, phase_slc]
 
-    ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
+	ts_data, _, _, _ = process_dynspec(dspec_fslc, freq_mhz, gdict)
 
-    # Do not reapply phase_slc here; ts_data already corresponds to the sliced window
-    phits = ts_data.phits
-    dphits = ts_data.dphits
+	phits = ts_data.phits[phase_slc]
+	dphits = ts_data.dphits[phase_slc]
 
-    if phits is None or len(phits) == 0:
-        return np.nan, np.nan
+	if phits is None or len(phits) == 0:
+		return np.nan, np.nan
 
-    pa_var = np.nanvar(phits)
-    if not np.isfinite(pa_var) or pa_var == 0:
-        return pa_var, np.nan
-    with np.errstate(divide='ignore', invalid='ignore'):
-        pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
-    return pa_var, pa_var_err
+	pa_var = np.nanvar(phits)
+	if not np.isfinite(pa_var) or pa_var == 0:
+		return pa_var, np.nan
+	with np.errstate(divide='ignore', invalid='ignore'):
+		pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
+	return pa_var, pa_var_err
 
 
 def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
@@ -854,45 +853,53 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 
 def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	
+	freq_slc = slice(None)
+	phase_slc = slice(None)
+
 	if freq_window != "full-band":
 		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
 		freq_mhz = freq_mhz[freq_slc]
-		dspec = dspec[:, freq_slc, :]
+		dspec_fslc = dspec[:, freq_slc, :]
+
 	if phase_window != "total":
-		peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
+		# Collapse to time profile and find peak robustly
+		Its = np.nansum(dspec, axis=(0, 1))
+		peak_index = int(np.nanargmax(Its))
 		phase_slc = _get_phase_window_indices(phase_window, peak_index)
+		# Avoid zero-length windows
+		if isinstance(phase_slc, slice):
+			start = 0 if phase_slc.start is None else phase_slc.start
+			stop = Its.size if phase_slc.stop is None else phase_slc.stop
+			if stop - start <= 0:
+				# Fallback to at least a single-sample window around the peak
+				start = max(0, peak_index - 1)
+				stop = min(Its.size, peak_index + 1)
+				phase_slc = slice(start, stop)
 		time_ms = time_ms[phase_slc]
-		dspec = dspec[:, :, phase_slc]
+		dspec_fpslc = dspec_fslc[:, :, phase_slc]
 
- 
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
- 
-	iquvt = ts_data.iquvt
-	I = iquvt[0]
-	Q = iquvt[1]
-	U = iquvt[2]
-	V = iquvt[3]
- 
-	left, right = boxcar_width(I, frac=0.95)
-	onpulse_mask = np.zeros(I.shape, dtype=bool)
-	onpulse_mask[left:right+1] = True  # Include on-pulse region
+	ts_data, _, _, _ = process_dynspec(dspec_fpslc, freq_mhz, gdict)
 
-	I_masked = np.where(onpulse_mask, I, np.nan)
-	Q_masked = np.where(onpulse_mask, Q, np.nan)
-	U_masked = np.where(onpulse_mask, U, np.nan)
-	V_masked = np.where(onpulse_mask, V, np.nan)
+	I, Q, U, V = ts_data.iquvt
+	buffer_frac = gdict.get("offpulse_buffer_frac", None)
+	buffer_bins = gdict.get("offpulse_buffer_bins", None)
+	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
+		I, frac=0.95, buffer_frac=buffer_frac, buffer_bins=buffer_bins
+	)
+
+	I_masked = np.where(on_mask, I, np.nan)
+	Q_masked = np.where(on_mask, Q, np.nan)
+	U_masked = np.where(on_mask, U, np.nan)
 
 	L = np.sqrt(Q_masked**2 + U_masked**2)
-	
+
 	integrated_I = np.nansum(I_masked)
 	integrated_L = np.nansum(L)
 
-	
 	with np.errstate(divide='ignore', invalid='ignore'):
 		lfrac = integrated_L / integrated_I
- 
-		noise_I = np.nanstd(I[~onpulse_mask])
-		noise_L = np.nanstd(L[~onpulse_mask])
+		noise_I = np.nanstd(I[off_mask]) if np.any(off_mask) else np.nan
+		noise_L = np.nanstd(L[off_mask]) if np.any(off_mask) else np.nan
 		lfrac_err = np.sqrt((noise_L / integrated_I)**2 + (integrated_L * noise_I / integrated_I**2)**2)
 
 	return lfrac, lfrac_err
