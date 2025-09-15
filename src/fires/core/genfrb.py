@@ -45,10 +45,12 @@ def _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_m
 		dspec_scattered: Scattered dynamic spectrum (same shape as input)
 	"""
 	dspec_scattered = dspec.copy()
+	time_res_ms = np.median(np.diff(time_ms))
+	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** (-sc_idx)
 	for stokes_idx in range(dspec.shape[0]):  # Loop over I, Q, U, V
 		for c in range(len(freq_mhz)):
 			dspec_scattered[stokes_idx, c] = scatter_stokes_chan(
-				dspec[stokes_idx, c], freq_mhz[c], time_ms, tau_ms, sc_idx, ref_freq_mhz
+				dspec[stokes_idx, c], time_res_ms, tau_cms[c]
 			)
 	return dspec_scattered
 
@@ -71,6 +73,7 @@ def _load_data(frb_id, data, freq_mhz, time_ms):
 	print(f"Loading data from {data}...")
 
 	dspec = np.load(data) if data.endswith('.npy') else None
+	
 	dspec = np.flip(dspec, axis=1)  # Flip frequency axis if needed
 	
 	#summary_file = [f for f in os.listdir(data) if f.endswith(f'.txt')]
@@ -329,7 +332,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = _load_data(frb_id, data, freq_mhz, time_ms)
-			snr = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95)  
+			snr = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer)  
 			if tau_ms[0] > 0:
 				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if tsys > 0:
