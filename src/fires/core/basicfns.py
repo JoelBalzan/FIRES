@@ -529,7 +529,7 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 
 
 
-def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, buffer_frac, n_pol=1):
+def add_noise(dynspec, t_sys, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=1):
 	"""
 	Add Gaussian noise to a clean Stokes IQUV dynamic spectrum based on the radiometer equation.
 
