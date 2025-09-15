@@ -554,16 +554,19 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, buffer_f
 	sigma = t_sys / np.sqrt(n_pol * f_res * t_res)
 
 	noise = np.random.normal(0.0, sigma, dynspec.shape)
-	
 	noisy_dynspec = dynspec + noise
 
 	
-	#snr, _ = boxcar_snr(np.nansum(noisy_dynspec[0], axis=0), sigma)
-	#print(f"Stokes I SNR (boxcar method): {snr:.2f}")
- 
-	snr = snr_onpulse(np.nansum(noisy_dynspec[0], axis=0), frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
+	n_chan = noisy_dynspec.shape[1]
+	I_time = np.nansum(noisy_dynspec[0], axis=0)
+	rms_time = sigma * np.sqrt(n_chan)
+
+	(snr, _) = boxcar_snr(I_time, rms_time)
+	print(f"Stokes I S/N (boxcar method): {snr:.2f}")
+
+	snr = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
 	if plot_multiple_frb == False:
-		print(f"Stokes I SNR (on-pulse method): {snr:.2f}")
+		print(f"Stokes I S/N (on-pulse method): {snr:.2f}")
 
 	return noisy_dynspec, snr
 
@@ -571,7 +574,7 @@ def add_noise(dynspec, t_sys, f_res, t_res, time_ms, plot_multiple_frb, buffer_f
 
 def boxcar_snr(ys, rms):
 	"""
-	Calculates "max boxcar S/N" using boxcar's method.
+	Calculates "max boxcar S/N".
 	
 	Parameters:
 	-----------
@@ -608,8 +611,7 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, template=None,
-				buffer_frac=None):
+def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None):
 	"""
 	Estimate S/N on a 1-D profile using an on-pulse window and off-pulse RMS.
 
@@ -620,7 +622,6 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, tem
 		Fraction of total flux to enclose when selecting on-pulse window.
 	subtract_baseline : bool
 	robust_rms : bool
-	template : array_like or None
 	buffer_frac : float or None
 		Buffer as a fraction of the on-pulse width (overrides buffer_bins).
 	buffer_bins : int or None
@@ -661,12 +662,5 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, tem
 		sigma = np.nanstd(offpulse) if offpulse.size > 0 else np.nan
 
 	N_on = int(np.count_nonzero(mask_on))
-
-	if template is not None:
-		t = np.asarray(template, dtype=float)
-		t = np.nan_to_num(t[mask_on], nan=0.0)
-		den = sigma * np.sqrt(np.sum(t**2))
-		num = np.sum(t * onpulse)
-		return (num / den) if (den is not None and den > 0) else 0.0
 
 	return np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1))) if (sigma is not None and sigma > 0) else 0.0
