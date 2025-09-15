@@ -150,26 +150,32 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 
 
 def _get_freq_window_indices(freq_window, freq_mhz):
-	q = int(len(freq_mhz) / 4)
-	windows = {
-		"lowest-quarter": slice(0, q),
-		"lower-mid-quarter": slice(q, 2*q),
-		"upper-mid-quarter": slice(2*q, 3*q),
-		"highest-quarter": slice(3*q, None),
-		"full-band": slice(None)
-	}
-	return windows.get(freq_window, None)
+    q = int(len(freq_mhz) / 4)
+    windows = {
+        "lowest-quarter": slice(0, q),
+        "lower-mid-quarter": slice(q, 2*q),
+        "upper-mid-quarter": slice(2*q, 3*q),
+        "highest-quarter": slice(3*q, None),
+        "full-band": slice(None)
+    }
+    sl = windows.get(freq_window)
+    if sl is None:
+        raise ValueError(f"Unknown freq_window '{freq_window}'. Valid: {list(windows.keys())}")
+    return sl
 
 def _get_phase_window_indices(phase_window, peak_index):
-	"""
-	Returns a slice object for the desired phase window.
-	"""
-	phase_slices = {
-		"leading": slice(0, peak_index),
-		"trailing": slice(peak_index, None),
-		"total": slice(None)
-	}
-	return phase_slices.get(phase_window, None)
+    """
+    Returns a slice object for the desired phase window.
+    """
+    phase_slices = {
+        "leading": slice(0, peak_index),
+        "trailing": slice(peak_index, None),
+        "total": slice(None)
+    }
+    sl = phase_slices.get(phase_window)
+    if sl is None:
+        raise ValueError(f"Unknown phase_window '{phase_window}'. Valid: {list(phase_slices.keys())}")
+    return sl
 
 
 
@@ -707,28 +713,46 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
-	
+    freq_slc = slice(None)
+    phase_slc = slice(None)
 
+    if freq_window != "full-band":
+        freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
+        freq_mhz = freq_mhz[freq_slc]
+        dspec = dspec[:, freq_slc, :]
 
-	if freq_window != "full-band":
-		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-		freq_mhz = freq_mhz[freq_slc]
-		dspec = dspec[:, freq_slc, :]
-	if phase_window != "total":
-		peak_index = np.argmax(np.nansum(dspec, axis=(0, 1)))
-		phase_slc = _get_phase_window_indices(phase_window, peak_index)
-		time_ms = time_ms[phase_slc]
-		dspec = dspec[:, :, phase_slc]
-		
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
+    if phase_window != "total":
+        # Collapse to time profile and find peak robustly
+        Its = np.nansum(dspec, axis=(0, 1))
+        peak_index = int(np.nanargmax(Its))
+        phase_slc = _get_phase_window_indices(phase_window, peak_index)
+        # Avoid zero-length windows
+        if isinstance(phase_slc, slice):
+            start = 0 if phase_slc.start is None else phase_slc.start
+            stop = Its.size if phase_slc.stop is None else phase_slc.stop
+            if stop - start <= 0:
+                # Fallback to at least a single-sample window around the peak
+                start = max(0, peak_index - 1)
+                stop = min(Its.size, peak_index + 1)
+                phase_slc = slice(start, stop)
+        time_ms = time_ms[phase_slc]
+        dspec = dspec[:, :, phase_slc]
 
-	phits = ts_data.phits[phase_slc]
-	dphits = ts_data.dphits[phase_slc]
-		
-   
-	pa_var = np.nanvar(phits)
-	pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
-	return pa_var, pa_var_err
+    ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
+
+    # Do not reapply phase_slc here; ts_data already corresponds to the sliced window
+    phits = ts_data.phits
+    dphits = ts_data.dphits
+
+    if phits is None or len(phits) == 0:
+        return np.nan, np.nan
+
+    pa_var = np.nanvar(phits)
+    if not np.isfinite(pa_var) or pa_var == 0:
+        return pa_var, np.nan
+    with np.errstate(divide='ignore', invalid='ignore'):
+        pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
+    return pa_var, pa_var_err
 
 
 def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
