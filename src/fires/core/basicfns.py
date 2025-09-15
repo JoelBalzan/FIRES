@@ -222,14 +222,14 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		eps = 1e-12
 		
 		# Debias L using Everett & Weisberg+2001 method
-		Lts_true = np.sqrt((Lts/Its_rms)**2 - 1*Its_rms)
-		Lts_true[np.isnan(Lts_true)] = 0.0
-		Lts_true[Lts/Its_rms < 1.57] = 0.0
+		#Lts_true = np.sqrt((Lts/Its_rms)**2 - 1*Its_rms)
+		#Lts_true[np.isnan(Lts_true)] = 0.0
+		#Lts_true[Lts/Its_rms < 1.57] = 0.0
 
-		eLts = np.sqrt((Qts**2 * Qts_rms**2) + (Uts**2 * Uts_rms**2)) / np.maximum(Lts_true, eps)
-		Lmask = Lts_true != 0.0
+		eLts = np.sqrt((Qts**2 * Qts_rms**2) + (Uts**2 * Uts_rms**2)) / np.maximum(Lts, eps)
+		Lmask = Lts != 0.0
 		eLts[~Lmask] = np.nan
-		Lts_true[~Lmask] = np.nan
+		Lts[~Lmask] = np.nan
 		
 		# Calculate the total polarization intensity
 		Pts  = np.sqrt(Lts ** 2 + Vts ** 2)
@@ -263,7 +263,7 @@ def est_profiles(dynspec, noise_stokes, left, right):
 
 
 		# Set large errors to NaN
-		mask = Lts_true < (1.0 * Its_rms)  # Mask where L is less than 2-sigma
+		mask = Lts < (1.0 * Its_rms)  # Mask where L is less than 1-sigma
 		phits[mask]  = np.nan
 		ephits[mask] = np.nan
 		psits[mask]  = np.nan
@@ -350,31 +350,77 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 	return frb_spectrum(iquvspec, noispec0, lspec, dlspec, pspec, dpspec, qfracspec, dqfrac, ufracspec, dufrac, vfracspec, dvfrac, lfracspec, dlfrac, pfracspec, dpfrac, phispec, dphispec, psispec, dpsispec)
 
 
+def make_onpulse_mask(n_time, left, right):
+	"""
+	Return a boolean mask marking the on-pulse window [left, right] inclusive.
+	"""
+	on_mask = np.zeros(int(n_time), dtype=bool)
+	l = max(0, int(left))
+	r = min(int(n_time) - 1, int(right))
+	if r >= l:
+		on_mask[l:r+1] = True
+	return on_mask
+
+
+def make_offpulse_mask(n_time, left, right, buffer_bins=0):
+	"""
+	Return a boolean mask for off-pulse samples, excluding the on-pulse window
+	and an extra buffer on each side of the on-pulse window.
+	"""
+	n = int(n_time)
+	l_on = max(0, int(left))
+	r_on = min(n - 1, int(right))
+	buf = max(0, int(buffer_bins))
+	l_excl = max(0, l_on - buf)
+	r_excl = min(n - 1, r_on + buf)
+
+	off_mask = np.ones(n, dtype=bool)
+	if r_excl >= l_excl:
+		off_mask[l_excl:r_excl+1] = False
+	return off_mask
+
+
+def on_off_pulse_masks_from_profile(profile, frac=0.95, buffer_frac=None):
+	"""
+	Build on- and off-pulse masks from a 1-D profile using boxcar_width,
+	with an optional buffer separating off- and on-pulse windows.
+
+	Returns
+	-------
+	on_mask : np.ndarray (bool)
+	off_mask: np.ndarray (bool)
+	(left, right): tuple(int, int)
+	"""
+	prof = np.asarray(profile, dtype=float)
+	left, right = boxcar_width(prof, frac=frac)
+
+	width = max(1, int(right - left + 1))
+	buffer_bins = int(np.ceil(max(0.0, float(buffer_frac)) * width))
+
+	on_mask = make_onpulse_mask(prof.size, left, right)
+	off_mask = make_offpulse_mask(prof.size, left, right, buffer_bins=buffer_bins)
+	return on_mask, off_mask, (left, right)
+
+
+def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask):
+	"""
+	Estimate per-Stokes scalar noise and per-(Stokes,chan) noise using an
+	off-pulse mask (True where off-pulse).
+	"""
+	npol = corrdspec.shape[0]
+	noise_stokes = np.zeros(npol)
+	for s in range(npol):
+		offpulse_samples = corrdspec[s, :, offpulse_mask].ravel()
+		noise_stokes[s] = np.nanstd(offpulse_samples) if offpulse_samples.size > 0 else np.nan
+
+	noisespec = (np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
+				 if np.any(offpulse_mask) else np.full(corrdspec.shape[:2], np.nan))
+	return noise_stokes, noisespec
 
 
 def process_dynspec(dynspec, freq_mhz, gdict):
 	"""
 	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
-	
-	Parameters:
-	-----------
-	dynspec : ndarray, shape (4, n_freq, n_time)
-		Input dynamic spectrum with Stokes I, Q, U, V
-	freq_mhz : array_like
-		Frequency channels in MHz
-	time_ms : array_like
-		Time samples in milliseconds  
-	gdict : dict
-		Dictionary containing analysis parameters, must include:
-		- "RM": array of rotation measure values (rad/m²)
-	Returns:
-	--------
-	tuple
-		Four-element tuple containing:
-		- tsdata: frb_time_series object with time-resolved polarization profiles
-		- corrdspec: RM-corrected dynamic spectrum  
-		- noisespec: Noise spectrum for each Stokes parameter and frequency
-		- noise_stokes: Average noise levels for each Stokes parameter
 	"""
 	RM = gdict["RM"]
 
@@ -388,23 +434,16 @@ def process_dynspec(dynspec, freq_mhz, gdict):
 	I = np.nansum(corrdspec[0], axis=0)
 	left, right = boxcar_width(I, frac=0.95)
 
-	# Estimate noise in each Stokes parameter using off-pulse region
-	offpulse_mask = np.ones(I.shape, dtype=bool)
-	offpulse_mask[left:right+1] = False  # Exclude on-pulse region
+	# New: buffer around on-pulse window for off-pulse noise estimation
+	buffer_frac = int(gdict.get("offpulse_buffer_frac", 0))
+	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
 
-	npol = corrdspec.shape[0]
-	noise_stokes = np.zeros(npol)
-	for s in range(npol):
-		# Flatten all off-pulse samples across all channels for this Stokes parameter
-		offpulse_samples = corrdspec[s, :, offpulse_mask].ravel()
-		noise_stokes[s] = np.nanstd(offpulse_samples)
-
-	noisespec = np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
+	# Estimate noise using off-pulse region with buffer
+	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 
 	tsdata = est_profiles(corrdspec, noise_stokes, left, right)
 
 	return tsdata, corrdspec, noisespec, noise_stokes
-
 
 
 def boxcar_width(profile, frac=0.95):
@@ -570,23 +609,23 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, template=None):
+def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, template=None,
+				buffer_frac=None):
 	"""
 	Estimate S/N on a 1-D profile using an on-pulse window and off-pulse RMS.
 
 	Parameters
 	----------
 	profile : array_like
-		1-D time series.
 	frac : float
-		Fraction of total flux to enclose when selecting on-pulse window (via boxcar_width).
+		Fraction of total flux to enclose when selecting on-pulse window.
 	subtract_baseline : bool
-		Subtract off-pulse median before S/N calculation (reduces baseline bias).
 	robust_rms : bool
-		Use MAD-based estimator for off-pulse RMS (robust to outliers).
 	template : array_like or None
-		Optional matched-filter template (same length as profile). If provided,
-		S/N is (t^T d) / (sigma * sqrt(t^T t)) over the on-pulse window.
+	buffer_frac : float or None
+		Buffer as a fraction of the on-pulse width (overrides buffer_bins).
+	buffer_bins : int or None
+		Explicit buffer in bins (used only if buffer_frac is None).
 
 	Returns
 	-------
@@ -595,21 +634,32 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, tem
 	"""
 	prof = np.asarray(profile, dtype=float)
 	left, right = boxcar_width(prof, frac=frac)
-	mask_on = np.zeros_like(prof, dtype=bool)
-	mask_on[left:right+1] = True
+
+	# On-pulse mask
+	mask_on = make_onpulse_mask(prof.size, left, right)
 	onpulse = prof[mask_on]
-	offpulse = prof[~mask_on]
+
+	# Buffer handling
+	width = max(1, int(right - left + 1))
+	buffer_bins = int(np.ceil(max(0.0, float(buffer_frac)) * width))
+
+	# Off-pulse mask with buffer
+	offpulse_mask = make_offpulse_mask(prof.size, left, right, buffer_bins=buffer_bins)
+	offpulse = prof[offpulse_mask]
 
 	if subtract_baseline:
-		baseline = np.nanmedian(offpulse)
+		baseline = np.nanmedian(offpulse) if offpulse.size > 0 else 0.0
 		onpulse = onpulse - baseline
 		offpulse = offpulse - baseline
 
 	if robust_rms:
-		mad = np.nanmedian(np.abs(offpulse - np.nanmedian(offpulse)))
-		sigma = 1.4826 * mad if mad > 0 else np.nanstd(offpulse)
+		if offpulse.size > 0:
+			mad = np.nanmedian(np.abs(offpulse - np.nanmedian(offpulse)))
+			sigma = 1.4826 * mad if mad > 0 else np.nanstd(offpulse)
+		else:
+			sigma = np.nan
 	else:
-		sigma = np.nanstd(offpulse)
+		sigma = np.nanstd(offpulse) if offpulse.size > 0 else np.nan
 
 	N_on = int(np.count_nonzero(mask_on))
 
@@ -618,6 +668,6 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, tem
 		t = np.nan_to_num(t[mask_on], nan=0.0)
 		den = sigma * np.sqrt(np.sum(t**2))
 		num = np.sum(t * onpulse)
-		return (num / den) if den > 0 else 0.0
+		return (num / den) if (den is not None and den > 0) else 0.0
 
-	return np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1)))
+	return np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1))) if (sigma is not None and sigma > 0) else 0.0
