@@ -22,17 +22,17 @@ fires --help
 
 Single FRB, plot IQUV, add noise:
 ```bash
-fires -t 0.5 --plot iquv --tsys 50
+fires --plot iquv --tsys 50
 ```
 
 Micro-shot mode with LV+PA plot, save plots:
 ```bash
-fires -m psn -t 0.05 --plot lvpa --save-plots
+fires -m psn --plot lvpa --save-plots
 ```
 
-Sweep scattering times, aggregate plots:
+Sweep scattering times (see configs):
 ```bash
-fires -t 0.1,10,0.5 --plot pa_var l_var --plot-scale loglog
+fires -m psn --plot pa_var l_var --plot-scale loglog
 ```
 
 ## Configuration (TOML)
@@ -56,23 +56,20 @@ fires --edit-config gparams
 ```
 
 Override file locations at runtime:
-- `--obs_params /path/to/obsparams.toml`
-- `--gauss_params /path/to/gparams.toml`
 - `--config-dir /path/to/my/configdir` (to use a different config folder)
 
 Notes
-- TOML is preferred; legacy `.txt` configs are still read for compatibility.
 - The tool searches in order: explicit file path → `--config-dir` (or `~/.config/fires`) → packaged defaults.
+- Check the packaged defaults in `src/fires/data/*.toml` for descriptions
 
 ## Command-line options (core)
 
 - `-f, --frb_identifier <str>`: Simulation identifier.
-- `-o, --obs_params <file>`: Path to observation parameters (TOML or legacy TXT).
-- `-g, --gauss_params <file>`: Path to Gaussian/micro-shot parameters (TOML or legacy TXT).
-- `-d, --output-dir <dir>`: Output directory (default: `simfrbs/`).
+- `-o, --output-dir <dir>`: Output directory (default: `simfrbs/`).
 - `--write`: Save simulated data to disk.
 - `-p, --plot <modes...>`: One or more of: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `l_var`.
 - `-s, --save-plots`: Save plots to disk.
+- `-d, --data <dir>`: Directory containing Stokes cube (.npy).
 - `--phase-window <name>`: `first`, `last`, `all` (aka `leading`, `trailing`, `total`).
 - `--freq-window <name>`: `1q`, `2q`, `3q`, `4q`, `full` (aka `lowest-quarter`, `lower-mid-quarter`, `upper-mid-quarter`, `highest-quarter`, `full-band`).
 - `--buffer <float>`: Window buffer between on- and off-pulse regions as a function of FRB width for noise calculation. (default: `0.25`)
@@ -86,9 +83,6 @@ Config management:
 Tip
 - Some plot modes aggregate across multiple tau values (`pa_var`, `l_var`).
 
-## Example TOML snippets
-
-Check the packaged defaults in `src/fires/data/*.toml` 
 
 ## Project structure
 
