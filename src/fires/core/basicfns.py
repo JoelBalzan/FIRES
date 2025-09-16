@@ -222,14 +222,14 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		eps = 1e-12
 		
 		# Debias L using Everett & Weisberg+2001 method
-		Lts_true = np.sqrt((Lts/Its_rms)**2 - 1*Its_rms)
-		Lts_true[np.isnan(Lts_true)] = 0.0
-		Lts_true[Lts/Its_rms < 1.57] = 0.0
+		#Lts = np.sqrt((Lts/Its_rms)**2 - 1*Its_rms)
+		#Lts[np.isnan(Lts)] = 0.0
+		#Lts[Lts/Its_rms < 1.57] = 0.0
 
-		eLts = np.sqrt((Qts**2 * Qts_rms**2) + (Uts**2 * Uts_rms**2)) / np.maximum(Lts_true, eps)
-		Lmask = Lts_true != 0.0
+		eLts = np.sqrt((Qts**2 * Qts_rms**2) + (Uts**2 * Uts_rms**2)) / np.maximum(Lts, eps)
+		Lmask = Lts != 0.0
 		eLts[~Lmask] = np.nan
-		Lts_true[~Lmask] = np.nan
+		#Lts[~Lmask] = np.nan
 		
 		# Calculate the total polarization intensity
 		Pts  = np.sqrt(Lts ** 2 + Vts ** 2)
@@ -239,8 +239,8 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		# Calculate the polarization angles
 		phits  = np.rad2deg(0.5 * np.arctan2(Uts, Qts))
 		ephits = np.rad2deg(0.5 * np.sqrt(Uts**2 * Qts_rms**2 + Qts**2 * Uts_rms**2) / (Uts**2 + Qts**2))
-		psits  = np.rad2deg(0.5 * np.arctan2(Vts, Lts_true))
-		epsits = np.rad2deg(0.5 * np.sqrt(Vts**2 * eLts**2 + Lts_true**2 * Vts_rms**2) / (Vts**2 + Lts_true**2))
+		psits  = np.rad2deg(0.5 * np.arctan2(Vts, Lts))
+		epsits = np.rad2deg(0.5 * np.sqrt(Vts**2 * eLts**2 + Lts**2 * Vts_rms**2) / (Vts**2 + Lts**2))
 
 		
 		# Calculate the fractional polarizations
@@ -248,14 +248,14 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		ufrac = Uts / Its
 		vfrac = Vts / Its
 
-		lfrac = Lts_true / Its
+		lfrac = Lts / Its
 		pfrac = Pts / Its
 
 		# Calculate the errors in fractional polarizations
 		evfrac = np.abs(vfrac) * np.sqrt((Vts_rms / Vts) ** 2 + (Its_rms / Its) ** 2)
 		eqfrac = np.abs(qfrac) * np.sqrt((Qts_rms / Qts) ** 2 + (Its_rms / Its) ** 2)
 		eufrac = np.abs(ufrac) * np.sqrt((Uts_rms / Uts) ** 2 + (Its_rms / Its) ** 2)
-		elfrac = np.abs(lfrac) * np.sqrt((eLts / Lts_true) ** 2 + (Its_rms / Its) ** 2)
+		elfrac = np.abs(lfrac) * np.sqrt((eLts / Lts) ** 2 + (Its_rms / Its) ** 2)
 		epfrac = np.abs(pfrac) * np.sqrt((ePts / Pts) ** 2 + (Its_rms / Its) ** 2)
 
 
@@ -263,7 +263,7 @@ def est_profiles(dynspec, noise_stokes, left, right):
 
 
 		# Set large errors to NaN
-		mask = Lts_true < (2.0 * Its_rms)  # Mask where L is less than 1-sigma
+		mask = Lts < (2.0 * Its_rms)  # Mask where L is less than 1-sigma
 		phits[mask]  = np.nan
 		ephits[mask] = np.nan
 		psits[mask]  = np.nan
@@ -561,8 +561,8 @@ def add_noise(dynspec, t_sys, f_res, t_res, plot_multiple_frb, buffer_frac, n_po
 	I_time = np.nansum(noisy_dynspec[0], axis=0)
 	rms_time = sigma * np.sqrt(n_chan)
 
-	(snr, _) = boxcar_snr(I_time, rms_time)
-	print(f"Stokes I S/N (boxcar method): {snr:.2f}")
+	#(snr, _) = boxcar_snr(I_time, rms_time)
+	#print(f"Stokes I S/N (boxcar method): {snr:.2f}")
 
 	snr = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
 	if plot_multiple_frb == False:
