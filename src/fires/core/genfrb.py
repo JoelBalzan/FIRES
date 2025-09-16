@@ -240,7 +240,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, 
-				tsys, n_cpus, plot_mode, phase_window, freq_window, buffer):
+				tsys, n_cpus, plot_mode, phase_window, freq_window, buffer_frac):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -281,7 +281,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		'ngauss'         : gauss_params[:-3, 13],
 		'mg_width_low'   : gauss_params[:-3, 14],
 		'mg_width_high'  : gauss_params[:-3, 15],
-		'buffer'         : buffer
+		'buffer_frac'    : buffer_frac
 	}
 	
 	var_dict = {
@@ -332,7 +332,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		
 		if data != None:
 			dspec, freq_mhz, time_ms = _load_data(frb_id, data, freq_mhz, time_ms)
-			snr = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer)  
+			snr = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)  
 			if tau_ms[0] > 0:
 				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if tsys > 0:

@@ -183,7 +183,8 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension, legend, info):
+def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension, 
+					legend, info, buffer_frac, show_onpulse, show_offpulse):
 	"""
 		Plot I, L, V, dynamic spectrum and polarization angle.
 		Inputs:
@@ -202,10 +203,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	dphits = tsdata.dphits
  
 	# Linear polarisation
-	I = np.nansum(dspec[0,:], axis=0)  # Stokes I
-	Q = np.nansum(dspec[1,:], axis=0)  # Stokes Q
-	U = np.nansum(dspec[2,:], axis=0)  # Stokes U
-	V = np.nansum(dspec[3,:], axis=0)  # Stokes V
+	I, Q, U, V = tsdata.iquvt
 	L = np.sqrt(Q**2 + U**2)
 	
 	if figsize is None:
@@ -236,8 +234,19 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 
-	left, right = boxcar_width(I, frac=0.95)
-	axs[1].axvspan(time_ms[left], time_ms[right], color='lightskyblue', alpha=0.2, zorder=0)
+	# Highlight on- and off-pulse regions if requested
+	if show_onpulse or show_offpulse:
+		on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
+		if show_onpulse:
+			# Shade on-pulse region
+			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
+		if show_offpulse:
+			# Shade off-pulse regions using a normalized-y transform (fills full height)
+			axs[1].fill_between(
+			time_ms, 0, 1, where=off_mask,
+			color='lightcoral', alpha=0.15,
+			transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
+		)
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 	axs[1].set_ylabel("Flux Density [arb.]")

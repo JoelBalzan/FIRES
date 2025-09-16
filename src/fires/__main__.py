@@ -116,7 +116,7 @@ def main():
 	parser.add_argument(
 		"--buffer",
 		type=float,
-		default=0.25,
+		default=0.1,
 		metavar="",
 		help="Buffer time in between on- and off-pulse regions as a fraction of the pulse width for noise estimation. Default is 0.25."
 	)
@@ -196,6 +196,16 @@ def main():
 		"--no-info",
 		action="store_false",
 		help="Disable info text in plots."
+	)
+	parser.add_argument(
+		"--show-onpulse",
+		action="store_true",
+		help="Show on-pulse region in plots."
+	)
+	parser.add_argument(
+		"--show-offpulse",
+		action="store_true",
+		help="Show off-pulse region in plots."
 	)
 
 	# Simulation Options
@@ -310,7 +320,7 @@ def main():
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
 				freq_window  = args.freq_window,
-				buffer       = args.buffer
+				buffer_frac  = args.buffer
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
@@ -328,7 +338,7 @@ def main():
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
 				freq_window  = None,
-				buffer       = args.buffer
+				buffer_frac  = args.buffer
 			)
 			if args.chi2_fit:
 				print("Performing chi-squared fitting on the final profiles... \n")
@@ -375,6 +385,9 @@ def main():
 						"extension"   : args.extension,
 						"legend"      : args.no_legend,
 						"info"        : args.no_info,
+						"buffer_frac" : args.buffer,
+						"show_onpulse": args.show_onpulse,
+						"show_offpulse": args.show_offpulse,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
