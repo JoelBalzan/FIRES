@@ -42,6 +42,7 @@ def configure_matplotlib(use_latex=False):
         'xtick.labelsize' : 22,
         'ytick.labelsize' : 22,
         'text.usetex'     : bool(use_latex),
+		'font.family'     : 'sans-serif'
     }
     for k, v in rc.items():
         plt.rcParams[k] = v
@@ -871,7 +872,6 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 
 
 def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
-	
 	freq_slc = slice(None)
 	phase_slc = slice(None)
 
@@ -900,7 +900,7 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
 
 	I, Q, U, V = ts_data.iquvt
-	buffer_frac = gdict.get("buffer", None)
+	buffer_frac = gdict.get("buffer_frac", None)
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
 		I, frac=0.95, buffer_frac=buffer_frac
 	)
