@@ -209,6 +209,17 @@ def main():
 		action="store_true",
 		help="Use LaTeX for plot text."
 	)
+	parser.add_argument(
+		"--sweep-mode",
+		type=str,
+		default="none",
+		choices=["none", "mean", "variance"],
+		metavar="",
+		help=("Parameter sweep mode for *_var plots:\n"
+			  "  none      : disable sweeping (use means + micro std dev only)\n"
+			  "  mean      : sweep the mean value (std dev forced to 0 for that param)\n"
+			  "  variance  : keep mean fixed, sweep the micro std dev\n")
+	)
 
 	# Simulation Options
 	parser.add_argument(
@@ -322,7 +333,8 @@ def main():
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
 				freq_window  = args.freq_window,
-				buffer_frac  = args.buffer
+				buffer_frac  = args.buffer,
+				sweep_mode   = args.sweep_mode
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
@@ -340,7 +352,8 @@ def main():
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
 				freq_window  = None,
-				buffer_frac  = args.buffer
+				buffer_frac  = args.buffer,
+				sweep_mode   = None
 			)
 			if args.chi2_fit:
 				print("Performing chi-squared fitting on the final profiles... \n")

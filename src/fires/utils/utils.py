@@ -154,3 +154,5 @@ class DynspecParams(NamedTuple):
     ref_freq_mhz   : float
     phase_window   : str
     freq_window    : str
+    buffer_frac    : float
+    sweep_mode     : str

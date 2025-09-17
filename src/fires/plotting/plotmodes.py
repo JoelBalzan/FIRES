@@ -144,7 +144,7 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 	tau_ms = dspec_params.gdict['tau_ms']
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
-		frb_data.dynamic_spectrum, freq_mhz, gdict
+		frb_data.dynamic_spectrum, freq_mhz, gdict, buffer_frac
 	)
 
 	iquvt = ts_data.iquvt
@@ -732,7 +732,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 
 
-def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
+def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
 	freq_slc = slice(None)
 	phase_slc = slice(None)
 
@@ -758,7 +758,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 		time_ms = time_ms[phase_slc]
 		#dspec = dspec_fslc[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
 
 	phits = ts_data.phits[phase_slc]
 	dphits = ts_data.dphits[phase_slc]
@@ -774,7 +774,8 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
+def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend,
+				buffer_frac):
 	"""
 	Plot the variance of the polarization angle (PA) as a function of scattering parameters.
 	
@@ -871,7 +872,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		print(f"Saved figure to {name}  \n")
 
 
-def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
+def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
 	freq_slc = slice(None)
 	phase_slc = slice(None)
 
@@ -897,10 +898,10 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window):
 		time_ms = time_ms[phase_slc]
 		dspec = dspec[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict)
+	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
 
 	I, Q, U, V = ts_data.iquvt
-	buffer_frac = gdict.get("buffer_frac", None)
+	buffer_frac = buffer_frac
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
 		I, frac=0.95, buffer_frac=buffer_frac
 	)
@@ -979,7 +980,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		figsize = (10, 9)
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="l_var", weight_x_by="width_ms", yname=yname)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by="width_ms", yname=yname)
 		if show_plots:
 			plt.show()
 		if save:

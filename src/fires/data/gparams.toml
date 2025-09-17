@@ -2,37 +2,51 @@
 #
 #	Each row represents a Gaussian component --- add as many as you like --- EXCEPT:
 #   
-#   THE THIRD LAST ROW REPRESENTS THE GAUSSIAN STANDARD DEVIATION (ONLY FOR THE psn MODE)
+#   For single FRB plots (i.e., lvpa):
+#     use rows 1 + (-4); ignore (-3)–(-5) (--sweep-mode none (default))
+#   THE FOURTH LAST ROW REPRESENTS THE GAUSSIAN STANDARD DEVIATION (ONLY FOR THE psn MODE)
+#
 #   IF YOU WANT TO PLOT SOMETHING LIKE L/I VS. PA VARIANCE:
-#      THE SECOND LAST ROW REPRESENTS A VARIANCE RANGE FROM THIRD LAST ROW FOR PLOTTING 
-#      THE LAST ROW IS THE STEP SIZE BETWEEN THIRD AND SECOND LAST ROWS
-#           - only one value can be varied --- make sure only one value in the final row is != 0
-#           - last 3 columns cannot be varied
+#     THERE ARE TWO CASES: 
+#       CASE 1 (MEAN SWEEP): ignore mean and std dev values and use start, stop, step to sweep parameter as constants 
+#                             (i.e., update the mean with the sweep value and keep the std dev 0 the whole time)
+#                             (--sweep-mode mean)
+#
+#       CASE 2 (VARIANCE SWEEP): keep mean and update the variance with start, stop, step
+#                             (--sweep-mode variance)
+#
+#         THE THIRD LAST ROW REPRESENTS THE STARTING POINT OF THE PARAMETER SWEEP
+#         THE SECOND LAST ROW REPRESENTS A VARIANCE RANGE FROM THIRD LAST ROW FOR PLOTTING 
+#         THE LAST ROW IS THE STEP SIZE BETWEEN THIRD AND SECOND LAST ROWS
+#              - only one value can be varied --- make sure only one value in the final row is != 0
+#              - last 3 columns cannot be varied
+#
 #
 #	Columns:
-#	t0  		    - Time offset of the Gaussian pulse in milliseconds
-#	width		    - Width of the Gaussian pulse in milliseconds
-#	peak_amp		- Peak amplitude of the Gaussian pulse (arb. flux units)
-#	spec_idx		- Spectral index of the Gaussian pulse
-#   tau             - Scattering timescale in milliseconds
-#	DM			    - Dispersion measure in pc/cm^3
-#	RM			    - Rotation measure in rad/m^2
-#	PA		        - Polarization angle in degrees
-#	(L/I)		    - Linear polarization fraction
-#	(V/I)		    - Circular polarization fraction
+#	t0  		        - Time offset of the Gaussian pulse in milliseconds
+#	width		        - Width of the Gaussian pulse in milliseconds
+#	peak_amp	    	- Peak amplitude of the Gaussian pulse (arb. flux units)
+#	spec_idx	    	- Spectral index of the Gaussian pulse
+# tau             - Scattering timescale in milliseconds
+#	DM			        - Dispersion measure in pc/cm^3
+#	RM			        - Rotation measure in rad/m^2
+#	PA		          - Polarization angle in degrees
+#	(L/I)		        - Linear polarization fraction
+#	(V/I)		        - Circular polarization fraction
 #	dPA             - Change in polarization angle with time in deg/ms
-#   band_centre     - Central frequency of the Gaussian in MHz
-#   band_width      - Frequency bandwidth of the Gaussian in MHz
-#   ngauss          - Number of micro-gausssians used to generate the pulse in psn mode
-#   mg_width_low    - Lower width range of the micro-gaussians as a percentage of width_ms
-#   mg_width_high   - Higher width range of the micro-gaussians as a percentage of width_ms
+# band_centre     - Central frequency of the Gaussian in MHz
+# band_width      - Frequency bandwidth of the Gaussian in MHz
+# ngauss          - Number of micro-gausssians used to generate the pulse in psn mode
+# mg_width_low    - Lower width range of the micro-gaussians as a percentage of width_ms
+# mg_width_high   - Higher width range of the micro-gaussians as a percentage of width_ms
 
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-#  t0    width  peak_amp  spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width  ngauss  mg_width_low  mg_width_high                   #
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-  -2.0  0.5     6.0       0.0        1.78  0.0   0.0    20     0.95    -0.05  0.0      0.0          0.0       100       5            20                             # gaussian
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-  0.0   0.0     0.0       0.0        0.0   0.0   0.0    30     0.0     0.0    0.0      0.0          0.0         0       0             0                             # psn std dev / start
-  0.0   0.0     0.0       0.0        10.0  0.0   0.0     0     0.0     0.0    0.0      0.0          0.0         0       0             0                             #             / stop
-  0.0   0.0     0.0       0.0        0.1   0.0   0.0     0     0.0     0.0    0.0      0.0          0.0         0       0             0                             #             / step
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------#
+#  t0    width  peak_amp  spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width  ngauss  mg_width_low  mg_width_high #
+#-------------------------------------------------------------------------------------------------------------------------------------------------#
+  -2.0  0.5     15.0      0.0        1.78  0.0   0.0    20     0.95    -0.05  0.0      0.0          0.0       100       5            20           # gaussian / gaussian mean
+#-------------------------------------------------------------------------------------------------------------------------------------------------#
+  0.0   0.0     0.0       0.0        0.0   0.0   0.0    30     0.0     0.0    0.0      0.0          0.0         0       0             0           #          / gaussian std dev (psn mode)
+  0.0   0.0     0.0       0.0        1.0   0.0   0.0    30     0.0     0.0    0.0      0.0          0.0         0       0             0           # start
+  0.0   0.0     0.0       0.0        2.0   0.0   0.0     0     0.0     0.0    0.0      0.0          0.0         0       0             0           # stop
+  0.0   0.0     0.0       0.0        1.0   0.0   0.0     0     0.0     0.0    0.0      0.0          0.0         0       0             0           # step
+#-------------------------------------------------------------------------------------------------------------------------------------------------#
