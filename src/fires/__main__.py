@@ -22,7 +22,7 @@ from inspect import signature
 
 from .core.genfrb import generate_frb
 from .utils.utils import chi2_fit, gaussian_model, window_map
-from .plotting.plotmodes import plot_modes
+from .plotting.plotmodes import plot_modes, configure_matplotlib
 from .utils import config as cfg
 
 
@@ -364,12 +364,12 @@ def main():
 		# Call the plotting function if required
 		if args.plot != 'None' and (args.save_plots == True or args.show_plots == True):
 			for plot_mode in args.plot:
+				configure_matplotlib(use_latex=args.use_latex)
 				try:
 					plot_mode_obj = plot_modes.get(plot_mode)
 					if plot_mode_obj is None:
 						print(f"Error: Plot mode '{plot_mode}' is not defined in plotmodes.py. \n")
 						continue
-					plot_modes.configure_matplotlib(use_latex=args.use_latex)
 					plotting_args = {
 						"fname"        : args.frb_identifier,
 						"frb_data"     : FRB if 'FRB' in locals() else None,
