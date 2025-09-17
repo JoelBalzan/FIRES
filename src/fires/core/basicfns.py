@@ -418,7 +418,7 @@ def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask):
 	return noise_stokes, noisespec
 
 
-def process_dynspec(dynspec, freq_mhz, gdict):
+def process_dynspec(dynspec, freq_mhz, gdict, buffer_frac):
 	"""
 	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
 	"""
@@ -435,7 +435,7 @@ def process_dynspec(dynspec, freq_mhz, gdict):
 	left, right = boxcar_width(I, frac=0.95)
 
 	# New: buffer around on-pulse window for off-pulse noise estimation
-	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=gdict["buffer_frac"])
+	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
 
 	# Estimate noise using off-pulse region with buffer
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
