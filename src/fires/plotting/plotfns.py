@@ -249,10 +249,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 		)
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
-	axs[1].set_ylabel("Flux Density [arb.]")
-	axs[1].yaxis.set_label_coords(-0.09, 0.5)  # Adjust y-label position
-	axs[1].set_xticklabels([])  # Hide x-tick labels for the second subplot
-	axs[1].set_yticklabels([]) 
+	axs[1].set_ylabel("Flux Density [arb.]", labelpad=45)
+	axs[1].tick_params(axis='y', which='both', labelleft=False)
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	if snr is not None:
 		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
