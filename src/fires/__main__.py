@@ -14,17 +14,14 @@
 #	--------------------------	Import modules	---------------------------
 import os
 import sys
-import ast
-import tempfile
 import argparse
 import traceback
 import numpy as np
 
-from pathlib import Path
 from inspect import signature
 
 from .core.genfrb import generate_frb
-from .utils.utils import chi2_fit, gaussian_model, window_map, obs_params_path, gauss_params_path
+from .utils.utils import chi2_fit, gaussian_model, window_map
 from .plotting.plotmodes import plot_modes
 from .utils import config as cfg
 
@@ -207,6 +204,11 @@ def main():
 		action="store_true",
 		help="Show off-pulse region in plots."
 	)
+	parser.add_argument(
+		"--use-latex",
+		action="store_true",
+		help="Use LaTeX for plot text."
+	)
 
 	# Simulation Options
 	parser.add_argument(
@@ -367,27 +369,28 @@ def main():
 					if plot_mode_obj is None:
 						print(f"Error: Plot mode '{plot_mode}' is not defined in plotmodes.py. \n")
 						continue
-					
+					plot_modes.configure_matplotlib(use_latex=args.use_latex)
 					plotting_args = {
-						"fname"       : args.frb_identifier,
-						"frb_data"    : FRB if 'FRB' in locals() else None,
-						"mode"        : plot_mode,
-						"gdict"       : gdict if 'gdict' in locals() else None,
-						"frb_dict"    : frb_dict if 'frb_dict' in locals() else None,
-						"out_dir"     : data_directory,
-						"save"        : args.save_plots,
-						"figsize"     : args.figsize,
-						"show_plots"  : args.show_plots,
-						"scale"       : args.plot_scale,
-						"phase_window": args.phase_window,
-						"freq_window" : args.freq_window,
-						"fit"         : args.fit,
-						"extension"   : args.extension,
-						"legend"      : args.no_legend,
-						"info"        : args.no_info,
-						"buffer_frac" : args.buffer,
-						"show_onpulse": args.show_onpulse,
+						"fname"        : args.frb_identifier,
+						"frb_data"     : FRB if 'FRB' in locals() else None,
+						"mode"         : plot_mode,
+						"gdict"        : gdict if 'gdict' in locals() else None,
+						"frb_dict"     : frb_dict if 'frb_dict' in locals() else None,
+						"out_dir"      : data_directory,
+						"save"         : args.save_plots,
+						"figsize"      : args.figsize,
+						"show_plots"   : args.show_plots,
+						"scale"        : args.plot_scale,
+						"phase_window" : args.phase_window,
+						"freq_window"  : args.freq_window,
+						"fit"          : args.fit,
+						"extension"    : args.extension,
+						"legend"       : args.no_legend,
+						"info"         : args.no_info,
+						"buffer_frac"  : args.buffer,
+						"show_onpulse" : args.show_onpulse,
 						"show_offpulse": args.show_offpulse,
+						"use_latex"    : args.use_latex
 					}
 		
 					plot_function = plot_mode_obj.plot_func
