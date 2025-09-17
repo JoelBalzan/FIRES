@@ -13,32 +13,47 @@
 # -----------------------------------------------------------------------------
 
 #	--------------------------	Import modules	---------------------------
-import numpy as np
 import os
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
-import numpy as np
 from scipy.optimize import curve_fit
 
-from ..core.basicfns import process_dynspec, boxcar_width, on_off_pulse_masks_from_profile
+from ..core.basicfns import process_dynspec, on_off_pulse_masks_from_profile
 from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
 
 #	--------------------------	Set plot parameters	---------------------------
-plt.rcParams['pdf.fonttype']	= 42
-plt.rcParams['ps.fonttype'] 	= 42
-plt.rcParams['savefig.dpi'] 	= 600
-plt.rcParams['font.family']		= 'sans-serif'  
-plt.rcParams['text.usetex'] 	= True
 
-plt.rcParams['font.size'] 		= 22
-plt.rcParams['axes.labelsize']  = 22
-plt.rcParams['axes.titlesize']  = 22
-plt.rcParams['legend.fontsize'] = 20
-plt.rcParams['xtick.labelsize'] = 22
-plt.rcParams['ytick.labelsize'] = 22
 
+def configure_matplotlib(use_latex=False):
+    """
+    Configure global Matplotlib style once (call after parsing CLI flags).
+    """
+    rc = {
+        'pdf.fonttype'    : 42,
+        'ps.fonttype'     : 42,
+        'savefig.dpi'     : 600,
+        'font.size'       : 22,
+        'axes.labelsize'  : 22,
+        'axes.titlesize'  : 22,
+        'legend.fontsize' : 20,
+        'xtick.labelsize' : 22,
+        'ytick.labelsize' : 22,
+        'text.usetex'     : bool(use_latex),
+    }
+    for k, v in rc.items():
+        plt.rcParams[k] = v
+
+    if use_latex:
+        try:
+            plt.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}\usepackage{siunitx}'
+        except Exception as e:
+            warnings.warn(f"LaTeX setup failed ({e}); falling back to non-LaTeX text rendering.")
+            plt.rcParams['text.usetex'] = False
+
+configure_matplotlib(use_latex=bool(int(os.environ.get("FIRES_USE_LATEX", "0"))))
 
 #	--------------------------	Colour maps	---------------------------
 #colour blind friendly: https://gist.github.com/thriveth/8560036
@@ -116,7 +131,8 @@ class PlotMode:
 		
 
 # --------------------------	Plot modes definitions	---------------------------
-def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots, extension, legend, info, buffer_frac, show_onpulse, show_offpulse):
+def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots, extension, 
+				legend, info, buffer_frac, show_onpulse, show_offpulse):
 	"""
 	Call basic plot functions
 	"""
