@@ -18,6 +18,6 @@ t0    = -7.4040
 t1    = 11.6184
 t_res = 0.0230
 ########################
-scattering_index = -4
+scattering_index = -4.85
 reference_freq   = 1000
 ########################
