@@ -32,12 +32,13 @@ plt.rcParams['savefig.dpi'] 	= 600
 plt.rcParams['font.family']		= 'sans-serif'  
 plt.rcParams['text.usetex'] 	= True
 
-plt.rcParams['font.size'] 		= 20
-plt.rcParams['axes.labelsize']  = 20
-plt.rcParams['axes.titlesize']  = 20
+plt.rcParams['font.size'] 		= 22
+plt.rcParams['axes.labelsize']  = 22
+plt.rcParams['axes.titlesize']  = 22
 plt.rcParams['legend.fontsize'] = 20
-plt.rcParams['xtick.labelsize'] = 20
-plt.rcParams['ytick.labelsize'] = 20
+plt.rcParams['xtick.labelsize'] = 22
+plt.rcParams['ytick.labelsize'] = 22
+
 
 #	--------------------------	Colour maps	---------------------------
 #colour blind friendly: https://gist.github.com/thriveth/8560036
