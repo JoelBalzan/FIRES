@@ -17,6 +17,7 @@ import os
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 from scipy.optimize import curve_fit
 
 from ..core.basicfns import process_dynspec, on_off_pulse_masks_from_profile
@@ -90,8 +91,8 @@ param_map = {
 	"DM"             : r"\mathrm{DM}_0",
 	"RM"             : r"\mathrm{RM}_0",
 	"PA"             : r"\psi_0",
-	"lfrac"          : r"(L_0/I)",
-	"vfrac"          : r"(V_0/I)",
+	"lfrac"          : r"(L_0/I_0)",
+	"vfrac"          : r"(V_0/I_0)",
 	"dPA"            : r"\Delta\psi_0",
 	"band_centre_mhz": r"\nu_{\mathrm{c},0}",
 	"band_width_mhz" : r"\Delta \nu_0",
@@ -349,6 +350,37 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 			normalized_vals[var] = yvals.get(var, [])
 
 	return normalized_vals
+
+
+def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
+	"""
+	Show only decade ticks (10^k) as labels on a log axis and keep unlabeled minor ticks.
+	- Major: 10^k labeled as 10^{k}
+	- Minor: 2..9 within each decade, no labels
+	"""
+	major_loc = mticker.LogLocator(base=base, subs=(1.0,))
+	major_fmt = mticker.LogFormatterMathtext(base=base)
+
+	# Minor ticks at 2..9 within each decade
+	minor_loc = mticker.LogLocator(base=base, subs=np.arange(2, base) / base)
+	minor_fmt = mticker.NullFormatter()
+
+	if axis == 'y':
+		ax.yaxis.set_major_locator(major_loc)
+		ax.yaxis.set_major_formatter(major_fmt)
+		if show_minor:
+			ax.yaxis.set_minor_locator(minor_loc)
+			ax.yaxis.set_minor_formatter(minor_fmt)
+		else:
+			ax.yaxis.set_minor_locator(mticker.NullLocator())
+	else:
+		ax.xaxis.set_major_locator(major_loc)
+		ax.xaxis.set_major_formatter(major_fmt)
+		if show_minor:
+			ax.xaxis.set_minor_locator(minor_loc)
+			ax.xaxis.set_minor_formatter(minor_fmt)
+		else:
+			ax.xaxis.set_minor_locator(mticker.NullLocator())
 	
 
 def _set_scale_and_labels(ax, scale, xname, yname, x=None):
@@ -361,7 +393,7 @@ def _set_scale_and_labels(ax, scale, xname, yname, x=None):
 		ax.set_xscale('log')
 	if scale == "logy" or scale == "loglog":
 		ax.set_yscale('log')
-	
+		_apply_log_decade_ticks(ax, axis='y', base=10)  # enforce 10^k labels
 	# Set limits
 	if x is not None:
 		if scale in ["logx", "loglog"]:
@@ -498,71 +530,71 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'
 
 
 def _weight_x_get_xname(frb_dict, weight_x_by=None):
-    """
-    Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
-    Now supports any intrinsic parameter or variation parameter with flexible weighting.
+	"""
+	Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
+	Now supports any intrinsic parameter or variation parameter with flexible weighting.
 
-    Behavior:
-    - sweep_mode == "variance": x label = SD(xname), no weighting applied
-    - sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
-    """
-    xname_raw = frb_dict["xname"].removesuffix("_var")
-    xvals_raw = np.array(frb_dict["xvals"])
+	Behavior:
+	- sweep_mode == "variance": x label = SD(xname), no weighting applied
+	- sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
+	"""
+	xname_raw = frb_dict["xname"].removesuffix("_var")
+	xvals_raw = np.array(frb_dict["xvals"])
 
-    dspec_params = frb_dict.get("dspec_params", None)
-    var_params = frb_dict.get("var_params", None)
+	dspec_params = frb_dict.get("dspec_params", None)
+	var_params = frb_dict.get("var_params", None)
 
-    # Resolve sweep_mode robustly from dspec_params
-    sweep_mode = None
-    if dspec_params is not None:
-        # Namedtuple-like with attribute
-        sweep_mode = getattr(dspec_params, "sweep_mode", None)
-        # Dict case
-        if sweep_mode is None and isinstance(dspec_params, dict):
-            sweep_mode = dspec_params.get("sweep_mode")
-        # List/tuple container case
-        if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-            first = dspec_params[0]
-            sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
+	# Resolve sweep_mode robustly from dspec_params
+	sweep_mode = None
+	if dspec_params is not None:
+		# Namedtuple-like with attribute
+		sweep_mode = getattr(dspec_params, "sweep_mode", None)
+		# Dict case
+		if sweep_mode is None and isinstance(dspec_params, dict):
+			sweep_mode = dspec_params.get("sweep_mode")
+		# List/tuple container case
+		if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+			first = dspec_params[0]
+			sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
 
-    # Base LaTeX name
-    base_name = param_map.get(xname_raw, xname_raw)
+	# Base LaTeX name
+	base_name = param_map.get(xname_raw, xname_raw)
 
-    # Variance sweep: SD(xname), no weighting
-    if sweep_mode == "variance":
-        x = xvals_raw
-        xname = f"\mathrm{{SD}}({base_name})"
-        return x, xname
+	# Variance sweep: SD(xname), no weighting
+	if sweep_mode == "variance":
+		x = xvals_raw
+		xname = rf"{{{base_name}}}_{{,\mathrm{{SD}}}}"
+		return x, xname
 
-    # Mean sweep or default: allow optional normalization by weight_x_by
-    weight = None
-    if weight_x_by is not None:
-        # Check in dspec_params
-        if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-            if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
-                weight = np.array(dspec_params[0][weight_x_by])[0]
-        elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
-            weight = np.array(dspec_params[weight_x_by])[0]
-        # Check in var_params if not found in dspec_params
-        if weight is None and var_params is not None:
-            if isinstance(var_params, (list, tuple)) and len(var_params) > 0:
-                if isinstance(var_params[0], dict) and weight_x_by in var_params[0]:
-                    weight = np.array(var_params[0][weight_x_by])[0]
-            elif isinstance(var_params, dict) and weight_x_by in var_params:
-                weight = np.array(var_params[weight_x_by])[0]
-        if weight is None:
-            print(f"Warning: '{weight_x_by}' not found in parameters. Using raw values.")
+	# Mean sweep or default: allow optional normalization by weight_x_by
+	weight = None
+	if weight_x_by is not None:
+		# Check in dspec_params
+		if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+			if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
+				weight = np.array(dspec_params[0][weight_x_by])[0]
+		elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
+			weight = np.array(dspec_params[weight_x_by])[0]
+		# Check in var_params if not found in dspec_params
+		if weight is None and var_params is not None:
+			if isinstance(var_params, (list, tuple)) and len(var_params) > 0:
+				if isinstance(var_params[0], dict) and weight_x_by in var_params[0]:
+					weight = np.array(var_params[0][weight_x_by])[0]
+			elif isinstance(var_params, dict) and weight_x_by in var_params:
+				weight = np.array(var_params[weight_x_by])[0]
+		if weight is None:
+			print(f"Warning: '{weight_x_by}' not found in parameters. Using raw values.")
 
-    # Apply normalization if available
-    if weight is None:
-        x = xvals_raw
-        xname = base_name
-    else:
-        x = xvals_raw / weight
-        weight_symbol = param_map.get(weight_x_by, weight_x_by)
-        xname = base_name + r" / " + weight_symbol
+	# Apply normalization if available
+	if weight is None:
+		x = xvals_raw
+		xname = base_name
+	else:
+		x = xvals_raw / weight
+		weight_symbol = param_map.get(weight_x_by, weight_x_by)
+		xname = base_name + r" / " + weight_symbol
 
-    return x, xname
+	return x, xname
 
 
 def _get_weighted_y_name(yname, weight_y_by):
@@ -732,6 +764,13 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 
 
+def _set_fixed_panel_layout(fig, left=0.18, right=0.98, bottom=0.16, top=0.98):
+	"""
+	Use fixed margins so the inner axes (data area) has a consistent size
+	across figures, independent of tick label lengths.
+	"""
+	fig.subplots_adjust(left=left, right=right, bottom=bottom, top=top)
+
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
 	freq_slc = slice(None)
@@ -828,47 +867,42 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	# If frb_dict contains multiple runs, plot each on the same axes
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
+		_set_fixed_panel_layout(fig)
 		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="var_PA", weight_x_by="width_ms", yname=yname, legend=legend)
-		if show_plots:
-			plt.show()
-		if save:
-			name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
-			name = os.path.join(out_dir, name + "." + extension)
-			fig.savefig(name, bbox_inches='tight', dpi=600)
-			print(f"\nSaved figure to {name}  \n")
-		return
+
+	else:	
+		# Otherwise, plot as usual (single job)
+		xvals = frb_dict["xvals"]
+		yvals = frb_dict["yvals"]
+		var_params = frb_dict["var_params"]
 	
-	# Otherwise, plot as usual (single job)
-	xvals = frb_dict["xvals"]
-	yvals = frb_dict["yvals"]
-	var_params = frb_dict["var_params"]
- 
-	# Use correct weighting key name
-	y = _weight_dict(xvals, yvals, var_params, "var_PA")
-	med_vals, percentile_errs = _median_percentiles(y, xvals)
- 
-	x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
- 
-	lower = np.array([lower for (lower, upper) in percentile_errs])
-	upper = np.array([upper for (lower, upper) in percentile_errs])
- 
-	fig, ax = plt.subplots(figsize=figsize)
-	ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$', linewidth=2)
-	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
-	ax.grid(True, linestyle='--', alpha=0.6)
-	if fit is not None:
-		# Parse fit argument for type/degree
-		fit_type, fit_degree = _parse_fit_arg(fit)
-		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
-		ax.legend()
-	yname = _get_weighted_y_name(r"Var($\psi$)", "var_PA")
-	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+		# Use correct weighting key name
+		y = _weight_dict(xvals, yvals, var_params, "var_PA")
+		med_vals, percentile_errs = _median_percentiles(y, xvals)
+	
+		x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
+	
+		lower = np.array([lower for (lower, upper) in percentile_errs])
+		upper = np.array([upper for (lower, upper) in percentile_errs])
+	
+		fig, ax = plt.subplots(figsize=figsize)
+		_set_fixed_panel_layout(fig)
+		ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$', linewidth=2)
+		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
+		ax.grid(True, linestyle='--', alpha=0.6)
+		if fit is not None:
+			# Parse fit argument for type/degree
+			fit_type, fit_degree = _parse_fit_arg(fit)
+			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
+			ax.legend()
+		yname = _get_weighted_y_name(r"Var($\psi$)", "var_PA")
+		_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
 		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		fig.savefig(name, bbox_inches='tight', dpi=600)
+		fig.savefig(name, dpi=600)
 		print(f"Saved figure to {name}  \n")
 
 
@@ -924,7 +958,7 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, b
 	return lfrac, lfrac_err
 
 
-def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension):
+def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
 	"""
 	Plot the linear polarization fraction (L/I) as a function of scattering parameters.
 	
@@ -980,50 +1014,44 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		figsize = (10, 9)
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by=None, yname=yname)
-		if show_plots:
-			plt.show()
-		if save:
-			name = _make_plot_fname("l_var", scale, fname, freq_window, phase_window)
-			name = os.path.join(out_dir, name + "." + extension)
-			fig.savefig(name, bbox_inches='tight', dpi=600)
-			print(f"\nSaved figure to {name}  \n")
-		return
-
-	# Otherwise, plot as usual (single job)
-	xvals = frb_dict["xvals"]
-	yvals = frb_dict["yvals"]
-	var_params = frb_dict["var_params"]
-	dspec_params = frb_dict["dspec_params"]
-	width_ms = np.array(dspec_params[0]["width_ms"])[0]
- 
-	# No weighting for L/I by default (use raw values)
-	y = _weight_dict(xvals, yvals, var_params, None)
-	med_vals, percentile_errs = _median_percentiles(y, xvals)
- 
-	# Fix: pass parameter name, not a numeric value
-	x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
-	lower = np.array([lower for (lower, upper) in percentile_errs])
-	upper = np.array([upper for (lower, upper) in percentile_errs])
- 
-	fig, ax = plt.subplots(figsize=figsize)
-	ax.plot(x, med_vals, color='black', label='L/I', linewidth=2)
-	ax.fill_between(x, lower, upper, color='black', alpha=0.2)
-	ax.grid(True, linestyle='--', alpha=0.6)
-	if fit is not None:
-		# Parse fit argument for type/degree
-		fit_type, fit_degree = _parse_fit_arg(fit)
-		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
-		ax.legend()
-	# Proper y-axis label
-	yname = _get_weighted_y_name(r"L/I", None)
-	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+		_set_fixed_panel_layout(fig)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by=None, yname=yname, legend=legend)
+	else:
+		# Otherwise, plot as usual (single job)
+		xvals = frb_dict["xvals"]
+		yvals = frb_dict["yvals"]
+		var_params = frb_dict["var_params"]
+		dspec_params = frb_dict["dspec_params"]
+		width_ms = np.array(dspec_params[0]["width_ms"])[0]
+	
+		# No weighting for L/I by default (use raw values)
+		y = _weight_dict(xvals, yvals, var_params, None)
+		med_vals, percentile_errs = _median_percentiles(y, xvals)
+	
+		# Fix: pass parameter name, not a numeric value
+		x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
+		lower = np.array([lower for (lower, upper) in percentile_errs])
+		upper = np.array([upper for (lower, upper) in percentile_errs])
+	
+		fig, ax = plt.subplots(figsize=figsize)
+		_set_fixed_panel_layout(fig)
+		ax.plot(x, med_vals, color='black', label='L/I', linewidth=2)
+		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
+		ax.grid(True, linestyle='--', alpha=0.6)
+		if fit is not None:
+			# Parse fit argument for type/degree
+			fit_type, fit_degree = _parse_fit_arg(fit)
+			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
+			ax.legend()
+		# Proper y-axis label
+		yname = _get_weighted_y_name(r"L/I", None)
+		_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
 	if save:
 		name = _make_plot_fname("l_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		fig.savefig(name, bbox_inches='tight', dpi=600)
+		fig.savefig(name, dpi=600)
 		print(f"Saved figure to {name}  \n")
 
 
