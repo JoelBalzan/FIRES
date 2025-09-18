@@ -276,8 +276,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			var_spec_idx        = np.random.normal(spec_idx[g], spec_idx_var)
 			var_tau_ms        	= np.random.normal(tau_ms[g], tau_ms_var)
-			print(tau_ms[g], tau_ms_var)  # Debugging line to check tau values
-			print(var_tau_ms)
+			#print(tau_ms[g], tau_ms_var)  # Debugging line to check tau values
+			#print(var_tau_ms)
 
 			# Choose effective scattering timescale (use varied value if > 0, else base)
 			tau_eff = var_tau_ms if var_tau_ms > 0 else float(tau_ms[g])
