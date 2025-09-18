@@ -562,8 +562,12 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 
 	# Variance sweep: SD(xname), no weighting
 	if sweep_mode == "variance":
+		def _strip_zero_subscript(tex):
+			# Handle both _0 and subscript lists like {...,0}
+			return tex.replace(",0", "").replace("_0", "")
 		x = xvals_raw
-		xname = rf"{{{base_name}}}_{{,\mathrm{{SD}}}}"
+		base_core = _strip_zero_subscript(base_name)
+		xname = rf"\sigma_{{{base_core}}}"
 		return x, xname
 
 	# Mean sweep or default: allow optional normalization by weight_x_by
