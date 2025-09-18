@@ -28,31 +28,31 @@ from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
 def configure_matplotlib(use_latex=False):
-    """
-    Configure global Matplotlib style once (call after parsing CLI flags).
-    """
-    rc = {
-        'pdf.fonttype'    : 42,
-        'ps.fonttype'     : 42,
-        'savefig.dpi'     : 600,
-        'font.size'       : 22,
-        'axes.labelsize'  : 22,
-        'axes.titlesize'  : 22,
-        'legend.fontsize' : 20,
-        'xtick.labelsize' : 22,
-        'ytick.labelsize' : 22,
-        'text.usetex'     : bool(use_latex),
+	"""
+	Configure global Matplotlib style once (call after parsing CLI flags).
+	"""
+	rc = {
+		'pdf.fonttype'    : 42,
+		'ps.fonttype'     : 42,
+		'savefig.dpi'     : 600,
+		'font.size'       : 22,
+		'axes.labelsize'  : 22,
+		'axes.titlesize'  : 22,
+		'legend.fontsize' : 20,
+		'xtick.labelsize' : 22,
+		'ytick.labelsize' : 22,
+		'text.usetex'     : bool(use_latex),
 		'font.family'     : 'sans-serif'
-    }
-    for k, v in rc.items():
-        plt.rcParams[k] = v
+	}
+	for k, v in rc.items():
+		plt.rcParams[k] = v
 
-    if use_latex:
-        try:
-            plt.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}\usepackage{siunitx}'
-        except Exception as e:
-            warnings.warn(f"LaTeX setup failed ({e}); falling back to non-LaTeX text rendering.")
-            plt.rcParams['text.usetex'] = False
+	if use_latex:
+		try:
+			plt.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}\usepackage{siunitx}'
+		except Exception as e:
+			warnings.warn(f"LaTeX setup failed ({e}); falling back to non-LaTeX text rendering.")
+			plt.rcParams['text.usetex'] = False
 
 configure_matplotlib(use_latex=bool(int(os.environ.get("FIRES_USE_LATEX", "0"))))
 
@@ -498,100 +498,89 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'
 
 
 def _weight_x_get_xname(frb_dict, weight_x_by=None):
-	"""
-	Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
-	Now supports any intrinsic parameter or variation parameter with flexible weighting.
-	
-	Parameters:
-	-----------
-	frb_dict : dict
-		Dictionary containing FRB simulation data
-	weight_x_by : str or None, optional
-		Parameter to weight/normalize x-axis by. Options:
-		- None: No normalization (default)
-		- "width_ms" or "W": Normalize by pulse width
-		- "tau_ms": Normalize by scattering time
-		- Any other parameter name for custom normalization
-	"""
-	xname_raw = frb_dict["xname"].removesuffix("_var")
-	xvals_raw = np.array(frb_dict["xvals"])
+    """
+    Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
+    Now supports any intrinsic parameter or variation parameter with flexible weighting.
 
-	dspec_params = frb_dict["dspec_params"]
-	var_params = frb_dict["var_params"]
+    Behavior:
+    - sweep_mode == "variance": x label = SD(xname), no weighting applied
+    - sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
+    """
+    xname_raw = frb_dict["xname"].removesuffix("_var")
+    xvals_raw = np.array(frb_dict["xvals"])
 
-	# Extract weight value if weight_x_by is specified
-	if weight_x_by is not None:
-		weight = None
-		# Check in dspec_params
-		if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-			if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
-				weight = np.array(dspec_params[0][weight_x_by])[0]
-		elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
-			weight = np.array(dspec_params[weight_x_by])[0]
-		
-		# Check in var_params if not found in dspec_params
-		if weight is None:
-			if isinstance(var_params, (list, tuple)) and len(var_params) > 0:
-				if isinstance(var_params[0], dict) and weight_x_by in var_params[0]:
-					weight = np.array(var_params[0][weight_x_by])[0]
-			elif isinstance(var_params, dict) and weight_x_by in var_params:
-				weight = np.array(var_params[weight_x_by])[0]
-		
-		if weight is None:
-			print(f"Warning: '{weight_x_by}' not found in parameters. Using raw values.")
-	else:
-		weight = None
+    dspec_params = frb_dict.get("dspec_params", None)
+    var_params = frb_dict.get("var_params", None)
 
-	# Define parameter mappings for LaTeX formatting
+    # Resolve sweep_mode robustly from dspec_params
+    sweep_mode = None
+    if dspec_params is not None:
+        # Namedtuple-like with attribute
+        sweep_mode = getattr(dspec_params, "sweep_mode", None)
+        # Dict case
+        if sweep_mode is None and isinstance(dspec_params, dict):
+            sweep_mode = dspec_params.get("sweep_mode")
+        # List/tuple container case
+        if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+            first = dspec_params[0]
+            sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
 
-	
-	# Get base parameter name and LaTeX representation
-	base_name = param_map.get(xname_raw, xname_raw)
-	
-	# Handle normalization
-	# Normalize x-axis by the weight parameter
-	if weight is None:
-		# No normalization requested, use raw x values
-		x = xvals_raw
-		xname = base_name
-	else:
-		x = xvals_raw / weight
-		weight_symbol = param_map.get(weight_x_by, weight_x_by)
-		xname = base_name + r" / " + weight_symbol
+    # Base LaTeX name
+    base_name = param_map.get(xname_raw, xname_raw)
 
-	return x, xname
+    # Variance sweep: SD(xname), no weighting
+    if sweep_mode == "variance":
+        x = xvals_raw
+        xname = f"\mathrm{{SD}}({base_name})"
+        return x, xname
+
+    # Mean sweep or default: allow optional normalization by weight_x_by
+    weight = None
+    if weight_x_by is not None:
+        # Check in dspec_params
+        if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+            if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
+                weight = np.array(dspec_params[0][weight_x_by])[0]
+        elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
+            weight = np.array(dspec_params[weight_x_by])[0]
+        # Check in var_params if not found in dspec_params
+        if weight is None and var_params is not None:
+            if isinstance(var_params, (list, tuple)) and len(var_params) > 0:
+                if isinstance(var_params[0], dict) and weight_x_by in var_params[0]:
+                    weight = np.array(var_params[0][weight_x_by])[0]
+            elif isinstance(var_params, dict) and weight_x_by in var_params:
+                weight = np.array(var_params[weight_x_by])[0]
+        if weight is None:
+            print(f"Warning: '{weight_x_by}' not found in parameters. Using raw values.")
+
+    # Apply normalization if available
+    if weight is None:
+        x = xvals_raw
+        xname = base_name
+    else:
+        x = xvals_raw / weight
+        weight_symbol = param_map.get(weight_x_by, weight_x_by)
+        xname = base_name + r" / " + weight_symbol
+
+    return x, xname
 
 
 def _get_weighted_y_name(yname, weight_y_by):
 	"""
 	Get LaTeX formatted y-axis name based on the weighting parameter and plot type.
-	
-	Parameters:
-	-----------
-	yname : str
-		Name of the y-axis variable (e.g., "Var($\psi$)", "L/I", etc.)
-	weight_y_by : str or None
-		Parameter used for y-axis weighting/normalization
-	Returns:
-	--------
-	str
-		LaTeX formatted y-axis name
 	"""
+	# No weighting: keep the original label
+	if weight_y_by is None:
+		return yname
 
+	# Special case for PA variance ratio
 	if yname == r"Var($\psi$)" and weight_y_by == "var_PA":
 		return r"\mathcal{R}_{\mathrm{\psi}}"
-	
-	# Check if we have a weight_y_by parameter
-	if weight_y_by is not None:
-		w_name = param_map.get(weight_y_by, weight_y_by)
-		if "/" in w_name:
-			# If the weight name already contains a slash, use it directly
-			return "(" + yname + ")/" + w_name
-		return yname + '/' + w_name
-	else:
-		print(f"Warning: No weight_y_by specified for yname '{yname}'. Using default name.")
-	
-	return "Y"  # Default fallback
+
+	w_name = param_map.get(weight_y_by, weight_y_by)
+	if "/" in w_name:
+		return "(" + yname + ")/" + w_name
+	return yname + '/' + w_name
 
 
 def _parse_fit_arg(fit_item):
@@ -704,8 +693,20 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		xvals = np.array(subdict["xvals"])
 		yvals = subdict["yvals"]
 		var_params = subdict["var_params"]
+		dspec_params = subdict["dspec_params"]
+
+		sweep_mode = dspec_params.sweep_mode if hasattr(dspec_params, "sweep_mode") else dspec_params.get("sweep_mode", "mean")
+		if sweep_mode == "variance":
+			print("Note: x-axis is standard deviation of the varied parameter.")
+			params = dspec_params
+		elif sweep_mode == "mean":
+			print("Note: x-axis is mean of the varied parameter.")
+			params = var_params
+		else:
+			print(f"Warning: Unknown sweep_mode '{sweep_mode}'. Assuming 'mean'.")
+			params = var_params
   
-		y = _weight_dict(xvals, yvals, var_params, weight_by=weight_y_by)
+		y = _weight_dict(xvals, yvals, params, weight_by=weight_y_by)
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
 
 		# Use flexible weighting for x-values
@@ -774,8 +775,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	return pa_var, pa_var_err
 
 
-def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend,
-				buffer_frac):
+def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
 	"""
 	Plot the variance of the polarization angle (PA) as a function of scattering parameters.
 	
@@ -980,7 +980,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		figsize = (10, 9)
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by="width_ms", yname=yname)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by=None, yname=yname)
 		if show_plots:
 			plt.show()
 		if save:

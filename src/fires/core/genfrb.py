@@ -313,7 +313,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	sweep_step  = gauss_params[step_row]
 
 	active_cols = np.where(sweep_step != 0.0)[0]
-	if plot_mode.requires_multiple_frb:
+	if plot_mode.requires_multiple_frb and data is None:
 		if active_cols.size == 0:
 			print("No sweep defined (all step = 0) but multi-FRB plot requested.")
 			sys.exit(1)
