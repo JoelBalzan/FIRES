@@ -203,7 +203,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	dphits = tsdata.dphits
  
 	# Linear polarisation
-	I, Q, U, V = tsdata.iquvt
+	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
 	L = np.sqrt(Q**2 + U**2)
 	
 	if figsize is None:
@@ -232,11 +232,17 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	#axs[1].plot(time_ms, Q, markersize=2, label='Q', color='Green')
 	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
 	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
-	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3))
+
+	axs[1].set_xlim(time_ms[0], time_ms[-1])
+
+	# Set fixed unit label with math italic S
+	axs[1].set_ylabel(r"$S$ [kJy]")
+
 
 	# Highlight on- and off-pulse regions if requested
 	if show_onpulse or show_offpulse:
-		on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
+		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
 		if show_onpulse:
 			# Shade on-pulse region
 			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
@@ -247,10 +253,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			color='lightcoral', alpha=0.15,
 			transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
 		)
-
-	axs[1].set_xlim(time_ms[0], time_ms[-1])
-	axs[1].set_ylabel("Flux Density [arb.]", labelpad=45)
-	axs[1].tick_params(axis='y', which='both', labelleft=False)
+	
 	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
 	if snr is not None:
 		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
