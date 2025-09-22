@@ -531,7 +531,7 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 
 # ...existing code...
 
-def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, seed, n_pol=2,
+def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
                stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,
                baseline_frac=0.05, baseline_kernel_ms=5.0, time_res_ms=None):
     """
@@ -584,8 +584,7 @@ def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, seed,
     f_res_arr = np.full(n_chan, f_res, dtype=float) if np.isscalar(f_res) else np.asarray(f_res, dtype=float)
 
     # Radiometer equation: sigma = SEFD / sqrt(n_pol * Δν * Δt)
-    denom = np.sqrt(np.maximum(n_pol * f_res_arr * t_res, 1e-30))
-    sigma_I_ch = sefd_arr / denom  # (n_chan,)
+    sigma_I_ch = sefd_arr / np.sqrt(n_pol * f_res_arr * t_res)  # (n_chan,)
 
     stokes_scale = np.asarray(stokes_scale, dtype=float)
     if stokes_scale.size != 4:
