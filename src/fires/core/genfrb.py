@@ -171,7 +171,7 @@ def _load_multiple_data_grouped(data):
 	return all_results
 
 
-def _generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
+def _generate_dynspec(xname, mode, var, plot_multiple_frb, target_snr=None, **params):
 	"""Generate dynamic spectrum based on mode."""
 	var = var if plot_multiple_frb else None
 
@@ -192,9 +192,10 @@ def _generate_dynspec(xname, mode, var, plot_multiple_frb, **params):
 	}
  
 	if mode == 'psn':
-		return m_gauss_dynspec(**params_filtered, variation_parameter=var, xname=xname, plot_multiple_frb=plot_multiple_frb)
+		return m_gauss_dynspec(**params_filtered, variation_parameter=var, xname=xname, plot_multiple_frb=plot_multiple_frb,
+								target_snr=target_snr)
 	elif mode == 'gauss':
-		return gauss_dynspec(**params_filtered, plot_multiple_frb=plot_multiple_frb)
+		return gauss_dynspec(**params_filtered, plot_multiple_frb=plot_multiple_frb, target_snr=target_snr)
 
 
 def _process_task(task, xname, mode, plot_mode, **params):
@@ -240,7 +241,8 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, 
-				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode):
+				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode,
+				target_snr=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -379,6 +381,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			mode=mode,
 			var=None,
 			plot_multiple_frb=False,
+            target_snr=target_snr,			
 			**dspec_params._asdict()
 		)
 		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
@@ -482,6 +485,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 					xname=xname,
 					mode=mode,
 					plot_mode=plot_mode,
+            		target_snr=target_snr,
 					**dspec_params._asdict()
 				)
 				results = list(tqdm(

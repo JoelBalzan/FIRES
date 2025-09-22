@@ -528,8 +528,69 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 	return sc_chan
 
 
+def compute_required_sefd(
+    dynspec,
+    f_res_hz,
+    t_res_s,
+    target_snr,
+    n_pol=2,
+    frac=0.95,
+    buffer_frac=None,
+    subtract_baseline=True
+):
+    """
+    Compute the SEFD (Jy) required to achieve a desired S/N for the provided
+    noise-free dynamic spectrum using the same S/N definition as snr_onpulse.
 
-# ...existing code...
+    Parameters
+    ----------
+    dynspec : array (4, n_chan, n_time)
+        Noise-free Stokes cube.
+    f_res_hz : float
+        Channel bandwidth (Hz).
+    t_res_s : float
+        Time resolution (s).
+    target_snr : float
+        Desired on-pulse S/N.
+    n_pol : int
+        Number of summed polarisations.
+    frac : float
+        Fraction of total energy to define on-pulse window (as in boxcar_width).
+    buffer_frac : float or None
+        Buffer fraction passed to off-pulse window construction.
+    subtract_baseline : bool
+        Subtract median off-pulse baseline before computing pulse energy.
+
+    Returns
+    -------
+    sefd_required : float
+        SEFD (Jy) needed to reach target_snr.
+    details : dict
+        Diagnostic values (E, N_on, N_chan, left, right).
+    """
+    prof = np.nansum(dynspec[0], axis=0)
+    left, right = boxcar_width(prof, frac=frac)
+    width = max(1, right - left + 1)
+
+    on_mask = make_onpulse_mask(prof.size, left, right)
+
+    E_on = np.nansum(prof[on_mask])  # energy actually used by snr_onpulse
+
+    N_on = int(on_mask.sum())
+    N_chan = dynspec.shape[1]
+
+    if E_on <= 0 or N_on == 0 or N_chan == 0:
+        raise ValueError("Cannot compute SEFD (no positive on-pulse energy).")
+
+    # Theoretical per-bin RMS after summing channels:
+    # sigma_time = SEFD * sqrt(N_chan) / sqrt(n_pol * Δν * Δt)
+    # SNR = E_on / ( sigma_time * sqrt(N_on) )
+    # => SEFD = E_on * sqrt(n_pol * Δν * Δt) / ( target_snr * sqrt(N_chan * N_on) )
+    sefd_req = (E_on * np.sqrt(n_pol * f_res_hz * t_res_s)) / (target_snr * np.sqrt(N_chan * N_on))
+
+
+    return sefd_req
+
 
 def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
                stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,

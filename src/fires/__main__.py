@@ -261,6 +261,13 @@ def main():
 		help="System equivalent flux density in Jansky for adding noise. Default is 0 Jy (no noise)."
 	)
 	parser.add_argument(
+		"--snr",
+		type=float,
+		default=None,
+		metavar="",
+		help="Target S/N for the pulse peak. If set, this will override the --sefd option."
+	)
+	parser.add_argument(
 		"--ncpu",
 		type=int,
 		default=1,
@@ -334,7 +341,8 @@ def main():
 				phase_window = args.phase_window,
 				freq_window  = args.freq_window,
 				buffer_frac  = args.buffer,
-				sweep_mode   = args.sweep_mode
+				sweep_mode   = args.sweep_mode,
+				target_snr   = args.snr
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
@@ -353,7 +361,8 @@ def main():
 				phase_window = None,
 				freq_window  = None,
 				buffer_frac  = args.buffer,
-				sweep_mode   = None
+				sweep_mode   = None,
+				target_snr   = args.snr
 			)
 			if args.chi2_fit:
 				print("Performing chi-squared fitting on the final profiles... \n")

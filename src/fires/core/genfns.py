@@ -79,7 +79,8 @@ def _disable_micro_variance_for_swept_base(var_dict, xname):
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac):
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac,
+				target_snr=None):
 	"""
 	Generate dynamic spectrum for Gaussian pulses.
 	
@@ -156,10 +157,47 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref
 
 		dynspec += temp_dynspec
 
+	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 if freq_mhz.size > 1 else 0.0
+	t_res_s = time_res_ms / 1000.0
+
+	# --- Derive SEFD from target S/N if requested ---
+	if target_snr is not None:
+		sefd_est = compute_required_sefd(
+			dynspec,
+			f_res_hz=f_res_hz,
+			t_res_s=t_res_s,
+			target_snr=target_snr,
+			n_pol=2,
+			frac=0.95,
+			buffer_frac=buffer_frac
+		)
+		# Iterative correction: account for tail leakage raising measured RMS
+		rng = np.random.default_rng(seed)
+		sefd_work = sefd_est
+		max_iter = 5
+		tol = 0.02  # 2%
+		for _it in range(max_iter):
+			noisy, _, snr_meas = add_noise(
+				dynspec, sefd_work, f_res_hz, t_res_s,
+				plot_multiple_frb=True, buffer_frac=buffer_frac, n_pol=2, rng=rng
+			)
+			# Scale (SNR ∝ 1/SEFD) so new SEFD = old * (snr_meas / target)
+			if snr_meas <= 0:
+				break
+			ratio = snr_meas / target_snr
+			if abs(ratio - 1) < tol:
+				break
+			sefd_work *= ratio
+		sefd = sefd_work
+		if not plot_multiple_frb:
+			print(f"[FIRES] SEFD set to {sefd:.3g} Jy for target S/N {target_snr} (iterative)")
+
+
 	if sefd > 0:
-		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
-		t_res_s = time_res_ms / 1000
-		dynspec, sigma_ch, snr = add_noise(dynspec, sefd, f_res_hz, t_res_s, plot_multiple_frb, buffer_frac=buffer_frac)
+		dynspec, sigma_ch, snr = add_noise(
+			dynspec, sefd, f_res_hz, t_res_s,
+			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
+		)
 	else:
 		snr = None
 
@@ -170,7 +208,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 					sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
-					variation_parameter=None, xname=None):
+					variation_parameter=None, xname=None, target_snr=None):
 	"""
 	Generate dynamic spectrum from microshots with optional parameter sweeping.
 
@@ -230,8 +268,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 
 	# Create width_range list with pairs of [mg_width_low, mg_width_high]
 	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
-
-
 
 	peak_amp_var        = var_dict['peak_amp_var']
 	spec_idx_var        = var_dict['spec_idx_var']
@@ -360,10 +396,45 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	# Calculate variance for each parameter in var_params
 	var_params = {key: np.var(values) for key, values in all_params.items()}
 
+	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 if freq_mhz.size > 1 else 0.0
+	t_res_s = time_res_ms / 1000.0
+
+	# --- Derive SEFD from target S/N if requested ---
+	if target_snr is not None:
+		sefd_est = compute_required_sefd(
+			dynspec,
+			f_res_hz=f_res_hz,
+			t_res_s=t_res_s,
+			target_snr=target_snr,
+			n_pol=2,
+			frac=0.95,
+			buffer_frac=buffer_frac
+		)
+		# Iterative correction: account for tail leakage raising measured RMS
+		sefd_work = sefd_est
+		max_iter = 5
+		tol = 0.02  # 2%
+		for _it in range(max_iter):
+			_, _, snr_meas = add_noise(
+				dynspec, sefd_work, f_res_hz, t_res_s,
+				plot_multiple_frb=True, buffer_frac=buffer_frac, n_pol=2
+			)
+			# Scale (SNR ∝ 1/SEFD) so new SEFD = old * (snr_meas / target)
+			if snr_meas <= 0:
+				break
+			ratio = snr_meas / target_snr
+			if abs(ratio - 1) < tol:
+				break
+			sefd_work *= ratio
+		sefd = sefd_work
+		if not plot_multiple_frb:
+			print(f"[FIRES] SEFD set to {sefd:.3g} Jy for target S/N {target_snr} (iterative)")
+
 	if sefd > 0:
-		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
-		t_res_s = time_res_ms / 1000
-		dynspec, sigma_ch, snr = add_noise(dynspec, sefd, f_res_hz, t_res_s, plot_multiple_frb, buffer_frac=buffer_frac)
+		dynspec, sigma_ch, snr = add_noise(
+			dynspec, sefd, f_res_hz, t_res_s,
+			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
+		)
 	else:
 		snr = None
 
