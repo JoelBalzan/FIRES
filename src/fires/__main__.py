@@ -254,11 +254,11 @@ def main():
 		help="How many realisations to generate at each scattering timescale for psn mode."
 	)
 	parser.add_argument(
-		"--tsys",
+		"--sefd",
 		type=float,
 		default=0.0,
 		metavar="",
-		help="System temperature in K. Default is 0 K (no noise)."
+		help="System equivalent flux density in Jansky for adding noise. Default is 0 Jy (no noise)."
 	)
 	parser.add_argument(
 		"--ncpu",
@@ -328,7 +328,7 @@ def main():
 				mode         = args.mode,
 				seed         = args.seed,
 				nseed        = args.nseed,
-				tsys         = args.tsys,
+				sefd         = args.sefd,
 				n_cpus       = args.ncpu,
 				plot_mode    = selected_plot_mode,
 				phase_window = args.phase_window,
@@ -347,7 +347,7 @@ def main():
 				mode         = args.mode,
 				seed         = args.seed,
 				nseed        = None,
-				tsys         = args.tsys,
+				sefd         = args.sefd,
 				n_cpus       = None,
 				plot_mode    = selected_plot_mode,
 				phase_window = None,
