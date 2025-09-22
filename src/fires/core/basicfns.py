@@ -157,7 +157,7 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	"""
 
 	
-	# Initialize the new dynamic spectrum
+	# Initialise the new dynamic spectrum
 	new_dynspec    = np.zeros(dynspec.shape, dtype=float)
 	new_dynspec[0] = dynspec[0]
 	new_dynspec[3] = dynspec[3]
@@ -519,7 +519,7 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 	# Create IRF time axis
 	irf_t = np.arange(0, (n_pad + 1)) * time_res_ms
 	irf = np.exp(-irf_t / tau_cms)
-	irf /= np.sum(irf)  # Normalize
+	irf /= np.sum(irf)  # Normalise
 
 	# Convolve and trim back to original size
 	convolved = fftconvolve(padded_I, irf, mode='full')
@@ -529,47 +529,91 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 
 
 
-def add_noise(dynspec, t_sys, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=1):
-	"""
-	Add Gaussian noise to a clean Stokes IQUV dynamic spectrum based on the radiometer equation.
+# ...existing code...
 
-	Parameters
-	----------
-	dynspec : np.ndarray
-		3D array with shape (4, nchan, ntime), clean dynamic spectrum [I, Q, U, V]
-	t_sys : float
-		System temperature (or equivalent noise level) in arbitrary units
-	f_res : float
-		Frequency resolution in Hz
-	t_res : float
-		Time resolution in seconds
-	time_ms : np.ndarray
-		Time array in milliseconds
-	n_pol : int
-		Number of polarizations (default 2 for Stokes I)
-	plot_multiple_frb : bool
-		Whether to suppress SNR print output (for batch processing)
-	"""
-	# Calculate RMS noise using the radiometer equation
-	sigma = t_sys / np.sqrt(n_pol * f_res * t_res)
+def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, seed, n_pol=2,
+               stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,
+               baseline_frac=0.05, baseline_kernel_ms=5.0, time_res_ms=None):
+    """
+    Add thermal (and optional slow baseline) noise using only SEFD.
 
-	noise = np.random.normal(0.0, sigma, dynspec.shape)
-	noisy_dynspec = dynspec + noise
+    Parameters
+    ----------
+    dynspec : (4, n_chan, n_time) array
+        Clean Stokes I,Q,U,V cube.
+    sefd : float or (n_chan,) array
+        System Equivalent Flux Density in Jy.
+    f_res : float or (n_chan,) array
+        Channel bandwidth (Hz).
+    t_res : float
+        Time resolution (s).
+    buffer_frac : float
+        Passed to snr_onpulse for S/N estimate.
+    plot_multiple_frb : bool
+        If False, print S/N summary.
+    n_pol : int
+        Number of summed polarisations (usually 2).
+    stokes_scale : tuple of 4 floats
+        Multiplicative RMS scale factors for (I,Q,U,V).
+    rng : np.random.Generator or None
+        Random generator for reproducibility.
+    add_slow_baseline : bool
+        Add smoothed low-frequency baseline drift.
+    baseline_frac : float
+        Std of baseline component relative to white RMS.
+    baseline_kernel_ms : float
+        FWHM of Gaussian smoothing (ms) for baseline.
+    time_res_ms : float or None
+        Needed if add_slow_baseline=True.
 
-	
-	n_chan = noisy_dynspec.shape[1]
-	I_time = np.nansum(noisy_dynspec[0], axis=0)
-	rms_time = sigma * np.sqrt(n_chan)
+    Returns
+    -------
+    noisy_dynspec : array
+        dynspec + injected noise.
+    sigma_ch : (4, n_chan) array
+        Per-Stokes per-channel white-noise RMS used.
+    snr : float
+        On-pulse S/N of Stokes I.
+    """
+    dynspec = np.asarray(dynspec, dtype=float)
 
-	#(snr, _) = boxcar_snr(I_time, rms_time)
-	#print(f"Stokes I S/N (boxcar method): {snr:.2f}")
+    _, n_chan, n_time = dynspec.shape
 
-	snr = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
-	if plot_multiple_frb == False:
-		print(f"Stokes I S/N (on-pulse method): {snr:.2f}")
+    # Normalise inputs
+    sefd_arr = np.full(n_chan, sefd, dtype=float) if np.isscalar(sefd) else np.asarray(sefd, dtype=float)
+    f_res_arr = np.full(n_chan, f_res, dtype=float) if np.isscalar(f_res) else np.asarray(f_res, dtype=float)
 
-	return noisy_dynspec, snr
+    # Radiometer equation: sigma = SEFD / sqrt(n_pol * Δν * Δt)
+    denom = np.sqrt(np.maximum(n_pol * f_res_arr * t_res, 1e-30))
+    sigma_I_ch = sefd_arr / denom  # (n_chan,)
 
+    stokes_scale = np.asarray(stokes_scale, dtype=float)
+    if stokes_scale.size != 4:
+        raise ValueError("stokes_scale must have length 4")
+
+    sigma_ch = np.vstack([sigma_I_ch * stokes_scale[s] for s in range(4)])  # (4, n_chan)
+
+    noise_white = np.random.normal(0.0, sigma_ch[:, :, None], size=(4, n_chan, n_time))
+
+    if add_slow_baseline:
+        if time_res_ms is None:
+            raise ValueError("time_res_ms required when add_slow_baseline=True")
+        sigma_bins = (baseline_kernel_ms / time_res_ms) / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+        baseline = np.random.normal(0.0, sigma_ch[:, :, None] * baseline_frac, size=noise_white.shape)
+        baseline = gaussian_filter1d(baseline, sigma=sigma_bins, axis=2, mode='nearest')
+        noise = noise_white + baseline
+    else:
+        noise = noise_white
+
+    noisy_dynspec = dynspec + noise
+
+    I_time = np.nansum(noisy_dynspec[0], axis=0)
+    snr = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
+
+    if not plot_multiple_frb:
+        print(f"Stokes I S/N (on-pulse method): {snr:.2f}")
+
+    return noisy_dynspec, sigma_ch, snr
 
 
 def boxcar_snr(ys, rms):
@@ -584,8 +628,8 @@ def boxcar_snr(ys, rms):
 		RMS noise level
 	Returns:
 	--------
-	global_maxSNR_normalized : float
-		Maximum S/N ratio (normalized by RMS)
+	global_maxSNR_normalised : float
+		Maximum S/N ratio (normalised by RMS)
 	boxcarw : int
 		Optimal boxcar width
 	"""

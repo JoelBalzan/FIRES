@@ -79,7 +79,7 @@ def _disable_micro_variance_for_swept_base(var_dict, xname):
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac):
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac):
 	"""
 	Generate dynamic spectrum for Gaussian pulses.
 	
@@ -156,10 +156,10 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, sc_idx, ref
 
 		dynspec += temp_dynspec
 
-	if tsys > 0:
+	if sefd > 0:
 		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
 		t_res_s = time_res_ms / 1000
-		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, plot_multiple_frb, buffer_frac=buffer_frac)
+		dynspec, sigma_ch, snr = add_noise(dynspec, sefd, f_res_hz, t_res_s, plot_multiple_frb, buffer_frac=buffer_frac)
 	else:
 		snr = None
 
@@ -169,7 +169,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, tsys, sc_idx, ref
 
 
 def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
-					tsys, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
+					sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
 					variation_parameter=None, xname=None):
 	"""
 	Generate dynamic spectrum from microshots with optional parameter sweeping.
@@ -360,10 +360,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	# Calculate variance for each parameter in var_params
 	var_params = {key: np.var(values) for key, values in all_params.items()}
 
-	if tsys > 0:
+	if sefd > 0:
 		f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
 		t_res_s = time_res_ms / 1000
-		dynspec, snr = add_noise(dynspec, tsys, f_res_hz, t_res_s, plot_multiple_frb, buffer_frac=buffer_frac)
+		dynspec, sigma_ch, snr = add_noise(dynspec, sefd, f_res_hz, t_res_s, plot_multiple_frb, buffer_frac=buffer_frac)
 	else:
 		snr = None
 

@@ -240,7 +240,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, 
-				tsys, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode):
+				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -339,7 +339,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		time_res_ms     = t_res,
 		seed            = seed,
 		nseed           = nseed,
-		tsys            = tsys,
+		sefd            = sefd,
 		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
 		phase_window    = phase_window,
@@ -366,8 +366,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			snr = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)  
 			if tau_ms[0] > 0:
 				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
-			if tsys > 0:
-				dspec, snr = add_noise(dynspec=dspec, t_sys=tsys, f_res=f_res, t_res=t_res, 
+			if sefd > 0:
+				dspec, sigma_ch, snr = add_noise(dynspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res, 
 													plot_multiple_frb=plot_multiple_frb)
 			
 			# Update dspec_params with new time and frequency arrays
