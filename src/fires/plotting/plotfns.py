@@ -242,7 +242,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 	# Highlight on- and off-pulse regions if requested
 	if show_onpulse or show_offpulse:
-		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
+		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac, one_sided_offpulse=True)
 		if show_onpulse:
 			# Shade on-pulse region
 			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
