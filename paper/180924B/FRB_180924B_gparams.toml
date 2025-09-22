@@ -12,7 +12,7 @@
 #	Columns:
 #	t0  		    - Time offset of the Gaussian pulse in milliseconds
 #	width		    - Width of the Gaussian pulse in milliseconds
-#	peak_amp		- Peak amplitude of the Gaussian pulse (arb. flux units)
+#	peak_amp		- Peak amplitude of the Gaussian pulse (Jy)
 #	spec_idx		- Spectral index of the Gaussian pulse
 #   tau             - Scattering timescale in milliseconds
 #	DM			    - Dispersion measure in pc/cm^3

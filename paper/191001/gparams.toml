@@ -39,11 +39,11 @@
 # ngauss          - Number of micro-gausssians used to generate the pulse in psn mode
 # mg_width_low    - Lower width range of the micro-gaussians as a percentage of width_ms
 # mg_width_high   - Higher width range of the micro-gaussians as a percentage of width_ms
-
+#
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
 #  t0    width  peak_amp  spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width  ngauss  mg_width_low  mg_width_high #
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
-  -2.0  0.5     15.0       0.0       1.78  0.0   0.0    20     0.95    -0.05  0.0      0.0          0.0       100       5            20           # gaussian / gaussian mean
+  -2.0  0.5     0.2       0.0        0.0   0.0   0.0    20     0.95    -0.05  0.0      0.0          0.0       100       5            20           # gaussian / gaussian mean
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
   0.0   0.0     0.0       0.0        0.0   0.0   0.0    30     0.0     0.0    0.0      0.0          0.0         0       0             0           #          / gaussian std dev (psn mode)
   0.0   0.0     0.0       0.0        0.0   0.0   0.0     0     0.0     0.0    0.0      0.0          0.0         0       0             0           # start
