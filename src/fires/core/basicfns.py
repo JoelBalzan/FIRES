@@ -535,7 +535,7 @@ def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol
                stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,
                baseline_frac=0.05, baseline_kernel_ms=5.0, time_res_ms=None):
     """
-    Add thermal (and optional slow baseline) noise using only SEFD.
+    Add thermal (and optional slow baseline) noise using SEFD.
 
     Parameters
     ----------
@@ -555,8 +555,6 @@ def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol
         Number of summed polarisations (usually 2).
     stokes_scale : tuple of 4 floats
         Multiplicative RMS scale factors for (I,Q,U,V).
-    rng : np.random.Generator or None
-        Random generator for reproducibility.
     add_slow_baseline : bool
         Add smoothed low-frequency baseline drift.
     baseline_frac : float
