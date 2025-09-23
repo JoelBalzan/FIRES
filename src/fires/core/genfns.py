@@ -401,7 +401,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 
 	# --- Derive SEFD from target S/N if requested ---
 	if target_snr is not None:
-		sefd = compute_required_sefd(
+		sefd_est = compute_required_sefd(
 			dynspec,
 			f_res_hz=f_res_hz,
 			t_res_s=t_res_s,
@@ -410,9 +410,21 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			frac=0.95,
 			buffer_frac=buffer_frac,
 			one_sided_offpulse=True,   # use only pre-pulse for noise
-			tail_frac=0.003,           # include scattered tail (>0.3% peak) in on-pulse
-			max_tail_mult=5
 		)
+		sefd_work = sefd_est
+		max_iter, tol = 5, 0.02
+		for _ in range(max_iter):
+			_, _, snr_meas = add_noise(
+				dynspec, sefd_work, f_res_hz, t_res_s,
+				plot_multiple_frb=True, buffer_frac=buffer_frac,
+				n_pol=2
+			)
+			if snr_meas <= 0: break
+			ratio = snr_meas / target_snr
+			if abs(ratio - 1) < tol: break
+			sefd_work *= ratio
+		sefd = sefd_work
+
 		if not plot_multiple_frb:
 			print(f"[FIRES] SEFD set to {sefd:.3g} Jy for target S/N {target_snr}")
 
