@@ -259,11 +259,8 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		epfrac = np.abs(pfrac) * np.sqrt((ePts / Pts) ** 2 + (Its_rms / Its) ** 2)
 
 
-
-
-
 		# Set large errors to NaN
-		mask = Lts < (2.0 * Its_rms)  # Mask where L is less than 1-sigma
+		mask = Lts < (2.0 * Its_rms)  # Mask where L is less than 2-sigma
 		phits[mask]  = np.nan
 		ephits[mask] = np.nan
 		psits[mask]  = np.nan
@@ -580,18 +577,8 @@ def scatter_stokes_chan(chan, time_res_ms, tau_cms):
 	return sc_chan
 
 
-def compute_required_sefd(
-    dynspec,
-    f_res_hz,
-    t_res_s,
-    target_snr,
-    n_pol=2,
-    frac=0.95,
-    buffer_frac=None,
-    one_sided_offpulse=False,
-    tail_frac=None,
-    max_tail_mult=5
-):
+def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None, 
+					one_sided_offpulse=False, tail_frac=None, max_tail_mult=5):
     """
     Compute SEFD needed for a desired S/N, using adaptive on/off selection
     consistent with snr_onpulse (with tail inclusion).
@@ -782,14 +769,8 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(profile,
-                frac=0.95,
-                subtract_baseline=True,
-                robust_rms=True,
-                buffer_frac=None,
-                one_sided_offpulse=False,
-                tail_frac=None,
-                max_tail_mult=5):
+def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None, one_sided_offpulse=False,
+                tail_frac=None, max_tail_mult=5):
     """
     Estimate S/N using an on-pulse window and an (adaptive) off-pulse RMS.
 
