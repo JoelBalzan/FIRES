@@ -55,26 +55,58 @@ def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 def _disable_micro_variance_for_swept_base(var_dict, xname):
 	"""
 	If sweeping a base parameter (e.g., 'tau_ms'), disable its random micro-variance
-	by zeroing the corresponding '*_var' entry (e.g., 'tau_ms_var') so the sweep
+	by zeroing the corresponding '*_sd' entry (e.g., 'tau_ms_sd') so the sweep
 	reflects only the base change.
 	Returns a modified copy of var_dict (shallow copy; values may be arrays).
 	"""
-	if xname is None or xname.endswith("_var"):
+	if xname is None or xname.endswith("_sd"):
 		return var_dict
 
-	var_key = xname + "_var"
+	var_key = xname + "_sd"
 	if var_key is None or var_key not in var_dict:
 		return var_dict
 
 	# Shallow copy dict; copy value to avoid in-place side effects
-	new_var_dict = dict(var_dict)
-	val = new_var_dict[var_key]
+	new_sd_dict = dict(var_dict)
+	val = new_sd_dict[var_key]
 	arr = np.array(val, dtype=float, copy=True)
 	if arr.ndim == 0:
 		arr = np.array([arr], dtype=float)
 	arr[0] = 0.0
-	new_var_dict[var_key] = arr
-	return new_var_dict
+	new_sd_dict[var_key] = arr
+	return new_sd_dict
+
+def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd):
+	"""
+	Returns approximate Var(PA) [radians^2] using the delta-method formula.
+	- tau_s: scattering timescale (seconds)
+	- sigma_deg: standard deviation of microshot PA (degrees)
+	- ngauss: number of micro-shots
+	- width_ms: FWHM of the main component (ms)
+	- peak_amp: mean micro-shot linear amplitude
+	- peak_amp_sd: std dev of micro-shot linear amplitude
+	"""
+
+	# Calculate shot rate (lambda, shots per ms)
+	shot_rate = ngauss / width_ms
+
+	# E[a] (mean microshot linear amplitude)
+	a_mean = peak_amp
+
+	# E[a^2] (second moment of microshot linear amplitude)
+	a2_mean = peak_amp**2 + peak_amp_sd**2
+
+	sigma_rad = np.deg2rad(sigma_deg)
+	sigma2 = sigma_rad
+	pref = a2_mean / (a_mean**2)
+
+	if tau_ms > 0:
+		N_eff = shot_rate * tau_ms
+	else:
+		N_eff = ngauss
+
+	# formula: pref * sinh(4*sigma2) / (8 * lambda * tau)
+	return np.rad2deg(pref * np.sinh(4.0 * sigma2) / (8.0 * N_eff))
 
 
 
@@ -228,7 +260,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 
 	if variation_parameter is not None and xname is not None and sweep_mode != "none":
 		if is_variance_sweep:
-			var_key = f"{xname}_var"
+			var_key = f"{xname}_sd"
 			if var_key not in var_dict:
 				raise ValueError(f"Variance key '{var_key}' not found for variance sweep.")
 			arr = np.array(var_dict[var_key], copy=True)
@@ -269,17 +301,17 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	# Create width_range list with pairs of [mg_width_low, mg_width_high]
 	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
 
-	peak_amp_var        = var_dict['peak_amp_var']
-	spec_idx_var        = var_dict['spec_idx_var']
-	tau_ms_var          = var_dict['tau_ms_var']
-	pol_angle_var       = var_dict['PA_var']
-	dm_var              = var_dict['DM_var']
-	rm_var              = var_dict['RM_var']
-	lfrac_var   		= var_dict['lfrac_var']
-	vfrac_var   		= var_dict['vfrac_var']
-	dPA_var 			= var_dict['dPA_var']
-	band_centre_mhz_var = var_dict['band_centre_mhz_var']
-	band_width_mhz_var  = var_dict['band_width_mhz_var']
+	peak_amp_sd        = var_dict['peak_amp_sd']
+	spec_idx_sd        = var_dict['spec_idx_sd']
+	tau_ms_sd          = var_dict['tau_ms_sd']
+	PA_sd      		= var_dict['PA_sd']
+	dm_sd              = var_dict['DM_sd']
+	rm_sd              = var_dict['RM_sd']
+	lfrac_sd   		= var_dict['lfrac_sd']
+	vfrac_sd   		= var_dict['vfrac_sd']
+	dPA_sd 			= var_dict['dPA_sd']
+	band_centre_mhz_sd = var_dict['band_centre_mhz_sd']
+	band_width_mhz_sd  = var_dict['band_width_mhz_sd']
 	
 			
 	dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
@@ -307,12 +339,12 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 		for _ in range(int(ngauss[g])):
 			var_t0              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR) 
 			# Generate random variations for the micro-Gaussian parameters
-			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_var)
+			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_sd)
 			# Sample the micro width as a percentage of the main width
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
-			var_spec_idx        = np.random.normal(spec_idx[g], spec_idx_var)
-			var_tau_ms        	= np.random.normal(tau_ms[g], tau_ms_var)
-			#print(tau_ms[g], tau_ms_var)  # Debugging line to check tau values
+			var_spec_idx        = np.random.normal(spec_idx[g], spec_idx_sd)
+			var_tau_ms        	= np.random.normal(tau_ms[g], tau_ms_sd)
+			#print(tau_ms[g], tau_ms_sd)  # Debugging line to check tau values
 			#print(var_tau_ms)
 
 			# Choose effective scattering timescale (use varied value if > 0, else base)
@@ -322,20 +354,20 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			else:
 				tau_cms = None
 			#print(tau_eff, var_tau_ms, tau_ms[g])  # Debugging line to check tau values
-			var_PA              = np.random.normal(PA[g], pol_angle_var)
-			var_DM              = np.random.normal(DM[g], dm_var)
-			var_RM              = np.random.normal(RM[g], rm_var)
-			var_lfrac           = np.random.normal(lfrac[g], lfrac_var)
-			var_vfrac           = np.random.normal(vfrac[g], vfrac_var)
-			var_dPA             = np.random.normal(dPA[g], dPA_var)
-			var_band_centre_mhz = np.random.normal(band_centre_mhz[g], band_centre_mhz_var)
-			var_band_width_mhz  = np.random.normal(band_width_mhz[g], band_width_mhz_var)
+			var_PA              = np.random.normal(PA[g], PA_sd)
+			var_DM              = np.random.normal(DM[g], dm_sd)
+			var_RM              = np.random.normal(RM[g], rm_sd)
+			var_lfrac           = np.random.normal(lfrac[g], lfrac_sd)
+			var_vfrac           = np.random.normal(vfrac[g], vfrac_sd)
+			var_dPA             = np.random.normal(dPA[g], dPA_sd)
+			var_band_centre_mhz = np.random.normal(band_centre_mhz[g], band_centre_mhz_sd)
+			var_band_width_mhz  = np.random.normal(band_width_mhz[g], band_width_mhz_sd)
 
-			if vfrac_var > 0.0:
+			if vfrac_sd > 0.0:
 				var_vfrac = np.clip(var_vfrac, 0.0, 1.0)
 				var_lfrac = np.clip(1.0 - var_vfrac, 0.0, 1.0)
 
-			elif lfrac_var > 0.0:
+			elif lfrac_sd > 0.0:
 				var_lfrac = np.clip(var_lfrac, 0.0, 1.0)
 				var_vfrac = np.clip(1.0 - var_lfrac, 0.0, 1.0)
 
@@ -436,4 +468,10 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	else:
 		snr = None
 
+	# Assuming values from the first component for simplicity
+	exp_pa_v = _expected_pa_variance(
+		tau_eff, PA_sd, ngauss, width_ms, np.mean(var_params['var_peak_amp']), peak_amp_sd
+	)
+	print(f"[FIRES] Expected Var(PA) ~ {np.rad2deg(exp_pa_v)} deg^2.")
 	return dynspec, snr, var_params
+

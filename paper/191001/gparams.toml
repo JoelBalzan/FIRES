@@ -12,7 +12,7 @@
 #                             (i.e., update the mean with the sweep value and keep the std dev 0 the whole time)
 #                             (--sweep-mode mean)
 #
-#       CASE 2 (VARIANCE SWEEP): keep mean and update the variance with start, stop, step
+#       CASE 2 (VARIANCE SWEEP): keep mean and update the standard deviation with start, stop, step
 #                             (--sweep-mode variance)
 #
 #         THE THIRD LAST ROW REPRESENTS THE STARTING POINT OF THE PARAMETER SWEEP
@@ -43,7 +43,7 @@
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
 #  t0    width  peak_amp  spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width  ngauss  mg_width_low  mg_width_high #
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
-  -2.0  0.5     0.2       0.0        1.78   0.0   0.0    20     0.95    -0.05  0.0      0.0          0.0       100       5            20           # gaussian / gaussian mean
+  -2.0  0.5     0.2       0.0        10.0   0.0   0.0    20     0.95    -0.05  0.0      0.0          0.0       100       5            20           # gaussian / gaussian mean
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
   0.0   0.0     0.0       0.0        0.0   0.0   0.0    30     0.0     0.0    0.0      0.0          0.0         0       0             0           #          / gaussian std dev (psn mode)
   0.0   0.0     0.0       0.0        0.0   0.0   0.0     0     0.0     0.0    0.0      0.0          0.0         0       0             0           # start

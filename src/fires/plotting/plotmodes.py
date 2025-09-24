@@ -19,6 +19,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from scipy.optimize import curve_fit
+from scipy.stats import circvar
+
 
 from ..core.basicfns import process_dynspec, on_off_pulse_masks_from_profile
 from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
@@ -810,11 +812,19 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	if phits is None or len(phits) == 0:
 		return np.nan, np.nan
 
-	pa_var = np.nanvar(phits)
+	# Use circular variance for polarization angles (in radians)
+	# PA has a pi-radian ambiguity, so we work with 2*PA
+	valid_phits = phits[np.isfinite(phits)]
+	if len(valid_phits) == 0:
+		return np.nan, np.nan
+	
+	pa_var = np.rad2deg(circvar(2 * valid_phits) / 4.0)
+
 	if not np.isfinite(pa_var) or pa_var == 0:
 		return pa_var, np.nan
 	with np.errstate(divide='ignore', invalid='ignore'):
 		pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
+	print(f"Var(psi) = {pa_var:.3f} +/- {pa_var_err:.3f} (N={len(phits)})")
 	return pa_var, pa_var_err
 
 

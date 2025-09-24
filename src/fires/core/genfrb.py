@@ -127,7 +127,7 @@ def _load_multiple_data_grouped(data):
 		all_xvals             = []
 		all_yvals             = {}
 		all_errs              = {}
-		all_var_params        = {}
+		all_sd_params        = {}
 		dspec_params          = None
 		plot_mode             = None
 		all_snrs 			  = {}
@@ -148,12 +148,12 @@ def _load_multiple_data_grouped(data):
 				if v not in all_yvals:
 					all_yvals[v]      = []
 					all_errs[v]       = []
-					all_var_params[v] = {key: [] for key in var_params[v].keys()}
+					all_sd_params[v] = {key: [] for key in var_params[v].keys()}
 					all_snrs[v]       = []
 				all_yvals[v].extend(yvals[v])
 				all_errs[v].extend(errs[v])
 				for key, values in var_params[v].items():
-					all_var_params[v][key].extend(values)
+					all_sd_params[v][key].extend(values)
 				all_snrs[v].extend(snrs[v])
 			all_xvals.extend(xvals)
 
@@ -162,7 +162,7 @@ def _load_multiple_data_grouped(data):
 			'xvals'            : all_xvals,
 			'yvals'            : all_yvals,
 			'errs'             : all_errs,
-			'var_params'       : all_var_params,
+			'var_params'       : all_sd_params,
 			'dspec_params'     : dspec_params,
 			'plot_mode'        : plot_mode,
 			'snrs'             : all_snrs	
@@ -294,19 +294,19 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 
 	# Micro (psn) σ (std dev) values (scalars per column)
 	var_dict = {
-		't0_var'             : gauss_params[stddev_row, 0],
-		'width_ms_var'       : gauss_params[stddev_row, 1],
-		'peak_amp_var'       : gauss_params[stddev_row, 2],
-		'spec_idx_var'       : gauss_params[stddev_row, 3],
-		'tau_ms_var'         : gauss_params[stddev_row, 4],
-		'DM_var'             : gauss_params[stddev_row, 5],
-		'RM_var'             : gauss_params[stddev_row, 6],
-		'PA_var'             : gauss_params[stddev_row, 7],
-		'lfrac_var'          : gauss_params[stddev_row, 8],
-		'vfrac_var'          : gauss_params[stddev_row, 9],
-		'dPA_var'            : gauss_params[stddev_row,10],
-		'band_centre_mhz_var': gauss_params[stddev_row,11],
-		'band_width_mhz_var' : gauss_params[stddev_row,12]
+		't0_sd'             : gauss_params[stddev_row, 0],
+		'width_ms_sd'       : gauss_params[stddev_row, 1],
+		'peak_amp_sd'       : gauss_params[stddev_row, 2],
+		'spec_idx_sd'       : gauss_params[stddev_row, 3],
+		'tau_ms_sd'         : gauss_params[stddev_row, 4],
+		'DM_sd'             : gauss_params[stddev_row, 5],
+		'RM_sd'             : gauss_params[stddev_row, 6],
+		'PA_sd'             : gauss_params[stddev_row, 7],
+		'lfrac_sd'          : gauss_params[stddev_row, 8],
+		'vfrac_sd'          : gauss_params[stddev_row, 9],
+		'dPA_sd'            : gauss_params[stddev_row,10],
+		'band_centre_mhz_sd': gauss_params[stddev_row,11],
+		'band_width_mhz_sd' : gauss_params[stddev_row,12]
 	}
 
 	# Sweep specification (used only for multi-FRB modes)
