@@ -97,7 +97,7 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 	a2_mean = peak_amp**2 + peak_amp_sd**2
 
 	sigma_rad = np.deg2rad(sigma_deg)
-	sigma2 = sigma_rad
+	sigma2 = sigma_rad**2
 	pref = a2_mean / (a_mean**2)
 
 	if tau_ms > 0:
@@ -106,7 +106,7 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 		N_eff = ngauss
 
 	# formula: pref * sinh(4*sigma2) / (8 * lambda * tau)
-	return np.rad2deg(pref * np.sinh(4.0 * sigma2) / (8.0 * N_eff))
+	return np.rad2deg(pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff))
 
 
 
