@@ -807,7 +807,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
 
 	phits = ts_data.phits[phase_slc]
-	dphits = ts_data.dphits[phase_slc]
+	ephits = ts_data.ephits[phase_slc]
 
 	if phits is None or len(phits) == 0:
 		return np.nan, np.nan
@@ -818,14 +818,16 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	if len(valid_phits) == 0:
 		return np.nan, np.nan
 	
-	pa_var = np.rad2deg(circvar(2 * valid_phits) / 4.0)
+	pa_var = circvar(2 * valid_phits) / 4.0
+	pa_var_deg2 = np.rad2deg(np.sqrt(pa_var))**2
 
 	if not np.isfinite(pa_var) or pa_var == 0:
 		return pa_var, np.nan
 	with np.errstate(divide='ignore', invalid='ignore'):
-		pa_var_err = np.sqrt(np.nansum((phits * dphits)**2)) / (pa_var * len(phits))
-	print(f"Var(psi) = {pa_var:.3f} +/- {pa_var_err:.3f} (N={len(phits)})")
-	return pa_var, pa_var_err
+		pa_var_err_deg2 = np.sqrt(np.nansum((np.rad2deg(phits) * np.rad2deg(ephits))**2)) / (pa_var_deg2 * len(phits))
+	
+	#print(f"Var(psi) = {pa_var_deg2:.3f} +/- {pa_var_err_deg2:.3f}")
+	return pa_var_deg2, pa_var_err_deg2
 
 
 def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):

@@ -19,6 +19,8 @@ import numpy as np
 from ..utils.utils import *
 from .basicfns import *
 from ..plotting.plotfns import *
+from scipy.stats import circvar
+from scipy.special import erf
 
 GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) 
 
@@ -76,37 +78,83 @@ def _disable_micro_variance_for_swept_base(var_dict, xname):
 	new_sd_dict[var_key] = arr
 	return new_sd_dict
 
-def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd):
+
+def _expected_pa_variance(
+	tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, mode="auto", verbose=True
+):
 	"""
-	Returns approximate Var(PA) [radians^2] using the delta-method formula.
-	- tau_s: scattering timescale (seconds)
-	- sigma_deg: standard deviation of microshot PA (degrees)
-	- ngauss: number of micro-shots
-	- width_ms: FWHM of the main component (ms)
-	- peak_amp: mean micro-shot linear amplitude
-	- peak_amp_sd: std dev of micro-shot linear amplitude
+	Returns approximate Var(PA) [deg^2].
+	
+	Parameters
+	----------
+	tau_ms : float
+		Scattering timescale (ms).
+	sigma_deg : float
+		Standard deviation of microshot PA (degrees).
+	ngauss : int
+		Number of micro-shots.
+	width_ms : float
+		FWHM of the main component (ms).
+	peak_amp : float
+		Mean micro-shot linear amplitude.
+	peak_amp_sd : float
+		Std dev of micro-shot linear amplitude.
+	mode : str, {"auto", "linearised", "large_sigma"}
+		- "linearised": delta-method (valid for small sigma).
+		- "large_sigma": hyperbolic-sine formula (valid for large sigma).
+		- "auto": pick regime automatically based on sigma.
+	verbose : bool
+		If True, prints debug info.
 	"""
 
-	# Calculate shot rate (lambda, shots per ms)
-	shot_rate = ngauss / width_ms
+	# Convert main component FWHM to standard deviation
+	sigma_t = width_ms / GAUSSIAN_FWHM_FACTOR
 
-	# E[a] (mean microshot linear amplitude)
+	# Amplitude moments
 	a_mean = peak_amp
-
-	# E[a^2] (second moment of microshot linear amplitude)
 	a2_mean = peak_amp**2 + peak_amp_sd**2
-
-	sigma_rad = np.deg2rad(sigma_deg)
-	sigma2 = sigma_rad**2
 	pref = a2_mean / (a_mean**2)
 
-	if tau_ms > 0:
-		N_eff = shot_rate * tau_ms
+	# Angle spread in radians
+	sigma_rad = np.deg2rad(sigma_deg)
+	sigma2 = sigma_rad**2
+
+	# Effective number of shots
+	if tau_ms > 0 and sigma_t > 0:
+		# Scattering broadens the pulse, increasing the number of shots averaged
+		# at any given time. This reduces PA variance.
+		# The effective number of shots is increased by the ratio of the
+		# scattered width to the intrinsic width.
+		sigma_total = np.sqrt(sigma_t**2 + tau_ms**2)
+	
+		# Scale N_eff proportional to number of shots in the tail
+		N_eff = ngauss * sigma_total / sigma_t
 	else:
+		# For unscattered shots, N_eff is simply the total number of shots
 		N_eff = ngauss
 
-	# formula: pref * sinh(4*sigma2) / (8 * lambda * tau)
-	return np.rad2deg(pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff))
+	# Auto mode selection
+	if mode == "auto":
+		# Rule of thumb: if sigma < ~15° (~0.26 rad), use linearised
+		mode = "linearised" if sigma_rad < 0.26 else "large_sigma"
+
+	if mode == "linearised":
+		# Delta-method approximation
+		var_psi_rad = pref * sigma2 / N_eff
+	elif mode == "large_sigma":
+		# Hyperbolic-sine formula (exact for Gaussian PA distribution)
+		var_psi_rad = pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff)
+	else:
+		raise ValueError(f"Unknown mode '{mode}'")
+
+	# Convert to degrees^2
+	var_psi_deg2 = np.rad2deg(np.sqrt(var_psi_rad))**2
+
+	if verbose:
+		print(f"[FIRES] Mode: {mode}")
+		print(f"[FIRES] Expected Var(PA) ~ {var_psi_deg2[0]:.3f} deg^2.")
+
+	return var_psi_deg2
 
 
 
@@ -469,9 +517,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 		snr = None
 
 	# Assuming values from the first component for simplicity
-	exp_pa_v = _expected_pa_variance(
+	_expected_pa_variance(
 		tau_eff, PA_sd, ngauss, width_ms, np.mean(var_params['var_peak_amp']), peak_amp_sd
 	)
-	print(f"[FIRES] Expected Var(PA) ~ {np.rad2deg(exp_pa_v)} deg^2.")
 	return dynspec, snr, var_params
 

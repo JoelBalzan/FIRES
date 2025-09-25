@@ -199,8 +199,8 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	"""
 
 	# Wrap PA to [-90, 90] range
-	phits = ((tsdata.phits + 90) % 180) - 90
-	dphits = tsdata.dphits
+	phits = ((np.rad2deg(tsdata.phits) + 90) % 180) - 90
+	dphits = np.rad2deg(tsdata.dphits)
  
 	# Linear polarisation
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
