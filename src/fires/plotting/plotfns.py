@@ -200,7 +200,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 	# Wrap PA to [-90, 90] range
 	phits = ((np.rad2deg(tsdata.phits) + 90) % 180) - 90
-	dphits = np.rad2deg(tsdata.dphits)
+	ephits = np.rad2deg(tsdata.ephits)
  
 	# Linear polarisation
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
@@ -214,7 +214,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 	# Plot polarisation angle
 	axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
-	axs[0].errorbar(time_ms, phits, yerr=dphits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
+	axs[0].errorbar(time_ms, phits, yerr=ephits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
  
 	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
 	#axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
