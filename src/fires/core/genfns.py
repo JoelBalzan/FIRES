@@ -79,9 +79,7 @@ def _disable_micro_variance_for_swept_base(var_dict, xname):
 	return new_sd_dict
 
 
-def _expected_pa_variance(
-	tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, mode="auto", verbose=True
-):
+def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, lfrac, snr_i, mode="auto", verbose=True):
 	"""
 	Returns approximate Var(PA) [deg^2].
 	
@@ -99,6 +97,10 @@ def _expected_pa_variance(
 		Mean micro-shot linear amplitude.
 	peak_amp_sd : float
 		Std dev of micro-shot linear amplitude.
+	lfrac : float
+		Mean linear polarization fraction.
+	snr_i : float
+		Peak signal-to-noise ratio in total intensity (Stokes I).
 	mode : str, {"auto", "linearised", "large_sigma"}
 		- "linearised": delta-method (valid for small sigma).
 		- "large_sigma": hyperbolic-sine formula (valid for large sigma).
@@ -140,12 +142,24 @@ def _expected_pa_variance(
 
 	if mode == "linearised":
 		# Delta-method approximation
-		var_psi_rad = pref * sigma2 / N_eff
+		var_psi_intrinsic_rad = pref * sigma2 / N_eff
 	elif mode == "large_sigma":
 		# Hyperbolic-sine formula (exact for Gaussian PA distribution)
-		var_psi_rad = pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff)
+		var_psi_intrinsic_rad = pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff)
 	else:
 		raise ValueError(f"Unknown mode '{mode}'")
+
+	# --- Add variance from measurement noise ---
+	# S/N of the linearly polarized signal
+	snr_l = snr_i * lfrac
+	if snr_l > 0:
+		# Variance from noise is ~1/(2*SNR_L^2) in rad^2
+		var_psi_noise_rad = 1.0 / (2.0 * snr_l**2)
+	else:
+		var_psi_noise_rad = 0.0
+
+	# Total variance is the sum of intrinsic and noise contributions
+	var_psi_rad = var_psi_intrinsic_rad + var_psi_noise_rad
 
 	# Convert to degrees^2
 	var_psi_deg2 = np.rad2deg(np.sqrt(var_psi_rad))**2
@@ -352,12 +366,12 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	peak_amp_sd        = var_dict['peak_amp_sd']
 	spec_idx_sd        = var_dict['spec_idx_sd']
 	tau_ms_sd          = var_dict['tau_ms_sd']
-	PA_sd      		= var_dict['PA_sd']
+	PA_sd              = var_dict['PA_sd']
 	dm_sd              = var_dict['DM_sd']
 	rm_sd              = var_dict['RM_sd']
-	lfrac_sd   		= var_dict['lfrac_sd']
-	vfrac_sd   		= var_dict['vfrac_sd']
-	dPA_sd 			= var_dict['dPA_sd']
+	lfrac_sd           = var_dict['lfrac_sd']
+	vfrac_sd           = var_dict['vfrac_sd']
+	dPA_sd             = var_dict['dPA_sd']
 	band_centre_mhz_sd = var_dict['band_centre_mhz_sd']
 	band_width_mhz_sd  = var_dict['band_width_mhz_sd']
 	
@@ -518,7 +532,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 
 	# Assuming values from the first component for simplicity
 	_expected_pa_variance(
-		tau_eff, PA_sd, ngauss, width_ms, np.mean(var_params['var_peak_amp']), peak_amp_sd
+		tau_eff, PA_sd, ngauss, width_ms, np.mean(peak_amp), peak_amp_sd, lfrac, snr if snr is not None else 1e9
 	)
 	return dynspec, snr, var_params
 
