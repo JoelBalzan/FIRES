@@ -25,7 +25,7 @@ from tqdm import tqdm
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor
 
-from .basicfns import scatter_stokes_chan, add_noise
+from .basicfns import scatter_dspec, add_noise
 from .genfns import *
 from ..utils.utils import *
 
@@ -48,10 +48,9 @@ def _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_m
 	time_res_ms = np.median(np.diff(time_ms))
 	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** (-sc_idx)
 	for stokes_idx in range(dspec.shape[0]):  # Loop over I, Q, U, V
-		for c in range(len(freq_mhz)):
-			dspec_scattered[stokes_idx, c] = scatter_stokes_chan(
-				dspec[stokes_idx, c], time_res_ms, tau_cms[c]
-			)
+		dspec_scattered[stokes_idx] = scatter_dspec(
+			dspec[stokes_idx], time_res_ms, tau_cms
+		)
 	return dspec_scattered
 
 

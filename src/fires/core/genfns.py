@@ -240,7 +240,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref
 
 		# Scattering (vectorised)
 		if tau_ms > 0:
-			I_ft = scatter_block(I_ft, time_res_ms, tau_cms)
+			I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
 
 		# Polarization angle vs time
 		pol_angle_arr = PA[g] + (time_ms - t0[g]) * dPA[g]
@@ -466,7 +466,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 						I_ft[c] = np.roll(I_ft[c], s)
 
 			if tau_eff > 0:
-				I_ft = scatter_block(I_ft, time_res_ms, tau_cms)
+				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
 
 			pol_angle_arr = var_PA + (time_ms - var_t0) * var_dPA
 			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], var_RM, lambda_sq[:, None], median_lambda_sq)
