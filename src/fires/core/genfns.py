@@ -34,12 +34,6 @@ def _calculate_dispersion_delay(DM, freq, ref_freq):
 	return 4.15 * DM * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
 
 
-def _calculate_stokes(temp_dynspec, lfrac, vfrac, faraday_rot_angle):
-	stokes_q = temp_dynspec * lfrac * np.cos(2 * faraday_rot_angle)
-	stokes_u = temp_dynspec * lfrac * np.sin(2 * faraday_rot_angle)
-	stokes_v = temp_dynspec * vfrac
-	return stokes_q, stokes_u, stokes_v
-
 def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 	"""
 	Ensure a concrete seed. If None, draw one from OS entropy, set NumPy RNG, and print it.
@@ -53,6 +47,7 @@ def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 	else:
 		np.random.seed(seed)
 	return seed
+	
 
 def _disable_micro_variance_for_swept_base(var_dict, xname):
 	"""
@@ -223,33 +218,44 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref
 		tau_cms = np.zeros_like(freq_mhz)
 
 	for g in range(num_gauss):
-		temp_dynspec = np.zeros_like(dynspec)
+		# Frequency-dependent amplitude
 		norm_amp = peak_amp[g] * (freq_mhz / ref_freq_mhz) ** spec_idx[g]
-		pol_angle_arr = PA[g] + (time_ms - t0[g]) * dPA[g]
 
-		# Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
+		# Optional spectral Gaussian
 		if band_width_mhz[g] != 0.:
 			centre_freq = band_centre_mhz[g] if band_centre_mhz[g] != 0. else np.median(freq_mhz)
 			spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, band_width_mhz[g] / GAUSSIAN_FWHM_FACTOR)
 			norm_amp *= spectral_profile
 
-		for c in range(len(freq_mhz)):
-			faraday_rot_angle = _apply_faraday_rotation(pol_angle_arr, RM[g], lambda_sq[c], median_lambda_sq)
-			temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
-			
-			if int(DM[g]) != 0:
-				disp_delay_ms = _calculate_dispersion_delay(DM[g], freq_mhz[c], ref_freq_mhz)
-				temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
-			
-			# Apply scattering if enabled
-			if tau_ms > 0:
-				temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], time_res_ms, tau_cms[c])
+		# Intrinsic temporal Gaussian (shared across freq)
+		base_gauss = gaussian_model(time_ms, 1.0, t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
+		I_ft = norm_amp[:, None] * base_gauss[None, :]
 
-			temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = _calculate_stokes(
-				temp_dynspec[0, c], lfrac[g], vfrac[g], faraday_rot_angle
-			)  # Stokes Q, U, V
+		# Dispersion (channel shifts)
+		if DM[g] != 0:
+			shifts = np.round(_calculate_dispersion_delay(DM[g], freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
+			for c, s in enumerate(shifts):
+				if s != 0:
+					I_ft[c] = np.roll(I_ft[c], s)
 
-		dynspec += temp_dynspec
+		# Scattering (vectorised)
+		if tau_ms > 0:
+			I_ft = scatter_block(I_ft, time_res_ms, tau_cms)
+
+		# Polarization angle vs time
+		pol_angle_arr = PA[g] + (time_ms - t0[g]) * dPA[g]
+		# Faraday rotation (nf, nt)
+		faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM[g], lambda_sq[:, None], median_lambda_sq)
+
+		# Stokes
+		Q_ft = I_ft * lfrac[g] * np.cos(2 * faraday_angles)
+		U_ft = I_ft * lfrac[g] * np.sin(2 * faraday_angles)
+		V_ft = I_ft * vfrac[g]
+
+		dynspec[0] += I_ft
+		dynspec[1] += Q_ft
+		dynspec[2] += U_ft
+		dynspec[3] += V_ft
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 if freq_mhz.size > 1 else 0.0
 	t_res_s = time_res_ms / 1000.0
@@ -399,23 +405,17 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
 		for _ in range(int(ngauss[g])):
-			var_t0              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR) 
-			# Generate random variations for the micro-Gaussian parameters
+			var_t0              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
 			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_sd)
-			# Sample the micro width as a percentage of the main width
 			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			var_spec_idx        = np.random.normal(spec_idx[g], spec_idx_sd)
-			var_tau_ms        	= np.random.normal(tau_ms[g], tau_ms_sd)
-			#print(tau_ms[g], tau_ms_sd)  # Debugging line to check tau values
-			#print(var_tau_ms)
-
-			# Choose effective scattering timescale (use varied value if > 0, else base)
+			var_tau_ms          = np.random.normal(tau_ms[g], tau_ms_sd)
 			tau_eff = var_tau_ms if var_tau_ms > 0 else float(tau_ms[g])
 			if tau_eff > 0:
 				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
 			else:
 				tau_cms = None
-			#print(tau_eff, var_tau_ms, tau_ms[g])  # Debugging line to check tau values
+
 			var_PA              = np.random.normal(PA[g], PA_sd)
 			var_DM              = np.random.normal(DM[g], dm_sd)
 			var_RM              = np.random.normal(RM[g], rm_sd)
@@ -428,12 +428,11 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			if vfrac_sd > 0.0:
 				var_vfrac = np.clip(var_vfrac, 0.0, 1.0)
 				var_lfrac = np.clip(1.0 - var_vfrac, 0.0, 1.0)
-
 			elif lfrac_sd > 0.0:
 				var_lfrac = np.clip(var_lfrac, 0.0, 1.0)
 				var_vfrac = np.clip(1.0 - var_lfrac, 0.0, 1.0)
 
-			# Append values to the respective lists in `all_params`
+			# Record parameters
 			all_params['var_t0'].append(var_t0)
 			all_params['var_peak_amp'].append(var_peak_amp)
 			all_params['var_width_ms'].append(var_width_ms)
@@ -448,13 +447,8 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			all_params['var_band_centre_mhz'].append(var_band_centre_mhz)
 			all_params['var_band_width_mhz'].append(var_band_width_mhz)
 
-			# Initialize a temporary array for the current micro-shot
-			temp_dynspec = np.zeros_like(dynspec)
-
-			# Calculate the normalized amplitude for each frequency
+			# Vectorised micro-shot synthesis
 			norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** var_spec_idx
-			
-			# Apply Gaussian spectral profile if band_centre_mhz and band_width_mhz are provided
 			if band_width_mhz[g] != 0.:
 				centre_freq = var_band_centre_mhz if var_band_centre_mhz != 0. else np.median(freq_mhz)
 				bw_sigma = var_band_width_mhz / GAUSSIAN_FWHM_FACTOR
@@ -462,30 +456,29 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
 					norm_amp *= spectral_profile
 
+			base_gauss = gaussian_model(time_ms, 1.0, var_t0, var_width_ms / GAUSSIAN_FWHM_FACTOR)
+			I_ft = norm_amp[:, None] * base_gauss[None, :]
+
+			if var_DM != 0:
+				shifts = np.round(_calculate_dispersion_delay(var_DM, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
+				for c, s in enumerate(shifts):
+					if s != 0:
+						I_ft[c] = np.roll(I_ft[c], s)
+
+			if tau_eff > 0:
+				I_ft = scatter_block(I_ft, time_res_ms, tau_cms)
+
 			pol_angle_arr = var_PA + (time_ms - var_t0) * var_dPA
+			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], var_RM, lambda_sq[:, None], median_lambda_sq)
 
-			for c in range(len(freq_mhz)):
-				# Apply Faraday rotation
-				faraday_rot_angle = _apply_faraday_rotation(pol_angle_arr, var_RM, lambda_sq[c], median_lambda_sq)
-				# Add the Gaussian pulse to the temporary dynamic spectrum
-				temp_dynspec[0, c] = gaussian_model(time_ms, norm_amp[c], var_t0, var_width_ms / GAUSSIAN_FWHM_FACTOR)
+			Q_ft = I_ft * var_lfrac * np.cos(2 * faraday_angles)
+			U_ft = I_ft * var_lfrac * np.sin(2 * faraday_angles)
+			V_ft = I_ft * var_vfrac
 
-				# Calculate the dispersion delay
-				if int(var_DM) != 0:
-					disp_delay_ms = _calculate_dispersion_delay(var_DM, freq_mhz[c], ref_freq_mhz)
-					temp_dynspec[0, c] = np.roll(temp_dynspec[0, c], int(np.round(disp_delay_ms / time_res_ms)))
-
-				# Apply scattering if enabled
-				if tau_eff > 0:
-					temp_dynspec[0, c] = scatter_stokes_chan(temp_dynspec[0, c], time_res_ms, tau_cms[c])
-
-				# Calculate Stokes Q, U, V
-				temp_dynspec[1, c], temp_dynspec[2, c], temp_dynspec[3, c] = _calculate_stokes(
-					temp_dynspec[0, c], var_lfrac, var_vfrac, faraday_rot_angle
-				)
-
-			# Accumulate the contributions from the current micro-shot
-			dynspec += temp_dynspec
+			dynspec[0] += I_ft
+			dynspec[1] += Q_ft
+			dynspec[2] += U_ft
+			dynspec[3] += V_ft
 
 	# Calculate variance for each parameter in var_params
 	var_params = {key: np.var(values) for key, values in all_params.items()}

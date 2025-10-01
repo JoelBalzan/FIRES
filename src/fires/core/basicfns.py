@@ -542,38 +542,93 @@ def boxcar_width(profile, frac=0.95):
 	return best_start, best_end
 
  
+try:
+    from numba import njit, prange
+    _NUMBA_OK = True
+except Exception:
+    _NUMBA_OK = False
+# ...existing code...
+
 def scatter_stokes_chan(chan, time_res_ms, tau_cms):
-	"""
-	Apply scattering to a single channel using exponential impulse response function.
-	
-	Parameters:
-	-----------
-	chan : array_like
-		Single frequency channel time series
-	time_res_ms : float
-		Time resolution in milliseconds
-	tau_cms : float
-		Scattering timescale in milliseconds
-		
-	Returns:
-	--------
-	array_like
-		Scattered channel with same length as input
-	"""
-	# Pad to cover tail (~5 tau)
-	n_pad = int(np.ceil(5 * tau_cms / time_res_ms))
-	padded_I = np.pad(chan, (0, n_pad), mode='constant')  # Pad only at end
+    """
+    Fast exponential scattering (causal one-sided) via IIR recursion.
 
-	# Create IRF time axis
-	irf_t = np.arange(0, (n_pad + 1)) * time_res_ms
-	irf = np.exp(-irf_t / tau_cms)
-	irf /= np.sum(irf)  # Normalise
+    Kernel: h[k] = (1 - alpha) * alpha^k, alpha = exp(-dt / tau)
+    Ensures flux conservation (sum h = 1). O(N).
 
-	# Convolve and trim back to original size
-	convolved = fftconvolve(padded_I, irf, mode='full')
-	sc_chan = convolved[:len(chan)]
+    Parameters
+    ----------
+    chan : 1D array
+    time_res_ms : float
+    tau_cms : float (>0 enables scattering)
 
-	return sc_chan
+    Returns
+    -------
+    1D array (same shape)
+    """
+    if tau_cms <= 0:
+        return chan
+
+    dt = float(time_res_ms)
+    alpha = np.exp(-dt / float(tau_cms))
+    one_minus_alpha = 1.0 - alpha
+
+    out = np.empty_like(chan)
+    out[0] = one_minus_alpha * chan[0]
+    prev = out[0]
+    for i in range(1, chan.size):
+        prev = one_minus_alpha * chan[i] + alpha * prev
+        out[i] = prev
+    return out
+
+# Optional vectorised version for an (n_freq, n_time) block
+def scatter_block(I_ft, time_res_ms, tau_ms_freq):
+    """
+    Vectorised scattering across frequency channels.
+
+    I_ft : (nf, nt)
+    tau_ms_freq : (nf,)
+    Returns new array (nf, nt)
+    """
+    I_ft = np.asarray(I_ft)
+    tau_ms_freq = np.asarray(tau_ms_freq)
+    out = np.empty_like(I_ft)
+    dt = float(time_res_ms)
+    for f in range(I_ft.shape[0]):
+        tau = tau_ms_freq[f]
+        if tau <= 0:
+            out[f] = I_ft[f]
+            continue
+        alpha = np.exp(-dt / tau)
+        oma = 1.0 - alpha
+        row = I_ft[f]
+        o = out[f]
+        o[0] = oma * row[0]
+        prev = o[0]
+        for t in range(1, row.size):
+            prev = oma * row[t] + alpha * prev
+            o[t] = prev
+    return out
+
+if _NUMBA_OK:
+    @njit(parallel=True, fastmath=True)
+    def _scatter_block_numba(I_ft, dt, tau_arr):
+        nf, nt = I_ft.shape
+        out = np.empty_like(I_ft)
+        for f in prange(nf):
+            tau = tau_arr[f]
+            if tau <= 0:
+                out[f, :] = I_ft[f, :]
+                continue
+            alpha = np.exp(-dt / tau)
+            oma = 1.0 - alpha
+            out[f, 0] = oma * I_ft[f, 0]
+            for t in range(1, nt):
+                out[f, t] = oma * I_ft[f, t] + alpha * out[f, t-1]
+        return out
+
+    def scatter_block(I_ft, time_res_ms, tau_ms_freq):
+        return _scatter_block_numba(I_ft, float(time_res_ms), tau_ms_freq.astype(np.float64))
 
 
 def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None, 
