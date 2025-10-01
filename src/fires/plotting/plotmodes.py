@@ -93,8 +93,8 @@ param_map = {
 	"DM"             : r"\mathrm{DM}_0",
 	"RM"             : r"\mathrm{RM}_0",
 	"PA"             : r"\psi_0",
-	"lfrac"          : r"(L_0/I_0)",
-	"vfrac"          : r"(V_0/I_0)",
+	"lfrac"          : r"\Pi_{L,0}",
+	"vfrac"          : r"\Pi_{V,0}",
 	"dPA"            : r"\Delta\psi_0",
 	"band_centre_mhz": r"\nu_{\mathrm{c},0}",
 	"band_width_mhz" : r"\Delta \nu_0",
@@ -102,18 +102,18 @@ param_map = {
 	"mg_width_low"   : r"W_{\mathrm{low},0}",
 	"mg_width_high"  : r"W_{\mathrm{high},0}",
 	# Variation parameters
-	"var_t0"             : r"\mathrm{Var}(t_0)",
-	"var_width_ms"       : r"\mathrm{Var}(W)",
-	"var_peak_amp"       : r"\mathrm{Var}(A)",
-	"var_spec_idx"       : r"\mathrm{Var}(\alpha)",
-	"var_DM"             : r"\mathrm{Var}(\mathrm{DM})",
-	"var_RM"             : r"\mathrm{Var}(\mathrm{RM})",
-	"var_PA"             : r"\mathrm{Var}(\psi_{\mathrm{micro}})",
-	"var_lfrac"          : r"\mathrm{Var}(L/I)",
-	"var_vfrac"          : r"\mathrm{Var}(V/I)",
-	"var_dPA"            : r"\mathrm{Var}(\Delta\psi)",
-	"var_band_centre_mhz": r"\mathrm{Var}(\nu_c)",
-	"var_band_width_mhz" : r"\mathrm{Var}(\Delta \nu)",
+	"var_t0"             : r"\sigma_{t_0}",
+	"var_width_ms"       : r"\sigma_W",
+	"var_peak_amp"       : r"\sigma_A",
+	"var_spec_idx"       : r"\sigma_\alpha",
+	"var_DM"             : r"\sigma_{\mathrm{DM}}",
+	"var_RM"             : r"\sigma_{\mathrm{RM}}",
+	"var_PA"             : r"\sigma_{\psi_{\mathrm{micro}}}",
+	"var_lfrac"          : r"\sigma_{\Pi_L}",
+	"var_vfrac"          : r"\sigma_{\Pi_V}",
+	"var_dPA"            : r"\sigma_{\Delta\psi}",
+	"var_band_centre_mhz": r"\sigma_{\nu_c}",
+	"var_band_width_mhz" : r"\sigma_{\Delta \nu}",
 }
 
 #	--------------------------	PlotMode class	---------------------------
@@ -826,7 +826,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	with np.errstate(divide='ignore', invalid='ignore'):
 		pa_var_err_deg2 = np.sqrt(np.nansum((np.rad2deg(phits) * np.rad2deg(ephits))**2)) / (pa_var_deg2 * len(phits))
 	
-	#print(f"Var(psi) = {pa_var_deg2:.3f} +/- {pa_var_err_deg2:.3f}")
+	print(f"Var(psi) = {pa_var_deg2:.3f} +/- {pa_var_err_deg2:.3f}")
 	return pa_var_deg2, pa_var_err_deg2
 
 
@@ -1024,7 +1024,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	"""
 
 	# If frb_dict contains multiple job IDs, plot each on the same axes
-	yname = r"L/I"
+	yname = r"\Pi_L"
 
 	if figsize is None:
 		figsize = (10, 9)
