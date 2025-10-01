@@ -542,93 +542,74 @@ def boxcar_width(profile, frac=0.95):
 	return best_start, best_end
 
  
-try:
-    from numba import njit, prange
-    _NUMBA_OK = True
-except Exception:
-    _NUMBA_OK = False
-# ...existing code...
-
-def scatter_stokes_chan(chan, time_res_ms, tau_cms):
+def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
     """
-    Fast exponential scattering (causal one-sided) via IIR recursion.
+    Apply one-sided exponential scattering independently to each frequency channel
+    of a Stokes I dynamic spectrum.
 
-    Kernel: h[k] = (1 - alpha) * alpha^k, alpha = exp(-dt / tau)
-    Ensures flux conservation (sum h = 1). O(N).
+    Replaces (renamed from) scatter_stokes_chan which operated on a single 1-D channel.
 
     Parameters
     ----------
-    chan : 1D array
+    I_dspec : array_like, shape (n_chan, n_time)
+        Stokes I dynamic spectrum (no polarisation axis).
     time_res_ms : float
-    tau_cms : float (>0 enables scattering)
+        Time resolution in milliseconds.
+    tau_cms : float or array_like, shape (n_chan,)
+        Scattering timescale(s) in milliseconds. Scalar applies to all channels.
+    pad_factor : float, default 5
+        Multiple of tau used to determine zero-padding length (covers tail).
 
     Returns
     -------
-    1D array (same shape)
+    scattered_dspec : ndarray, shape (n_chan, n_time)
+        Dynamic spectrum after convolution with normalised exponential tail.
+
+    Notes
+    -----
+    - Channels with non-positive or NaN tau are returned unchanged.
+    - Uses fftconvolve per channel (OK for typical FRB channel counts).
     """
-    if tau_cms <= 0:
-        return chan
+    dspec = np.asarray(dspec, dtype=float)
+    if dspec.ndim != 2:
+        raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
 
-    dt = float(time_res_ms)
-    alpha = np.exp(-dt / float(tau_cms))
-    one_minus_alpha = 1.0 - alpha
+    n_chan, n_time = dspec.shape
 
-    out = np.empty_like(chan)
-    out[0] = one_minus_alpha * chan[0]
-    prev = out[0]
-    for i in range(1, chan.size):
-        prev = one_minus_alpha * chan[i] + alpha * prev
-        out[i] = prev
-    return out
+    # Prepare per-channel tau array
+    if np.isscalar(tau_cms):
+        tau_arr = np.full(n_chan, float(tau_cms), dtype=float)
+    else:
+        tau_arr = np.asarray(tau_cms, dtype=float)
+        if tau_arr.shape[0] != n_chan:
+            raise ValueError("tau_cms length must match number of channels")
 
-# Optional vectorised version for an (n_freq, n_time) block
-def scatter_block(I_ft, time_res_ms, tau_ms_freq):
-    """
-    Vectorised scattering across frequency channels.
+    dspec_scattered = np.empty_like(dspec)
 
-    I_ft : (nf, nt)
-    tau_ms_freq : (nf,)
-    Returns new array (nf, nt)
-    """
-    I_ft = np.asarray(I_ft)
-    tau_ms_freq = np.asarray(tau_ms_freq)
-    out = np.empty_like(I_ft)
-    dt = float(time_res_ms)
-    for f in range(I_ft.shape[0]):
-        tau = tau_ms_freq[f]
-        if tau <= 0:
-            out[f] = I_ft[f]
+    for ci in range(n_chan):
+        tau = tau_arr[ci]
+        chan = dspec[ci]
+
+        # Skip if tau invalid
+        if not np.isfinite(tau) or tau <= 0.0:
+            dspec_scattered[ci] = chan
             continue
-        alpha = np.exp(-dt / tau)
-        oma = 1.0 - alpha
-        row = I_ft[f]
-        o = out[f]
-        o[0] = oma * row[0]
-        prev = o[0]
-        for t in range(1, row.size):
-            prev = oma * row[t] + alpha * prev
-            o[t] = prev
-    return out
 
-if _NUMBA_OK:
-    @njit(parallel=True, fastmath=True)
-    def _scatter_block_numba(I_ft, dt, tau_arr):
-        nf, nt = I_ft.shape
-        out = np.empty_like(I_ft)
-        for f in prange(nf):
-            tau = tau_arr[f]
-            if tau <= 0:
-                out[f, :] = I_ft[f, :]
-                continue
-            alpha = np.exp(-dt / tau)
-            oma = 1.0 - alpha
-            out[f, 0] = oma * I_ft[f, 0]
-            for t in range(1, nt):
-                out[f, t] = oma * I_ft[f, t] + alpha * out[f, t-1]
-        return out
+        n_pad = int(np.ceil(pad_factor * tau / time_res_ms))
+        if n_pad < 1:
+            dspec_scattered[ci] = chan
+            continue
 
-    def scatter_block(I_ft, time_res_ms, tau_ms_freq):
-        return _scatter_block_numba(I_ft, float(time_res_ms), tau_ms_freq.astype(np.float64))
+        # Pad end only
+        padded = np.pad(chan, (0, n_pad), mode='constant')
+        t_irf = np.arange(0, n_pad + 1) * time_res_ms
+        irf = np.exp(-t_irf / tau)
+        irf /= irf.sum()
+
+        conv = fftconvolve(padded, irf, mode='full')
+        dspec_scattered[ci] = conv[:n_time]
+
+    return dspec_scattered
 
 
 def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None, 
