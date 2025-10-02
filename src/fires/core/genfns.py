@@ -532,7 +532,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 		apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
 
 	# Calculate variance for each parameter in var_params
-	var_params = {key: np.var(values) for key, values in all_params.items()}
+	var_params = {key: np.nanvar(values) for key, values in all_params.items()}
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
 	t_res_s = time_res_ms / 1000.0
