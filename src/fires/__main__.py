@@ -67,7 +67,7 @@ def main():
 	)
 	parser.add_argument(
 		"--edit-config", 
-		choices=["gparams", "obsparams"], 
+		choices=["gparams", "obsparams", "scparams"], 
 		help="Open config in $EDITOR"
 	)
 
@@ -279,7 +279,11 @@ def main():
 		action="store_true",
 		help="Enable chi-squared fitting on the final profiles (plot != *_var)."
 	)
-
+	parser.add_argument(
+		"--scint",
+		action="store_true",
+		help="Enable scintillation effects."
+	)
 
 	args = parser.parse_args()
 
@@ -297,6 +301,10 @@ def main():
 	# Resolve parameter file paths 
 	resolved_obs   = str(cfg.find_config_file("obsparams", config_dir=args.config_dir))
 	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir))
+	if args.scint:
+		resolved_scint = str(cfg.find_config_file("scparams", config_dir=args.config_dir))
+	else:
+		resolved_scint = None
 
 
 	# Map long freq-window names to abbreviated forms
@@ -330,6 +338,7 @@ def main():
 				frb_id       = args.frb_identifier,
 				obs_file     = resolved_obs,
 				gauss_file   = resolved_gauss,
+				scint_file   = resolved_scint,
 				out_dir      = args.output_dir,
 				write        = args.write,
 				mode         = args.mode,
@@ -350,6 +359,7 @@ def main():
 				frb_id       = args.frb_identifier,
 				obs_file     = resolved_obs,
 				gauss_file   = resolved_gauss,
+				scint_file   = resolved_scint,
 				out_dir      = args.output_dir,
 				write        = args.write,
 				mode         = args.mode,

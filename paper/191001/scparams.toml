@@ -1,0 +1,29 @@
+# Scintillation routines adapted from (and parameters tuned using) the ScintillationMaker project:
+#   https://github.com/SprengerT/ScintillationMaker/tree/main
+# Original C++/Python implementation by SprengerT (see repository for details).
+# Scintillation parameter file for FIRES
+# Units:
+#   t_s      : seconds
+#   nu_s     : Hz (decorrelation bandwidth)
+# Notes:
+#   Gain applied multiplicatively to all Stokes before noise (recommended).
+#   Set enable=false to bypass without deleting file.
+
+[scintillation]
+t_s         = 0.005     # Characteristic timescale (e.g. 10 minutes)
+nu_s        = 1.0e4     # Scintillation bandwidth (Hz)
+N_im        = 1500      # Number of phasor screen components
+th_lim      = 3.0       # Truncation of scattering disk (higher => slower & more accurate)
+return_field = false    # If true, code may return complex field as well as gain
+
+# Optional overrides for future extension
+[scintillation.output]
+save_gain    = false     # Write gain array to disk
+save_path    = "scint_gain.npy"
+
+[scintillation.validation]
+check_mean   = true      # Assert mean(gain)≈1
+mean_tol     = 0.02      # Relative tolerance
+
+[scintillation.debug]
+verbose      = false

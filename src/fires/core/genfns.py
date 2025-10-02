@@ -19,8 +19,7 @@ import numpy as np
 from ..utils.utils import *
 from .basicfns import *
 from ..plotting.plotfns import *
-from scipy.stats import circvar
-from scipy.special import erf
+from ..scint.lib_ScintillationMaker import simulate_scintillation
 
 GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) 
 
@@ -32,6 +31,50 @@ def _apply_faraday_rotation(pol_angle_arr, RM, lambda_sq, median_lambda_sq):
 
 def _calculate_dispersion_delay(DM, freq, ref_freq):
 	return 4.15 * DM * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
+
+def apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
+	"""
+	Apply diffractive scintillation as a multiplicative gain field to all Stokes.
+
+	scint_dict keys (with defaults):
+		t_s        : scintillation timescale (seconds)
+		nu_s       : scintillation bandwidth   (Hz)
+		N_im       : number of phasor screen components (default 1000)
+		th_lim     : angular truncation parameter (default 3.0)
+		seed       : optional RNG seed (for reproducibility)
+		field      : if True return complex field (else only gain)
+		mod_scale  : optional factor to scale modulation index (gain -> 1 + (gain-1)*mod_scale)
+
+	Returns:
+		gain (nf, nt) applied in-place to dynspec.
+	"""
+	t_s          = float(scint_dict.get("t_s"))
+	nu_s         = float(scint_dict.get("nu_s"))
+	N_im         = int(scint_dict.get("N_im", 1000))
+	th_lim       = float(scint_dict.get("th_lim", 3.0))
+	return_field = bool(scint_dict.get("field", False))
+
+	# Convert grids
+	t_sec = time_ms * 1e-3
+	nu_hz = freq_mhz * 1e6
+	ref_freq_hz = ref_freq_mhz * 1e6
+
+	# Simulate complex field: shape (N_t, N_nu)
+	E = simulate_scintillation(t_sec, nu_hz, t_s=t_s, nu_s=nu_s, N_im=N_im, th_lim=th_lim, ref_freq_hz=ref_freq_hz)
+
+	# Intensity gain
+	gain_tn = np.abs(E) ** 2
+	gain_tn /= np.mean(gain_tn)
+
+	# Reorder to (nf, nt)
+	gain_fn = gain_tn.T  # (N_nu, N_t)
+
+	# Apply in-place to all Stokes
+	dynspec *= gain_fn[None, :, :]
+
+	if return_field:
+		return gain_fn, E.T  # (nf, nt) each
+	return gain_fn, None
 
 
 def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
@@ -168,7 +211,7 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 
 
 # -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac,
+def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, scint_dict, sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac,
 				target_snr=None):
 	"""
 	Generate dynamic spectrum for Gaussian pulses.
@@ -257,7 +300,11 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref
 		dynspec[2] += U_ft
 		dynspec[3] += V_ft
 
-	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 if freq_mhz.size > 1 else 0.0
+	# --- Apply scintillation if requested ---
+	if scint_dict is not None:
+		apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
+
+	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
 	t_res_s = time_res_ms / 1000.0
 
 	# --- Derive SEFD from target S/N if requested ---
@@ -306,7 +353,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sefd, sc_idx, ref
 
 
 
-def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
+def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, scint_dict,
 					sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
 					variation_parameter=None, xname=None, target_snr=None):
 	"""
@@ -480,10 +527,14 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict,
 			dynspec[2] += U_ft
 			dynspec[3] += V_ft
 
+	# --- Apply scintillation if requested ---
+	if scint_dict is not None:
+		apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
+
 	# Calculate variance for each parameter in var_params
 	var_params = {key: np.var(values) for key, values in all_params.items()}
 
-	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 if freq_mhz.size > 1 else 0.0
+	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
 	t_res_s = time_res_ms / 1000.0
 
 	# --- Derive SEFD from target S/N if requested ---
