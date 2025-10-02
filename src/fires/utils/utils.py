@@ -134,7 +134,7 @@ frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','ps
 
 class DynspecParams(NamedTuple):
     gdict          : dict
-    var_dict       : dict
+    sd_dict       : dict
     scint_dict     : dict
     freq_mhz       : np.ndarray
     freq_res_mhz   : float
