@@ -16,12 +16,14 @@ import os
 import sys
 import inspect
 import functools
+import logging
+logging.basicConfig(level=logging.INFO)
 
 import numpy as np
 import pickle as pkl
-import matplotlib.pyplot as plt
 
 from tqdm import tqdm
+
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor
 
@@ -69,7 +71,7 @@ def _load_data(frb_id, data, freq_mhz, time_ms):
 		freq_mhz: Updated frequency array
 		time_ms: Updated time array
 	"""
-	print(f"Loading data from {data}...")
+	logging.info(f"Loading data from {data}...")
 
 	dspec = np.load(data) if data.endswith('.npy') else None
 	
@@ -81,8 +83,8 @@ def _load_data(frb_id, data, freq_mhz, time_ms):
 	freq_mhz = np.flip(np.load(f"{frb_id}_freq.npy")) #np.linspace(cfreq_mhz - bw_MHz / 2, cfreq_mhz + bw_MHz / 2, dspec.shape[1])
 
 	time_ms = np.load(f"{frb_id}_time.npy") #np.arange(0, dspec.shape[2] * time_res_ms, time_res_ms)
-	print(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
-		
+	logging.info(f"Loaded data from {data} with frequency range: {freq_mhz[0]} - {freq_mhz[-1]} MHz")
+
 	return dspec, freq_mhz, time_ms
 
 
@@ -94,7 +96,7 @@ def _load_multiple_data_grouped(data):
 	from collections import defaultdict
 	import re
 	
-	print(f"Loading grouped data from {data}...")
+	logging.info(f"Loading grouped data from {data}...")
 
 	def extract_xvals_value(fname):
 		# Match _xvals_<number> or _xvals_<number>-<number>
@@ -316,10 +318,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	active_cols = np.where(sweep_step != 0.0)[0]
 	if plot_mode.requires_multiple_frb and data is None:
 		if active_cols.size == 0:
-			print("No sweep defined (all step = 0) but multi-FRB plot requested.")
+			logging.error("No sweep defined (all step = 0) but multi-FRB plot requested.")
 			sys.exit(1)
 		if active_cols.size > 1:
-			print("ERROR: More than one sweep column (multiple non-zero steps).")
+			logging.error("ERROR: More than one sweep column (multiple non-zero steps).")
 			sys.exit(1)
 	sweep_col = active_cols[0] if active_cols.size == 1 else None
 
@@ -338,7 +340,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	# Create dynamic spectrum parameters
 	dspec_params = DynspecParams(
 		gdict           = gdict,
-		sd_dict        = sd_dict,
+		sd_dict         = sd_dict,
 		scint_dict      = scint,
 		freq_mhz        = freq_mhz,
 		freq_res_mhz    = f_res,
@@ -358,12 +360,12 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	tau_ms = gdict['tau_ms']
 
 	if len(np.where(gauss_params[-1,:] != 0.0)[0]) > 1:
-		print("WARNING: More than one value in the last row of gauss_params is not 0.")
-		print("Please ensure that only one value is non-zero in the last row.")
+		logging.warning("More than one value in the last row of gauss_params is not 0.")
+		logging.info("Please ensure that only one value is non-zero in the last row.")
 		sys.exit(1)
   
 	if np.any(gdict['lfrac'] + gdict['vfrac']) > 1.0:
-		print("WARNING: Linear and circular polarization fractions sum to more than 1.0.\n")
+		logging.warning("Linear and circular polarization fractions sum to more than 1.0.")
 
 	plot_multiple_frb = plot_mode.requires_multiple_frb
 	if not plot_multiple_frb:
@@ -371,7 +373,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		if data != None:
 			dspec, freq_mhz, time_ms = _load_data(frb_id, data, freq_mhz, time_ms)
 			snr, (left, right) = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
-			print(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
+			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
 			if tau_ms[0] > 0:
 				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if sefd > 0:
@@ -419,7 +421,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				with open(os.path.join(data, files[0]), 'rb') as f:
 					frb_dict = pkl.load(f)
 			else:
-				print(f"No .pkl files found in {data}.")
+				logging.error(f"No .pkl files found in {data}.")
 				sys.exit(1)
 			return frb_dict
 		else:
@@ -431,8 +433,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				)
 
 			if np.all(gauss_params[step_row, :] == 0.0):
-				print("No sweep defined (all step sizes zero) but a multi-FRB plot was requested.")
-				print("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
+				logging.error("No sweep defined (all step sizes zero) but a multi-FRB plot was requested.")
+				logging.info("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
 				sys.exit(1)
 
 			col_idx = sweep_spec['col_index']
@@ -478,10 +480,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				start_idx = _array_id * chunk
 				end_idx = min(start_idx + chunk, total)
 				if start_idx >= total:
-					print(f"Array task {_array_id}/{_array_count - 1}: no assigned xvals.")
+					logging.info(f"Array task {_array_id}/{_array_count - 1}: no assigned xvals.")
 					sys.exit(0)
 				xvals = xvals[start_idx:end_idx]
-				print(f"Array task {_array_id}/{_array_count - 1}: processing {len(xvals)} sweep values.")
+				logging.info(f"Array task {_array_id}/{_array_count - 1}: processing {len(xvals)} sweep values.")
 
 			tasks = list(product(xvals, range(nseed)))
 
@@ -536,6 +538,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				)
 				with open(out_file, 'wb') as frb_file:
 					pkl.dump((frb_dict), frb_file)
-				print(f"Saved FRB data to {out_file}")
+				logging.info(f"Saved FRB data to {out_file}")
 
 			return frb_dict

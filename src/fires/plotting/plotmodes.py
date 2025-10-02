@@ -14,11 +14,16 @@
 
 #	--------------------------	Import modules	---------------------------
 import os
+import logging
+logging.basicConfig(level=logging.INFO)
+
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from scipy.optimize import curve_fit
+
+
 from scipy.stats import circvar
 
 
@@ -169,7 +174,7 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 	elif mode == "RM":
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	else:
-		print(f"Invalid mode: {mode} \n")
+		logging.warning(f"Invalid mode: {mode} \n")
 
 
 def _get_freq_window_indices(freq_window, freq_mhz):
@@ -306,7 +311,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 		# Multi-parameter case: weight_params is like {param_value: {param_name: [values], ...}, ...}
 		weighting_param_exists = any(weight_by in weight_params.get(var, {}) for var in xvals)
 		if not weighting_param_exists:
-			print(f"Warning: weighting parameter '{weight_by}' not found in weight dictionaries. Returning unweighted values.")
+			logging.warning(f"Weighting parameter '{weight_by}' not found in weight dictionaries. Returning unweighted values.")
 			for var in xvals:
 				normalized_vals[var] = yvals.get(var, [])
 			return normalized_vals
@@ -322,7 +327,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 					for val, weight in zip(y_values, weights)
 				]
 			else:
-				print(f"Warning: Mismatched lengths or missing data for parameter {var}. Skipping normalization.")
+				logging.warning(f"Mismatched lengths or missing data for parameter {var}. Skipping normalization.")
 				normalized_vals[var] = y_values
 				
 	elif isinstance(weight_params, (list, tuple)) and len(weight_params) > 0:
@@ -343,11 +348,11 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 				else:
 					normalized_vals[var] = []
 		else:
-			print(f"Warning: weighting parameter '{weight_by}' not found in weight_params. Returning unweighted values.")
+			logging.warning(f"Weighting parameter '{weight_by}' not found in weight_params. Returning unweighted values.")
 			for var in xvals:
 				normalized_vals[var] = yvals.get(var, [])
 	else:
-		print(f"Warning: Unsupported weight_params format. Returning unweighted values.")
+		logging.warning(f"Unsupported weight_params format. Returning unweighted values.")
 		for var in xvals:
 			normalized_vals[var] = yvals.get(var, [])
 
@@ -484,7 +489,7 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'
 	
 	def _fit_log(x_fit, y_fit):
 		if np.any(x_fit <= 0):
-			print("Log fit requires positive x values. Skipping fit.")
+			logging.warning("Log fit requires positive x values. Skipping fit.")
 			return None, None
 		popt = np.polyfit(np.log10(x_fit), y_fit, 1)
 		y_model = np.polyval(popt, np.log10(x_fit))
@@ -521,13 +526,13 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'
 	try:
 		handler = fit_handlers.get(fit_type)
 		if handler is None:
-			print(f"Unknown fit type: {fit_type}")
+			logging.warning(f"Unknown fit type: {fit_type}")
 			return
 		y_model, fit_label = handler(x_fit, y_fit)
 		if y_model is not None:
 			ax.plot(x_fit, y_model, '--', color=color, label=fit_label if label is None else label)
 	except Exception as e:
-		print(f"Fit failed: {e}")
+		logging.error(f"Fit failed: {e}")
 
 
 
@@ -589,7 +594,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 			elif isinstance(var_params, dict) and weight_x_by in var_params:
 				weight = np.array(var_params[weight_x_by])[0]
 		if weight is None:
-			print(f"Warning: '{weight_x_by}' not found in parameters. Using raw values.")
+			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
 
 	# Apply normalization if available
 	if weight is None:
@@ -634,7 +639,7 @@ def _parse_fit_arg(fit_item):
 			except Exception:
 				fit_degree = None
 		if fit_type == "poly" and fit_degree is None:
-			print("Warning: 'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
+			logging.warning("'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
 		return fit_type, fit_degree
 	elif isinstance(fit_item, str):
 		if ',' in fit_item:
@@ -647,11 +652,11 @@ def _parse_fit_arg(fit_item):
 				except Exception:
 					fit_degree = None
 			if fit_type == "poly" and fit_degree is None:
-				print("Warning: 'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
+				logging.warning("'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
 			return fit_type, fit_degree
 		else:
 			if fit_item == "poly":
-				print("Warning: 'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
+				logging.warning("'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
 			return fit_item, None
 	else:
 		return None, None
@@ -686,12 +691,12 @@ def _print_avg_snrs(subdict):
 	avg_high = np.round(avg(highest), 2)
 	# Only print if at least one is not None
 	if avg_low is not None or avg_high is not None:
-		print(f"Avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}\n")
+		logging.info(f"Avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}\n")
 	
 	med_low = np.round(np.nanmedian(lowest), 2)
 	med_high = np.round(np.nanmedian(highest), 2)
 	if med_low is not None or med_high is not None:
-		print(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
+		logging.info(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
 		
 
 
@@ -725,7 +730,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 	colour_list = list(colours.values())
 	for idx, (run, subdict) in enumerate(frb_dict.items()):
-		print(run+":")
+		logging.info(f"Processing {run}:")
 		colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
 
 		xvals = np.array(subdict["xvals"])
@@ -735,13 +740,13 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 		sweep_mode = dspec_params.sweep_mode if hasattr(dspec_params, "sweep_mode") else dspec_params.get("sweep_mode", "mean")
 		if sweep_mode == "variance":
-			print("Note: x-axis is standard deviation of the varied parameter.")
+			logging.info("Note: x-axis is standard deviation of the varied parameter.")
 			params = dspec_params
 		elif sweep_mode == "mean":
-			print("Note: x-axis is mean of the varied parameter.")
+			logging.info("Note: x-axis is mean of the varied parameter.")
 			params = var_params
 		else:
-			print(f"Warning: Unknown sweep_mode '{sweep_mode}'. Assuming 'mean'.")
+			logging.warning(f"Unknown sweep_mode '{sweep_mode}'. Assuming 'mean'.")
 			params = var_params
   
 		y = _weight_dict(xvals, yvals, params, weight_by=weight_y_by)
@@ -761,7 +766,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				fit_type, fit_degree = _parse_fit_arg(fit)
 			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
 		else:
-			print("No fit provided, skipping fit plotting.")
+			logging.warning("No fit provided, skipping fit plotting.")
 		_print_avg_snrs(subdict)
 
 	ax.grid(True, linestyle='--', alpha=0.6)
@@ -826,7 +831,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	with np.errstate(divide='ignore', invalid='ignore'):
 		pa_var_err_deg2 = np.sqrt(np.nansum((np.rad2deg(phits) * np.rad2deg(ephits))**2)) / (pa_var_deg2 * len(phits))
 	
-	print(f"Var(psi) = {pa_var_deg2:.3f} +/- {pa_var_err_deg2:.3f}")
+	logging.info(f"Var(psi) = {pa_var_deg2:.3f} +/- {pa_var_err_deg2:.3f}")
 	return pa_var_deg2, pa_var_err_deg2
 
 
@@ -919,7 +924,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, dpi=600)
-		print(f"Saved figure to {name}  \n")
+		logging.info(f"Saved figure to {name}  \n")
 
 
 def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
@@ -1068,7 +1073,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		name = _make_plot_fname("l_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, dpi=600)
-		print(f"Saved figure to {name}  \n")
+		logging.info(f"Saved figure to {name}  \n")
 
 
 

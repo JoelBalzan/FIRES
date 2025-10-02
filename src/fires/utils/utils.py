@@ -14,11 +14,69 @@
 #	--------------------------	Import modules	---------------------------
 
 import os
+import logging
 import numpy as np
 
 from typing import NamedTuple
 from collections import namedtuple
 from scipy.optimize import curve_fit
+
+#	--------------------------	Logging setup	---------------------------
+LOG_NAME = "FIRES"
+
+def init_logging(verbose: bool | None = None):
+    """
+    Initialize package logging once (idempotent).
+    Precedence: explicit arg > env FIRES_VERBOSE > default (False).
+    """
+    if verbose is False:
+        env = os.getenv("FIRES_VERBOSE", "").lower()
+        verbose = env in ("1", "true", "yes", "on")
+    level = logging.DEBUG if verbose else logging.INFO
+    logger = logging.getLogger(LOG_NAME)
+    if logger.handlers:  # already configured
+        logger.setLevel(level)
+        return logger
+    class BracketFormatter(logging.Formatter):
+        # Optional simple color map (ANSI) if stdout is a TTY
+        COLORS = {
+            "DEBUG": "\033[36m",
+            "INFO": "\033[32m",
+            "WARNING": "\033[33m",
+            "ERROR": "\033[31m",
+            "CRITICAL": "\033[41m",
+        }
+        RESET = "\033[0m"
+        def format(self, record):
+            base = super().format(record)
+            if os.isatty(1):
+                color = self.COLORS.get(record.levelname, "")
+                if color:
+                    return f"{color}{base}{self.RESET}"
+            return base
+
+    handler = logging.StreamHandler()
+    # Bracketed level at front:
+    fmt = "[%(levelname)s] %(name)s: %(message)s"
+    # If you want timestamps too:
+    # fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    handler.setFormatter(BracketFormatter(fmt))
+    logger.addHandler(handler)
+    logger.setLevel(level)
+
+    # Silence noisy libs
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    return logger
+
+LOG = logging.getLogger(LOG_NAME)
+
+def vprint(*args, level=logging.DEBUG, sep=" ", end="\n"):
+    """
+    Convenience verbose print; only emits when LOG level <= level.
+    """
+    if LOG.isEnabledFor(level):
+        LOG.log(level, sep.join(str(a) for a in args) + ("" if end == "\n" else end))
+
 
 #    --------------------------	Define parameters	-------------------------------
 def get_parameters(filename):

@@ -15,6 +15,9 @@
 
 
 import numpy as np
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 from ..utils.utils import *
 from .basicfns import *
@@ -59,6 +62,8 @@ def apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
 	nu_hz = freq_mhz * 1e6
 	ref_freq_hz = ref_freq_mhz * 1e6
 
+	logging.info(f"Applying scintillation: t_s={t_s*1000}ms, nu_s={nu_s/1e6}MHz, N_im={N_im}, th_lim={th_lim}")
+
 	# Simulate complex field: shape (N_t, N_nu)
 	E = simulate_scintillation(t_sec, nu_hz, t_s=t_s, nu_s=nu_s, N_im=N_im, th_lim=th_lim, ref_freq_hz=ref_freq_hz)
 
@@ -86,7 +91,7 @@ def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 		seed = int(np.random.SeedSequence().generate_state(1)[0])
 		np.random.seed(seed)
 		if not plot_multiple_frb:
-			print(f"[FIRES] Using random seed: {seed}")
+			logging.info(f"Using random seed: {seed}")
 	else:
 		np.random.seed(seed)
 	return seed
@@ -117,7 +122,7 @@ def _disable_micro_variance_for_swept_base(sd_dict, xname):
 	return new_sd_dict
 
 
-def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, lfrac, snr_i, mode="auto", verbose=True):
+def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, lfrac, snr_i, mode="auto"):
 	"""
 	Returns approximate Var(PA) [deg^2].
 	
@@ -143,8 +148,6 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 		- "linearised": delta-method (valid for small sigma).
 		- "large_sigma": hyperbolic-sine formula (valid for large sigma).
 		- "auto": pick regime automatically based on sigma.
-	verbose : bool
-		If True, prints debug info.
 	"""
 
 	# Convert main component FWHM to standard deviation
@@ -202,9 +205,8 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 	# Convert to degrees^2
 	var_psi_deg2 = np.rad2deg(np.sqrt(var_psi_rad))**2
 
-	if verbose:
-		print(f"[FIRES] Mode: {mode}")
-		print(f"[FIRES] Expected Var(PA) ~ {var_psi_deg2[0]:.3f} deg^2.")
+	logging.info(f"Expected V(PA) Mode: {mode}")
+	logging.info(f"Expected V(PA) ~ {var_psi_deg2[0]:.3f} deg^2.")
 
 	return var_psi_deg2
 
@@ -337,7 +339,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, scint_dict, sefd,
 			sefd_work *= ratio
 		sefd = sefd_work
 		if not plot_multiple_frb:
-			print(f"[FIRES] SEFD set to {sefd:.3g} Jy for target S/N {target_snr} (iterative)")
+			print(f"SEFD set to {sefd:.3g} Jy for target S/N {target_snr} (iterative)")
 
 
 	if sefd > 0:
@@ -564,7 +566,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 		sefd = sefd_work
 
 		if not plot_multiple_frb:
-			print(f"[FIRES] SEFD set to {sefd:.3g} Jy for target S/N {target_snr}")
+			print(f"SEFD set to {sefd:.3g} Jy for target S/N {target_snr}")
 
 	if sefd > 0:
 		dynspec, sigma_ch, snr = add_noise(
