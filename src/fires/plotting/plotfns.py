@@ -21,7 +21,8 @@ import matplotlib.ticker as ticker
 from ..utils.utils import *
 from ..core.basicfns import *
 
-
+import logging
+logging.basicConfig(level=logging.INFO)
 #	----------------------------------------------------------------------------------------------------------
 
 def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots, extension):
@@ -95,7 +96,7 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + "_iquv." + extension), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_iquv." + extension)))
+		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + "_iquv." + extension)))
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -111,7 +112,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 		- fsize: Figure size
 		- ntp: Number of points for slope calculation
 	"""
-	print("Calculating dpa slope from %d points \n" % (2 * ntp + 1))
+	logging.info("Calculating dpa slope from %d points \n" % (2 * ntp + 1))
 
 	phits = frbdat.phits
 	dphits = frbdat.dphits
@@ -143,9 +144,9 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 			edpadt[ti] = np.nan
 	
 	dpamax = np.nanargmax(dpadt)
-		
-	print("Max (dPA/dt) = %.2f +/- %.2f deg/ms \n" % (dpadt[dpamax], edpadt[dpamax]))
-		
+
+	logging.info("Max (dPA/dt) = %.2f +/- %.2f deg/ms \n" % (dpadt[dpamax], edpadt[dpamax]))
+
 	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.15, 0.48, 0.83, 0.50])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
@@ -178,7 +179,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + "_dpa." + extension), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + "_dpa." + extension)))
+		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + "_dpa." + extension)))
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -201,7 +202,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 	# Wrap PA to [-90, 90] range
 	phits = ((np.rad2deg(tsdata.phits) + 90) % 180) - 90
 	ephits = np.rad2deg(tsdata.ephits)
-	print("Var(psi) = %.3f +/- %.3f" % (np.nanvar(phits), np.nanvar(ephits)))
+	logging.info("Var(psi) = %.3f +/- %.3f" % (np.nanvar(phits), np.nanvar(ephits)))
 
 	# Linear polarisation
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
@@ -294,7 +295,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 	if save==True:
 		fig.savefig(os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension), bbox_inches='tight', dpi=600)
-		print("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension)))
+		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension)))
 
 
 	#	----------------------------------------------------------------------------------------------------------

@@ -10,7 +10,7 @@
 #   Set enable=false to bypass without deleting file.
 
 [scintillation]
-t_s         = 0.1       # Characteristic timescale (s)
+t_s         = 0.005       # Characteristic timescale (s)
 nu_s        = 1.0e6     # Scintillation bandwidth (Hz)
 N_im        = 1500      # Number of phasor screen components
 th_lim      = 3.0       # Truncation of scattering disk (higher => slower & more accurate)

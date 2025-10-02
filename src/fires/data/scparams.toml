@@ -10,15 +10,10 @@
 #   Set enable=false to bypass without deleting file.
 
 [scintillation]
-enable      = true      # Master switch
-t_s         = 0.005     # Characteristic timescale (e.g. 10 minutes)
-nu_s        = 5.0e6     # Scintillation bandwidth (Hz)
+t_s         = 0.0001       # Characteristic timescale (s)
+nu_s        = 1.0e6     # Scintillation bandwidth (Hz)
 N_im        = 1500      # Number of phasor screen components
 th_lim      = 3.0       # Truncation of scattering disk (higher => slower & more accurate)
-mod_scale   = 1.0       # 1.0 = full modulation, <1 reduces modulation depth
-apply_stage = "pre_noise"  # pre_noise | post_noise (pre_noise affects S/N)
-cache       = true      # If true, reuse same pattern when cache_key matches
-cache_key   = "default" # Change to force regeneration
 return_field = false    # If true, code may return complex field as well as gain
 
 # Optional overrides for future extension

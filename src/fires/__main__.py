@@ -14,6 +14,7 @@
 #	--------------------------	Import modules	---------------------------
 import os
 import sys
+import logging
 import argparse
 import traceback
 import numpy as np
@@ -21,7 +22,7 @@ import numpy as np
 from inspect import signature
 
 from .core.genfrb import generate_frb
-from .utils.utils import chi2_fit, gaussian_model, window_map
+from .utils.utils import chi2_fit, gaussian_model, window_map, init_logging, LOG, vprint
 from .plotting.plotmodes import plot_modes, configure_matplotlib
 from .utils import config as cfg
 
@@ -287,6 +288,10 @@ def main():
 
 	args = parser.parse_args()
 
+	# Initialize logging 
+	init_logging(args.verbose)
+	if args.verbose:
+		LOG.debug("Verbose logging enabled.")
 
 	# Handle config management
 	if args.init_config:
@@ -331,7 +336,7 @@ def main():
 	try:
 		if selected_plot_mode.requires_multiple_frb:
 			if args.data is None:
-				print(f"Processing with {args.ncpu} threads. \n")
+				logging.info(f"Processing with {args.ncpu} threads. \n")
    
 			frb_dict = generate_frb(
 				data         = args.data,
@@ -375,7 +380,7 @@ def main():
 				target_snr   = args.snr
 			)
 			if args.chi2_fit:
-				print("Performing chi-squared fitting on the final profiles... \n")
+				logging.info("Performing chi-squared fitting on the final profiles... \n")
 				# Fit a Gaussian to the Stokes I profile
 				x_data = FRB.time_ms_array  # Replace with the appropriate x-axis data
 				y_data = FRB.dynamic_spectrum[0].mean(axis=0)  # Mean Stokes I profile
@@ -433,14 +438,14 @@ def main():
 					plot_function(**filtered_args)
 						
 				except Exception as e:
-					print(f"An error occurred while plotting '{plot_mode}': {e} \n")
+					logging.error(f"An error occurred while plotting '{plot_mode}': {e} \n")
 					if args.verbose:
 						traceback.print_exc()
 		else:
-			print("No plots generated. \n")
+			logging.info("No plots generated. \n")
 	except Exception as e:
 		# Clean error by default; full traceback only with --verbose
-		print(f"Error: {e}", file=sys.stderr)
+		logging.error(f"Error: {e}")
 		if args.verbose:
 			traceback.print_exc()
 		return 1

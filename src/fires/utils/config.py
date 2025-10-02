@@ -4,6 +4,8 @@ from typing import Any, Dict, Optional
 from datetime import datetime
 import shutil
 import os
+import logging
+logging.basicConfig(level=logging.INFO)
 
 from platformdirs import AppDirs
 from importlib import resources
@@ -102,21 +104,32 @@ def find_config_file(kind: str,
     Resolve the path to a config file.
     Priority:
     1. override_path (explicit)
-    2. Existing file in provided config_dir (first candidate name)
+    2. Existing file (or explicit file) in provided config_dir
     3. Existing file in user config dir
     4. Packaged default (copied into user dir)
-    Always returns the *primary* candidate path (even if .txt exists).
+    Always returns the primary candidate name path (even if .txt exists) unless
+    an explicit file path was given.
     """
     if override_path:
-        return Path(override_path)
+        p = Path(override_path).expanduser().resolve()
+        return p
 
-    # Search explicit config_dir first (if provided)
     if config_dir:
-        cfg_dir = Path(config_dir)
-        for fname in DEFAULT_FILES[kind]:
-            cand = cfg_dir / fname
-            if cand.exists():
-                return cand
+        cfg_in = Path(config_dir).expanduser()
+        cfg = cfg_in.resolve()
+        # If user passed a direct file path (not a directory)
+        if cfg.is_file():
+            return cfg
+        if cfg.is_dir():
+            # Search for candidate names inside provided dir
+            for fname in DEFAULT_FILES[kind]:
+                cand = cfg / fname
+                if cand.exists():
+                    return cand
+            # Nothing found; warn (optional)
+            logging.warning(f"No {kind} candidates found in {cfg}; falling back to user config.")
+        else:
+            logging.warning(f"Provided --config-dir path does not exist: {cfg_in}")
 
     # Ensure user config contains defaults
     ensure_user_config(update=False)
@@ -130,10 +143,11 @@ def find_config_file(kind: str,
     pkg = default_package_path(kind)
     if pkg:
         target = u_dir / DEFAULT_FILES[kind][0]
-        shutil.copy2(pkg, target)
+        if not target.exists():
+            shutil.copy2(pkg, target)
         return target
 
-    # Last resort: return primary candidate path (non-existent)
+    # Last resort: return primary candidate (non-existent) in user dir
     return u_dir / DEFAULT_FILES[kind][0]
 
 # --------------- Public loading API ---------------

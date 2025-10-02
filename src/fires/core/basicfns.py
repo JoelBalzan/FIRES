@@ -14,7 +14,8 @@
 #	--------------------------	Import modules	---------------------------
 
 import os
-import sys
+import logging
+logging.basicConfig(level=logging.INFO)
 
 import numpy as np
 from scipy.signal import fftconvolve
@@ -128,10 +129,10 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 		
 	# Run RM synthesis
 	res_rmtool = rm_synth(freq_mhz / 1.0e3, iquv, eiquv, outdir, save, show_plots)
-		
-	print("\nResults from RMtool (RM synthesis) \n")
-	print("RM = %.2f +/- %.2f rad/m2   PolAng0 = %.2f +/- %.2f deg\n" % (res_rmtool[0], res_rmtool[1], res_rmtool[2], res_rmtool[3]))
-	
+
+	logging.info("\nResults from RMtool (RM synthesis) \n")
+	logging.info("RM = %.2f +/- %.2f rad/m2   PolAng0 = %.2f +/- %.2f deg\n" % (res_rmtool[0], res_rmtool[1], res_rmtool[2], res_rmtool[3]))
+
 	return res_rmtool
 
 
@@ -760,7 +761,7 @@ def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol
     snr, (left, right) = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
 
     if not plot_multiple_frb:
-        print(f"Stokes I S/N (on-pulse method): {snr:.2f}")
+        logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
 
     return noisy_dynspec, sigma_ch, snr
 
