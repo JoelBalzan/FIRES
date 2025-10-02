@@ -28,7 +28,7 @@ from concurrent.futures import ProcessPoolExecutor
 from .basicfns import scatter_dspec, add_noise
 from .genfns import *
 from ..utils.utils import *
-
+from fires.utils.config import get_parameters, load_obs_params, load_scint_params
 
 
 def _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
@@ -239,13 +239,13 @@ def _process_task(task, xname, mode, plot_mode, **params):
 	return var, xvals, result_err, var_params, snr
 
 
-def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, 
+def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode,
 				target_snr=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
-	obs_params = get_parameters(obs_file)
+	obs_params = load_obs_params(obs_file)
 
 	# Extract frequency and time parameters
 	f_start = float(obs_params['f0'])
@@ -330,10 +330,16 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		'step'     : sweep_step[sweep_col]  if sweep_col is not None else None
 	}
 
+	if scint_file is not None:
+		scint = load_scint_params(scint_file)
+	else:
+		scint = None
+
 	# Create dynamic spectrum parameters
 	dspec_params = DynspecParams(
 		gdict           = gdict,
 		var_dict        = var_dict,
+		scint_dict      = scint,
 		freq_mhz        = freq_mhz,
 		freq_res_mhz    = f_res,
 		time_ms         = time_ms,

@@ -20,14 +20,6 @@ from typing import NamedTuple
 from collections import namedtuple
 from scipy.optimize import curve_fit
 
-
-# --------------------------	Define paths	-------------------------------
-current_dir = os.path.dirname(__file__)
-parent_dir = os.path.dirname(current_dir)
-obs_params_path = os.path.join(parent_dir, "data/obsparams.txt")
-gauss_params_path = os.path.join(parent_dir, "data/gparams.txt")
-
-
 #    --------------------------	Define parameters	-------------------------------
 def get_parameters(filename):
     parameters = {}
@@ -143,6 +135,7 @@ frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','ps
 class DynspecParams(NamedTuple):
     gdict          : dict
     var_dict       : dict
+    scint_dict     : dict
     freq_mhz       : np.ndarray
     freq_res_mhz   : float
     time_ms        : np.ndarray

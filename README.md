@@ -42,8 +42,10 @@ Defaults ship with the package and are copied to your user config on first run.
 - Package defaults:
   - `src/fires/data/obsparams.toml`
   - `src/fires/data/gparams.toml`
+  - `src/fires/data/scparams.toml`
+
 - User config directory (Linux, XDG): `~/.config/fires/`
-  - Editable copies: `~/.config/fires/obsparams.toml`, `~/.config/fires/gparams.toml`
+  - Editable copies: `~/.config/fires/obsparams.toml`, `~/.config/fires/gparams.toml`, `~/.config/fires/scparams.toml`
 
 Manage config:
 ```bash
@@ -53,6 +55,7 @@ fires --init-config
 # Edit in your $EDITOR (VISUAL/EDITOR), falls back to nano
 fires --edit-config obsparams
 fires --edit-config gparams
+fires --edit-config scparams
 ```
 
 Override file locations at runtime:
@@ -115,4 +118,10 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-##
+## Citation
+
+This project includes adapted code from:
+
+Sprenger T. (2025). ScintillationMaker. GitHub repository: https://github.com/SprengerT/ScintillationMaker (commit e33a4ca).
+
+Please cite both this project and the original ScintillationMaker repository if you use the scintillation simulation components.
