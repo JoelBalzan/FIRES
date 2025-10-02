@@ -292,7 +292,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	}
 
 	# Micro (psn) σ (std dev) values (scalars per column)
-	var_dict = {
+	sd_dict = {
 		't0_sd'             : gauss_params[stddev_row, 0],
 		'width_ms_sd'       : gauss_params[stddev_row, 1],
 		'peak_amp_sd'       : gauss_params[stddev_row, 2],
@@ -338,7 +338,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	# Create dynamic spectrum parameters
 	dspec_params = DynspecParams(
 		gdict           = gdict,
-		var_dict        = var_dict,
+		sd_dict        = sd_dict,
 		scint_dict      = scint,
 		freq_mhz        = freq_mhz,
 		freq_res_mhz    = f_res,

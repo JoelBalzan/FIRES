@@ -92,22 +92,22 @@ def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 	return seed
 	
 
-def _disable_micro_variance_for_swept_base(var_dict, xname):
+def _disable_micro_variance_for_swept_base(sd_dict, xname):
 	"""
 	If sweeping a base parameter (e.g., 'tau_ms'), disable its random micro-variance
 	by zeroing the corresponding '*_sd' entry (e.g., 'tau_ms_sd') so the sweep
 	reflects only the base change.
-	Returns a modified copy of var_dict (shallow copy; values may be arrays).
+	Returns a modified copy of sd_dict (shallow copy; values may be arrays).
 	"""
 	if xname is None or xname.endswith("_sd"):
-		return var_dict
+		return sd_dict
 
 	var_key = xname + "_sd"
-	if var_key is None or var_key not in var_dict:
-		return var_dict
+	if var_key is None or var_key not in sd_dict:
+		return sd_dict
 
 	# Shallow copy dict; copy value to avoid in-place side effects
-	new_sd_dict = dict(var_dict)
+	new_sd_dict = dict(sd_dict)
 	val = new_sd_dict[var_key]
 	arr = np.array(val, dtype=float, copy=True)
 	if arr.ndim == 0:
@@ -353,7 +353,7 @@ def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, scint_dict, sefd,
 
 
 
-def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, scint_dict,
+def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 					sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
 					variation_parameter=None, xname=None, target_snr=None):
 	"""
@@ -368,7 +368,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, scint
 	seed = _init_seed(seed, plot_multiple_frb)
 
 	gdict = {k: np.array(v, copy=True) for k, v in gdict.items()}
-	var_dict = {k: np.array(v, copy=True) for k, v in var_dict.items()}
+	sd_dict = {k: np.array(v, copy=True) for k, v in sd_dict.items()}
 
 	is_mean_sweep = (sweep_mode == "mean")
 	is_variance_sweep = (sweep_mode == "variance")
@@ -376,13 +376,13 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, scint
 	if variation_parameter is not None and xname is not None and sweep_mode != "none":
 		if is_variance_sweep:
 			var_key = f"{xname}_sd"
-			if var_key not in var_dict:
+			if var_key not in sd_dict:
 				raise ValueError(f"Variance key '{var_key}' not found for variance sweep.")
-			arr = np.array(var_dict[var_key], copy=True)
+			arr = np.array(sd_dict[var_key], copy=True)
 			if arr.ndim == 0:
 				arr = np.array([arr], dtype=float)
 			arr[0] = float(variation_parameter)
-			var_dict[var_key] = arr
+			sd_dict[var_key] = arr
 		elif is_mean_sweep:
 			if xname not in gdict:
 				raise ValueError(f"Base parameter '{xname}' not found in gdict for mean sweep.")
@@ -394,7 +394,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, scint
 
 	# Disable micro variance if mean sweep so only deterministic change remains
 	if is_mean_sweep:
-		var_dict = _disable_micro_variance_for_swept_base(var_dict, xname)
+		sd_dict = _disable_micro_variance_for_swept_base(sd_dict, xname)
 	
 	t0              = gdict['t0']
 	width_ms        = gdict['width_ms']
@@ -416,17 +416,17 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, var_dict, scint
 	# Create width_range list with pairs of [mg_width_low, mg_width_high]
 	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
 
-	peak_amp_sd        = var_dict['peak_amp_sd']
-	spec_idx_sd        = var_dict['spec_idx_sd']
-	tau_ms_sd          = var_dict['tau_ms_sd']
-	PA_sd              = var_dict['PA_sd']
-	dm_sd              = var_dict['DM_sd']
-	rm_sd              = var_dict['RM_sd']
-	lfrac_sd           = var_dict['lfrac_sd']
-	vfrac_sd           = var_dict['vfrac_sd']
-	dPA_sd             = var_dict['dPA_sd']
-	band_centre_mhz_sd = var_dict['band_centre_mhz_sd']
-	band_width_mhz_sd  = var_dict['band_width_mhz_sd']
+	peak_amp_sd        = sd_dict['peak_amp_sd']
+	spec_idx_sd        = sd_dict['spec_idx_sd']
+	tau_ms_sd          = sd_dict['tau_ms_sd']
+	PA_sd              = sd_dict['PA_sd']
+	dm_sd              = sd_dict['DM_sd']
+	rm_sd              = sd_dict['RM_sd']
+	lfrac_sd           = sd_dict['lfrac_sd']
+	vfrac_sd           = sd_dict['vfrac_sd']
+	dPA_sd             = sd_dict['dPA_sd']
+	band_centre_mhz_sd = sd_dict['band_centre_mhz_sd']
+	band_width_mhz_sd  = sd_dict['band_width_mhz_sd']
 	
 			
 	dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array

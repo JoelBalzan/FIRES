@@ -1,6 +1,6 @@
 # FIRES: Fast, Intense Radio Emission Simulator
 
-FIRES is a Python package to simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects. It can generate dynamic spectra for Gaussian pulses or micro-shot ensembles, apply scattering, add noise, and provide plotting and simple fitting utilities.
+FIRES is a Python package to simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects. It can generate dynamic spectra for Gaussian pulses or micro-shot ensembles, apply scattering, scintillation, add noise, and provide plotting and simple fitting utilities.
 
 ## Installation
 
@@ -22,7 +22,7 @@ fires --help
 
 Single FRB, plot IQUV, add noise:
 ```bash
-fires --plot iquv --tsys 50
+fires --plot iquv --sefd 50
 ```
 
 Micro-shot mode with LV+PA plot, save plots:
@@ -44,9 +44,6 @@ Defaults ship with the package and are copied to your user config on first run.
   - `src/fires/data/gparams.toml`
   - `src/fires/data/scparams.toml`
 
-- User config directory (Linux, XDG): `~/.config/fires/`
-  - Editable copies: `~/.config/fires/obsparams.toml`, `~/.config/fires/gparams.toml`, `~/.config/fires/scparams.toml`
-
 Manage config:
 ```bash
 # Create editable defaults in ~/.config/fires
@@ -57,6 +54,9 @@ fires --edit-config obsparams
 fires --edit-config gparams
 fires --edit-config scparams
 ```
+
+- User config directory (Linux, XDG): `~/.config/fires/`
+  - Editable copies: `~/.config/fires/obsparams.toml`, `~/.config/fires/gparams.toml`, `~/.config/fires/scparams.toml`
 
 Override file locations at runtime:
 - `--config-dir /path/to/my/configdir` (to use a different config folder)
@@ -101,12 +101,17 @@ src/
     plotting/            # plotting API and modes
       plotfns.py
       plotmodes.py
+    scint/               # apply scintillation to dynamic spectrum using ScintillationMaker
+      ScintillationMaker.py
+      ScintillationMaker.cpp
+      ScintillationMaker.so
     utils/               # helpers, config loader
       utils.py
       config.py
     data/                # packaged default configs (TOML)
       obsparams.toml
       gparams.toml
+      scparams.toml
 ```
 
 ## Development
