@@ -203,14 +203,22 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			- noise_stokes: Noise levels for each Stokes parameter
 	"""
 
-	# Wrap PA to [-90, 90] range
-	phits = ((np.rad2deg(tsdata.phits) + 90) % 180) - 90
+	pa_deg = np.rad2deg(tsdata.phits)
+
+	# Wrap to [-90, 90] while keeping +90 instead of flipping to -90
+	def wrap_pa_deg(pa):
+		w = (pa + 90.0) % 180.0 - 90.0
+		# Keep +90 when mathematically equivalent
+		w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
+		return w
+
+	phits = wrap_pa_deg(pa_deg)
 	ephits = np.rad2deg(tsdata.ephits)
 	logging.info("Var(psi) = %.3f +/- %.3f" % (np.nanvar(phits), np.nanvar(ephits)))
 
 	# Linear polarisation
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
-	L = np.sqrt(Q**2 + U**2)
+	L = tsdata.Lts / 1e3  # Convert from Jy to kJy
 	
 	if figsize is None:
 		figsize = (7, 9)

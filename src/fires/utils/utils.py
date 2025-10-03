@@ -182,7 +182,7 @@ df_MHz = bw_MHz/nchan
 simulated_frb	=	namedtuple('simulated_frb', ['frbname', 'dynamic_spectrum', 'dspec_params', 'snr'])
 
 # time variation
-frb_time_series	=	namedtuple('frbts',['iquvt','lts','elts','pts','epts','phits','ephits','psits','epsits','qfrac','eqfrac','ufrac','eufrac','vfrac','evfrac','lfrac','elfrac','pfrac','epfrac'])
+frb_time_series	=	namedtuple('frbts',['iquvt','Lts','eLts','Pts','ePts','phits','ephits','psits','epsits','qfrac','eqfrac','ufrac','eufrac','vfrac','evfrac','lfrac','elfrac','pfrac','epfrac'])
 
 # spectra (anything varying with freq (hz))
 frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','pspec','dpspec','qfracspec','dqfrac','ufracspec','dufrac','vfracspec','dvfrac',\

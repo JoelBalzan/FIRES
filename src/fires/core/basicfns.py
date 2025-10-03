@@ -203,6 +203,7 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		- psits, dpsits: Circular polarization angle and error (degrees)
 		- Fractional polarizations: qfrac, ufrac, vfrac, lfrac, pfrac with errors
 	"""
+	pa_mask_sigma = 2.0  # PA detection threshold in sigma_L
 
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
@@ -217,65 +218,73 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		Qts_rms = noise_stokes[1]
 		Uts_rms = noise_stokes[2]
 		Vts_rms = noise_stokes[3]
-		
-		# Calculate the linear polarization intensity
-		Lts  = np.sqrt(Uts ** 2 + Qts ** 2)
-		eps = 1e-12
-		
-		# Debias L using Everett & Weisberg+2001 method
-		#Lts = np.sqrt((Lts/Its_rms)**2 - 1*Its_rms)
-		#Lts[np.isnan(Lts)] = 0.0
-		#Lts[Lts/Its_rms < 1.57] = 0.0
 
-		eLts = np.sqrt((Qts**2 * Qts_rms**2) + (Uts**2 * Uts_rms**2)) / np.maximum(Lts, eps)
-		Lmask = Lts != 0.0
-		eLts[~Lmask] = np.nan
-		#Lts[~Lmask] = np.nan
-		
-		# Calculate the total polarization intensity
-		Pts  = np.sqrt(Lts ** 2 + Vts ** 2)
-		# Correct error propagation for P = sqrt(L^2 + V^2)
+		L_meas = np.sqrt(Qts**2 + Uts**2)
+		eps = 1e-12
+
+		sigma_L = np.sqrt(Qts**2 * Qts_rms**2 + Uts**2 * Uts_rms**2) / np.maximum(L_meas, eps)
+		r = L_meas / np.maximum(sigma_L, eps)
+		cutoff = 1.57
+
+		# Debias (Everett & Weisberg 2001 / Wardle-Kronberg threshold 1.57)
+		Lts = np.zeros_like(L_meas)
+		det = r >= cutoff
+		Lts[det] = np.sqrt(np.maximum(L_meas[det]**2 - sigma_L[det]**2, 0.0))
+		eLts = np.full_like(Lts, np.nan)
+		eLts[det] = sigma_L[det]
+	
+		# Total polarization
+		Pts = np.sqrt(Lts**2 + Vts**2)
 		ePts = np.sqrt((Lts**2 * eLts**2) + (Vts**2 * Vts_rms**2)) / np.maximum(Pts, eps)
 
-		# Calculate the polarization angles
-		phits  = 0.5 * np.arctan2(Uts, Qts)
-		ephits = 0.5 * np.sqrt(Uts**2 * Qts_rms**2 + Qts**2 * Uts_rms**2) / (Uts**2 + Qts**2)
-		psits  = 0.5 * np.arctan2(Vts, Lts)
-		epsits = 0.5 * np.sqrt(Vts**2 * eLts**2 + Lts**2 * Vts_rms**2) / (Vts**2 + Lts**2)
+		# Position angle (keep in radians internally)
+		phits = np.full_like(Lts, np.nan)
+		ephits = np.full_like(Lts, np.nan)
 
-		# Calculate the fractional polarizations
+		# PA detection mask
+		pa_det = (Lts >= pa_mask_sigma * sigma_L)
+		sigma_for_pa = sigma_L
+
+		phits[pa_det] = 0.5 * np.arctan2(Uts[pa_det], Qts[pa_det])
+		# Stable σ_PA approximation for detected bins
+		ephits[pa_det] = 0.5 * np.sqrt(
+			(Qts[pa_det]**2 * Uts_rms**2 + Uts[pa_det]**2 * Qts_rms**2)
+			/ np.maximum((Qts[pa_det]**2 + Uts[pa_det]**2)**2, eps)
+		)
+
+		# Restrict PA to on-pulse window
+		win_mask = np.zeros_like(pa_det, dtype=bool)
+		win_mask[left:right+1] = True
+		keep = pa_det & win_mask
+		phits[~keep] = np.nan
+		ephits[~keep] = np.nan
+
+		# Fractional polarizations
 		qfrac = Qts / Its
 		ufrac = Uts / Its
 		vfrac = Vts / Its
-
 		lfrac = Lts / Its
 		pfrac = Pts / Its
 
-		# Calculate the errors in fractional polarizations
-		evfrac = np.abs(vfrac) * np.sqrt((Vts_rms / Vts) ** 2 + (Its_rms / Its) ** 2)
-		eqfrac = np.abs(qfrac) * np.sqrt((Qts_rms / Qts) ** 2 + (Its_rms / Its) ** 2)
-		eufrac = np.abs(ufrac) * np.sqrt((Uts_rms / Uts) ** 2 + (Its_rms / Its) ** 2)
-		elfrac = np.abs(lfrac) * np.sqrt((eLts / Lts) ** 2 + (Its_rms / Its) ** 2)
-		epfrac = np.abs(pfrac) * np.sqrt((ePts / Pts) ** 2 + (Its_rms / Its) ** 2)
+		# Fractional errors (guard zeros)
+		def _frac_err(val, err_val, base, err_base):
+			return np.abs(val / np.maximum(base, eps)) * np.sqrt(
+				(err_val / np.maximum(val, eps))**2 + (err_base / np.maximum(base, eps))**2
+			)
 
+		eqfrac = _frac_err(Qts, Qts_rms, Its, Its_rms)
+		eufrac = _frac_err(Uts, Uts_rms, Its, Its_rms)
+		evfrac = _frac_err(Vts, Vts_rms, Its, Its_rms)
+		elfrac = _frac_err(Lts, np.nan_to_num(eLts, nan=0.0), Its, Its_rms)
+		epfrac = _frac_err(Pts, ePts, Its, Its_rms)
 
-		# Set large errors to NaN
-		mask = Lts < (2.0 * Its_rms)  # Mask where L is less than 2-sigma
-		phits[mask]  = np.nan
-		ephits[mask] = np.nan
-		psits[mask]  = np.nan
-		epsits[mask] = np.nan
-
-
-		# Mask PA outside all signal windows using on-pulse finder
-		pa_mask = np.zeros_like(phits, dtype=bool)
-		pa_mask[left:right+1] = True
-		phits[~pa_mask] = np.nan
-		ephits[~pa_mask] = np.nan
-
-		# Return the time profiles as a frb_time_series object
-	return frb_time_series(iquvt, Lts, eLts, Pts, ePts, phits, ephits, psits, epsits, qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac)
-
+	return frb_time_series(
+		iquvt, Lts, eLts, Pts, ePts,
+		phits, ephits,  # linear PA + error
+		np.full_like(phits, np.nan),  # placeholder circular PA
+		np.full_like(phits, np.nan),  # placeholder circular PA err
+		qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac
+	)
 
 def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 	"""
@@ -378,93 +387,137 @@ def make_offpulse_mask(n_time, left, right, buffer_bins=0):
 
 
 def on_off_pulse_masks_from_profile(profile,
-                                    frac=0.95,
-                                    buffer_frac=None,
-                                    one_sided_offpulse=False,
-                                    tail_frac=None,
-                                    max_tail_mult=5):
+									frac=0.95,
+									buffer_frac=None,
+									one_sided_offpulse=False,
+									tail_frac=None,
+									max_tail_mult=5):
+	"""
+	Construct on- and off-pulse masks from a 1-D profile.
+
+	Enhancements:
+	  - Optional tail inclusion (tail_frac): extend right edge to include scattered tail
+		where profile > tail_frac * peak (capped by max_tail_mult * initial_width).
+	  - Optional one-sided off-pulse region (pre-burst only) to avoid tail leakage.
+	  - Buffer computed from the INITIAL (pre-tail) width for stable behaviour.
+
+	Parameters
+	----------
+	profile : 1D array
+		Intensity profile (e.g. summed Stokes I over frequency).
+	frac : float
+		Fraction of total energy to enclose for initial compact window (boxcar_width).
+	buffer_frac : float or None
+		Fraction of initial on-pulse width excluded on EACH side from off-pulse.
+	one_sided_offpulse : bool
+		If True, use only samples strictly before the (buffered) on-pulse start.
+	tail_frac : float or None
+		If set (e.g. 0.003), extend right edge while profile > tail_frac * peak.
+	max_tail_mult : int
+		Cap on tail extension in units of the initial width.
+	return_details : bool
+		If True, also return a dict with window metadata.
+
+	Returns
+	-------
+	on_mask : bool array
+	off_mask: bool array
+	(left, right) : tuple(int, int)
+		Final on-pulse indices inclusive.
+	details (optional) : dict
+		width_init, width_final, peak, tail_used, buffer_bins
+	"""
+	prof = np.asarray(profile, dtype=float)
+	n = prof.size
+	left, right = boxcar_width(prof, frac=frac)
+	peak_val = np.nanmax(prof) if n > 0 else 0.0
+	init_width = max(1, right - left + 1)
+
+	# Tail expansion
+	tail_used = False
+	if tail_frac is not None and peak_val > 0:
+		thr = tail_frac * peak_val
+		max_right = min(n - 1, right + int(max_tail_mult * init_width))
+		r = right
+		while r + 1 <= max_right and prof[r + 1] > thr:
+			r += 1
+		if r != right:
+			tail_used = True
+			right = r
+
+	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0
+
+	on_mask = make_onpulse_mask(n, left, right)
+
+	if one_sided_offpulse:
+		off_mask = np.zeros(n, dtype=bool)
+		end_off = max(0, left - buffer_bins - 1)
+		if end_off >= 0:
+			off_mask[0:end_off + 1] = True
+	else:
+		off_mask = make_offpulse_mask(n, left, right, buffer_bins=buffer_bins)
+
+	return on_mask, off_mask, (left, right)
+
+
+def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask, robust=False, ddof=1):
     """
-    Construct on- and off-pulse masks from a 1-D profile.
-
-    Enhancements:
-      - Optional tail inclusion (tail_frac): extend right edge to include scattered tail
-        where profile > tail_frac * peak (capped by max_tail_mult * initial_width).
-      - Optional one-sided off-pulse region (pre-burst only) to avoid tail leakage.
-      - Buffer computed from the INITIAL (pre-tail) width for stable behaviour.
-
-    Parameters
-    ----------
-    profile : 1D array
-        Intensity profile (e.g. summed Stokes I over frequency).
-    frac : float
-        Fraction of total energy to enclose for initial compact window (boxcar_width).
-    buffer_frac : float or None
-        Fraction of initial on-pulse width excluded on EACH side from off-pulse.
-    one_sided_offpulse : bool
-        If True, use only samples strictly before the (buffered) on-pulse start.
-    tail_frac : float or None
-        If set (e.g. 0.003), extend right edge while profile > tail_frac * peak.
-    max_tail_mult : int
-        Cap on tail extension in units of the initial width.
-    return_details : bool
-        If True, also return a dict with window metadata.
+    Estimate noise using an off-pulse mask (True = off-pulse).
 
     Returns
     -------
-    on_mask : bool array
-    off_mask: bool array
-    (left, right) : tuple(int, int)
-        Final on-pulse indices inclusive.
-    details (optional) : dict
-        width_init, width_final, peak, tail_used, buffer_bins
+    noise_stokes : (n_stokes,)
+        RMS of the frequency-summed time series for each Stokes parameter
+        (quad-sum of per-channel RMS).
+    noisespec : (n_stokes, n_chan)
+        Per-Stokes, per-channel RMS over off-pulse times.
+
+    Parameters
+    ----------
+    corrdspec : array, shape (n_stokes, n_chan, n_time)
+    offpulse_mask : bool array, shape (n_time,)
+    robust : bool, default False
+        If True, use MAD (scaled) instead of standard deviation.
+    ddof : int, default 1
+        Delta degrees of freedom for std (ignored if robust=True).
     """
-    prof = np.asarray(profile, dtype=float)
-    n = prof.size
-    left, right = boxcar_width(prof, frac=frac)
-    peak_val = np.nanmax(prof) if n > 0 else 0.0
-    init_width = max(1, right - left + 1)
+    corrdspec = np.asarray(corrdspec, dtype=float)
+    if corrdspec.ndim != 3:
+        raise ValueError("corrdspec must have shape (n_stokes, n_chan, n_time)")
+    if offpulse_mask.dtype != bool or offpulse_mask.ndim != 1:
+        raise ValueError("offpulse_mask must be 1-D boolean (time axis)")
 
-    # Tail expansion
-    tail_used = False
-    if tail_frac is not None and peak_val > 0:
-        thr = tail_frac * peak_val
-        max_right = min(n - 1, right + int(max_tail_mult * init_width))
-        r = right
-        while r + 1 <= max_right and prof[r + 1] > thr:
-            r += 1
-        if r != right:
-            tail_used = True
-            right = r
+    n_stokes, n_chan, n_time = corrdspec.shape
 
-    buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0
+    if offpulse_mask.size != n_time:
+        raise ValueError("offpulse_mask length does not match time dimension")
 
-    on_mask = make_onpulse_mask(n, left, right)
+    if not np.any(offpulse_mask):
+        noise_stokes = np.full(n_stokes, np.nan)
+        noisespec = np.full((n_stokes, n_chan), np.nan)
+        return noise_stokes, noisespec
 
-    if one_sided_offpulse:
-        off_mask = np.zeros(n, dtype=bool)
-        end_off = max(0, left - buffer_bins - 1)
-        if end_off >= 0:
-            off_mask[0:end_off + 1] = True
+    # Slice off-pulse data: (n_stokes, n_chan, n_off)
+    offcube = corrdspec[:, :, offpulse_mask]
+
+    if robust:
+        # Median Absolute Deviation per (stokes, chan)
+        med = np.nanmedian(offcube, axis=2, keepdims=True)
+        mad = np.nanmedian(np.abs(offcube - med), axis=2)
+        noisespec = 1.4826 * mad
     else:
-        off_mask = make_offpulse_mask(n, left, right, buffer_bins=buffer_bins)
+        # Standard deviation over time axis (ddof)
+        if offcube.shape[2] - ddof <= 0:
+            # Fall back to population std
+            noisespec = np.nanstd(offcube, axis=2)
+        else:
+            noisespec = np.nanstd(offcube, axis=2, ddof=ddof)
 
-    return on_mask, off_mask, (left, right)
+    # Frequency-summed time-series RMS for each Stokes:
+    # Sum over channels -> variances add (assume independence)
+    noise_stokes = np.sqrt(np.nansum(noisespec**2, axis=1))
 
-
-def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask):
-	"""
-	Estimate per-Stokes scalar noise and per-(Stokes,chan) noise using an
-	off-pulse mask (True where off-pulse).
-	"""
-	npol = corrdspec.shape[0]
-	noise_stokes = np.zeros(npol)
-	for s in range(npol):
-		offpulse_samples = corrdspec[s, :, offpulse_mask].ravel()
-		noise_stokes[s] = np.nanstd(offpulse_samples) if offpulse_samples.size > 0 else np.nan
-
-	noisespec = (np.nanstd(corrdspec[:, :, offpulse_mask], axis=2)
-				 if np.any(offpulse_mask) else np.full(corrdspec.shape[:2], np.nan))
-	return noise_stokes, noisespec
+    return noise_stokes, noisespec
 
 
 def process_dynspec(dynspec, freq_mhz, gdict, buffer_frac):
@@ -544,226 +597,226 @@ def boxcar_width(profile, frac=0.95):
 
  
 def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
-    """
-    Apply one-sided exponential scattering independently to each frequency channel
-    of a Stokes I dynamic spectrum.
+	"""
+	Apply one-sided exponential scattering independently to each frequency channel
+	of a Stokes I dynamic spectrum.
 
-    Replaces (renamed from) scatter_stokes_chan which operated on a single 1-D channel.
+	Replaces (renamed from) scatter_stokes_chan which operated on a single 1-D channel.
 
-    Parameters
-    ----------
-    I_dspec : array_like, shape (n_chan, n_time)
-        Stokes I dynamic spectrum (no polarisation axis).
-    time_res_ms : float
-        Time resolution in milliseconds.
-    tau_cms : float or array_like, shape (n_chan,)
-        Scattering timescale(s) in milliseconds. Scalar applies to all channels.
-    pad_factor : float, default 5
-        Multiple of tau used to determine zero-padding length (covers tail).
+	Parameters
+	----------
+	I_dspec : array_like, shape (n_chan, n_time)
+		Stokes I dynamic spectrum (no polarisation axis).
+	time_res_ms : float
+		Time resolution in milliseconds.
+	tau_cms : float or array_like, shape (n_chan,)
+		Scattering timescale(s) in milliseconds. Scalar applies to all channels.
+	pad_factor : float, default 5
+		Multiple of tau used to determine zero-padding length (covers tail).
 
-    Returns
-    -------
-    scattered_dspec : ndarray, shape (n_chan, n_time)
-        Dynamic spectrum after convolution with normalised exponential tail.
+	Returns
+	-------
+	scattered_dspec : ndarray, shape (n_chan, n_time)
+		Dynamic spectrum after convolution with normalised exponential tail.
 
-    Notes
-    -----
-    - Channels with non-positive or NaN tau are returned unchanged.
-    - Uses fftconvolve per channel (OK for typical FRB channel counts).
-    """
-    dspec = np.asarray(dspec, dtype=float)
-    if dspec.ndim != 2:
-        raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
+	Notes
+	-----
+	- Channels with non-positive or NaN tau are returned unchanged.
+	- Uses fftconvolve per channel (OK for typical FRB channel counts).
+	"""
+	dspec = np.asarray(dspec, dtype=float)
+	if dspec.ndim != 2:
+		raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
 
-    n_chan, n_time = dspec.shape
+	n_chan, n_time = dspec.shape
 
-    # Prepare per-channel tau array
-    if np.isscalar(tau_cms):
-        tau_arr = np.full(n_chan, float(tau_cms), dtype=float)
-    else:
-        tau_arr = np.asarray(tau_cms, dtype=float)
-        if tau_arr.shape[0] != n_chan:
-            raise ValueError("tau_cms length must match number of channels")
+	# Prepare per-channel tau array
+	if np.isscalar(tau_cms):
+		tau_arr = np.full(n_chan, float(tau_cms), dtype=float)
+	else:
+		tau_arr = np.asarray(tau_cms, dtype=float)
+		if tau_arr.shape[0] != n_chan:
+			raise ValueError("tau_cms length must match number of channels")
 
-    dspec_scattered = np.empty_like(dspec)
+	dspec_scattered = np.empty_like(dspec)
 
-    for ci in range(n_chan):
-        tau = tau_arr[ci]
-        chan = dspec[ci]
+	for ci in range(n_chan):
+		tau = tau_arr[ci]
+		chan = dspec[ci]
 
-        # Skip if tau invalid
-        if not np.isfinite(tau) or tau <= 0.0:
-            dspec_scattered[ci] = chan
-            continue
+		# Skip if tau invalid
+		if not np.isfinite(tau) or tau <= 0.0:
+			dspec_scattered[ci] = chan
+			continue
 
-        n_pad = int(np.ceil(pad_factor * tau / time_res_ms))
-        if n_pad < 1:
-            dspec_scattered[ci] = chan
-            continue
+		n_pad = int(np.ceil(pad_factor * tau / time_res_ms))
+		if n_pad < 1:
+			dspec_scattered[ci] = chan
+			continue
 
-        # Pad end only
-        padded = np.pad(chan, (0, n_pad), mode='constant')
-        t_irf = np.arange(0, n_pad + 1) * time_res_ms
-        irf = np.exp(-t_irf / tau)
-        irf /= irf.sum()
+		# Pad end only
+		padded = np.pad(chan, (0, n_pad), mode='constant')
+		t_irf = np.arange(0, n_pad + 1) * time_res_ms
+		irf = np.exp(-t_irf / tau)
+		irf /= irf.sum()
 
-        conv = fftconvolve(padded, irf, mode='full')
-        dspec_scattered[ci] = conv[:n_time]
+		conv = fftconvolve(padded, irf, mode='full')
+		dspec_scattered[ci] = conv[:n_time]
 
-    return dspec_scattered
+	return dspec_scattered
 
 
 def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None, 
 					one_sided_offpulse=False, tail_frac=None, max_tail_mult=5):
-    """
-    Compute SEFD needed for a desired S/N, using adaptive on/off selection
-    consistent with snr_onpulse (with tail inclusion).
+	"""
+	Compute SEFD needed for a desired S/N, using adaptive on/off selection
+	consistent with snr_onpulse (with tail inclusion).
 
-    Parameters
-    ----------
-    dynspec : (4, n_chan, n_time)
-    f_res_hz : float
-    t_res_s : float
-    target_snr : float
-    n_pol : int
-    frac : float
-    buffer_frac : float or None
-    subtract_baseline : bool
-    one_sided_offpulse : bool
-        Use only pre-pulse region for noise (avoids scattered tail).
-    tail_frac : float or None
-        Include right-side tail bins with flux > tail_frac * peak in on-pulse.
-    max_tail_mult : int
-        Cap tail extension vs initial width.
+	Parameters
+	----------
+	dynspec : (4, n_chan, n_time)
+	f_res_hz : float
+	t_res_s : float
+	target_snr : float
+	n_pol : int
+	frac : float
+	buffer_frac : float or None
+	subtract_baseline : bool
+	one_sided_offpulse : bool
+		Use only pre-pulse region for noise (avoids scattered tail).
+	tail_frac : float or None
+		Include right-side tail bins with flux > tail_frac * peak in on-pulse.
+	max_tail_mult : int
+		Cap tail extension vs initial width.
 
-    Returns
-    -------
-    sefd_required : float
-    details : dict
-    """
-    if target_snr is None or target_snr <= 0:
-        raise ValueError("target_snr must be > 0")
+	Returns
+	-------
+	sefd_required : float
+	details : dict
+	"""
+	if target_snr is None or target_snr <= 0:
+		raise ValueError("target_snr must be > 0")
 
-    prof = np.nansum(dynspec[0], axis=0)
+	prof = np.nansum(dynspec[0], axis=0)
 
-    # Build masks similarly to snr_onpulse but WITHOUT noise (so baseline from left only if one_sided_offpulse)
-    left, right = boxcar_width(prof, frac=frac)
-    peak_val = np.nanmax(prof)
-    init_width = max(1, right - left + 1)
+	# Build masks similarly to snr_onpulse but WITHOUT noise (so baseline from left only if one_sided_offpulse)
+	left, right = boxcar_width(prof, frac=frac)
+	peak_val = np.nanmax(prof)
+	init_width = max(1, right - left + 1)
 
-    # Tail expansion
-    if tail_frac is not None and peak_val > 0:
-        thr = tail_frac * peak_val
-        max_right = min(prof.size - 1, right + int(max_tail_mult * init_width))
-        r = right
-        while r + 1 <= max_right and prof[r + 1] > thr:
-            r += 1
-        right = r
+	# Tail expansion
+	if tail_frac is not None and peak_val > 0:
+		thr = tail_frac * peak_val
+		max_right = min(prof.size - 1, right + int(max_tail_mult * init_width))
+		r = right
+		while r + 1 <= max_right and prof[r + 1] > thr:
+			r += 1
+		right = r
 
-    buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0
+	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0
 
-    on_mask = make_onpulse_mask(prof.size, left, right)
+	on_mask = make_onpulse_mask(prof.size, left, right)
 
-    if one_sided_offpulse:
-        off_mask = np.zeros(prof.size, dtype=bool)
-        end_off = max(0, left - buffer_bins - 1)
-        if end_off >= 0:
-            off_mask[0:end_off + 1] = True
-    else:
-        off_mask = make_offpulse_mask(prof.size, left, right, buffer_bins=buffer_bins)
+	if one_sided_offpulse:
+		off_mask = np.zeros(prof.size, dtype=bool)
+		end_off = max(0, left - buffer_bins - 1)
+		if end_off >= 0:
+			off_mask[0:end_off + 1] = True
+	else:
+		off_mask = make_offpulse_mask(prof.size, left, right, buffer_bins=buffer_bins)
 
-    pulse = prof[on_mask]
-    E_on = np.nansum(pulse)
-    N_on = int(on_mask.sum())
-    N_chan = dynspec.shape[1]
+	pulse = prof[on_mask]
+	E_on = np.nansum(pulse)
+	N_on = int(on_mask.sum())
+	N_chan = dynspec.shape[1]
 
-    if E_on <= 0 or N_on == 0 or N_chan == 0:
-        raise ValueError("Cannot compute SEFD (invalid on-pulse energy).")
+	if E_on <= 0 or N_on == 0 or N_chan == 0:
+		raise ValueError("Cannot compute SEFD (invalid on-pulse energy).")
 
-    # Invert radiometer SNR relation (SNR ∝ 1/SEFD)
-    sefd_req = (E_on * np.sqrt(n_pol * f_res_hz * t_res_s)) / (target_snr * np.sqrt(N_chan * N_on))
+	# Invert radiometer SNR relation (SNR ∝ 1/SEFD)
+	sefd_req = (E_on * np.sqrt(n_pol * f_res_hz * t_res_s)) / (target_snr * np.sqrt(N_chan * N_on))
 
-    return sefd_req
+	return sefd_req
 
 
 def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
-               stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,
-               baseline_frac=0.05, baseline_kernel_ms=5.0, time_res_ms=None):
-    """
-    Add thermal (and optional slow baseline) noise using SEFD.
+			   stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,
+			   baseline_frac=0.05, baseline_kernel_ms=5.0, time_res_ms=None):
+	"""
+	Add thermal (and optional slow baseline) noise using SEFD.
 
-    Parameters
-    ----------
-    dynspec : (4, n_chan, n_time) array
-        Clean Stokes I,Q,U,V cube.
-    sefd : float or (n_chan,) array
-        System Equivalent Flux Density in Jy.
-    f_res : float or (n_chan,) array
-        Channel bandwidth (Hz).
-    t_res : float
-        Time resolution (s).
-    buffer_frac : float
-        Passed to snr_onpulse for S/N estimate.
-    plot_multiple_frb : bool
-        If False, print S/N summary.
-    n_pol : int
-        Number of summed polarisations (usually 2).
-    stokes_scale : tuple of 4 floats
-        Multiplicative RMS scale factors for (I,Q,U,V).
-    add_slow_baseline : bool
-        Add smoothed low-frequency baseline drift.
-    baseline_frac : float
-        Std of baseline component relative to white RMS.
-    baseline_kernel_ms : float
-        FWHM of Gaussian smoothing (ms) for baseline.
-    time_res_ms : float or None
-        Needed if add_slow_baseline=True.
+	Parameters
+	----------
+	dynspec : (4, n_chan, n_time) array
+		Clean Stokes I,Q,U,V cube.
+	sefd : float or (n_chan,) array
+		System Equivalent Flux Density in Jy.
+	f_res : float or (n_chan,) array
+		Channel bandwidth (Hz).
+	t_res : float
+		Time resolution (s).
+	buffer_frac : float
+		Passed to snr_onpulse for S/N estimate.
+	plot_multiple_frb : bool
+		If False, print S/N summary.
+	n_pol : int
+		Number of summed polarisations (usually 2).
+	stokes_scale : tuple of 4 floats
+		Multiplicative RMS scale factors for (I,Q,U,V).
+	add_slow_baseline : bool
+		Add smoothed low-frequency baseline drift.
+	baseline_frac : float
+		Std of baseline component relative to white RMS.
+	baseline_kernel_ms : float
+		FWHM of Gaussian smoothing (ms) for baseline.
+	time_res_ms : float or None
+		Needed if add_slow_baseline=True.
 
-    Returns
-    -------
-    noisy_dynspec : array
-        dynspec + injected noise.
-    sigma_ch : (4, n_chan) array
-        Per-Stokes per-channel white-noise RMS used.
-    snr : float
-        On-pulse S/N of Stokes I.
-    """
-    dynspec = np.asarray(dynspec, dtype=float)
+	Returns
+	-------
+	noisy_dynspec : array
+		dynspec + injected noise.
+	sigma_ch : (4, n_chan) array
+		Per-Stokes per-channel white-noise RMS used.
+	snr : float
+		On-pulse S/N of Stokes I.
+	"""
+	dynspec = np.asarray(dynspec, dtype=float)
 
-    _, n_chan, n_time = dynspec.shape
+	_, n_chan, n_time = dynspec.shape
 
-    # Normalise inputs
-    sefd_arr = np.full(n_chan, sefd, dtype=float) if np.isscalar(sefd) else np.asarray(sefd, dtype=float)
-    f_res_arr = np.full(n_chan, f_res, dtype=float) if np.isscalar(f_res) else np.asarray(f_res, dtype=float)
+	# Normalise inputs
+	sefd_arr = np.full(n_chan, sefd, dtype=float) if np.isscalar(sefd) else np.asarray(sefd, dtype=float)
+	f_res_arr = np.full(n_chan, f_res, dtype=float) if np.isscalar(f_res) else np.asarray(f_res, dtype=float)
 
-    # Radiometer equation: sigma = SEFD / sqrt(n_pol * Δν * Δt)
-    sigma_I_ch = sefd_arr / np.sqrt(n_pol * f_res_arr * t_res)  # (n_chan,)
+	# Radiometer equation: sigma = SEFD / sqrt(n_pol * Δν * Δt)
+	sigma_I_ch = sefd_arr / np.sqrt(n_pol * f_res_arr * t_res)  # (n_chan,)
 
-    stokes_scale = np.asarray(stokes_scale, dtype=float)
+	stokes_scale = np.asarray(stokes_scale, dtype=float)
 
-    sigma_ch = np.vstack([sigma_I_ch * stokes_scale[s] for s in range(4)])  # (4, n_chan)
+	sigma_ch = np.vstack([sigma_I_ch * stokes_scale[s] for s in range(4)])  # (4, n_chan)
 
-    noise_white = np.random.normal(0.0, sigma_ch[:, :, None], size=(4, n_chan, n_time))
+	noise_white = np.random.normal(0.0, sigma_ch[:, :, None], size=(4, n_chan, n_time))
 
-    if add_slow_baseline:
-        if time_res_ms is None:
-            raise ValueError("time_res_ms required when add_slow_baseline=True")
-        sigma_bins = (baseline_kernel_ms / time_res_ms) / (2.0 * np.sqrt(2.0 * np.log(2.0)))
-        baseline = np.random.normal(0.0, sigma_ch[:, :, None] * baseline_frac, size=noise_white.shape)
-        baseline = gaussian_filter1d(baseline, sigma=sigma_bins, axis=2, mode='nearest')
-        noise = noise_white + baseline
-    else:
-        noise = noise_white
+	if add_slow_baseline:
+		if time_res_ms is None:
+			raise ValueError("time_res_ms required when add_slow_baseline=True")
+		sigma_bins = (baseline_kernel_ms / time_res_ms) / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+		baseline = np.random.normal(0.0, sigma_ch[:, :, None] * baseline_frac, size=noise_white.shape)
+		baseline = gaussian_filter1d(baseline, sigma=sigma_bins, axis=2, mode='nearest')
+		noise = noise_white + baseline
+	else:
+		noise = noise_white
 
-    noisy_dynspec = dynspec + noise
+	noisy_dynspec = dynspec + noise
 
-    I_time = np.nansum(noisy_dynspec[0], axis=0)
-    snr, (left, right) = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
+	I_time = np.nansum(noisy_dynspec[0], axis=0)
+	snr, (left, right) = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
 
-    if not plot_multiple_frb:
-        logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
+	if not plot_multiple_frb:
+		logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
 
-    return noisy_dynspec, sigma_ch, snr
+	return noisy_dynspec, sigma_ch, snr
 
 
 def boxcar_snr(ys, rms):
@@ -806,90 +859,90 @@ def boxcar_snr(ys, rms):
 
 
 def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None, one_sided_offpulse=False,
-                tail_frac=None, max_tail_mult=5):
-    """
-    Estimate S/N using an on-pulse window and an (adaptive) off-pulse RMS.
+				tail_frac=None, max_tail_mult=5):
+	"""
+	Estimate S/N using an on-pulse window and an (adaptive) off-pulse RMS.
 
-    Improvements:
-      - Optional tail expansion: include scattered tail in on-pulse so it is NOT treated as noise.
-      - Optional one-sided off-pulse: use only pre-burst region to avoid tail leakage.
+	Improvements:
+	  - Optional tail expansion: include scattered tail in on-pulse so it is NOT treated as noise.
+	  - Optional one-sided off-pulse: use only pre-burst region to avoid tail leakage.
 
-    Parameters
-    ----------
-    profile : 1D array
-    frac : float
-        Fraction of total flux for initial window (boxcar_width).
-    subtract_baseline : bool
-    robust_rms : bool
-    buffer_frac : float or None
-        Fraction of (initial) on-pulse width excluded on each side from off-pulse.
-    one_sided_offpulse : bool
-        If True, estimate noise ONLY from bins strictly before the on-pulse window (after buffer).
-    tail_frac : float or None
-        If set (e.g. 0.003), extend the right edge to include all bins with flux > tail_frac * peak
-        (up to max_tail_mult * initial_width). Helps include scattering tail in on-pulse.
-    max_tail_mult : int
-        Safety cap on tail extension (multiple of initial width).
+	Parameters
+	----------
+	profile : 1D array
+	frac : float
+		Fraction of total flux for initial window (boxcar_width).
+	subtract_baseline : bool
+	robust_rms : bool
+	buffer_frac : float or None
+		Fraction of (initial) on-pulse width excluded on each side from off-pulse.
+	one_sided_offpulse : bool
+		If True, estimate noise ONLY from bins strictly before the on-pulse window (after buffer).
+	tail_frac : float or None
+		If set (e.g. 0.003), extend the right edge to include all bins with flux > tail_frac * peak
+		(up to max_tail_mult * initial_width). Helps include scattering tail in on-pulse.
+	max_tail_mult : int
+		Safety cap on tail extension (multiple of initial width).
 
-    Returns
-    -------
-    snr : float
-    (left, right) : tuple
-        Final on-pulse edges used.
-    """
-    prof = np.asarray(profile, dtype=float)
-    n = prof.size
-    left, right = boxcar_width(prof, frac=frac)
-    peak_val = np.nanmax(prof)
-    init_width = max(1, right - left + 1)
+	Returns
+	-------
+	snr : float
+	(left, right) : tuple
+		Final on-pulse edges used.
+	"""
+	prof = np.asarray(profile, dtype=float)
+	n = prof.size
+	left, right = boxcar_width(prof, frac=frac)
+	peak_val = np.nanmax(prof)
+	init_width = max(1, right - left + 1)
 
-    # Tail expansion (right side) if requested
-    if tail_frac is not None and peak_val > 0:
-        thr = tail_frac * peak_val
-        max_right = min(n - 1, right + int(max_tail_mult * init_width))
-        r = right
-        # Continue while profile stays above threshold (monotonicity not required)
-        while r + 1 <= max_right and prof[r + 1] > thr:
-            r += 1
-        right = r
+	# Tail expansion (right side) if requested
+	if tail_frac is not None and peak_val > 0:
+		thr = tail_frac * peak_val
+		max_right = min(n - 1, right + int(max_tail_mult * init_width))
+		r = right
+		# Continue while profile stays above threshold (monotonicity not required)
+		while r + 1 <= max_right and prof[r + 1] > thr:
+			r += 1
+		right = r
 
-    width = max(1, right - left + 1)
-    buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0  # use initial width for buffer sizing
+	width = max(1, right - left + 1)
+	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0  # use initial width for buffer sizing
 
-    # On-pulse mask (after possible tail expansion)
-    mask_on = make_onpulse_mask(n, left, right)
-    onpulse = prof[mask_on]
+	# On-pulse mask (after possible tail expansion)
+	mask_on = make_onpulse_mask(n, left, right)
+	onpulse = prof[mask_on]
 
-    # Off-pulse mask
-    if one_sided_offpulse:
-        # Only LEFT side before (left - buffer_bins)
-        off_mask = np.zeros(n, dtype=bool)
-        start_off = 0
-        end_off = max(0, left - buffer_bins - 1)
-        if end_off >= start_off:
-            off_mask[start_off:end_off + 1] = True
-    else:
-        # Two-sided with buffer around expanded on-pulse
-        off_mask = make_offpulse_mask(n, left, right, buffer_bins=buffer_bins)
+	# Off-pulse mask
+	if one_sided_offpulse:
+		# Only LEFT side before (left - buffer_bins)
+		off_mask = np.zeros(n, dtype=bool)
+		start_off = 0
+		end_off = max(0, left - buffer_bins - 1)
+		if end_off >= start_off:
+			off_mask[start_off:end_off + 1] = True
+	else:
+		# Two-sided with buffer around expanded on-pulse
+		off_mask = make_offpulse_mask(n, left, right, buffer_bins=buffer_bins)
 
-    offpulse = prof[off_mask]
+	offpulse = prof[off_mask]
 
-    baseline = 0.0
-    if subtract_baseline:
-        if offpulse.size > 0:
-            baseline = np.nanmedian(offpulse)
-            onpulse = onpulse - baseline
-            offpulse = offpulse - baseline
+	baseline = 0.0
+	if subtract_baseline:
+		if offpulse.size > 0:
+			baseline = np.nanmedian(offpulse)
+			onpulse = onpulse - baseline
+			offpulse = offpulse - baseline
 
-    if robust_rms:
-        if offpulse.size > 0:
-            mad = np.nanmedian(np.abs(offpulse - np.nanmedian(offpulse)))
-            sigma = 1.4826 * mad if mad > 0 else np.nanstd(offpulse)
-        else:
-            sigma = np.nan
-    else:
-        sigma = np.nanstd(offpulse) if offpulse.size > 0 else np.nan
+	if robust_rms:
+		if offpulse.size > 0:
+			mad = np.nanmedian(np.abs(offpulse - np.nanmedian(offpulse)))
+			sigma = 1.4826 * mad if mad > 0 else np.nanstd(offpulse)
+		else:
+			sigma = np.nan
+	else:
+		sigma = np.nanstd(offpulse) if offpulse.size > 0 else np.nan
 
-    N_on = int(mask_on.sum())
-    snr = np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1))) if (sigma is not None and sigma > 0) else 0.0
-    return snr, (left, right)
+	N_on = int(mask_on.sum())
+	snr = np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1))) if (sigma is not None and sigma > 0) else 0.0
+	return snr, (left, right)
