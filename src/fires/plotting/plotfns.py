@@ -39,6 +39,8 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 	"""
 	chan_width_mhz = np.abs(fmhzarr[0] - fmhzarr[1])  # Calculate channel width in MHz
 	
+	if figsize is None:
+		figsize = (7, 9)
 	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.08, 0.70, 0.90, 0.28])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
@@ -147,6 +149,8 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 	logging.info("Max (dPA/dt) = %.2f +/- %.2f deg/ms \n" % (dpadt[dpamax], edpadt[dpamax]))
 
+	if figsize is None:
+		figsize = (7, 9)
 	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.15, 0.48, 0.83, 0.50])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
