@@ -122,7 +122,7 @@ def _disable_micro_variance_for_swept_base(sd_dict, xname):
 	return new_sd_dict
 
 
-def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, lfrac, snr_i, mode="auto"):
+def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, mode="auto"):
 	"""
 	Returns approximate Var(PA) [deg^2].
 	
@@ -190,20 +190,8 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 	else:
 		raise ValueError(f"Unknown mode '{mode}'")
 
-	# --- Add variance from measurement noise ---
-	# S/N of the linearly polarized signal
-	snr_l = snr_i * lfrac
-	if snr_l > 0:
-		# Variance from noise is ~1/(2*SNR_L^2) in rad^2
-		var_psi_noise_rad = 1.0 / (2.0 * snr_l**2)
-	else:
-		var_psi_noise_rad = 0.0
-
-	# Total variance is the sum of intrinsic and noise contributions
-	var_psi_rad = var_psi_intrinsic_rad + var_psi_noise_rad
-
 	# Convert to degrees^2
-	var_psi_deg2 = np.rad2deg(np.sqrt(var_psi_rad))**2
+	var_psi_deg2 = np.rad2deg(np.sqrt(var_psi_intrinsic_rad))**2
 
 	logging.info(f"Expected V(PA) Mode: {mode}")
 	logging.info(f"Expected V(PA) ~ {var_psi_deg2[0]:.3f} deg^2.")
@@ -578,7 +566,6 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 
 	# Assuming values from the first component for simplicity
 	_expected_pa_variance(
-		tau_eff, PA_sd, ngauss, width_ms, np.mean(peak_amp), peak_amp_sd, lfrac, snr if snr is not None else 1e9
-	)
+		tau_eff, PA_sd, ngauss, width_ms, np.mean(peak_amp), peak_amp_sd)
 	return dynspec, snr, var_params
 
