@@ -16,6 +16,11 @@
 import os
 import logging
 logging.basicConfig(level=logging.INFO)
+# Suppress noisy fontTools subset INFO messages
+for _name in ("fontTools", "fontTools.subset"):
+    _lg = logging.getLogger(_name)
+    _lg.setLevel(logging.WARNING)   
+    _lg.propagate = False
 
 import warnings
 import numpy as np
