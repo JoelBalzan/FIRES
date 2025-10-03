@@ -243,7 +243,6 @@ def est_profiles(dynspec, noise_stokes, left, right):
 
 		# PA detection mask
 		pa_det = (Lts >= pa_mask_sigma * sigma_L)
-		sigma_for_pa = sigma_L
 
 		phits[pa_det] = 0.5 * np.arctan2(Uts[pa_det], Qts[pa_det])
 		# Stable σ_PA approximation for detected bins
