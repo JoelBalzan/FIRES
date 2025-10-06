@@ -334,6 +334,16 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 
 	if scint_file is not None:
 		scint = load_scint_params(scint_file)
+		if scint.get("derive_from_tau", False):
+			# Derive decorrelation bandwidth at the REFERENCE frequency
+			tau_ms_ref = float(gdict["tau_ms"][0])          # τ_sc at ref_freq (from gparams)
+			tau_s_ref  = 1e-3 * tau_ms_ref                  # s
+			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)    # Hz
+			scint["nu_s"] = float(nu_s_hz)
+			logging.info(
+				f"Derived nu_s at reference {ref_freq:.1f} MHz: "
+				f"tau={tau_ms_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz"
+			)
 	else:
 		scint = None
 
@@ -389,7 +399,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			mode=mode,
 			var=None,
 			plot_multiple_frb=False,
-            target_snr=target_snr,			
+			target_snr=target_snr,			
 			**dspec_params._asdict()
 		)
 		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
@@ -493,7 +503,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 					xname=xname,
 					mode=mode,
 					plot_mode=plot_mode,
-            		target_snr=target_snr,
+					target_snr=target_snr,
 					**dspec_params._asdict()
 				)
 				results = list(tqdm(

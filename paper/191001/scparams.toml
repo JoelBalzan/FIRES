@@ -10,11 +10,12 @@
 #   Set enable=false to bypass without deleting file.
 
 [scintillation]
-t_s         = 0.005     # Characteristic timescale (s)
-nu_s        = 1.0e6     # Scintillation bandwidth (Hz)
-N_im        = 2000      # Number of phasor screen components
-th_lim      = 5.0       # Truncation of scattering disk (higher => slower & more accurate)
-return_field = false    # If true, code may return complex field as well as gain
+t_s             = 300       # Characteristic timescale (s)
+nu_s            = 89.41     # Scintillation bandwidth (Hz)
+derive_from_tau = true      # If true, derive the decorrelation bandwidth from the scattering timescale set in gparams.toml
+N_im            = 2000      # Number of phasor screen components
+th_lim          = 5.0       # Truncation of scattering disk (higher => slower & more accurate)
+return_field    = false     # If true, code may return complex field as well as gain
 
 # Optional overrides for future extension
 [scintillation.output]
