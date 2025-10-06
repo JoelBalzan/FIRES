@@ -62,7 +62,7 @@ def apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
 	nu_hz = freq_mhz * 1e6
 	ref_freq_hz = ref_freq_mhz * 1e6
 
-	logging.info(f"Applying scintillation: t_s={t_s*1000}ms, nu_s={nu_s/1e6}MHz, N_im={N_im}, th_lim={th_lim}")
+	logging.info(f"Applying scintillation: t_s={t_s}s, nu_s={np.round(nu_s,2)}Hz, N_im={N_im}, th_lim={th_lim}")
 
 	# Simulate complex field: shape (N_t, N_nu)
 	E = simulate_scintillation(t_sec, nu_hz, t_s=t_s, nu_s=nu_s, N_im=N_im, th_lim=th_lim, ref_freq_hz=ref_freq_hz)
