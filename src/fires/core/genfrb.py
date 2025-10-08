@@ -27,8 +27,7 @@ from tqdm import tqdm
 from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
                                  snr_onpulse)
 from fires.core.genfns import psn_dspec
-from fires.utils.config import (get_parameters, load_obs_params,
-                                load_scint_params)
+from fires.utils.config import (get_parameters, load_params)
 from fires.utils.utils import dspecParams, simulated_frb
 
 logging.basicConfig(level=logging.INFO)
@@ -244,7 +243,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
-	obs_params = load_obs_params(obs_file)
+	obs_params = load_params("obsparams", obs_file, "observation")
 
 	# Extract frequency and time parameters
 	f_start = float(obs_params['f0'])
@@ -330,7 +329,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	}
 
 	if scint_file is not None:
-		scint = load_scint_params(scint_file)
+		scint = load_params("scparams", scint_file, "scintillation")
 		if scint.get("derive_from_tau", False):
 			# Derive decorrelation bandwidth at the REFERENCE frequency
 			tau_ms_ref = float(gdict["tau_ms"][0])          # τ_sc at ref_freq (from gparams)
