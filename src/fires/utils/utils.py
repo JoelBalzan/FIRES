@@ -38,8 +38,7 @@ def init_logging(verbose: bool | None = None):
         logger.setLevel(level)
         return logger
     class BracketFormatter(logging.Formatter):
-        # Optional simple color map (ANSI) if stdout is a TTY
-        COLORS = {
+        COLOURS = {
             "DEBUG": "\033[36m",
             "INFO": "\033[32m",
             "WARNING": "\033[33m",
@@ -50,15 +49,13 @@ def init_logging(verbose: bool | None = None):
         def format(self, record):
             base = super().format(record)
             if os.isatty(1):
-                color = self.COLORS.get(record.levelname, "")
-                if color:
-                    return f"{color}{base}{self.RESET}"
+                colour = self.COLOURS.get(record.levelname, "")
+                if colour:
+                    return f"{colour}{base}{self.RESET}"
             return base
 
     handler = logging.StreamHandler()
-    # Bracketed level at front:
     fmt = "[%(levelname)s] %(name)s: %(message)s"
-    # If you want timestamps too:
     # fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     handler.setFormatter(BracketFormatter(fmt))
     logger.addHandler(handler)
@@ -69,14 +66,6 @@ def init_logging(verbose: bool | None = None):
     return logger
 
 LOG = logging.getLogger(LOG_NAME)
-
-def vprint(*args, level=logging.DEBUG, sep=" ", end="\n"):
-    """
-    Convenience verbose print; only emits when LOG level <= level.
-    """
-    if LOG.isEnabledFor(level):
-        LOG.log(level, sep.join(str(a) for a in args) + ("" if end == "\n" else end))
-
 
 #    --------------------------	Define parameters	-------------------------------
 def get_parameters(filename):
