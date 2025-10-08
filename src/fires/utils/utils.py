@@ -67,34 +67,6 @@ def init_logging(verbose: bool | None = None):
 
 LOG = logging.getLogger(LOG_NAME)
 
-#    --------------------------	Define parameters	-------------------------------
-def get_parameters(filename):
-    parameters = {}
-    with open(filename, 'r') as file:
-        for line in file:
-            line = line.strip()
-            # Skip empty lines or comment lines
-            if not line or line.startswith('#'):
-                continue
-            
-            # Check for either '=' or ':' separator
-            if '=' in line:
-                key, value = line.split('=', 1)  # Use maxsplit=1 to handle extra '=' in values
-            elif ':' in line:
-                key, value = line.split(':', 1)  # Use maxsplit=1 to handle extra ':' in values
-            else:
-                continue  # Skip lines without either separator
-            
-            # Remove square brackets and their contents from the value
-            import re
-            value = re.sub(r'\[.*?\]', '', value).strip()
-            
-            parameters[key.strip()] = value
-    return parameters
-
-
-#
-
 def chi2_fit(x_data, y_data, y_err, model_func, initial_guess):
     """
     Perform chi-squared fitting on the data.

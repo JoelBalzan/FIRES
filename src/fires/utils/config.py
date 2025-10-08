@@ -155,32 +155,28 @@ def find_config_file(kind: str,
 # --------------- Public loading API ---------------
 def load_params(kind: str,
                 config_dir: Optional[Path] = None,
+                name: Optional[str] = None,
                 override_path: Optional[Path] = None) -> Dict[str, Any]:
     p = find_config_file(kind, config_dir=config_dir, override_path=override_path)
     if not p.exists():
         raise FileNotFoundError(f"No config file found for kind '{kind}' at {p}")
     if p.suffix.lower() == ".toml":
-        return _read_toml(p)
-    return _parse_txt(p)
-
-
-def load_obs_params(config_dir: Optional[Path] = None) -> Dict[str, Any]:
-    d = load_params("obsparams", config_dir)
-    # Unwrap table if present
-    if isinstance(d, dict) and "observation" in d and isinstance(d["observation"], dict):
-        out = d["observation"].copy()
-        out["_table"] = "observation"
+        data = _read_toml(p)
+        # If a table name is requested, return that sub-table when present
+        if name and isinstance(data, dict) and name in data and isinstance(data[name], dict):
+            out = data[name].copy()
+            out["_table"] = name
+            return out
+        return data
+    d = _parse_txt(p)
+    if isinstance(d, dict) and name in d and isinstance(d[name], dict):
+        out = d[name].copy()
+        out["_table"] = name
         return out
     return d
 
-def load_scint_params(config_dir: Optional[Path] = None) -> Dict[str, Any]:
-    d = load_params("scparams", config_dir)
-    if isinstance(d, dict) and "scintillation" in d and isinstance(d["scintillation"], dict):
-        out = d["scintillation"].copy()
-        out["_table"] = "scintillation"
-        return out
-    return d
-
+# --------------- Legacy TXT parsing ---------------
+# used when loading CELEBI param files
 def get_parameters(filename):
     parameters = {}
     with open(filename, 'r') as file:
