@@ -19,9 +19,9 @@ import logging
 import numpy as np
 
 from fires.core.basicfns import (add_noise, compute_required_sefd,
-                                 gaussian_model, scatter_dspec)
+                                 scatter_dspec)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
-from fires.utils.utils import speed_of_light_cgs
+from fires.utils.utils import speed_of_light_cgs, gaussian_model
 
 logging.basicConfig(level=logging.INFO)
 
