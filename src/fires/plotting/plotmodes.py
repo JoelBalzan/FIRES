@@ -723,7 +723,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	colours : dict
 		Default color palette.
 	weight_key : str
-		Key to use for weighting y-values ("PA", "l_var", or any parameter name).
+		Key to use for weighting y-values ("PA", "l_frac", or any parameter name).
 	weight_x_by : str or None, optional
 		Parameter to weight/normalize x-axis by.
 	"""
@@ -1072,7 +1072,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	if show_plots:
 		plt.show()
 	if save:
-		name = _make_plot_fname("l_var", scale, fname, freq_window, phase_window)
+		name = _make_plot_fname("l_frac", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, dpi=600)
 		logging.info(f"Saved figure to {name}  \n")
@@ -1087,8 +1087,8 @@ pa_var = PlotMode(
 	requires_multiple_frb=True  
 )
 
-l_var = PlotMode(
-	name="l_var",
+l_frac = PlotMode(
+	name="l_frac",
 	process_func=_process_lfrac,
 	plot_func=plot_lfrac_var,
 	requires_multiple_frb=True  
@@ -1124,7 +1124,7 @@ RM = PlotMode(
 
 plot_modes = {
 	"pa_var": pa_var,
-	"l_var": l_var,
+	"l_frac": l_frac,
 	"iquv": iquv,
 	"lvpa": lvpa,
 	"dpa": dpa,

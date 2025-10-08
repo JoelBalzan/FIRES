@@ -32,7 +32,7 @@ fires -m psn --plot lvpa --save-plots
 
 Sweep scattering times (see configs):
 ```bash
-fires -m psn --plot pa_var l_var --plot-scale loglog
+fires -m psn --plot pa_var l_frac --plot-scale loglog
 ```
 
 ## Configuration (TOML)
@@ -70,7 +70,7 @@ Notes
 - `-f, --frb_identifier <str>`: Simulation identifier.
 - `-o, --output-dir <dir>`: Output directory (default: `simfrbs/`).
 - `--write`: Save simulated data to disk.
-- `-p, --plot <modes...>`: One or more of: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `l_var`.
+- `-p, --plot <modes...>`: One or more of: `all`, `None`, `iquv`, `lvpa`, `dpa`, `RM`, `pa_var`, `l_frac`.
 - `-s, --save-plots`: Save plots to disk.
 - `-d, --data <dir>`: Directory containing Stokes cube (.npy).
 - `--phase-window <name>`: `first`, `last`, `all` (aka `leading`, `trailing`, `total`).
@@ -84,7 +84,7 @@ Config management:
 - `--edit-config {gparams,obsparams}`: Open the chosen config in your editor.
 
 Tip
-- Some plot modes aggregate across multiple tau values (`pa_var`, `l_var`).
+- Some plot modes aggregate across multiple tau values (`pa_var`, `l_frac`).
 
 
 ## Project structure
