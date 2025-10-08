@@ -21,22 +21,12 @@ import numpy as np
 
 from inspect import signature
 
-from .core.genfrb import generate_frb
-from .utils.utils import chi2_fit, gaussian_model, window_map, init_logging, LOG, vprint
-from .plotting.plotmodes import plot_modes, configure_matplotlib
-from .utils import config as cfg
+from fires.core.genfrb import generate_frb
+from fires.utils.utils import chi2_fit, gaussian_model, window_map, init_logging, LOG
+from fires.plotting.plotmodes import plot_modes, configure_matplotlib
+from fires.utils import config as cfg
 
 
-
-def str2bool(v):
-	if isinstance(v, bool):
-		return v
-	if v.lower() in ('yes', 'true', 't', 'y', '1'):
-		return True
-	elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-		return False
-	else:
-		raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def main():
 	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects",
@@ -116,7 +106,7 @@ def main():
 		type=float,
 		default=0.1,
 		metavar="",
-		help="Buffer time in between on- and off-pulse regions as a fraction of the pulse width for noise estimation. Default is 0.25."
+		help="Buffer time in between on- and off-pulse regions as a fraction of the pulse width for noise estimation. Default is 0.1."
 	)
 	parser.add_argument(
 		"-v", "--verbose",
@@ -132,7 +122,7 @@ def main():
 		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_var'],
 		metavar="",
 		help=(
-			"Generate plots. Pass 'all' to generate all plots, or specify one or more plot names separated by spaces:\n"
+			"Generate plots. Pass 'all' to generate all (non-*_var) plots, or specify one or more plot names separated by spaces:\n"
 			"  'iquv': Plot the Stokes parameters (I, Q, U, V) vs. time or frequency.\n"
 			"  'lvpa': Plot linear polarization (L) and polarization angle (PA) vs. time.\n"
 			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) vs. time.\n"
@@ -148,10 +138,10 @@ def main():
 		help="Save plots to disk."
 	)
 	parser.add_argument(
-		"--show-plots",
-		type=str2bool,
-		default=True,
-		help="Display plots. Default is True. Set to False to disable plot display."
+		"--disable-plots",
+		action="store_false",
+		dest="show_plots",
+		help="Disable plot display. "
 	)
 	parser.add_argument(
 		"--figsize",
