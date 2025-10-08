@@ -13,12 +13,12 @@
 
 #	--------------------------	Import modules	---------------------------
 
-import os
 import logging
-import numpy as np
-
-from typing import NamedTuple
+import os
 from collections import namedtuple
+from typing import NamedTuple
+
+import numpy as np
 from scipy.optimize import curve_fit
 
 #	--------------------------	Logging setup	---------------------------
@@ -179,7 +179,7 @@ frb_spectrum	=	namedtuple('frbspec',['iquvspec','diquvspec','lspec','dlspec','ps
 
 
 
-class DynspecParams(NamedTuple):
+class dspecParams(NamedTuple):
     gdict          : dict
     sd_dict       : dict
     scint_dict     : dict

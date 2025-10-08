@@ -32,7 +32,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circvar
 
 
-from ..core.basicfns import process_dynspec, on_off_pulse_masks_from_profile
+from ..core.basicfns import process_dspec, on_off_pulse_masks_from_profile
 from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
 
 
@@ -156,7 +156,7 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 
 	tau_ms = dspec_params.gdict['tau_ms']
 
-	ts_data, corr_dspec, noise_spec, noise_stokes = process_dynspec(
+	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
 		frb_data.dynamic_spectrum, freq_mhz, gdict, buffer_frac
 	)
 
@@ -814,7 +814,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 		time_ms = time_ms[phase_slc]
 		#dspec = dspec_fslc[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
+	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
 
 	phits = ts_data.phits[phase_slc]
 	ephits = ts_data.ephits[phase_slc]
@@ -958,7 +958,7 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, b
 		time_ms = time_ms[phase_slc]
 		dspec = dspec[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
+	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
 
 	I, Q, U, V = ts_data.iquvt
 	buffer_frac = buffer_frac

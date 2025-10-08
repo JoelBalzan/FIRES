@@ -12,28 +12,29 @@
 # -----------------------------------------------------------------------------
 
 # -------------------------- Import modules ---------------------------
-import os
-import sys
-import inspect
 import functools
+import inspect
 import logging
-logging.basicConfig(level=logging.INFO)
+import os
+import pickle as pkl
+import sys
+from concurrent.futures import ProcessPoolExecutor
+from itertools import product
 
 import numpy as np
-import pickle as pkl
-
 from tqdm import tqdm
 
-from itertools import product
-from concurrent.futures import ProcessPoolExecutor
+from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
+                                 snr_onpulse)
+from fires.core.genfns import psn_dspec
+from fires.utils.config import (get_parameters, load_obs_params,
+                                load_scint_params)
+from fires.utils.utils import dspecParams, simulated_frb
 
-from .basicfns import scatter_dspec, add_noise
-from .genfns import *
-from ..utils.utils import *
-from fires.utils.config import get_parameters, load_obs_params, load_scint_params
+logging.basicConfig(level=logging.INFO)
 
 
-def _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
+def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
 	"""
 	Scatter all Stokes channels of a loaded dynamic spectrum.
 	Args:
@@ -93,8 +94,8 @@ def _load_multiple_data_grouped(data):
 	Group simulation outputs by freq and phase info (everything after freq_ and phase_).
 	Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
 	"""
-	from collections import defaultdict
 	import re
+	from collections import defaultdict
 	
 	logging.info(f"Loading grouped data from {data}...")
 
@@ -172,18 +173,16 @@ def _load_multiple_data_grouped(data):
 	return all_results
 
 
-def _generate_dynspec(xname, mode, var, plot_multiple_frb, target_snr=None, **params):
+def _generate_dspec(xname, mode, var, plot_multiple_frb, target_snr=None, **params):
 	"""Generate dynamic spectrum based on mode."""
 	var = var if plot_multiple_frb else None
 
 	# Choose the correct function
-	if mode == 'gauss':
-		dynspec_func = gauss_dynspec
-	else:  # mode == 'psn'
-		dynspec_func = m_gauss_dynspec
+	if mode == 'psn':
+		dspec_func = psn_dspec
 
 	# Get the argument names for the selected function
-	sig = inspect.signature(dynspec_func)
+	sig = inspect.signature(dspec_func)
 	allowed_args = set(sig.parameters.keys())
 
 	# Always pass tau_ms as v
@@ -193,10 +192,8 @@ def _generate_dynspec(xname, mode, var, plot_multiple_frb, target_snr=None, **pa
 	}
  
 	if mode == 'psn':
-		return m_gauss_dynspec(**params_filtered, variation_parameter=var, xname=xname, plot_multiple_frb=plot_multiple_frb,
+		return psn_dspec(**params_filtered, variation_parameter=var, xname=xname, plot_multiple_frb=plot_multiple_frb,
 								target_snr=target_snr)
-	elif mode == 'gauss':
-		return gauss_dynspec(**params_filtered, plot_multiple_frb=plot_multiple_frb, target_snr=target_snr)
 
 
 def _process_task(task, xname, mode, plot_mode, **params):
@@ -215,7 +212,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
-	dspec, snr, var_params = _generate_dynspec(
+	dspec, snr, var_params = _generate_dspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -348,7 +345,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		scint = None
 
 	# Create dynamic spectrum parameters
-	dspec_params = DynspecParams(
+	dspec_params = dspecParams(
 		gdict           = gdict,
 		sd_dict         = sd_dict,
 		scint_dict      = scint,
@@ -385,16 +382,16 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			snr, (left, right) = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
 			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
 			if tau_ms[0] > 0:
-				dspec = _scatter_loaded_dynspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
+				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if sefd > 0:
-				dspec, sigma_ch, snr = add_noise(dynspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res, 
+				dspec, sigma_ch, snr = add_noise(dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res, 
 													plot_multiple_frb=plot_multiple_frb)
 			
 			# Update dspec_params with new time and frequency arrays
 			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
 
 		else:
-			dspec, snr, _ = _generate_dynspec(
+			dspec, snr, _ = _generate_dspec(
 			xname=None,
 			mode=mode,
 			var=None,
@@ -402,7 +399,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			target_snr=target_snr,			
 			**dspec_params._asdict()
 		)
-		_, _, _, noise_spec = process_dynspec(dspec, freq_mhz, gdict, buffer_frac)
+		_, _, _, noise_spec = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
 		frb_data = simulated_frb(
 			frb_id, dspec, dspec_params, snr
 		)

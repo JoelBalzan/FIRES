@@ -12,16 +12,15 @@
 
 #	--------------------------	Import modules	---------------------------
 
+import logging
 import os
 
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import numpy as np
 
-from ..utils.utils import *
-from ..core.basicfns import *
+from ..core.basicfns import on_off_pulse_masks_from_profile
 
-import logging
 logging.basicConfig(level=logging.INFO)
 #	----------------------------------------------------------------------------------------------------------
 
