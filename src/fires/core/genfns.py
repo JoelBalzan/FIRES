@@ -14,15 +14,16 @@
 #	--------------------------	Import modules	---------------------------
 
 
-import numpy as np
 import logging
 
-logging.basicConfig(level=logging.INFO)
+import numpy as np
 
-from ..utils.utils import *
-from .basicfns import *
-from ..plotting.plotfns import *
-from ..scint.lib_ScintillationMaker import simulate_scintillation
+from fires.core.basicfns import (add_noise, compute_required_sefd,
+                                 gaussian_model, scatter_dspec)
+from fires.scint.lib_ScintillationMaker import simulate_scintillation
+from fires.utils.utils import speed_of_light_cgs
+
+logging.basicConfig(level=logging.INFO)
 
 GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) 
 
@@ -35,7 +36,7 @@ def _apply_faraday_rotation(pol_angle_arr, RM, lambda_sq, median_lambda_sq):
 def _calculate_dispersion_delay(DM, freq, ref_freq):
 	return 4.15 * DM * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
 
-def apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
+def apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
 	"""
 	Apply diffractive scintillation as a multiplicative gain field to all Stokes.
 
@@ -49,7 +50,7 @@ def apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
 		mod_scale  : optional factor to scale modulation index (gain -> 1 + (gain-1)*mod_scale)
 
 	Returns:
-		gain (nf, nt) applied in-place to dynspec.
+		gain (nf, nt) applied in-place to dspec.
 	"""
 	t_s          = float(scint_dict.get("t_s"))
 	nu_s         = float(scint_dict.get("nu_s"))
@@ -75,7 +76,7 @@ def apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
 	gain_fn = gain_tn.T  # (N_nu, N_t)
 
 	# Apply in-place to all Stokes
-	dynspec *= gain_fn[None, :, :]
+	dspec *= gain_fn[None, :, :]
 
 	if return_field:
 		return gain_fn, E.T  # (nf, nt) each
@@ -122,7 +123,7 @@ def _disable_micro_variance_for_swept_base(sd_dict, xname):
 	return new_sd_dict
 
 
-def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd, mode="auto"):
+def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd):
 	"""
 	Returns approximate Var(PA) [deg^2].
 	
@@ -140,14 +141,6 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 		Mean micro-shot linear amplitude.
 	peak_amp_sd : float
 		Std dev of micro-shot linear amplitude.
-	lfrac : float
-		Mean linear polarization fraction.
-	snr_i : float
-		Peak signal-to-noise ratio in total intensity (Stokes I).
-	mode : str, {"auto", "linearised", "large_sigma"}
-		- "linearised": delta-method (valid for small sigma).
-		- "large_sigma": hyperbolic-sine formula (valid for large sigma).
-		- "auto": pick regime automatically based on sigma.
 	"""
 
 	# Convert main component FWHM to standard deviation
@@ -176,178 +169,22 @@ def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_am
 		# For unscattered shots, N_eff is simply the total number of shots
 		N_eff = ngauss
 
-	# Auto mode selection
-	if mode == "auto":
-		# Rule of thumb: if sigma < ~15° (~0.26 rad), use linearised
-		mode = "linearised" if sigma_rad < 0.26 else "large_sigma"
+	var_psi_intrinsic_rad = pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff)
 
-	if mode == "linearised":
-		# Delta-method approximation
-		var_psi_intrinsic_rad = pref * sigma2 / N_eff
-	elif mode == "large_sigma":
-		# Hyperbolic-sine formula (exact for Gaussian PA distribution)
-		var_psi_intrinsic_rad = pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff)
-	else:
-		raise ValueError(f"Unknown mode '{mode}'")
 
 	# Convert to degrees^2
 	var_psi_deg2 = np.rad2deg(np.sqrt(var_psi_intrinsic_rad))**2
 
-	logging.info(f"Expected V(PA) Mode: {mode}")
 	logging.info(f"Expected V(PA) ~ {var_psi_deg2[0]:.3f} deg^2.")
 
 	return var_psi_deg2
 
 
-
-# -------------------------- FRB generator functions ---------------------------
-def gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, scint_dict, sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac,
-				target_snr=None):
-	"""
-	Generate dynamic spectrum for Gaussian pulses.
-	
-	Args:
-		freq_mhz: Frequency array in MHz
-		time_ms: Time array in ms
-		time_res_ms: Time resolution in ms
-		seed: Random seed for reproducibility
-		gdict: Dictionary containing pulse parameters (t0, width_ms, peak_amp, etc.)
-		noise: Boolean flag to add noise
-		tau_ms: Scattering timescale in ms
-		sc_idx: Scattering index
-		ref_freq_mhz: Reference frequency in MHz
-		plot_multiple_frb: Flag for plotting multiple FRBs
-	
-	Returns:
-		tuple: (dynspec, snr, None) where dynspec is a 4D array [I, Q, U, V]
-	"""
-
-
-	seed = _init_seed(seed, plot_multiple_frb)
-
-	t0              = gdict['t0']
-	width_ms        = gdict['width_ms']
-	peak_amp        = gdict['peak_amp']
-	spec_idx        = gdict['spec_idx']
-	tau_ms 	   		= gdict['tau_ms']
-	PA              = gdict['PA']
-	DM              = gdict['DM']
-	RM              = gdict['RM']
-	lfrac           = gdict['lfrac']
-	vfrac           = gdict['vfrac']
-	dPA             = gdict['dPA']
-	band_centre_mhz = gdict['band_centre_mhz']
-	band_width_mhz  = gdict['band_width_mhz']
-
-	# Initialize dynamic spectrum for all Stokes parameters
-	dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # [I, Q, U, V]
-	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
-	median_lambda_sq = np.nanmedian(lambda_sq)
-	num_gauss = len(t0) 
-	# Calculate frequency-dependent scattering timescale
-	if tau_ms > 0:
-		tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** sc_idx
-	else:
-		tau_cms = np.zeros_like(freq_mhz)
-
-	for g in range(num_gauss):
-		# Frequency-dependent amplitude
-		norm_amp = peak_amp[g] * (freq_mhz / ref_freq_mhz) ** spec_idx[g]
-
-		# Optional spectral Gaussian
-		if band_width_mhz[g] != 0.:
-			centre_freq = band_centre_mhz[g] if band_centre_mhz[g] != 0. else np.median(freq_mhz)
-			spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, band_width_mhz[g] / GAUSSIAN_FWHM_FACTOR)
-			norm_amp *= spectral_profile
-
-		# Intrinsic temporal Gaussian (shared across freq)
-		base_gauss = gaussian_model(time_ms, 1.0, t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
-		I_ft = norm_amp[:, None] * base_gauss[None, :]
-
-		# Dispersion (channel shifts)
-		if DM[g] != 0:
-			shifts = np.round(_calculate_dispersion_delay(DM[g], freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
-			for c, s in enumerate(shifts):
-				if s != 0:
-					I_ft[c] = np.roll(I_ft[c], s)
-
-		# Scattering (vectorised)
-		if tau_ms > 0:
-			I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
-
-		# Polarization angle vs time
-		pol_angle_arr = PA[g] + (time_ms - t0[g]) * dPA[g]
-		# Faraday rotation (nf, nt)
-		faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM[g], lambda_sq[:, None], median_lambda_sq)
-
-		# Stokes
-		Q_ft = I_ft * lfrac[g] * np.cos(2 * faraday_angles)
-		U_ft = I_ft * lfrac[g] * np.sin(2 * faraday_angles)
-		V_ft = I_ft * vfrac[g]
-
-		dynspec[0] += I_ft
-		dynspec[1] += Q_ft
-		dynspec[2] += U_ft
-		dynspec[3] += V_ft
-
-	# --- Apply scintillation if requested ---
-	if scint_dict is not None:
-		apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
-
-	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
-	t_res_s = time_res_ms / 1000.0
-
-	# --- Derive SEFD from target S/N if requested ---
-	if target_snr is not None:
-		sefd_est = compute_required_sefd(
-			dynspec,
-			f_res_hz=f_res_hz,
-			t_res_s=t_res_s,
-			target_snr=target_snr,
-			n_pol=2,
-			frac=0.95,
-			buffer_frac=buffer_frac
-		)
-		# Iterative correction: account for tail leakage raising measured RMS
-		rng = np.random.default_rng(seed)
-		sefd_work = sefd_est
-		max_iter = 5
-		tol = 0.02  # 2%
-		for _it in range(max_iter):
-			noisy, _, snr_meas = add_noise(
-				dynspec, sefd_work, f_res_hz, t_res_s,
-				plot_multiple_frb=True, buffer_frac=buffer_frac, n_pol=2, rng=rng
-			)
-			# Scale (SNR ∝ 1/SEFD) so new SEFD = old * (snr_meas / target)
-			if snr_meas <= 0:
-				break
-			ratio = snr_meas / target_snr
-			if abs(ratio - 1) < tol:
-				break
-			sefd_work *= ratio
-		sefd = sefd_work
-		if not plot_multiple_frb:
-			print(f"SEFD set to {sefd:.3g} Jy for target S/N {target_snr} (iterative)")
-
-
-	if sefd > 0:
-		dynspec, sigma_ch, snr = add_noise(
-			dynspec, sefd, f_res_hz, t_res_s,
-			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
-		)
-	else:
-		snr = None
-
-	return dynspec, snr, None
-
-
-
-
-def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
+def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 					sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
 					variation_parameter=None, xname=None, target_snr=None):
 	"""
-	Generate dynamic spectrum from microshots with optional parameter sweeping.
+	Generate dynamic spectrum from microshots (polarised shot noise) with optional parameter sweeping.
 
 	Sweep modes:
 	  none      : Do not modify means or variances based on sweep values.
@@ -419,7 +256,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 	band_width_mhz_sd  = sd_dict['band_width_mhz_sd']
 	
 			
-	dynspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
+	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
 	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
 	median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
@@ -512,14 +349,14 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 			U_ft = I_ft * var_lfrac * np.sin(2 * faraday_angles)
 			V_ft = I_ft * var_vfrac
 
-			dynspec[0] += I_ft
-			dynspec[1] += Q_ft
-			dynspec[2] += U_ft
-			dynspec[3] += V_ft
+			dspec[0] += I_ft
+			dspec[1] += Q_ft
+			dspec[2] += U_ft
+			dspec[3] += V_ft
 
 	# --- Apply scintillation if requested ---
 	if scint_dict is not None:
-		apply_scintillation(dynspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
+		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
 
 	# Calculate variance for each parameter in var_params
 	var_params = {key: np.nanvar(values) for key, values in all_params.items()}
@@ -530,7 +367,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 	# --- Derive SEFD from target S/N if requested ---
 	if target_snr is not None:
 		sefd_est = compute_required_sefd(
-			dynspec,
+			dspec,
 			f_res_hz=f_res_hz,
 			t_res_s=t_res_s,
 			target_snr=target_snr,
@@ -543,7 +380,7 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 		max_iter, tol = 5, 0.02
 		for _ in range(max_iter):
 			_, _, snr_meas = add_noise(
-				dynspec, sefd_work, f_res_hz, t_res_s,
+				dspec, sefd_work, f_res_hz, t_res_s,
 				plot_multiple_frb=True, buffer_frac=buffer_frac,
 				n_pol=2
 			)
@@ -557,15 +394,16 @@ def m_gauss_dynspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_
 			print(f"SEFD set to {sefd:.3g} Jy for target S/N {target_snr}")
 
 	if sefd > 0:
-		dynspec, sigma_ch, snr = add_noise(
-			dynspec, sefd, f_res_hz, t_res_s,
+		dspec, sigma_ch, snr = add_noise(
+			dspec, sefd, f_res_hz, t_res_s,
 			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
 		)
 	else:
 		snr = None
 
-	# Assuming values from the first component for simplicity
-	_expected_pa_variance(
-		tau_eff, PA_sd, ngauss, width_ms, np.mean(peak_amp), peak_amp_sd)
-	return dynspec, snr, var_params
+	if PA_sd > 0 and ngauss > 1:
+		# Assuming values from the first component for simplicity
+		exp_V_psi_deg2 = _expected_pa_variance(tau_eff, PA_sd, ngauss, width_ms, np.mean(peak_amp), peak_amp_sd)
+	
+	return dspec, snr, var_params
 

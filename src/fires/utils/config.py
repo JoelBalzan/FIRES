@@ -1,19 +1,21 @@
 from __future__ import annotations
+
+import logging
+import os
+import shutil
+from datetime import datetime
+from importlib import resources
 from pathlib import Path
 from typing import Any, Dict, Optional
-from datetime import datetime
-import shutil
-import os
-import logging
-logging.basicConfig(level=logging.INFO)
 
 from platformdirs import AppDirs
-from importlib import resources
 
 try:                 # Python 3.11+
-    import tomllib    # type: ignore
+    import tomllib  # type: ignore
 except ModuleNotFoundError:  # Python 3.10 fallback
     import tomli as tomllib  # type: ignore
+
+logging.basicConfig(level=logging.INFO)
 
 APP_NAME = "fires"
 DIRS = AppDirs(APP_NAME, APP_NAME)

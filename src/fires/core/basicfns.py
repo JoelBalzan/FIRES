@@ -13,16 +13,18 @@
 
 #	--------------------------	Import modules	---------------------------
 
-import os
 import logging
-logging.basicConfig(level=logging.INFO)
+import os
 
 import numpy as np
-from scipy.signal import fftconvolve
-from scipy.ndimage import gaussian_filter1d
 from RMtools_1D.do_RMclean_1D import run_rmclean
 from RMtools_1D.do_RMsynth_1D import run_rmsynth
-from ..utils.utils import *
+from scipy.ndimage import gaussian_filter1d
+from scipy.signal import fftconvolve
+
+from fires.utils.utils import frb_spectrum, frb_time_series, speed_of_light_cgs
+
+logging.basicConfig(level=logging.INFO)
 
 #	---------------------------------------------------------------------------------
 
@@ -78,13 +80,13 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 	return res
 
 
-def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, save, show_plots):
+def estimate_rm(dspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, save, show_plots):
 	"""
 	Estimate the rotation measure (RM) of an FRB from its dynamic spectrum using RM synthesis.
 
 	Parameters:
 	-----------
-	dynspec : ndarray, shape (4, n_freq, n_time)
+	dspec : ndarray, shape (4, n_freq, n_time)
 		4D dynamic spectrum array with Stokes I, Q, U, V
 	freq_mhz : array_like
 		Frequency channels in MHz
@@ -114,13 +116,13 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 	"""
 
 
-	left, right = boxcar_width(np.nansum(dynspec[0], axis=0), frac=0.95)
+	left, right = boxcar_width(np.nansum(dspec[0], axis=0), frac=0.95)
 
 	# Calculate the mean spectra for each Stokes parameter
-	ispec   = np.nansum(dynspec[0, :, left:right], axis=1)
-	vspec   = np.nansum(dynspec[3, :, left:right], axis=1)
-	qspec0  = np.nansum(dynspec[1, :, left:right], axis=1)
-	uspec0  = np.nansum(dynspec[2, :, left:right], axis=1)
+	ispec   = np.nansum(dspec[0, :, left:right], axis=1)
+	vspec   = np.nansum(dspec[3, :, left:right], axis=1)
+	qspec0  = np.nansum(dspec[1, :, left:right], axis=1)
+	uspec0  = np.nansum(dspec[2, :, left:right], axis=1)
 	noispec = noisespec / np.sqrt(float(right + 1 - left))
 
 
@@ -136,13 +138,13 @@ def estimate_rm(dynspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, 
 	return res_rmtool
 
 
-def rm_correct_dynspec(dynspec, freq_mhz, rm0):
+def rm_correct_dspec(dspec, freq_mhz, rm0):
 	"""
 	Apply rotation measure correction to remove Faraday rotation from a dynamic spectrum.
  
 	Parameters:
 	-----------
-	dynspec : ndarray, shape (4, n_freq, n_time)
+	dspec : ndarray, shape (4, n_freq, n_time)
 		Input dynamic spectrum with Stokes I, Q, U, V
 	freq_mhz : array_like
 		Frequency channels in MHz
@@ -159,9 +161,9 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 
 	
 	# Initialise the new dynamic spectrum
-	new_dynspec    = np.zeros(dynspec.shape, dtype=float)
-	new_dynspec[0] = dynspec[0]
-	new_dynspec[3] = dynspec[3]
+	new_dspec    = np.zeros(dspec.shape, dtype=float)
+	new_dspec[0] = dspec[0]
+	new_dspec[3] = dspec[3]
 	
 	# Calculate the lambda squared array
 	lambda_sq 		 = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
@@ -170,20 +172,20 @@ def rm_correct_dynspec(dynspec, freq_mhz, rm0):
 	# Apply RM correction to Q and U spectra
 	for ci in range(len(lambda_sq)):
 		rot_angle = -2 * rm0 * (lambda_sq[ci] - lambda_sq_median)
-		new_dynspec[1, ci] = dynspec[1, ci] * np.cos(rot_angle) - dynspec[2, ci] * np.sin(rot_angle)
-		new_dynspec[2, ci] = dynspec[2, ci] * np.cos(rot_angle) + dynspec[1, ci] * np.sin(rot_angle)
+		new_dspec[1, ci] = dspec[1, ci] * np.cos(rot_angle) - dspec[2, ci] * np.sin(rot_angle)
+		new_dspec[2, ci] = dspec[2, ci] * np.cos(rot_angle) + dspec[1, ci] * np.sin(rot_angle)
 
-	return new_dynspec
+	return new_dspec
 
 
-def est_profiles(dynspec, noise_stokes, left, right):
+def est_profiles(dspec, noise_stokes, left, right):
 	"""
 	Extract and analyze time-resolved polarization profiles from a dynamic spectrum.
 	
 	Parameters:
 	Parameters:
 	-----------
-	dynspec : ndarray, shape (4, n_freq, n_time)  
+	dspec : ndarray, shape (4, n_freq, n_time)  
 		Dynamic spectrum with Stokes I, Q, U, V
 	noise_stokes : array_like, shape (4,)
 		RMS noise levels for each Stokes parameter
@@ -207,7 +209,7 @@ def est_profiles(dynspec, noise_stokes, left, right):
 
 	with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
 
-		iquvt = np.nansum(dynspec, axis=1)
+		iquvt = np.nansum(dspec, axis=1)
 
 		Its = iquvt[0]
 		Qts = iquvt[1]
@@ -285,13 +287,13 @@ def est_profiles(dynspec, noise_stokes, left, right):
 		qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac
 	)
 
-def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
+def est_spectra(dspec, noisespec, left_window_ms, right_window_ms):
 	"""
 	Extract frequency-resolved polarization spectra by integrating over a specified time window.
 
 	Parameters:
 	-----------
-	dynspec : ndarray, shape (4, n_freq, n_time)
+	dspec : ndarray, shape (4, n_freq, n_time)
 		Dynamic spectrum containing Stokes I, Q, U, V  
 	noisespec : array_like, shape (4, n_freq)
 		Noise spectrum for each Stokes parameter and frequency channel
@@ -314,7 +316,7 @@ def est_spectra(dynspec, noisespec, left_window_ms, right_window_ms):
 	"""
 	 
 	# Average the dynamic spectrum over the specified time range
-	iquvspec = np.nansum(dynspec[:, :, left_window_ms:right_window_ms + 1], axis=2)
+	iquvspec = np.nansum(dspec[:, :, left_window_ms:right_window_ms + 1], axis=2)
 	
 	# Extract the Stokes parameters
 	ispec = iquvspec[0]
@@ -519,7 +521,7 @@ def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask, robust=False, dd
     return noise_stokes, noisespec
 
 
-def process_dynspec(dynspec, freq_mhz, gdict, buffer_frac):
+def process_dspec(dspec, freq_mhz, gdict, buffer_frac):
 	"""
 	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
 	"""
@@ -527,9 +529,9 @@ def process_dynspec(dynspec, freq_mhz, gdict, buffer_frac):
 
 	max_rm = RM[np.argmax(np.abs(RM))]
 	if np.abs(max_rm) > 0:
-		corrdspec = rm_correct_dynspec(dynspec, freq_mhz, max_rm)
+		corrdspec = rm_correct_dspec(dspec, freq_mhz, max_rm)
 	else:
-		corrdspec = dynspec.copy()
+		corrdspec = dspec.copy()
 
 	# Use Stokes I to find the on-pulse window
 	I = np.nansum(corrdspec[0], axis=0)
@@ -665,7 +667,7 @@ def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
 	return dspec_scattered
 
 
-def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None, 
+def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None, 
 					one_sided_offpulse=False, tail_frac=None, max_tail_mult=5):
 	"""
 	Compute SEFD needed for a desired S/N, using adaptive on/off selection
@@ -673,7 +675,7 @@ def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=
 
 	Parameters
 	----------
-	dynspec : (4, n_chan, n_time)
+	dspec : (4, n_chan, n_time)
 	f_res_hz : float
 	t_res_s : float
 	target_snr : float
@@ -696,7 +698,7 @@ def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=
 	if target_snr is None or target_snr <= 0:
 		raise ValueError("target_snr must be > 0")
 
-	prof = np.nansum(dynspec[0], axis=0)
+	prof = np.nansum(dspec[0], axis=0)
 
 	# Build masks similarly to snr_onpulse but WITHOUT noise (so baseline from left only if one_sided_offpulse)
 	left, right = boxcar_width(prof, frac=frac)
@@ -727,7 +729,7 @@ def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=
 	pulse = prof[on_mask]
 	E_on = np.nansum(pulse)
 	N_on = int(on_mask.sum())
-	N_chan = dynspec.shape[1]
+	N_chan = dspec.shape[1]
 
 	if E_on <= 0 or N_on == 0 or N_chan == 0:
 		raise ValueError("Cannot compute SEFD (invalid on-pulse energy).")
@@ -738,7 +740,7 @@ def compute_required_sefd(dynspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=
 	return sefd_req
 
 
-def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
+def add_noise(dspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
 			   stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,
 			   baseline_frac=0.05, baseline_kernel_ms=5.0, time_res_ms=None):
 	"""
@@ -746,7 +748,7 @@ def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol
 
 	Parameters
 	----------
-	dynspec : (4, n_chan, n_time) array
+	dspec : (4, n_chan, n_time) array
 		Clean Stokes I,Q,U,V cube.
 	sefd : float or (n_chan,) array
 		System Equivalent Flux Density in Jy.
@@ -773,16 +775,16 @@ def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol
 
 	Returns
 	-------
-	noisy_dynspec : array
-		dynspec + injected noise.
+	noisy_dspec : array
+		dspec + injected noise.
 	sigma_ch : (4, n_chan) array
 		Per-Stokes per-channel white-noise RMS used.
 	snr : float
 		On-pulse S/N of Stokes I.
 	"""
-	dynspec = np.asarray(dynspec, dtype=float)
+	dspec = np.asarray(dspec, dtype=float)
 
-	_, n_chan, n_time = dynspec.shape
+	_, n_chan, n_time = dspec.shape
 
 	# Normalise inputs
 	sefd_arr = np.full(n_chan, sefd, dtype=float) if np.isscalar(sefd) else np.asarray(sefd, dtype=float)
@@ -807,15 +809,15 @@ def add_noise(dynspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol
 	else:
 		noise = noise_white
 
-	noisy_dynspec = dynspec + noise
+	noisy_dspec = dspec + noise
 
-	I_time = np.nansum(noisy_dynspec[0], axis=0)
+	I_time = np.nansum(noisy_dspec[0], axis=0)
 	snr, (left, right) = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
 
 	if not plot_multiple_frb:
 		logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
 
-	return noisy_dynspec, sigma_ch, snr
+	return noisy_dspec, sigma_ch, snr
 
 
 def boxcar_snr(ys, rms):
