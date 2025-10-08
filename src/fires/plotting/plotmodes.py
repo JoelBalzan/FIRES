@@ -13,29 +13,26 @@
 # -----------------------------------------------------------------------------
 
 #	--------------------------	Import modules	---------------------------
-import os
 import logging
+import os
+import warnings
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import numpy as np
+from scipy.optimize import curve_fit
+from scipy.stats import circvar
+
+from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
+                                 process_dspec)
+from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
+
 logging.basicConfig(level=logging.INFO)
 # Suppress noisy fontTools subset INFO messages
 for _name in ("fontTools", "fontTools.subset"):
     _lg = logging.getLogger(_name)
     _lg.setLevel(logging.WARNING)   
     _lg.propagate = False
-
-import warnings
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-from scipy.optimize import curve_fit
-
-
-from scipy.stats import circvar
-
-
-from ..core.basicfns import process_dspec, on_off_pulse_masks_from_profile
-from .plotfns import plot_stokes, plot_ilv_pa_ds, plot_dpa, estimate_rm
-
-
 
 #	--------------------------	Set plot parameters	---------------------------
 
