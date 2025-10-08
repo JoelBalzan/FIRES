@@ -11,21 +11,21 @@
 # Date: 2025-05-20
 # -----------------------------------------------------------------------------
 
+import argparse
+import logging
 #	--------------------------	Import modules	---------------------------
 import os
 import sys
-import logging
-import argparse
 import traceback
-import numpy as np
-
 from inspect import signature
 
-from fires.core.genfrb import generate_frb
-from fires.utils.utils import chi2_fit, gaussian_model, window_map, init_logging, LOG
-from fires.plotting.plotmodes import plot_modes, configure_matplotlib
-from fires.utils import config as cfg
+import numpy as np
 
+from fires.core.genfrb import generate_frb
+from fires.plotting.plotmodes import configure_matplotlib, plot_modes
+from fires.utils import config as cfg
+from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
+                               window_map)
 
 
 def main():
@@ -119,16 +119,16 @@ def main():
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_var'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac'],
 		metavar="",
 		help=(
-			"Generate plots. Pass 'all' to generate all (non-*_var) plots, or specify one or more plot names separated by spaces:\n"
+			"Generate plots. Pass 'all' to generate all (non-pa_var and l_frac) plots, or specify one or more plot names separated by spaces:\n"
 			"  'iquv': Plot the Stokes parameters (I, Q, U, V) vs. time or frequency.\n"
 			"  'lvpa': Plot linear polarization (L) and polarization angle (PA) vs. time.\n"
 			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) vs. time.\n"
 			"  'RM': Plot the rotation measure (RM) vs. frequency from RM-Tools.\n"
-			"  'pa_var': Plot the variance of the polarization angle (PA) vs. scattering timescale or microshot variation.\n"
-			"  'l_var': Plot the fraction of linear polarization (L/I) vs. scattering timescale or microshot variation.\n"
+			"  'pa_var': Plot the variance of the polarization angle (PA) vs. swept parameter in gparams.\n"
+			"  'l_frac': Plot the fraction of linear polarization (L/I)/(L/I)_0 vs. swept parameter in gparams.\n"
 			"Pass 'None' to disable all plots."
 		)
 	)
@@ -164,14 +164,14 @@ def main():
 		default="linear",
 		choices=['linear', 'logx', 'logy', 'loglog'],
 		metavar="",
-		help="Scale for pa_var and l_var plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
+		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
 	)
 	parser.add_argument(
 		"--fit",
 		nargs="+",
 		default=None,
 		metavar="",
-		help=("Fit function for pa_var and l_var plots.\n"
+		help=("Fit function for pa_var and l_frac plots.\n"
   			 "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
 	  		)
 	)
@@ -206,7 +206,7 @@ def main():
 		default="none",
 		choices=["none", "mean", "variance"],
 		metavar="",
-		help=("Parameter sweep mode for *_var plots:\n"
+		help=("Parameter sweep mode for pa_var and l_frac plots:\n"
 			  "  none      : disable sweeping (use means + micro std dev only)\n"
 			  "  mean      : sweep the mean value (std dev forced to 0 for that param)\n"
 			  "  variance  : keep mean fixed, sweep the micro std dev\n")
@@ -223,10 +223,10 @@ def main():
 	parser.add_argument(
 		"-m", "--mode",
 		type=str,
-		default='gauss',
-		choices=['gauss', 'psn'],
+		default='psn',
+		choices=['psn'],
 		metavar="",
-		help=("Mode for generating pulses: 'gauss' or 'psn'. Default is 'gauss.'\n"
+		help=("Mode for generating pulses: 'psn'. Default is 'psn.'\n"
 			  "'psn' will generate a gaussian distribution of gaussian micro-shots."
 		   )
 	)
@@ -242,7 +242,7 @@ def main():
 		type=int,
 		default=1,
 		metavar="",
-		help="How many realisations to generate at each scattering timescale for psn mode."
+		help="How many realisations to generate for pa_var and l_frac plots."
 	)
 	parser.add_argument(
 		"--sefd",
@@ -268,7 +268,7 @@ def main():
 	parser.add_argument(
 		"--chi2-fit",
 		action="store_true",
-		help="Enable chi-squared fitting on the final profiles (plot != *_var)."
+		help="Enable chi-squared fitting on the final profiles (plot != pa_var and l_frac)."
 	)
 	parser.add_argument(
 		"--scint",
