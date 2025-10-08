@@ -10,20 +10,14 @@
 #   Set enable=false to bypass without deleting file.
 
 [scintillation]
-t_s         = 0.0001       # Characteristic timescale (s)
-nu_s        = 1.0e6     # Scintillation bandwidth (Hz)
-N_im        = 1500      # Number of phasor screen components
-th_lim      = 3.0       # Truncation of scattering disk (higher => slower & more accurate)
-return_field = false    # If true, code may return complex field as well as gain
+t_s             = 300       # Characteristic timescale (s)
+nu_s            = 1.5e6     # Scintillation bandwidth (Hz)
+derive_from_tau = false     # If true, derive the Scintillation bandwidth (nu_s) from the scattering timescale set in gparams.toml
+N_im            = 5000      # Number of images (phasor components) drawn from the scattering disk
+th_lim          = 3.0       # Angular extent of the scattering disk; increase N_im ~ th_lim^2
+return_field    = false     # If true, code may return complex field as well as gain
 
 # Optional overrides for future extension
 [scintillation.output]
 save_gain    = false     # Write gain array to disk
 save_path    = "scint_gain.npy"
-
-[scintillation.validation]
-check_mean   = true      # Assert mean(gain)≈1
-mean_tol     = 0.02      # Relative tolerance
-
-[scintillation.debug]
-verbose      = false
