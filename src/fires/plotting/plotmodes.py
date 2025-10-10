@@ -281,12 +281,12 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 
 def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 	"""
-	Normalize values in yvals by weights from weight_params for a specific variable or by any parameter.
+	Normalise values in yvals by weights from weight_params for a specific variable or by any parameter.
 
 	Parameters:
 	-----------
 	xvals : array_like
-		Array of parameter values for which to compute normalized values.
+		Array of parameter values for which to compute normalised values.
 	yvals : dict
 		Dictionary where keys are parameter values and values are lists/arrays of measurements.
 	weight_params : dict or list
@@ -298,15 +298,15 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 	Returns:
 	--------
 	dict
-		Dictionary with normalized/weighted values for each key in xvals.
+		Dictionary with normalised/weighted values for each key in xvals.
 	"""
-	normalized_vals = {}
+	normalised_vals = {}
 	
 	if weight_by is None:
 		# No weighting requested - return original values
 		for var in xvals:
-			normalized_vals[var] = yvals.get(var, [])
-		return normalized_vals
+			normalised_vals[var] = yvals.get(var, [])
+		return normalised_vals
 	
 	# Handle both dict of dicts (multi-parameter case) and list of dicts (single parameter case)
 	if isinstance(weight_params, dict) and any(isinstance(v, dict) for v in weight_params.values()):
@@ -315,8 +315,8 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 		if not weighting_param_exists:
 			logging.warning(f"Weighting parameter '{weight_by}' not found in weight dictionaries. Returning unweighted values.")
 			for var in xvals:
-				normalized_vals[var] = yvals.get(var, [])
-			return normalized_vals
+				normalised_vals[var] = yvals.get(var, [])
+			return normalised_vals
 			
 		for var in xvals:
 			y_values = yvals.get(var, [])
@@ -324,13 +324,13 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 			weights = var__weight_dict.get(weight_by, [])
 
 			if y_values and weights and len(y_values) == len(weights):
-				normalized_vals[var] = [
+				normalised_vals[var] = [
 					val / weight if weight != 0 else 0
 					for val, weight in zip(y_values, weights)
 				]
 			else:
 				logging.warning(f"Mismatched lengths or missing data for parameter {var}. Skipping normalization.")
-				normalized_vals[var] = y_values
+				normalised_vals[var] = y_values
 				
 	elif isinstance(weight_params, (list, tuple)) and len(weight_params) > 0:
 		# Single parameter case: weight_params is like [{param_name: value, ...}, ...]
@@ -343,22 +343,22 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 			for var in xvals:
 				y_values = yvals.get(var, [])
 				if y_values:
-					normalized_vals[var] = [
+					normalised_vals[var] = [
 						val / weight_value if weight_value != 0 else 0
 						for val in y_values
 					]
 				else:
-					normalized_vals[var] = []
+					normalised_vals[var] = []
 		else:
 			logging.warning(f"Weighting parameter '{weight_by}' not found in weight_params. Returning unweighted values.")
 			for var in xvals:
-				normalized_vals[var] = yvals.get(var, [])
+				normalised_vals[var] = yvals.get(var, [])
 	else:
 		logging.warning(f"Unsupported weight_params format. Returning unweighted values.")
 		for var in xvals:
-			normalized_vals[var] = yvals.get(var, [])
+			normalised_vals[var] = yvals.get(var, [])
 
-	return normalized_vals
+	return normalised_vals
 
 
 def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
@@ -725,7 +725,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	weight_key : str
 		Key to use for weighting y-values ("PA", "l_frac", or any parameter name).
 	weight_x_by : str or None, optional
-		Parameter to weight/normalize x-axis by.
+		Parameter to weight/normalise x-axis by.
 	"""
 	 # Determine y-axis name if not provided
 	yname = _get_weighted_y_name(yname, weight_y_by)
@@ -985,7 +985,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	"""
 	Plot the linear polarization fraction (L/I) as a function of scattering parameters.
 	
-	This function visualizes how the degree of linear polarization changes with varying
+	This function visualises how the degree of linear polarization changes with varying
 	scattering conditions or other simulation parameters. It computes the integrated
 	linear polarization fraction over specified frequency and phase windows.
 	

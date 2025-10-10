@@ -52,7 +52,7 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 	ax.set_ylim(ymax=1.1)
 	ax.set_xlim([np.amin(tmsarr), np.amax(tmsarr)])
 	ax.legend(loc='upper right', ncol=2)
-	ax.set_ylabel(r'Normalized flux density')
+	ax.set_ylabel(r'Normalised flux density')
 	ax.set_xticklabels([])
 	ax.yaxis.set_label_coords(-0.05, 0.5)
 		
@@ -260,7 +260,7 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 			# Shade on-pulse region
 			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
 		if show_offpulse:
-			# Shade off-pulse regions using a normalized-y transform (fills full height)
+			# Shade off-pulse regions using a normalised-y transform (fills full height)
 			axs[1].fill_between(
 			time_ms, 0, 1, where=off_mask,
 			color='lightcoral', alpha=0.15,
