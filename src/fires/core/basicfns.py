@@ -462,63 +462,63 @@ def on_off_pulse_masks_from_profile(profile,
 
 
 def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask, robust=False, ddof=1):
-    """
-    Estimate noise using an off-pulse mask (True = off-pulse).
+	"""
+	Estimate noise using an off-pulse mask (True = off-pulse).
 
-    Returns
-    -------
-    noise_stokes : (n_stokes,)
-        RMS of the frequency-summed time series for each Stokes parameter
-        (quad-sum of per-channel RMS).
-    noisespec : (n_stokes, n_chan)
-        Per-Stokes, per-channel RMS over off-pulse times.
+	Returns
+	-------
+	noise_stokes : (n_stokes,)
+		RMS of the frequency-summed time series for each Stokes parameter
+		(quad-sum of per-channel RMS).
+	noisespec : (n_stokes, n_chan)
+		Per-Stokes, per-channel RMS over off-pulse times.
 
-    Parameters
-    ----------
-    corrdspec : array, shape (n_stokes, n_chan, n_time)
-    offpulse_mask : bool array, shape (n_time,)
-    robust : bool, default False
-        If True, use MAD (scaled) instead of standard deviation.
-    ddof : int, default 1
-        Delta degrees of freedom for std (ignored if robust=True).
-    """
-    corrdspec = np.asarray(corrdspec, dtype=float)
-    if corrdspec.ndim != 3:
-        raise ValueError("corrdspec must have shape (n_stokes, n_chan, n_time)")
-    if offpulse_mask.dtype != bool or offpulse_mask.ndim != 1:
-        raise ValueError("offpulse_mask must be 1-D boolean (time axis)")
+	Parameters
+	----------
+	corrdspec : array, shape (n_stokes, n_chan, n_time)
+	offpulse_mask : bool array, shape (n_time,)
+	robust : bool, default False
+		If True, use MAD (scaled) instead of standard deviation.
+	ddof : int, default 1
+		Delta degrees of freedom for std (ignored if robust=True).
+	"""
+	corrdspec = np.asarray(corrdspec, dtype=float)
+	if corrdspec.ndim != 3:
+		raise ValueError("corrdspec must have shape (n_stokes, n_chan, n_time)")
+	if offpulse_mask.dtype != bool or offpulse_mask.ndim != 1:
+		raise ValueError("offpulse_mask must be 1-D boolean (time axis)")
 
-    n_stokes, n_chan, n_time = corrdspec.shape
+	n_stokes, n_chan, n_time = corrdspec.shape
 
-    if offpulse_mask.size != n_time:
-        raise ValueError("offpulse_mask length does not match time dimension")
+	if offpulse_mask.size != n_time:
+		raise ValueError("offpulse_mask length does not match time dimension")
 
-    if not np.any(offpulse_mask):
-        noise_stokes = np.full(n_stokes, np.nan)
-        noisespec = np.full((n_stokes, n_chan), np.nan)
-        return noise_stokes, noisespec
+	if not np.any(offpulse_mask):
+		noise_stokes = np.full(n_stokes, np.nan)
+		noisespec = np.full((n_stokes, n_chan), np.nan)
+		return noise_stokes, noisespec
 
-    # Slice off-pulse data: (n_stokes, n_chan, n_off)
-    offcube = corrdspec[:, :, offpulse_mask]
+	# Slice off-pulse data: (n_stokes, n_chan, n_off)
+	offcube = corrdspec[:, :, offpulse_mask]
 
-    if robust:
-        # Median Absolute Deviation per (stokes, chan)
-        med = np.nanmedian(offcube, axis=2, keepdims=True)
-        mad = np.nanmedian(np.abs(offcube - med), axis=2)
-        noisespec = 1.4826 * mad
-    else:
-        # Standard deviation over time axis (ddof)
-        if offcube.shape[2] - ddof <= 0:
-            # Fall back to population std
-            noisespec = np.nanstd(offcube, axis=2)
-        else:
-            noisespec = np.nanstd(offcube, axis=2, ddof=ddof)
+	if robust:
+		# Median Absolute Deviation per (stokes, chan)
+		med = np.nanmedian(offcube, axis=2, keepdims=True)
+		mad = np.nanmedian(np.abs(offcube - med), axis=2)
+		noisespec = 1.4826 * mad
+	else:
+		# Standard deviation over time axis (ddof)
+		if offcube.shape[2] - ddof <= 0:
+			# Fall back to population std
+			noisespec = np.nanstd(offcube, axis=2)
+		else:
+			noisespec = np.nanstd(offcube, axis=2, ddof=ddof)
 
-    # Frequency-summed time-series RMS for each Stokes:
-    # Sum over channels -> variances add (assume independence)
-    noise_stokes = np.sqrt(np.nansum(noisespec**2, axis=1))
+	# Frequency-summed time-series RMS for each Stokes:
+	# Sum over channels -> variances add (assume independence)
+	noise_stokes = np.sqrt(np.nansum(noisespec**2, axis=1))
 
-    return noise_stokes, noisespec
+	return noise_stokes, noisespec
 
 
 def process_dspec(dspec, freq_mhz, gdict, buffer_frac):
@@ -645,22 +645,19 @@ def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
 		tau = tau_arr[ci]
 		chan = dspec[ci]
 
-		# Skip if tau invalid
-		if not np.isfinite(tau) or tau <= 0.0:
-			dspec_scattered[ci] = chan
-			continue
-
 		n_pad = int(np.ceil(pad_factor * tau / time_res_ms))
-		if n_pad < 1:
-			dspec_scattered[ci] = chan
-			continue
 
-		# Pad end only
-		padded = np.pad(chan, (0, n_pad), mode='constant')
+		# Causal IRF support: t >= 0 (implements Heaviside step)
 		t_irf = np.arange(0, n_pad + 1) * time_res_ms
+
+		# Discrete causal exponential kernel: samples of H(t) * exp(-t/τ).
+		# We normalise by sum so that the discrete convolution preserves total flux
+		# (this absorbs the continuous 1/τ and Δt factors on the sampled grid).
 		irf = np.exp(-t_irf / tau)
 		irf /= irf.sum()
 
+		# Right-pad only to keep the tail causal within the window
+		padded = np.pad(chan, (0, n_pad), mode='constant')
 		conv = fftconvolve(padded, irf, mode='full')
 		dspec_scattered[ci] = conv[:n_time]
 

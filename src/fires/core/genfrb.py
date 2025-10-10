@@ -4,7 +4,7 @@
 #
 # This module contains functions for generating Fast Radio Burst (FRB) dynamic
 # spectra, handling baseline subtraction, off-pulse window selection, scattering,
-# data loading, and parallelized simulation and aggregation of FRB realizations.
+# data loading, and parallelised simulation and aggregation of FRB realizations.
 # It is a core part of the FIRES simulation pipeline.
 #
 # Author: JB
@@ -27,7 +27,7 @@ from tqdm import tqdm
 from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
                                  snr_onpulse)
 from fires.core.genfns import psn_dspec
-from fires.utils.config import (get_parameters, load_params)
+from fires.utils.config import get_parameters, load_params
 from fires.utils.utils import dspecParams, simulated_frb
 
 logging.basicConfig(level=logging.INFO)

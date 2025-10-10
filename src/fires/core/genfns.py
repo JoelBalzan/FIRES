@@ -18,10 +18,9 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import (add_noise, compute_required_sefd,
-                                 scatter_dspec)
+from fires.core.basicfns import add_noise, compute_required_sefd, scatter_dspec
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
-from fires.utils.utils import speed_of_light_cgs, gaussian_model
+from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
 logging.basicConfig(level=logging.INFO)
 
@@ -123,61 +122,181 @@ def _disable_micro_variance_for_swept_base(sd_dict, xname):
 	return new_sd_dict
 
 
-def _expected_pa_variance(tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd):
+def _make_scattering_kernel(t_ms: np.ndarray, tau_ms: float) -> np.ndarray:
 	"""
-	Returns approximate Var(PA) [deg^2].
-	
-	Parameters
-	----------
-	tau_ms : float
-		Scattering timescale (ms).
-	sigma_deg : float
-		Standard deviation of microshot PA (degrees).
-	ngauss : int
-		Number of micro-shots.
-	width_ms : float
-		FWHM of the main component (ms).
-	peak_amp : float
-		Mean micro-shot linear amplitude.
-	peak_amp_sd : float
-		Std dev of micro-shot linear amplitude.
+	Exponential scattering kernel h(t) = (1/tau) exp(-t/tau) for t>=0; delta if tau<=0.
 	"""
+	if tau_ms is None or tau_ms <= 0:
+		h = np.zeros_like(t_ms, dtype=float)
+		h[np.argmin(np.abs(t_ms))] = 1.0
+		return h
+	h = np.zeros_like(t_ms, dtype=float)
+	mask = t_ms >= 0.0
+	# Avoid division by zero in very small tau
+	den = max(float(tau_ms), 1e-12)
+	h[mask] = np.exp(-t_ms[mask] / den) / den
+	return h
 
-	# Convert main component FWHM to standard deviation
-	sigma_t = width_ms / GAUSSIAN_FWHM_FACTOR
 
-	# Amplitude moments
-	a_mean = peak_amp
-	a2_mean = peak_amp**2 + peak_amp_sd**2
-	pref = a2_mean / (a_mean**2)
+def _make_gaussian_arrival_pdf(t_ms: np.ndarray, sigma_ms: float) -> np.ndarray:
+	"""
+	Gaussian arrival-time PDF with std=sigma_ms, centered at 0, normalised to integrate to 1.
+	If sigma<=0, uses a delta at 0.
+	"""
+	t = np.asarray(t_ms, dtype=float)
+	if sigma_ms <= 0:
+		# delta-like on the discrete grid
+		f = np.zeros_like(t, dtype=float)
+		f[np.argmin(np.abs(t))] = 1.0
+		return f
 
-	# Angle spread in radians
-	sigma_rad = np.deg2rad(sigma_deg)
-	sigma2 = sigma_rad**2
+	f = np.exp(-0.5 * (t / float(sigma_ms))**2)
+	dt = float(t[1] - t[0])
+	norm = np.sum(f) * dt
+	if norm > 0:
+		f = f / norm
+	return f
 
-	# Effective number of shots
-	if tau_ms > 0 and sigma_t > 0:
-		# Scattering broadens the pulse, increasing the number of shots averaged
-		# at any given time. This reduces PA variance.
-		# The effective number of shots is increased by the ratio of the
-		# scattered width to the intrinsic width.
-		sigma_total = np.sqrt(sigma_t**2 + tau_ms**2)
-	
-		# Scale N_eff proportional to number of shots in the tail
-		N_eff = ngauss * sigma_total / sigma_t
+
+def _make_unit_peak_gaussian(t_ms: np.ndarray, sigma_ms: float) -> np.ndarray:
+	"""
+	Unit-peak Gaussian s(t; sigma) centered at 0 on a discrete grid.
+	If sigma<=0, returns a discrete delta with peak 1 at t=0.
+	"""
+	t = np.asarray(t_ms, dtype=float)
+	if sigma_ms <= 0:
+		g = np.zeros_like(t, dtype=float)
+		g[np.argmin(np.abs(t))] = 1.0
+		return g
+	return np.exp(-0.5 * (t / float(sigma_ms))**2)
+
+
+def _triple_convolution_with_width_pdf(
+	t_ms: np.ndarray,
+	tau_ms: float,
+	f_arrival: np.ndarray,
+	width_mean_fwhm_ms: float,
+	width_pct_low: float | None,
+	width_pct_high: float | None,
+	n_width_samples: int = 31,
+) -> tuple[np.ndarray, np.ndarray]:
+	"""
+	Compute (h*f*g)(t) and (h^2*f*g)(t) on the given time grid by averaging over
+	a uniform width PDF g(w) in [w_lo, w_hi], where w is the intrinsic FWHM.
+	If width_pct_low/high are None or equal, falls back to a single width = width_mean_fwhm_ms.
+
+	Returns:
+		hfg (nt,), h2fg (nt,)
+	"""
+	t = np.asarray(t_ms, dtype=float)
+	dt = float(t[1] - t[0])
+
+	# Scattering kernel k_tau (unit area)
+	tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
+	k = _make_scattering_kernel(t, tau_eff)
+
+	# Width sampling (in ms, FWHM)
+	w0 = float(width_mean_fwhm_ms)
+	if width_pct_low is None or width_pct_high is None:
+		w_samples = np.array([w0], dtype=float)
 	else:
-		# For unscattered shots, N_eff is simply the total number of shots
-		N_eff = ngauss
+		w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
+		w_hi = max(w_lo, w0 * float(width_pct_high) / 100.0)
+		if np.isclose(w_lo, w_hi):
+			w_samples = np.array([w0], dtype=float)
+		else:
+			nw = max(1, int(n_width_samples))
+			w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
 
-	var_psi_intrinsic_rad = pref * np.sinh(4.0 * sigma2) / (4.0 * N_eff)
+	# For each width w: s_w is unit-peak; produce h_w = (s_w * k) then renormalise to unit-peak.
+	hf_list = []
+	h2f_list = []
+	for w in w_samples:
+		sigma_w = w / GAUSSIAN_FWHM_FACTOR
+		s_w = _make_unit_peak_gaussian(t, sigma_w)  # unit-peak intrinsic shot
+
+		# Convolve intrinsic shot with scattering kernel -> preliminary h_w
+		# np.convolve approximates integral -> multiply by dt
+		h_w = np.convolve(s_w, k, mode="same") * dt
+
+		# Enforce unit-peak normalization (important: h should be peak-normalized)
+		max_h = np.max(h_w)
+		if max_h <= 0 or not np.isfinite(max_h):
+			# fallback to avoid div-by-zero; treat as delta
+			h_w = np.zeros_like(h_w)
+			h_w[np.argmin(np.abs(t))] = 1.0
+		else:
+			h_w = h_w / max_h
+
+		# Convolve with arrival-time PDF f (one dt factor)
+		hf_w = np.convolve(h_w, f_arrival, mode="same") * dt
+		h2f_w = np.convolve(h_w * h_w, f_arrival, mode="same") * dt
+
+		hf_list.append(hf_w)
+		h2f_list.append(h2f_w)
+
+	hf = np.mean(np.stack(hf_list, axis=0), axis=0)
+	h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
+	return hf, h2f
 
 
-	# Convert to degrees^2
-	var_psi_deg2 = np.rad2deg(np.sqrt(var_psi_intrinsic_rad))**2
 
-	logging.info(f"Expected V(PA) ~ {var_psi_deg2[0]:.3f} deg^2.")
+def _expected_pa_variance(
+	tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd,
+	time_ms=None, width_pct_low=None, width_pct_high=None, n_width_samples: int = 31,
+	onpulse_fraction: float = 0.1
+):
+	"""
+	Compute scalar expected PA variance using time-averaged N_eff over the on-pulse region.
+	Returns var_psi_deg2 (float).
+	"""
+	# Basic checks
+	assert time_ms is not None and len(time_ms) >= 3
 
-	return var_psi_deg2
+	# amplitude moments (peak-flux moments)
+	a_mean = float(np.nanmean(peak_amp)) if np.ndim(peak_amp) > 0 else float(peak_amp)
+	a2_mean = a_mean**2 + float(peak_amp_sd)**2
+	sigma_rad = np.deg2rad(float(sigma_deg))
+
+	t = np.asarray(time_ms, dtype=float)
+	t_rel = t - np.median(t)
+
+	# arrival PDF
+	sigma_arrival_ms = float(width_ms) / GAUSSIAN_FWHM_FACTOR
+	f = _make_gaussian_arrival_pdf(t_rel, sigma_arrival_ms)
+
+	# compute (h*f*g) and (h^2*f*g)
+	hfg, h2fg = _triple_convolution_with_width_pdf(
+		t_rel, float(tau_ms) if tau_ms is not None else 0.0, f,
+		width_mean_fwhm_ms=float(width_ms),
+		width_pct_low=width_pct_low,
+		width_pct_high=width_pct_high,
+		n_width_samples=n_width_samples
+	)
+
+	# per-time N_eff
+	N_eff_t = float(ngauss) * (hfg**2) / (h2fg + 1e-300)  # avoid zeros
+
+	# on-pulse mask: relative to peak of hfg
+	threshold = onpulse_fraction * np.nanmax(hfg)
+	mask_on = (hfg >= threshold) & np.isfinite(hfg)
+
+	if not np.any(mask_on):
+		# fallback: top 50% by hfg
+		thr = 0.5 * np.nanmax(hfg)
+		mask_on = (hfg >= thr)
+
+	N_eff_avg = np.nanmean(N_eff_t[mask_on])
+	# guard against very small N_eff_avg
+	if not np.isfinite(N_eff_avg) or N_eff_avg <= 0:
+		N_eff_avg = max(1.0, float(ngauss))
+
+	# variance prefactor (peak amplitude convention)
+	pref = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff_avg) * np.sinh(4.0 * sigma_rad**2)
+
+	var_psi_rad2 = pref
+	var_psi_deg2 = var_psi_rad2 * (180.0 / np.pi)**2
+	return float(var_psi_deg2), hfg, h2fg, N_eff_t, N_eff_avg
 
 
 def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
@@ -256,7 +375,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	band_width_mhz_sd  = sd_dict['band_width_mhz_sd']
 	
 			
-	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialize dynamic spectrum array
+	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
 	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
 	median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
@@ -401,9 +520,24 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	else:
 		snr = None
 
-	if PA_sd > 0 and ngauss > 1:
-		# Assuming values from the first component for simplicity
-		exp_V_psi_deg2 = _expected_pa_variance(tau_eff, PA_sd, ngauss, width_ms, np.mean(peak_amp), peak_amp_sd)
+	# Expected PA variance (time-averaged N_eff)
+	N_tot = int(np.nansum(ngauss))
+	exp_V_psi_deg2 = None
+	if PA_sd > 0 and N_tot > 1:
+		exp_V_psi_deg2, hfg_diag, h2fg_diag, N_eff_t_diag, N_eff_avg_diag = _expected_pa_variance(
+			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
+			sigma_deg=float(PA_sd),
+			ngauss=N_tot,
+			width_ms=float(np.nanmean(width_ms)),
+			peak_amp=float(np.nanmean(peak_amp)),
+			peak_amp_sd=float(peak_amp_sd),
+			time_ms=time_ms,
+			width_pct_low=float(np.nanmean(mg_width_low)),
+			width_pct_high=float(np.nanmean(mg_width_high)),
+			n_width_samples=31,
+			onpulse_fraction=0.10
+		)
+		logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_psi_deg2:.3f} deg^2 (N_eff_avg={N_eff_avg_diag:.1f})")
 	
 	return dspec, snr, var_params
 

@@ -278,7 +278,7 @@ def main():
 
 	args = parser.parse_args()
 
-	# Initialize logging 
+	# Initialise logging 
 	init_logging(args.verbose)
 	if args.verbose:
 		LOG.debug("Verbose logging enabled.")

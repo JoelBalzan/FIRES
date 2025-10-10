@@ -26,7 +26,7 @@ LOG_NAME = "FIRES"
 
 def init_logging(verbose: bool | None = None):
     """
-    Initialize package logging once (idempotent).
+    Initialise package logging once (idempotent).
     Precedence: explicit arg > env FIRES_VERBOSE > default (False).
     """
     if verbose is False:
