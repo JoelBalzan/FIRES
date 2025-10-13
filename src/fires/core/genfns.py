@@ -543,6 +543,24 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			onpulse_fraction=0.10
 		)
 		logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_psi_deg2:.3f} deg^2 (N_eff_avg={N_eff_avg_diag:.1f})")
-	
-	return dspec, snr, var_params
+	else:
+		exp_V_psi_deg2 = None
+
+	exp_vars = {
+		'exp_var_t0'             : None,
+		'exp_var_peak_amp'       : None,
+		'exp_var_width_ms'       : None,
+		'exp_var_spec_idx'       : None,
+		'exp_var_tau_ms'         : None,
+		'exp_var_PA'             : exp_V_psi_deg2,
+		'exp_var_DM'             : None,
+		'exp_var_RM'             : None,
+		'exp_var_lfrac'          : None,
+		'exp_var_vfrac'          : None,
+		'exp_var_dPA'            : None,
+		'exp_var_band_centre_mhz': None,
+		'exp_var_band_width_mhz' : None
+	}
+
+	return dspec, snr, var_params, exp_vars
 

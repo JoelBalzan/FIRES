@@ -211,7 +211,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
-	dspec, snr, var_params = _generate_dspec(
+	dspec, snr, var_params, exp_vars = _generate_dspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -234,7 +234,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 	xvals, result_err = process_func(**process_func_args)
 
-	return var, xvals, result_err, var_params, snr
+	return var, xvals, result_err, var_params, snr, exp_vars
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, scint_file,
@@ -517,13 +517,21 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				]} for v in xvals
 			}
 			snrs = {v: [] for v in xvals}
+			exp_vars = {
+				v: {key: [] for key in [
+					'exp_var_t0','exp_var_peak_amp','exp_var_width_ms','exp_var_spec_idx','exp_var_tau_ms','exp_var_PA',
+					'exp_var_DM','exp_var_RM','exp_var_lfrac','exp_var_vfrac','exp_var_dPA','exp_var_band_centre_mhz','exp_var_band_width_mhz'
+				]} for v in xvals
+			}
 
-			for var, val, err, params_dict, snr in results:
+			for var, val, err, params_dict, snr, exp_var_psi_deg2 in results:
 				yvals[var].append(val)
 				errs[var].append(err)
 				snrs[var].append(snr)
 				for key, value in params_dict.items():
 					var_params[var][key].append(value)
+				for key, value in exp_var_psi_deg2.items():
+					exp_vars[var][key].append(value)
 
 			frb_dict = {
 				"xname": xname,
@@ -531,6 +539,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				"yvals": yvals,
 				"errs": errs,
 				"var_params": var_params,
+				"exp_vars": exp_vars,
 				"dspec_params": dspec_params,
 				"plot_mode": plot_mode,
 				"snrs": snrs,
