@@ -138,106 +138,111 @@ def _make_scattering_kernel(t_ms: np.ndarray, tau_ms: float) -> np.ndarray:
 	return h
 
 
-def _make_gaussian_arrival_pdf(t_ms: np.ndarray, sigma_ms: float) -> np.ndarray:
-	"""
-	Gaussian arrival-time PDF with std=sigma_ms, centered at 0, normalised to integrate to 1.
-	If sigma<=0, uses a delta at 0.
-	"""
-	t = np.asarray(t_ms, dtype=float)
-	if sigma_ms <= 0:
-		# delta-like on the discrete grid
-		f = np.zeros_like(t, dtype=float)
-		f[np.argmin(np.abs(t))] = 1.0
-		return f
+def _gaussian_on_grid(t_ms: np.ndarray, sigma_ms: float, normalize: str) -> np.ndarray:
+    """
+    Common Gaussian builder using utils.gaussian_model, with grid-safe normalisation.
+    normalize: 'area' -> unit area (sum*dt=1); 'peak' -> unit peak (max=1).
+    If sigma<=0, returns a discrete delta at 0 with value 1.0.
+    """
+    t = np.asarray(t_ms, dtype=float)
+    if sigma_ms is None or sigma_ms <= 0:
+        g = np.zeros_like(t, dtype=float)
+        g[np.argmin(np.abs(t))] = 1.0
+        return g
 
-	f = np.exp(-0.5 * (t / float(sigma_ms))**2)
-	dt = float(t[1] - t[0])
-	norm = np.sum(f) * dt
-	if norm > 0:
-		f = f / norm
-	return f
+    # Raw Gaussian shape (amp=1 at mean)
+    g = gaussian_model(t, amp=1.0, mean=0.0, stddev=float(sigma_ms))
+
+    if normalize == "area":
+        dt = float(t[1] - t[0])
+        norm = np.sum(g) * dt
+        return g / norm if norm > 0 else g
+    elif normalize == "peak":
+        mx = float(np.max(g))
+        return g / mx if mx > 0 and np.isfinite(mx) else g
+    else:
+        return g 
 
 
-def _make_unit_peak_gaussian(t_ms: np.ndarray, sigma_ms: float) -> np.ndarray:
-	"""
-	Unit-peak Gaussian s(t; sigma) centered at 0 on a discrete grid.
-	If sigma<=0, returns a discrete delta with peak 1 at t=0.
-	"""
-	t = np.asarray(t_ms, dtype=float)
-	if sigma_ms <= 0:
-		g = np.zeros_like(t, dtype=float)
-		g[np.argmin(np.abs(t))] = 1.0
-		return g
-	return np.exp(-0.5 * (t / float(sigma_ms))**2)
+def _unit_peak_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> np.ndarray:
+    """
+    Build unit-peak temporal response h_tau(t; w):
+      1) s(t; w) = unit-peak Gaussian (shape), std = sigma_w_ms
+      2) k_tau(t) = unit-area exponential kernel (or delta if tau<=0)
+      3) h_raw = (s * k_tau) · dt
+      4) h = h_raw / max(h_raw)  (unit peak)
+    """
+    t = np.asarray(t_ms, dtype=float)
+    dt = float(t[1] - t[0])
+
+    # s: unit-peak Gaussian
+    s = _gaussian_on_grid(t, float(sigma_w_ms), normalize="peak")
+
+    # k: unit-area scattering kernel (delta if tau<=0)
+    tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
+    k = _make_scattering_kernel(t, tau_eff)
+
+    # Convolution (integral) and unit-peak normalisation
+    h_raw = np.convolve(s, k, mode="same") * dt
+    mx = float(np.nanmax(h_raw)) if np.any(np.isfinite(h_raw)) else 0.0
+    if mx <= 0 or not np.isfinite(mx):
+        h = np.zeros_like(t, dtype=float)
+        h[np.argmin(np.abs(t))] = 1.0
+    else:
+        h = h_raw / mx
+    return h
 
 
 def _triple_convolution_with_width_pdf(
-	t_ms: np.ndarray,
-	tau_ms: float,
-	f_arrival: np.ndarray,
-	width_mean_fwhm_ms: float,
-	width_pct_low: float | None,
-	width_pct_high: float | None,
-	n_width_samples: int = 31,
+    t_ms: np.ndarray,
+    tau_ms: float,
+    f_arrival: np.ndarray,
+    width_mean_fwhm_ms: float,
+    width_pct_low: float | None,
+    width_pct_high: float | None,
+    n_width_samples: int = 31,
 ) -> tuple[np.ndarray, np.ndarray]:
-	"""
-	Compute (h*f*g)(t) and (h^2*f*g)(t) on the given time grid by averaging over
-	a uniform width PDF g(w) in [w_lo, w_hi], where w is the intrinsic FWHM.
-	If width_pct_low/high are None or equal, falls back to a single width = width_mean_fwhm_ms.
+    """
+    Compute (h*f*g)(t) and (h^2*f*g)(t) where:
+      - h is unit-peak temporal response after scattering,
+      - f is the arrival-time Gaussian PDF (unit area),
+      - g is the width PDF (unit area), here approximated by a uniform PDF over [w_lo, w_hi].
 
-	Returns:
-		hfg (nt,), h2fg (nt,)
-	"""
-	t = np.asarray(t_ms, dtype=float)
-	dt = float(t[1] - t[0])
+    Returns:
+        hfg (nt,), h2fg (nt,)
+    """
+    t = np.asarray(t_ms, dtype=float)
+    dt = float(t[1] - t[0])
 
-	# Scattering kernel k_tau (unit area)
-	tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
-	k = _make_scattering_kernel(t, tau_eff)
+    # Width sampling (uniform g(w) over [w_lo, w_hi])
+    w0 = float(width_mean_fwhm_ms)
+    if width_pct_low is None or width_pct_high is None:
+        w_samples = np.array([w0], dtype=float)
+    else:
+        w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
+        w_hi = max(w_lo,   w0 * float(width_pct_high) / 100.0)
+        if np.isclose(w_lo, w_hi):
+            w_samples = np.array([w0], dtype=float)
+        else:
+            nw = max(1, int(n_width_samples))
+            w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
 
-	# Width sampling (in ms, FWHM)
-	w0 = float(width_mean_fwhm_ms)
-	if width_pct_low is None or width_pct_high is None:
-		w_samples = np.array([w0], dtype=float)
-	else:
-		w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
-		w_hi = max(w_lo, w0 * float(width_pct_high) / 100.0)
-		if np.isclose(w_lo, w_hi):
-			w_samples = np.array([w0], dtype=float)
-		else:
-			nw = max(1, int(n_width_samples))
-			w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
+    hf_list, h2f_list = [], []
+    for w in w_samples:
+        sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
+        # Build h(t; w) as unit-peak after scattering
+        h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
+        # Convolve with arrival PDF (unit area), include dt for integral
+        hf_w  = np.convolve(h_w,           f_arrival, mode="same") * dt
+        h2f_w = np.convolve(h_w * h_w,     f_arrival, mode="same") * dt
+        hf_list.append(hf_w)
+        h2f_list.append(h2f_w)
 
-	# For each width w: s_w is unit-peak; produce h_w = (s_w * k) then renormalise to unit-peak.
-	hf_list = []
-	h2f_list = []
-	for w in w_samples:
-		sigma_w = w / GAUSSIAN_FWHM_FACTOR
-		s_w = _make_unit_peak_gaussian(t, sigma_w)  # unit-peak intrinsic shot
-
-		# Convolve intrinsic shot with scattering kernel -> preliminary h_w
-		# np.convolve approximates integral -> multiply by dt
-		h_w = np.convolve(s_w, k, mode="same") * dt
-
-		# Enforce unit-peak normalization (important: h should be peak-normalized)
-		max_h = np.max(h_w)
-		if max_h <= 0 or not np.isfinite(max_h):
-			# fallback to avoid div-by-zero; treat as delta
-			h_w = np.zeros_like(h_w)
-			h_w[np.argmin(np.abs(t))] = 1.0
-		else:
-			h_w = h_w / max_h
-
-		# Convolve with arrival-time PDF f (one dt factor)
-		hf_w = np.convolve(h_w, f_arrival, mode="same") * dt
-		h2f_w = np.convolve(h_w * h_w, f_arrival, mode="same") * dt
-
-		hf_list.append(hf_w)
-		h2f_list.append(h2f_w)
-
-	hf = np.mean(np.stack(hf_list, axis=0), axis=0)
-	h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
-	return hf, h2f
+    # Average over uniform g(w)
+	# final averaging over widths is effectively the integration over g(w)
+    hf  = np.mean(np.stack(hf_list,  axis=0), axis=0)
+    h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
+    return hf, h2f
 
 
 
@@ -263,7 +268,7 @@ def _expected_pa_variance(
 
 	# arrival PDF
 	sigma_arrival_ms = float(width_ms) / GAUSSIAN_FWHM_FACTOR
-	f = _make_gaussian_arrival_pdf(t_rel, sigma_arrival_ms)
+	f = _gaussian_on_grid(t_rel, sigma_arrival_ms, normalize="area")
 
 	# compute (h*f*g) and (h^2*f*g)
 	hfg, h2fg = _triple_convolution_with_width_pdf(
