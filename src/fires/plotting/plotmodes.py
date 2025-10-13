@@ -290,7 +290,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 	yvals : dict
 		Dictionary where keys are parameter values and values are lists/arrays of measurements.
 	weight_params : dict or list
-		Parameter dictionaries containing weight factors. Can be var_params, dspec_params, or combined.
+		Parameter dictionaries containing weight factors. Can be sd_params, dspec_params, or combined.
 	weight_by : str, optional
 		Parameter name to use for weighting/normalization. Can be any parameter in weight_params.
 		Takes precedence over var_name if both are provided.
@@ -551,7 +551,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 	xvals_raw = np.array(frb_dict["xvals"])
 
 	dspec_params = frb_dict.get("dspec_params", None)
-	var_params = frb_dict.get("var_params", None)
+	sd_params = frb_dict.get("sd_params", None)
 
 	# Resolve sweep_mode robustly from dspec_params
 	sweep_mode = None
@@ -588,13 +588,13 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 				weight = np.array(dspec_params[0][weight_x_by])[0]
 		elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
 			weight = np.array(dspec_params[weight_x_by])[0]
-		# Check in var_params if not found in dspec_params
-		if weight is None and var_params is not None:
-			if isinstance(var_params, (list, tuple)) and len(var_params) > 0:
-				if isinstance(var_params[0], dict) and weight_x_by in var_params[0]:
-					weight = np.array(var_params[0][weight_x_by])[0]
-			elif isinstance(var_params, dict) and weight_x_by in var_params:
-				weight = np.array(var_params[weight_x_by])[0]
+		# Check in sd_params if not found in dspec_params
+		if weight is None and sd_params is not None:
+			if isinstance(sd_params, (list, tuple)) and len(sd_params) > 0:
+				if isinstance(sd_params[0], dict) and weight_x_by in sd_params[0]:
+					weight = np.array(sd_params[0][weight_x_by])[0]
+			elif isinstance(sd_params, dict) and weight_x_by in sd_params:
+				weight = np.array(sd_params[weight_x_by])[0]
 		if weight is None:
 			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
 
@@ -737,7 +737,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 		xvals = np.array(subdict["xvals"])
 		yvals = subdict["yvals"]
-		var_params = subdict["var_params"]
+		sd_params = subdict["sd_params"]
 		dspec_params = subdict["dspec_params"]
 
 		sweep_mode = dspec_params.sweep_mode if hasattr(dspec_params, "sweep_mode") else dspec_params.get("sweep_mode", "mean")
@@ -746,10 +746,10 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			params = dspec_params
 		elif sweep_mode == "mean":
 			logging.info("Note: x-axis is mean of the varied parameter.")
-			params = var_params
+			params = sd_params
 		else:
 			logging.warning(f"Unknown sweep_mode '{sweep_mode}'. Assuming 'mean'.")
-			params = var_params
+			params = sd_params
   
 		y = _weight_dict(xvals, yvals, params, weight_by=weight_y_by)
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
@@ -849,7 +849,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	-----------
 	frb_dict : dict
 		Dictionary containing FRB simulation results. For single runs, contains keys like
-		'xvals', 'yvals', 'var_params', 'dspec_params'. For multi-run comparisons, contains
+		'xvals', 'yvals', 'sd_params', 'dspec_params'. For multi-run comparisons, contains
 		nested dictionaries with run names as keys.
 	save : bool
 		Whether to save the plot to disk.
@@ -897,10 +897,10 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		# Otherwise, plot as usual (single job)
 		xvals = frb_dict["xvals"]
 		yvals = frb_dict["yvals"]
-		var_params = frb_dict["var_params"]
+		sd_params = frb_dict["sd_params"]
 	
 		# Use correct weighting key name
-		y = _weight_dict(xvals, yvals, var_params, "var_PA")
+		y = _weight_dict(xvals, yvals, sd_params, "var_PA")
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
 	
 		x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
@@ -993,7 +993,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	-----------
 	frb_dict : dict
 		Dictionary containing FRB simulation results. For single runs, contains keys like
-		'xvals', 'yvals', 'var_params', 'dspec_params'. For multi-run comparisons, contains
+		'xvals', 'yvals', 'sd_params', 'dspec_params'. For multi-run comparisons, contains
 		nested dictionaries with run names as keys.
 	save : bool
 		Whether to save the plot to disk.
@@ -1043,12 +1043,12 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		# Otherwise, plot as usual (single job)
 		xvals = frb_dict["xvals"]
 		yvals = frb_dict["yvals"]
-		var_params = frb_dict["var_params"]
+		sd_params = frb_dict["sd_params"]
 		dspec_params = frb_dict["dspec_params"]
 		width_ms = np.array(dspec_params[0]["width_ms"])[0]
 	
 		# No weighting for L/I by default (use raw values)
-		y = _weight_dict(xvals, yvals, var_params, None)
+		y = _weight_dict(xvals, yvals, sd_params, None)
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
 	
 		# Fix: pass parameter name, not a numeric value

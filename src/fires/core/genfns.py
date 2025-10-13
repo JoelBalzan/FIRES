@@ -482,8 +482,8 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
 
-	# Calculate variance for each parameter in var_params
-	var_params = {key: np.nanvar(values) for key, values in all_params.items()}
+	# Calculate variance for each parameter in sd_params
+	sd_params = {key: np.nanvar(values) for key, values in all_params.items()}
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
 	t_res_s = time_res_ms / 1000.0
@@ -562,5 +562,5 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		'exp_var_band_width_mhz' : None
 	}
 
-	return dspec, snr, var_params, exp_vars
+	return dspec, snr, sd_params, exp_vars
 
