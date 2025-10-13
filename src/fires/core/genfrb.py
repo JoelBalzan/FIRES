@@ -128,10 +128,11 @@ def _load_multiple_data_grouped(data):
 		all_xvals             = []
 		all_yvals             = {}
 		all_errs              = {}
-		all_sd_params        = {}
+		all_sd_params         = {}
+		all_exp_vars          = {}
 		dspec_params          = None
 		plot_mode             = None
-		all_snrs 			  = {}
+		all_snrs              = {}
 
 		for file_name in files:
 			with open(os.path.join(data, file_name), "rb") as f:
@@ -141,7 +142,8 @@ def _load_multiple_data_grouped(data):
 			xvals        = obj["xvals"]
 			yvals        = obj["yvals"]
 			errs         = obj["errs"]
-			var_params   = obj["var_params"]
+			sd_params    = obj["sd_params"]
+			exp_vars     = obj["exp_vars"]
 			dspec_params = obj["dspec_params"]
 			snrs         = obj["snrs"]
 
@@ -149,21 +151,27 @@ def _load_multiple_data_grouped(data):
 				if v not in all_yvals:
 					all_yvals[v]      = []
 					all_errs[v]       = []
-					all_sd_params[v] = {key: [] for key in var_params[v].keys()}
+					all_sd_params[v]  = {key: [] for key in sd_params[v].keys()}
+					all_exp_vars[v]   = {key: [] for key in exp_vars[v].keys()}
 					all_snrs[v]       = []
 				all_yvals[v].extend(yvals[v])
 				all_errs[v].extend(errs[v])
-				for key, values in var_params[v].items():
+				for key, values in sd_params[v].items():
 					all_sd_params[v][key].extend(values)
+				for key, values in exp_vars[v].items():
+					all_exp_vars[v][key].extend(values)
 				all_snrs[v].extend(snrs[v])
 			all_xvals.extend(xvals)
+			
+
 
 		all_results[freq_phase_key] = {
 			'xname'            : xname,
 			'xvals'            : all_xvals,
 			'yvals'            : all_yvals,
 			'errs'             : all_errs,
-			'var_params'       : all_sd_params,
+			'sd_params'        : all_sd_params,
+			'exp_vars'         : all_exp_vars,
 			'dspec_params'     : dspec_params,
 			'plot_mode'        : plot_mode,
 			'snrs'             : all_snrs	
@@ -211,7 +219,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
-	dspec, snr, var_params, exp_vars = _generate_dspec(
+	dspec, snr, sd_params, exp_vars = _generate_dspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -234,7 +242,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 	xvals, result_err = process_func(**process_func_args)
 
-	return var, xvals, result_err, var_params, snr, exp_vars
+	return var, xvals, result_err, sd_params, snr, exp_vars
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, scint_file,
@@ -510,7 +518,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 
 			yvals = {v: [] for v in xvals}
 			errs = {v: [] for v in xvals}
-			var_params = {
+			sd_params = {
 				v: {key: [] for key in [
 					'var_t0','var_peak_amp','var_width_ms','var_spec_idx','var_tau_ms','var_PA',
 					'var_DM','var_RM','var_lfrac','var_vfrac','var_dPA','var_band_centre_mhz','var_band_width_mhz'
@@ -529,7 +537,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				errs[var].append(err)
 				snrs[var].append(snr)
 				for key, value in params_dict.items():
-					var_params[var][key].append(value)
+					sd_params[var][key].append(value)
 				for key, value in exp_var_psi_deg2.items():
 					exp_vars[var][key].append(value)
 
@@ -538,7 +546,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				"xvals": xvals,
 				"yvals": yvals,
 				"errs": errs,
-				"var_params": var_params,
+				"sd_params": sd_params,
 				"exp_vars": exp_vars,
 				"dspec_params": dspec_params,
 				"plot_mode": plot_mode,
