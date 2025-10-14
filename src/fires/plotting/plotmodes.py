@@ -30,9 +30,9 @@ from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 logging.basicConfig(level=logging.INFO)
 # Suppress noisy fontTools subset INFO messages
 for _name in ("fontTools", "fontTools.subset"):
-    _lg = logging.getLogger(_name)
-    _lg.setLevel(logging.WARNING)   
-    _lg.propagate = False
+	_lg = logging.getLogger(_name)
+	_lg.setLevel(logging.WARNING)   
+	_lg.propagate = False
 
 #	--------------------------	Set plot parameters	---------------------------
 
@@ -109,18 +109,18 @@ param_map = {
 	"mg_width_low"   : r"W_{\mathrm{low},0}",
 	"mg_width_high"  : r"W_{\mathrm{high},0}",
 	# Variation parameters
-	"var_t0"             : r"\sigma_{t_0}",
-	"var_width_ms"       : r"\sigma_W",
-	"var_peak_amp"       : r"\sigma_A",
-	"var_spec_idx"       : r"\sigma_\alpha",
-	"var_DM"             : r"\sigma_{\mathrm{DM}}",
-	"var_RM"             : r"\sigma_{\mathrm{RM}}",
-	"var_PA"             : r"\sigma_{\psi_{\mathrm{micro}}}",
-	"var_lfrac"          : r"\sigma_{\Pi_L}",
-	"var_vfrac"          : r"\sigma_{\Pi_V}",
-	"var_dPA"            : r"\sigma_{\Delta\psi}",
-	"var_band_centre_mhz": r"\sigma_{\nu_c}",
-	"var_band_width_mhz" : r"\sigma_{\Delta \nu}",
+	"t0_i"             : r"\sigma_{t_0}",
+	"width_ms_i"       : r"\sigma_W",
+	"peak_amp_i"       : r"\sigma_A",
+	"spec_idx_i"       : r"\sigma_\alpha",
+	"DM_i"             : r"\sigma_{\mathrm{DM}}",
+	"RM_i"             : r"\sigma_{\mathrm{RM}}",
+	"PA_i"             : r"\sigma_{\psi_{\mathrm{micro}}}",
+	"lfrac_i"          : r"\sigma_{\Pi_L}",
+	"vfrac_i"          : r"\sigma_{\Pi_V}",
+	"dPA_i"            : r"\sigma_{\Delta\psi}",
+	"band_centre_mhz_i": r"\sigma_{\nu_c}",
+	"band_width_mhz_i" : r"\sigma_{\Delta \nu}",
 }
 
 #	--------------------------	PlotMode class	---------------------------
@@ -290,7 +290,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 	yvals : dict
 		Dictionary where keys are parameter values and values are lists/arrays of measurements.
 	weight_params : dict or list
-		Parameter dictionaries containing weight factors. Can be sd_params, dspec_params, or combined.
+		Parameter dictionaries containing weight factors. Can be V_params, dspec_params, or combined.
 	weight_by : str, optional
 		Parameter name to use for weighting/normalization. Can be any parameter in weight_params.
 		Takes precedence over var_name if both are provided.
@@ -544,14 +544,14 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 	Now supports any intrinsic parameter or variation parameter with flexible weighting.
 
 	Behavior:
-	- sweep_mode == "variance": x label = SD(xname), no weighting applied
+	- sweep_mode == "sd": x label = SD(xname), no weighting applied
 	- sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
 	"""
 	xname_raw = frb_dict["xname"].removesuffix("_var")
 	xvals_raw = np.array(frb_dict["xvals"])
 
 	dspec_params = frb_dict.get("dspec_params", None)
-	sd_params = frb_dict.get("sd_params", None)
+	V_params = frb_dict.get("V_params", None)
 
 	# Resolve sweep_mode robustly from dspec_params
 	sweep_mode = None
@@ -570,7 +570,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 	base_name = param_map.get(xname_raw, xname_raw)
 
 	# Variance sweep: SD(xname), no weighting
-	if sweep_mode == "variance":
+	if sweep_mode == "sd":
 		def _strip_zero_subscript(tex):
 			# Handle both _0 and subscript lists like {...,0}
 			return tex.replace(",0", "").replace("_0", "")
@@ -588,13 +588,13 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 				weight = np.array(dspec_params[0][weight_x_by])[0]
 		elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
 			weight = np.array(dspec_params[weight_x_by])[0]
-		# Check in sd_params if not found in dspec_params
-		if weight is None and sd_params is not None:
-			if isinstance(sd_params, (list, tuple)) and len(sd_params) > 0:
-				if isinstance(sd_params[0], dict) and weight_x_by in sd_params[0]:
-					weight = np.array(sd_params[0][weight_x_by])[0]
-			elif isinstance(sd_params, dict) and weight_x_by in sd_params:
-				weight = np.array(sd_params[weight_x_by])[0]
+		# Check in V_params if not found in dspec_params
+		if weight is None and V_params is not None:
+			if isinstance(V_params, (list, tuple)) and len(V_params) > 0:
+				if isinstance(V_params[0], dict) and weight_x_by in V_params[0]:
+					weight = np.array(V_params[0][weight_x_by])[0]
+			elif isinstance(V_params, dict) and weight_x_by in V_params:
+				weight = np.array(V_params[weight_x_by])[0]
 		if weight is None:
 			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
 
@@ -619,7 +619,7 @@ def _get_weighted_y_name(yname, weight_y_by):
 		return yname
 
 	# Special case for PA variance ratio
-	if yname == r"Var($\psi$)" and weight_y_by == "var_PA":
+	if yname == r"Var($\psi$)" and weight_y_by == "PA_i":
 		return r"\mathcal{R}_{\mathrm{\psi}}"
 
 	w_name = param_map.get(weight_y_by, weight_y_by)
@@ -727,40 +727,36 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	weight_x_by : str or None, optional
 		Parameter to weight/normalise x-axis by.
 	"""
+
 	 # Determine y-axis name if not provided
 	yname = _get_weighted_y_name(yname, weight_y_by)
 
 	colour_list = list(colours.values())
+	expected_plotted = False  # plot expected only once (full-band, total)
+
 	for idx, (run, subdict) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {run}:")
 		colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
 
 		xvals = np.array(subdict["xvals"])
 		yvals = subdict["yvals"]
-		sd_params = subdict["sd_params"]
+		V_params = subdict["V_params"]
 		dspec_params = subdict["dspec_params"]
 
-		sweep_mode = dspec_params.sweep_mode if hasattr(dspec_params, "sweep_mode") else dspec_params.get("sweep_mode", "mean")
-		if sweep_mode == "variance":
-			logging.info("Note: x-axis is standard deviation of the varied parameter.")
-			params = dspec_params
-		elif sweep_mode == "mean":
-			logging.info("Note: x-axis is mean of the varied parameter.")
-			params = sd_params
-		else:
-			logging.warning(f"Unknown sweep_mode '{sweep_mode}'. Assuming 'mean'.")
-			params = sd_params
-  
-		y = _weight_dict(xvals, yvals, params, weight_by=weight_y_by)
+		# Weighting should use V_params (contains PA_i etc.) for both sweep modes
+		y = _weight_dict(xvals, yvals, V_params, weight_by=weight_y_by)
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
 
-		# Use flexible weighting for x-values
+		# Weighted x-values
 		x, xname = _weight_x_get_xname(subdict, weight_x_by=weight_x_by)
 		lower = np.array([lower for (lower, upper) in percentile_errs])
 		upper = np.array([upper for (lower, upper) in percentile_errs])
 
+		# Plot measured median with percentile band
 		ax.plot(x, med_vals, label=run, color=colour, linewidth=2)
 		ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
+
+		# Optional fit
 		if fit is not None:
 			if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
 				fit_type, fit_degree = _parse_fit_arg(fit[idx])
@@ -771,18 +767,28 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			logging.warning("No fit provided, skipping fit plotting.")
 		_print_avg_snrs(subdict)
 
+		# ---- Expected/intrinsic overlay (ratio) ----
+		# Only once, and only for the full-band, total run
+		if (not expected_plotted) and (run == "full-band, total"):
+			exp_by_x = subdict.get("exp_vars", {})
+			exp_vals_dict = {}
+			for var in xvals:
+				ev = exp_by_x.get(var, {}).get("exp_PA_i", [])
+				exp_vals_dict[var] = [(float(v) if v is not None else np.nan) for v in ev]
+
+			# Weight expected values the same way (e.g., divide by PA_i if requested)
+			y_exp = _weight_dict(xvals, exp_vals_dict, V_params, weight_by=weight_y_by)
+			exp_med, _ = _median_percentiles(y_exp, xvals)
+
+			# Plot expected ratio as a single dashed black line
+			ax.plot(x, exp_med, linestyle='--', color='black', linewidth=2, alpha=0.9,
+					label="Expected (full-band, total)")
+			expected_plotted = True
+
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if legend:
 		ax.legend()
 	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
-
-
-def _set_fixed_panel_layout(fig, left=0.18, right=0.98, bottom=0.16, top=0.98):
-	"""
-	Use fixed margins so the inner axes (data area) has a consistent size
-	across figures, independent of tick label lengths.
-	"""
-	fig.subplots_adjust(left=left, right=right, bottom=bottom, top=top)
 
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
@@ -849,7 +855,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	-----------
 	frb_dict : dict
 		Dictionary containing FRB simulation results. For single runs, contains keys like
-		'xvals', 'yvals', 'sd_params', 'dspec_params'. For multi-run comparisons, contains
+		'xvals', 'yvals', 'V_params', 'dspec_params'. For multi-run comparisons, contains
 		nested dictionaries with run names as keys.
 	save : bool
 		Whether to save the plot to disk.
@@ -890,17 +896,17 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	# If frb_dict contains multiple runs, plot each on the same axes
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		_set_fixed_panel_layout(fig)
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="var_PA", weight_x_by="width_ms", yname=yname, legend=legend)
+		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="PA_i", weight_x_by="width_ms", yname=yname, legend=legend)
 
 	else:	
 		# Otherwise, plot as usual (single job)
 		xvals = frb_dict["xvals"]
 		yvals = frb_dict["yvals"]
-		sd_params = frb_dict["sd_params"]
+		V_params = frb_dict["V_params"]
 	
 		# Use correct weighting key name
-		y = _weight_dict(xvals, yvals, sd_params, "var_PA")
+		y = _weight_dict(xvals, yvals, V_params, "PA_i")
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
 	
 		x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
@@ -909,7 +915,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		upper = np.array([upper for (lower, upper) in percentile_errs])
 	
 		fig, ax = plt.subplots(figsize=figsize)
-		_set_fixed_panel_layout(fig)
+		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$', linewidth=2)
 		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 		ax.grid(True, linestyle='--', alpha=0.6)
@@ -918,7 +924,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			fit_type, fit_degree = _parse_fit_arg(fit)
 			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 			ax.legend()
-		yname = _get_weighted_y_name(r"Var($\psi$)", "var_PA")
+		yname = _get_weighted_y_name(r"Var($\psi$)", "PA_i")
 		_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
 	if show_plots:
 		plt.show()
@@ -993,7 +999,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	-----------
 	frb_dict : dict
 		Dictionary containing FRB simulation results. For single runs, contains keys like
-		'xvals', 'yvals', 'sd_params', 'dspec_params'. For multi-run comparisons, contains
+		'xvals', 'yvals', 'V_params', 'dspec_params'. For multi-run comparisons, contains
 		nested dictionaries with run names as keys.
 	save : bool
 		Whether to save the plot to disk.
@@ -1037,18 +1043,18 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		figsize = (10, 9)
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
-		_set_fixed_panel_layout(fig)
+		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by=None, yname=yname, legend=legend)
 	else:
 		# Otherwise, plot as usual (single job)
 		xvals = frb_dict["xvals"]
 		yvals = frb_dict["yvals"]
-		sd_params = frb_dict["sd_params"]
+		V_params = frb_dict["V_params"]
 		dspec_params = frb_dict["dspec_params"]
 		width_ms = np.array(dspec_params[0]["width_ms"])[0]
 	
 		# No weighting for L/I by default (use raw values)
-		y = _weight_dict(xvals, yvals, sd_params, None)
+		y = _weight_dict(xvals, yvals, V_params, None)
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
 	
 		# Fix: pass parameter name, not a numeric value
@@ -1057,7 +1063,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		upper = np.array([upper for (lower, upper) in percentile_errs])
 	
 		fig, ax = plt.subplots(figsize=figsize)
-		_set_fixed_panel_layout(fig)
+		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		ax.plot(x, med_vals, color='black', label='L/I', linewidth=2)
 		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 		ax.grid(True, linestyle='--', alpha=0.6)

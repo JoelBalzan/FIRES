@@ -322,13 +322,13 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	sd_dict = {k: np.array(v, copy=True) for k, v in sd_dict.items()}
 
 	is_mean_sweep = (sweep_mode == "mean")
-	is_variance_sweep = (sweep_mode == "variance")
+	is_variance_sweep = (sweep_mode == "sd")
 
 	if variation_parameter is not None and xname is not None and sweep_mode != "none":
 		if is_variance_sweep:
 			var_key = f"{xname}_sd"
 			if var_key not in sd_dict:
-				raise ValueError(f"Variance key '{var_key}' not found for variance sweep.")
+				raise ValueError(f"Variance key '{var_key}' not found for standard deviation sweep.")
 			arr = np.array(sd_dict[var_key], copy=True)
 			if arr.ndim == 0:
 				arr = np.array([arr], dtype=float)
@@ -367,17 +367,17 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	# Create width_range list with pairs of [mg_width_low, mg_width_high]
 	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
 
-	peak_amp_sd        = sd_dict['peak_amp_sd']
-	spec_idx_sd        = sd_dict['spec_idx_sd']
-	tau_ms_sd          = sd_dict['tau_ms_sd']
-	PA_sd              = sd_dict['PA_sd']
-	dm_sd              = sd_dict['DM_sd']
-	rm_sd              = sd_dict['RM_sd']
-	lfrac_sd           = sd_dict['lfrac_sd']
-	vfrac_sd           = sd_dict['vfrac_sd']
-	dPA_sd             = sd_dict['dPA_sd']
-	band_centre_mhz_sd = sd_dict['band_centre_mhz_sd']
-	band_width_mhz_sd  = sd_dict['band_width_mhz_sd']
+	sd_peak_amp        = sd_dict['sd_peak_amp']
+	sd_spec_idx        = sd_dict['sd_spec_idx']
+	sd_tau_ms          = sd_dict['sd_tau_ms']
+	sd_PA              = sd_dict['sd_PA']
+	sd_dm              = sd_dict['sd_DM']
+	sd_rm              = sd_dict['sd_RM']
+	sd_lfrac           = sd_dict['sd_lfrac']
+	sd_vfrac           = sd_dict['sd_vfrac']
+	sd_dPA             = sd_dict['sd_dPA']
+	sd_band_centre_mhz = sd_dict['sd_band_centre_mhz']
+	sd_band_width_mhz  = sd_dict['sd_band_width_mhz']
 	
 			
 	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
@@ -385,80 +385,80 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
 	all_params = {
-		'var_t0'             : [],
-		'var_peak_amp'       : [],
-		'var_width_ms'       : [],
-		'var_spec_idx'       : [],
-		'var_tau_ms'         : [],
-		'var_PA'             : [],
-		'var_DM'             : [],
-		'var_RM'             : [],
-		'var_lfrac'          : [],
-		'var_vfrac'          : [],
-		'var_dPA'            : [],
-		'var_band_centre_mhz': [],
-		'var_band_width_mhz' : []
+		't0_i'             : [],
+		'peak_amp_i'       : [],
+		'width_ms_i'       : [],
+		'spec_idx_i'       : [],
+		'tau_ms_i'         : [],
+		'PA_i'             : [],
+		'DM_i'             : [],
+		'RM_i'             : [],
+		'lfrac_i'          : [],
+		'vfrac_i'          : [],
+		'dPA_i'            : [],
+		'band_centre_mhz_i': [],
+		'band_width_mhz_i' : []
 	}
 
 	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
 		for _ in range(int(ngauss[g])):
-			var_t0              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
-			var_peak_amp        = np.random.normal(peak_amp[g], peak_amp_sd)
-			var_width_ms        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
-			var_spec_idx        = np.random.normal(spec_idx[g], spec_idx_sd)
-			var_tau_ms          = np.random.normal(tau_ms[g], tau_ms_sd)
-			tau_eff = var_tau_ms if var_tau_ms > 0 else float(tau_ms[g])
+			t0_i              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
+			peak_amp_i        = np.random.normal(peak_amp[g], sd_peak_amp)
+			width_ms_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
+			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
+			tau_ms_i          = np.random.normal(tau_ms[g], sd_tau_ms)
+			tau_eff = tau_ms_i if tau_ms_i > 0 else float(tau_ms[g])
 			if tau_eff > 0:
 				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
 			else:
 				tau_cms = None
 
-			var_PA              = np.random.normal(PA[g], PA_sd)
-			var_DM              = np.random.normal(DM[g], dm_sd)
-			var_RM              = np.random.normal(RM[g], rm_sd)
-			var_lfrac           = np.random.normal(lfrac[g], lfrac_sd)
-			var_vfrac           = np.random.normal(vfrac[g], vfrac_sd)
-			var_dPA             = np.random.normal(dPA[g], dPA_sd)
-			var_band_centre_mhz = np.random.normal(band_centre_mhz[g], band_centre_mhz_sd)
-			var_band_width_mhz  = np.random.normal(band_width_mhz[g], band_width_mhz_sd)
+			PA_i              = np.random.normal(PA[g], sd_PA)
+			DM_i              = np.random.normal(DM[g], sd_dm)
+			RM_i              = np.random.normal(RM[g], sd_rm)
+			lfrac_i           = np.random.normal(lfrac[g], sd_lfrac)
+			vfrac_i           = np.random.normal(vfrac[g], sd_vfrac)
+			dPA_i             = np.random.normal(dPA[g], sd_dPA)
+			band_centre_mhz_i = np.random.normal(band_centre_mhz[g], sd_band_centre_mhz)
+			band_width_mhz_i  = np.random.normal(band_width_mhz[g], sd_band_width_mhz)
 
-			if vfrac_sd > 0.0:
-				var_vfrac = np.clip(var_vfrac, 0.0, 1.0)
-				var_lfrac = np.clip(1.0 - var_vfrac, 0.0, 1.0)
-			elif lfrac_sd > 0.0:
-				var_lfrac = np.clip(var_lfrac, 0.0, 1.0)
-				var_vfrac = np.clip(1.0 - var_lfrac, 0.0, 1.0)
+			if sd_vfrac > 0.0:
+				vfrac_i = np.clip(vfrac_i, 0.0, 1.0)
+				lfrac_i = np.clip(1.0 - vfrac_i, 0.0, 1.0)
+			elif sd_lfrac > 0.0:
+				lfrac_i = np.clip(lfrac_i, 0.0, 1.0)
+				vfrac_i = np.clip(1.0 - lfrac_i, 0.0, 1.0)
 
 			# Record parameters
-			all_params['var_t0'].append(var_t0)
-			all_params['var_peak_amp'].append(var_peak_amp)
-			all_params['var_width_ms'].append(var_width_ms)
-			all_params['var_spec_idx'].append(var_spec_idx)
-			all_params['var_tau_ms'].append(var_tau_ms)
-			all_params['var_PA'].append(var_PA)
-			all_params['var_DM'].append(var_DM)
-			all_params['var_RM'].append(var_RM)
-			all_params['var_lfrac'].append(var_lfrac)
-			all_params['var_vfrac'].append(var_vfrac)
-			all_params['var_dPA'].append(var_dPA)
-			all_params['var_band_centre_mhz'].append(var_band_centre_mhz)
-			all_params['var_band_width_mhz'].append(var_band_width_mhz)
+			all_params['t0_i'].append(t0_i)
+			all_params['peak_amp_i'].append(peak_amp_i)
+			all_params['width_ms_i'].append(width_ms_i)
+			all_params['spec_idx_i'].append(spec_idx_i)
+			all_params['tau_ms_i'].append(tau_ms_i)
+			all_params['PA_i'].append(PA_i)
+			all_params['DM_i'].append(DM_i)
+			all_params['RM_i'].append(RM_i)
+			all_params['lfrac_i'].append(lfrac_i)
+			all_params['vfrac_i'].append(vfrac_i)
+			all_params['dPA_i'].append(dPA_i)
+			all_params['band_centre_mhz_i'].append(band_centre_mhz_i)
+			all_params['band_width_mhz_i'].append(band_width_mhz_i)
 
 			# Vectorised micro-shot synthesis
-			norm_amp = var_peak_amp * (freq_mhz / ref_freq_mhz) ** var_spec_idx
+			norm_amp = peak_amp_i * (freq_mhz / ref_freq_mhz) ** spec_idx_i
 			if band_width_mhz[g] != 0.:
-				centre_freq = var_band_centre_mhz if var_band_centre_mhz != 0. else np.median(freq_mhz)
-				bw_sigma = var_band_width_mhz / GAUSSIAN_FWHM_FACTOR
+				centre_freq = band_centre_mhz_i if band_centre_mhz_i != 0. else np.median(freq_mhz)
+				bw_sigma = band_width_mhz_i / GAUSSIAN_FWHM_FACTOR
 				if bw_sigma > 0:
 					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
 					norm_amp *= spectral_profile
 
-			base_gauss = gaussian_model(time_ms, 1.0, var_t0, var_width_ms / GAUSSIAN_FWHM_FACTOR)
+			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_ms_i / GAUSSIAN_FWHM_FACTOR)
 			I_ft = norm_amp[:, None] * base_gauss[None, :]
 
-			if var_DM != 0:
-				shifts = np.round(_calculate_dispersion_delay(var_DM, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
+			if DM_i != 0:
+				shifts = np.round(_calculate_dispersion_delay(DM_i, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
 				for c, s in enumerate(shifts):
 					if s != 0:
 						I_ft[c] = np.roll(I_ft[c], s)
@@ -466,12 +466,12 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			if tau_eff > 0:
 				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
 
-			pol_angle_arr = var_PA + (time_ms - var_t0) * var_dPA
-			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], var_RM, lambda_sq[:, None], median_lambda_sq)
+			pol_angle_arr = PA_i + (time_ms - t0_i) * dPA_i
+			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM_i, lambda_sq[:, None], median_lambda_sq)
 
-			Q_ft = I_ft * var_lfrac * np.cos(2 * faraday_angles)
-			U_ft = I_ft * var_lfrac * np.sin(2 * faraday_angles)
-			V_ft = I_ft * var_vfrac
+			Q_ft = I_ft * lfrac_i * np.cos(2 * faraday_angles)
+			U_ft = I_ft * lfrac_i * np.sin(2 * faraday_angles)
+			V_ft = I_ft * vfrac_i
 
 			dspec[0] += I_ft
 			dspec[1] += Q_ft
@@ -482,8 +482,8 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
 
-	# Calculate variance for each parameter in sd_params
-	sd_params = {key: np.nanvar(values) for key, values in all_params.items()}
+	# Calculate variance for each parameter in all_params
+	V_params = {key: np.nanvar(values) for key, values in all_params.items()}
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
 	t_res_s = time_res_ms / 1000.0
@@ -528,14 +528,14 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	# Expected PA variance (time-averaged N_eff)
 	N_tot = int(np.nansum(ngauss))
 	exp_V_psi_deg2 = None
-	if PA_sd > 0 and N_tot > 1:
+	if sd_PA > 0 and N_tot > 1:
 		exp_V_psi_deg2, hfg_diag, h2fg_diag, N_eff_t_diag, N_eff_avg_diag = _expected_pa_variance(
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
-			sigma_deg=float(PA_sd),
+			sigma_deg=float(sd_PA),
 			ngauss=N_tot,
 			width_ms=float(np.nanmean(width_ms)),
 			peak_amp=float(np.nanmean(peak_amp)),
-			peak_amp_sd=float(peak_amp_sd),
+			peak_amp_sd=float(sd_peak_amp),
 			time_ms=time_ms,
 			width_pct_low=float(np.nanmean(mg_width_low)),
 			width_pct_high=float(np.nanmean(mg_width_high)),
@@ -562,5 +562,5 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		'exp_var_band_width_mhz' : None
 	}
 
-	return dspec, snr, sd_params, exp_vars
+	return dspec, snr, V_params, exp_vars
 

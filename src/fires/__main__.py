@@ -204,12 +204,12 @@ def main():
 		"--sweep-mode",
 		type=str,
 		default="none",
-		choices=["none", "mean", "variance"],
+		choices=["none", "mean", "sd"],
 		metavar="",
 		help=("Parameter sweep mode for pa_var and l_frac plots:\n"
 			  "  none      : disable sweeping (use means + micro std dev only)\n"
 			  "  mean      : sweep the mean value (std dev forced to 0 for that param)\n"
-			  "  variance  : keep mean fixed, sweep the micro std dev\n")
+			  "  sd		   : keep mean fixed, sweep the micro std dev\n")
 	)
 
 	# Simulation Options
