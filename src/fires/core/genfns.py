@@ -234,7 +234,7 @@ def _triple_convolution_with_width_pdf(
         h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
         # Convolve with arrival PDF (unit area), include dt for integral
         hf_w  = np.convolve(h_w,           f_arrival, mode="same") * dt
-        h2f_w = np.convolve(h_w * h_w,     f_arrival, mode="same") * dt
+        h2f_w = np.convolve(h_w**2,     f_arrival, mode="same") * dt
         hf_list.append(hf_w)
         h2f_list.append(h2f_w)
 
@@ -334,8 +334,8 @@ def _expected_pa_variance_basic(
     w = W * frac_micro
 
     tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
-    W_tot = float(np.sqrt(W * W + tau_mean * tau_mean))
-    w_tot = float(np.sqrt(w * w + tau_mean * tau_mean))
+    W_tot = float(np.sqrt(W**2 + tau_mean**2))
+    w_tot = float(np.sqrt(w**2 + tau_mean**2))
 
     N_eff_t = float(ngauss) * (w_tot / max(W_tot, 1e-12))
     N_eff_t = max(N_eff_t, 1.0)
@@ -343,7 +343,7 @@ def _expected_pa_variance_basic(
     sigma = float(sigma_deg)
 
     PA_rms_deg = sigma / np.sqrt(N_eff_t)
-    var_PA_deg2 = PA_rms_deg * PA_rms_deg
+    var_PA_deg2 = PA_rms_deg**2
 
     return var_PA_deg2
 
