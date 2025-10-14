@@ -571,11 +571,8 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 
 	# Variance sweep: SD(xname), no weighting
 	if sweep_mode == "sd":
-		def _strip_zero_subscript(tex):
-			# Handle both _0 and subscript lists like {...,0}
-			return tex.replace(",0", "").replace("_0", "")
 		x = xvals_raw
-		base_core = _strip_zero_subscript(base_name)
+		base_core = base_name.replace(",0", "").replace("_0", "")
 		xname = rf"\sigma_{{{base_core}}}"
 		return x, xname
 
@@ -773,7 +770,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			exp_by_x = subdict.get("exp_vars", {})
 			exp_vals_dict = {}
 			for var in xvals:
-				ev = exp_by_x.get(var, {}).get("exp_PA_i", [])
+				ev = exp_by_x.get(var, {}).get("exp_" + yname, [])
 				exp_vals_dict[var] = [(float(v) if v is not None else np.nan) for v in ev]
 
 			# Weight expected values the same way (e.g., divide by PA_i if requested)
