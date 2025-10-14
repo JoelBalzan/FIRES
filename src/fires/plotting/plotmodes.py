@@ -24,7 +24,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-                                 process_dspec)
+								 process_dspec)
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 
 logging.basicConfig(level=logging.INFO)
@@ -764,22 +764,40 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			logging.warning("No fit provided, skipping fit plotting.")
 		_print_avg_snrs(subdict)
 
-		# ---- Expected/intrinsic overlay (ratio) ----
-		# Only once, and only for the full-band, total run
+		# ---- Expected/intrinsic overlay (plot both full and basic if available) ----
 		if (not expected_plotted) and (run == "full-band, total"):
 			exp_by_x = subdict.get("exp_vars", {})
-			exp_vals_dict = {}
+
+			exp_vals_full = {}
+			exp_vals_basic = {}
+
 			for var in xvals:
-				ev = exp_by_x.get(var, {}).get("exp_var" + yname.removesuffix("_i"), [])
-				exp_vals_dict[var] = [(float(v) if v is not None else np.nan) for v in ev]
+				ed = exp_by_x.get(var, {})
+				ev = ed.get("exp_var_PA")
+				if isinstance(ev, (list, tuple, np.ndarray)):
+					full = ev[0] if len(ev) > 0 else None
+					basic = ev[1] if len(ev) > 1 else None
+				else:
+					full = ev
+					basic = None
+				
+				exp_vals_full[var] = [float(full)] if full is not None else []
+				exp_vals_basic[var] = [float(basic)] if basic is not None else []
 
-			# Weight expected values the same way (e.g., divide by PA_i if requested)
-			y_exp = _weight_dict(xvals, exp_vals_dict, V_params, weight_by=weight_y_by)
-			exp_med, _ = _median_percentiles(y_exp, xvals)
+			# Weight expected values the same way
+			y_exp_full = _weight_dict(xvals, exp_vals_full, V_params, weight_by=weight_y_by)
+			y_exp_basic = _weight_dict(xvals, exp_vals_basic, V_params, weight_by=weight_y_by)
+			exp_med_full, _ = _median_percentiles(y_exp_full, xvals)
+			exp_med_basic, _ = _median_percentiles(y_exp_basic, xvals)
 
-			# Plot expected ratio as a single dashed black line
-			ax.plot(x, exp_med, linestyle='--', color='black', linewidth=2, alpha=0.9,
-					label="Expected (full-band, total)")
+			# Plot both curves if available
+			if np.any(np.isfinite(exp_med_full)):
+				ax.plot(x, exp_med_full, linestyle='--', color='black', linewidth=2, alpha=0.9,
+						label="Expected (full)")
+			if np.any(np.isfinite(exp_med_basic)):
+				ax.plot(x, exp_med_basic, linestyle=':', color='black', linewidth=2, alpha=0.9,
+						label="Expected (basic)")
+
 			expected_plotted = True
 
 	ax.grid(True, linestyle='--', alpha=0.6)
