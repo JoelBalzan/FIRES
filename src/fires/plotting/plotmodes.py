@@ -773,7 +773,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 			for var in xvals:
 				ed = exp_by_x.get(var, {})
-				ev = ed.get("exp_var_PA")
+				ev = ed.get("exp_var"+yname.removesuffix("_i"))
 				if isinstance(ev, (list, tuple, np.ndarray)):
 					full = ev[0] if len(ev) > 0 else None
 					basic = ev[1] if len(ev) > 1 else None
@@ -933,6 +933,37 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$', linewidth=2)
 		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
+
+		# ---- Expected overlays (full and basic) for single-run ----
+		exp_by_x = frb_dict.get("exp_vars", {})
+		if isinstance(exp_by_x, dict) and len(exp_by_x) > 0:
+			exp_vals_full = {}
+			exp_vals_basic = {}
+			for var in xvals:
+				ed = exp_by_x.get(var, {})
+				ev = ed.get("exp_var_PA")
+				if isinstance(ev, (list, tuple, np.ndarray)):
+					full = ev[0] if len(ev) > 0 else None
+					basic = ev[1] if len(ev) > 1 else None
+				else:
+					full = ev
+					basic = None
+				exp_vals_full[var] = [float(full)] if full is not None else []
+				exp_vals_basic[var] = [float(basic)] if basic is not None else []
+
+			# Weight the same way as measured data (by PA_i)
+			y_exp_full = _weight_dict(xvals, exp_vals_full, V_params, weight_by="PA_i")
+			y_exp_basic = _weight_dict(xvals, exp_vals_basic, V_params, weight_by="PA_i")
+			exp_med_full, _ = _median_percentiles(y_exp_full, xvals)
+			exp_med_basic, _ = _median_percentiles(y_exp_basic, xvals)
+
+			if np.any(np.isfinite(exp_med_full)):
+				ax.plot(x, exp_med_full, linestyle='--', color='black', linewidth=2, alpha=0.9,
+						label="Expected (full)")
+			if np.any(np.isfinite(exp_med_basic)):
+				ax.plot(x, exp_med_basic, linestyle=':', color='black', linewidth=2, alpha=0.9,
+						label="Expected (basic)")
+
 		ax.grid(True, linestyle='--', alpha=0.6)
 		if fit is not None:
 			# Parse fit argument for type/degree
