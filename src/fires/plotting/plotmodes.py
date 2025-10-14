@@ -773,7 +773,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 			for var in xvals:
 				ed = exp_by_x.get(var, {})
-				ev = ed.get("exp_var"+yname.removesuffix("_i"))
+				ev = ed.get("exp_var_"+yname.removesuffix("_i"))
 				if isinstance(ev, (list, tuple, np.ndarray)):
 					full = ev[0] if len(ev) > 0 else None
 					basic = ev[1] if len(ev) > 1 else None
