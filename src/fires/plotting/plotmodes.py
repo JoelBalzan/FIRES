@@ -698,6 +698,64 @@ def _print_avg_snrs(subdict):
 		logging.info(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
 		
 
+def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', weight_y_by=None):
+	"""
+	Extract expected series for each x in xvals from exp_vars.
+	Handles:
+	 - exp_vars[x][param_key] as list over realizations of either scalar or [regular, basic]
+	 - optional normalization by a variance parameter (e.g., 'PA_i') from V_params
+
+	Returns:
+	 (exp_primary, exp_secondary) as np.ndarray (second can be None if not present)
+	"""
+	def first_non_none(seq):
+		if isinstance(seq, (list, tuple, np.ndarray)):
+			for v in seq:
+				if v is None:
+					continue
+				return v
+			return None
+		return seq
+
+	exp1, exp2 = [], []
+	wts = []
+
+	for xv in xvals:
+		x_dict = exp_vars.get(xv, {})
+		vals = x_dict.get(param_key, None)
+		v = first_non_none(vals)
+
+		if isinstance(v, (list, tuple, np.ndarray)) and len(v) >= 2:
+			e1, e2 = v[0], v[1]
+		else:
+			e1, e2 = v, None
+
+		exp1.append(np.nan if e1 is None else float(e1))
+		exp2.append(np.nan if e2 is None else (float(e2) if e2 is not None else np.nan))
+
+		# Optional weighting by variance parameter (e.g., 'PA_i')
+		if weight_y_by is not None:
+			wdict = V_params.get(xv, {})
+			wlist = wdict.get(weight_y_by, None)
+			w = first_non_none(wlist)
+			wts.append(np.nan if w is None else float(w))
+
+	exp1 = np.asarray(exp1, dtype=float)
+	exp2 = np.asarray(exp2, dtype=float)
+	if weight_y_by is not None:
+		wts = np.asarray(wts, dtype=float)
+		with np.errstate(invalid='ignore', divide='ignore'):
+			exp1 = exp1 / wts
+			if np.any(np.isfinite(exp2)):
+				exp2 = exp2 / wts
+			else:
+				exp2 = None
+	else:
+		if not np.any(np.isfinite(exp2)):
+			exp2 = None
+
+	return exp1, exp2
+
 
 def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, legend=True):
 	"""
@@ -731,6 +789,13 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	colour_list = list(colours.values())
 	expected_plotted = False  # plot expected only once (full-band, total)
 
+	# Prefer a specific run for expected curves if present
+	preferred_run = None
+	for run in frb_dict.keys():
+		if "full-band" in run and "total" in run:
+			preferred_run = run
+			break
+
 	for idx, (run, subdict) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {run}:")
 		colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
@@ -740,7 +805,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		V_params = subdict["V_params"]
 		dspec_params = subdict["dspec_params"]
 
-		# Weighting should use V_params (contains PA_i etc.) for both sweep modes
+		# Weighted y-values for measured data
 		y = _weight_dict(xvals, yvals, V_params, weight_by=weight_y_by)
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
 
@@ -753,52 +818,28 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		ax.plot(x, med_vals, label=run, color=colour, linewidth=2)
 		ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
 
-		# Optional fit
+		# Plot expected curves once (from preferred run if available)
+		if not expected_plotted:
+			if preferred_run is None or run == preferred_run:
+				exp1, exp2 = _extract_expected_curves(
+					subdict["exp_vars"], V_params, xvals, param_key='exp_var_PA', weight_y_by=weight_y_by
+				)
+				# Keep same x-weighting for expected curves
+				ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
+				if exp2 is not None:
+					ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
+				expected_plotted = True
+
+		# Optional fit on measured medians
 		if fit is not None:
+			logging.info(f"Applying fit: {fit}")
 			if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
 				fit_type, fit_degree = _parse_fit_arg(fit[idx])
 			else:
 				fit_type, fit_degree = _parse_fit_arg(fit)
 			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
-		else:
-			logging.warning("No fit provided, skipping fit plotting.")
+
 		_print_avg_snrs(subdict)
-
-		# ---- Expected/intrinsic overlay (plot both full and basic if available) ----
-		if (not expected_plotted) and (run == "full-band, total"):
-			exp_by_x = subdict.get("exp_vars", {})
-
-			exp_vals_full = {}
-			exp_vals_basic = {}
-
-			for var in xvals:
-				ed = exp_by_x.get(var, {})
-				ev = ed.get("exp_var_"+yname.removesuffix("_i"))
-				if isinstance(ev, (list, tuple, np.ndarray)):
-					full = ev[0] if len(ev) > 0 else None
-					basic = ev[1] if len(ev) > 1 else None
-				else:
-					full = ev
-					basic = None
-				
-				exp_vals_full[var] = [float(full)] if full is not None else []
-				exp_vals_basic[var] = [float(basic)] if basic is not None else []
-
-			# Weight expected values the same way
-			y_exp_full = _weight_dict(xvals, exp_vals_full, V_params, weight_by=weight_y_by)
-			y_exp_basic = _weight_dict(xvals, exp_vals_basic, V_params, weight_by=weight_y_by)
-			exp_med_full, _ = _median_percentiles(y_exp_full, xvals)
-			exp_med_basic, _ = _median_percentiles(y_exp_basic, xvals)
-
-			# Plot both curves if available
-			if np.any(np.isfinite(exp_med_full)):
-				ax.plot(x, exp_med_full, linestyle='--', color='black', linewidth=2, alpha=0.9,
-						label="Expected (full)")
-			if np.any(np.isfinite(exp_med_basic)):
-				ax.plot(x, exp_med_basic, linestyle=':', color='black', linewidth=2, alpha=0.9,
-						label="Expected (basic)")
-
-			expected_plotted = True
 
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if legend:
@@ -912,61 +953,41 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
+		# Weight measured and expected by PA_i to show ratio R_psi
 		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="PA_i", weight_x_by="width_ms", yname=yname, legend=legend)
 
 	else:	
-		# Otherwise, plot as usual (single job)
+		# Single job
 		xvals = frb_dict["xvals"]
 		yvals = frb_dict["yvals"]
 		V_params = frb_dict["V_params"]
-	
-		# Use correct weighting key name
+
+		# Measured, normalized by PA_i
 		y = _weight_dict(xvals, yvals, V_params, "PA_i")
 		med_vals, percentile_errs = _median_percentiles(y, xvals)
-	
+
+		# X weighting
 		x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
-	
+
 		lower = np.array([lower for (lower, upper) in percentile_errs])
 		upper = np.array([upper for (lower, upper) in percentile_errs])
-	
+
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$', linewidth=2)
 		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
 
-		# ---- Expected overlays (full and basic) for single-run ----
-		exp_by_x = frb_dict.get("exp_vars", {})
-		if isinstance(exp_by_x, dict) and len(exp_by_x) > 0:
-			exp_vals_full = {}
-			exp_vals_basic = {}
-			for var in xvals:
-				ed = exp_by_x.get(var, {})
-				ev = ed.get("exp_var_PA")
-				if isinstance(ev, (list, tuple, np.ndarray)):
-					full = ev[0] if len(ev) > 0 else None
-					basic = ev[1] if len(ev) > 1 else None
-				else:
-					full = ev
-					basic = None
-				exp_vals_full[var] = [float(full)] if full is not None else []
-				exp_vals_basic[var] = [float(basic)] if basic is not None else []
-
-			# Weight the same way as measured data (by PA_i)
-			y_exp_full = _weight_dict(xvals, exp_vals_full, V_params, weight_by="PA_i")
-			y_exp_basic = _weight_dict(xvals, exp_vals_basic, V_params, weight_by="PA_i")
-			exp_med_full, _ = _median_percentiles(y_exp_full, xvals)
-			exp_med_basic, _ = _median_percentiles(y_exp_basic, xvals)
-
-			if np.any(np.isfinite(exp_med_full)):
-				ax.plot(x, exp_med_full, linestyle='--', color='black', linewidth=2, alpha=0.9,
-						label="Expected (full)")
-			if np.any(np.isfinite(exp_med_basic)):
-				ax.plot(x, exp_med_basic, linestyle=':', color='black', linewidth=2, alpha=0.9,
-						label="Expected (basic)")
+		# Expected curves (regular and basic), normalized by PA_i as well
+		if "exp_vars" in frb_dict:
+			exp1, exp2 = _extract_expected_curves(
+				frb_dict["exp_vars"], V_params, xvals, param_key='exp_var_PA', weight_y_by="PA_i"
+			)
+			ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
+			if exp2 is not None:
+				ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
 
 		ax.grid(True, linestyle='--', alpha=0.6)
 		if fit is not None:
-			# Parse fit argument for type/degree
 			fit_type, fit_degree = _parse_fit_arg(fit)
 			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 			ax.legend()
