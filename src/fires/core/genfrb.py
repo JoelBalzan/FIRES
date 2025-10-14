@@ -25,7 +25,7 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
-                                 snr_onpulse)
+								 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.utils.config import get_parameters, load_params
 from fires.utils.utils import dspecParams, simulated_frb
@@ -490,14 +490,24 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			_array_id = _slurm_array_id()
 			if _array_count > 1:
 				total = len(xvals)
-				chunk = (total + _array_count - 1) // _array_count
-				start_idx = _array_id * chunk
-				end_idx = min(start_idx + chunk, total)
-				if start_idx >= total:
+				base = total // _array_count
+				rem = total % _array_count
+				if _array_id < rem:
+					start_idx = _array_id * (base + 1)
+					end_idx = start_idx + (base + 1)
+				else:
+					start_idx = rem * (base + 1) + (_array_id - rem) * base
+					end_idx = start_idx + base
+
+				if start_idx >= total or start_idx == end_idx:
 					logging.info(f"Array task {_array_id}/{_array_count - 1}: no assigned xvals.")
 					sys.exit(0)
-				xvals = xvals[start_idx:end_idx]
-				logging.info(f"Array task {_array_id}/{_array_count - 1}: processing {len(xvals)} sweep values.")
+
+				xvals = xvals[start_idx:min(end_idx, total)]
+				logging.info(
+					f"Array task {_array_id}/{_array_count - 1}: "
+					f"processing {len(xvals)} sweep values (idx {start_idx}:{min(end_idx, total)} of {total})."
+				)
 
 			tasks = list(product(xvals, range(nseed)))
 
