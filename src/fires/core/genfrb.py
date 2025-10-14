@@ -128,7 +128,7 @@ def _load_multiple_data_grouped(data):
 		all_xvals             = []
 		all_yvals             = {}
 		all_errs              = {}
-		all_sd_params         = {}
+		all_V_params         = {}
 		all_exp_vars          = {}
 		dspec_params          = None
 		plot_mode             = None
@@ -142,7 +142,7 @@ def _load_multiple_data_grouped(data):
 			xvals        = obj["xvals"]
 			yvals        = obj["yvals"]
 			errs         = obj["errs"]
-			sd_params    = obj["sd_params"]
+			V_params    = obj["V_params"]
 			exp_vars     = obj["exp_vars"]
 			dspec_params = obj["dspec_params"]
 			snrs         = obj["snrs"]
@@ -151,13 +151,13 @@ def _load_multiple_data_grouped(data):
 				if v not in all_yvals:
 					all_yvals[v]      = []
 					all_errs[v]       = []
-					all_sd_params[v]  = {key: [] for key in sd_params[v].keys()}
+					all_V_params[v]  = {key: [] for key in V_params[v].keys()}
 					all_exp_vars[v]   = {key: [] for key in exp_vars[v].keys()}
 					all_snrs[v]       = []
 				all_yvals[v].extend(yvals[v])
 				all_errs[v].extend(errs[v])
-				for key, values in sd_params[v].items():
-					all_sd_params[v][key].extend(values)
+				for key, values in V_params[v].items():
+					all_V_params[v][key].extend(values)
 				for key, values in exp_vars[v].items():
 					all_exp_vars[v][key].extend(values)
 				all_snrs[v].extend(snrs[v])
@@ -170,7 +170,7 @@ def _load_multiple_data_grouped(data):
 			'xvals'            : all_xvals,
 			'yvals'            : all_yvals,
 			'errs'             : all_errs,
-			'sd_params'        : all_sd_params,
+			'V_params'        : all_V_params,
 			'exp_vars'         : all_exp_vars,
 			'dspec_params'     : dspec_params,
 			'plot_mode'        : plot_mode,
@@ -219,7 +219,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
 	# Generate dynamic spectrum
-	dspec, snr, sd_params, exp_vars = _generate_dspec(
+	dspec, snr, V_params, exp_vars = _generate_dspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -242,7 +242,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 	xvals, result_err = process_func(**process_func_args)
 
-	return var, xvals, result_err, sd_params, snr, exp_vars
+	return var, xvals, result_err, V_params, snr, exp_vars
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gauss_file, scint_file,
@@ -299,19 +299,19 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 
 	# Micro (psn) σ (std dev) values (scalars per column)
 	sd_dict = {
-		't0_sd'             : gauss_params[stddev_row, 0],
-		'width_ms_sd'       : gauss_params[stddev_row, 1],
-		'peak_amp_sd'       : gauss_params[stddev_row, 2],
-		'spec_idx_sd'       : gauss_params[stddev_row, 3],
-		'tau_ms_sd'         : gauss_params[stddev_row, 4],
-		'DM_sd'             : gauss_params[stddev_row, 5],
-		'RM_sd'             : gauss_params[stddev_row, 6],
-		'PA_sd'             : gauss_params[stddev_row, 7],
-		'lfrac_sd'          : gauss_params[stddev_row, 8],
-		'vfrac_sd'          : gauss_params[stddev_row, 9],
-		'dPA_sd'            : gauss_params[stddev_row,10],
-		'band_centre_mhz_sd': gauss_params[stddev_row,11],
-		'band_width_mhz_sd' : gauss_params[stddev_row,12]
+		'sd_t0'             : gauss_params[stddev_row, 0],
+		'sd_width_ms'       : gauss_params[stddev_row, 1],
+		'sd_peak_amp'       : gauss_params[stddev_row, 2],
+		'sd_spec_idx'       : gauss_params[stddev_row, 3],
+		'sd_tau_ms'         : gauss_params[stddev_row, 4],
+		'sd_DM'             : gauss_params[stddev_row, 5],
+		'sd_RM'             : gauss_params[stddev_row, 6],
+		'sd_PA'             : gauss_params[stddev_row, 7],
+		'sd_lfrac'          : gauss_params[stddev_row, 8],
+		'sd_vfrac'          : gauss_params[stddev_row, 9],
+		'sd_dPA'            : gauss_params[stddev_row,10],
+		'sd_band_centre_mhz': gauss_params[stddev_row,11],
+		'sd_band_width_mhz' : gauss_params[stddev_row,12]
 	}
 
 	# Sweep specification (used only for multi-FRB modes)
@@ -443,7 +443,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			if sweep_mode == "none":
 				raise ValueError(
 					f"Plot mode '{plot_mode.name}' requires a parameter sweep. "
-					"Use --sweep-mode mean or --sweep-mode variance and set exactly one non-zero step in gparams."
+					"Use --sweep-mode mean or --sweep-mode sd and set exactly one non-zero step in gparams."
 				)
 
 			if np.all(gauss_params[step_row, :] == 0.0):
@@ -518,10 +518,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 
 			yvals = {v: [] for v in xvals}
 			errs = {v: [] for v in xvals}
-			sd_params = {
+			V_params = {
 				v: {key: [] for key in [
-					'var_t0','var_peak_amp','var_width_ms','var_spec_idx','var_tau_ms','var_PA',
-					'var_DM','var_RM','var_lfrac','var_vfrac','var_dPA','var_band_centre_mhz','var_band_width_mhz'
+					't0_i','peak_amp_i','width_ms_i','spec_idx_i','tau_ms_i','PA_i',
+					'DM_i','RM_i','lfrac_i','vfrac_i','dPA_i','band_centre_mhz_i','band_width_mhz_i'
 				]} for v in xvals
 			}
 			snrs = {v: [] for v in xvals}
@@ -537,7 +537,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				errs[var].append(err)
 				snrs[var].append(snr)
 				for key, value in params_dict.items():
-					sd_params[var][key].append(value)
+					V_params[var][key].append(value)
 				for key, value in exp_var_psi_deg2.items():
 					exp_vars[var][key].append(value)
 
@@ -546,7 +546,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				"xvals": xvals,
 				"yvals": yvals,
 				"errs": errs,
-				"sd_params": sd_params,
+				"V_params": V_params,
 				"exp_vars": exp_vars,
 				"dspec_params": dspec_params,
 				"plot_mode": plot_mode,
