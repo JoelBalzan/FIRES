@@ -767,10 +767,14 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		# ---- Expected/intrinsic overlay (ratio) ----
 		# Only once, and only for the full-band, total run
 		if (not expected_plotted) and (run == "full-band, total"):
-			exp_vals = subdict["exp_vals"]
+			exp_by_x = subdict.get("exp_vars", {})
+			exp_vals_dict = {}
+			for var in xvals:
+				ev = exp_by_x.get(var, {}).get("exp_var" + yname.removesuffix("_i"), [])
+				exp_vals_dict[var] = [(float(v) if v is not None else np.nan) for v in ev]
 
 			# Weight expected values the same way (e.g., divide by PA_i if requested)
-			y_exp = _weight_dict(xvals, exp_vals, V_params, weight_by=weight_y_by)
+			y_exp = _weight_dict(xvals, exp_vals_dict, V_params, weight_by=weight_y_by)
 			exp_med, _ = _median_percentiles(y_exp, xvals)
 
 			# Plot expected ratio as a single dashed black line
