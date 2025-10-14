@@ -398,7 +398,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
 
 		else:
-			dspec, snr, _ = _generate_dspec(
+			dspec, snr, _, _ = _generate_dspec(
 			xname=None,
 			mode=mode,
 			var=None,

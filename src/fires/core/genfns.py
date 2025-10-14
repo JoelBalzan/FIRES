@@ -304,6 +304,50 @@ def _expected_pa_variance(
 	return float(var_psi_deg2), hfg, h2fg, N_eff_t, N_eff_avg
 
 
+def _expected_pa_variance_basic(
+    width_ms,
+    mg_width_low,
+    mg_width_high,
+    tau_ms,
+    sigma_deg,
+    ngauss
+) -> tuple[float | None, float | None, dict]:
+    """
+    Basic PA-variance estimator using broadened widths and an effective shots-per-time argument.
+
+    Assumptions:
+      - Macro width W and micro width w are FWHM-like measures.
+      - Scattering broadens both: W_tot = sqrt(W^2 + tau^2), w_tot = sqrt(w^2 + tau^2).
+      - Effective number per time: N_eff_t = N * (w_tot / W_tot).
+      - psi_rms ~ sigma_deg / sqrt(N_eff_t), Var[PA] ~ psi_rms^2.
+
+    Returns:
+      var_psi_deg2 (float|None), psi_rms_deg (float|None), aux (dict with components).
+    """
+    W = float(np.nanmean(np.asarray(width_ms, dtype=float)))
+
+    # Mean micro width fraction from [low, high] percent bounds
+    low = np.asarray(mg_width_low, dtype=float)
+    high = np.asarray(mg_width_high, dtype=float)
+    frac_micro = np.nanmean(0.5 * (low + high)) / 100.0
+    frac_micro = np.clip(frac_micro, 1e-6, None)
+    w = W * frac_micro
+
+    tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
+    W_tot = float(np.sqrt(W * W + tau_mean * tau_mean))
+    w_tot = float(np.sqrt(w * w + tau_mean * tau_mean))
+
+    N_eff_t = float(ngauss) * (w_tot / max(W_tot, 1e-12))
+    N_eff_t = max(N_eff_t, 1.0)
+
+    sigma = float(sigma_deg)
+
+    psi_rms_deg = sigma / np.sqrt(N_eff_t)
+    var_psi_deg2 = psi_rms_deg * psi_rms_deg
+
+    return var_psi_deg2
+
+
 def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 					sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
 					variation_parameter=None, xname=None, target_snr=None):
@@ -543,8 +587,19 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			onpulse_fraction=0.10
 		)
 		logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_psi_deg2:.3f} deg^2 (N_eff_avg={N_eff_avg_diag:.1f})")
+
+		exp_V_psi_deg2_basic = _expected_pa_variance_basic(
+			width_ms=float(np.nanmean(width_ms)),
+			mg_width_low=float(np.nanmean(mg_width_low)),
+			mg_width_high=float(np.nanmean(mg_width_high)),
+			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
+			sigma_deg=float(sd_PA),
+			ngauss=N_tot
+		)
+		logging.info(f"Expected V(PA) basic estimate ~ {exp_V_psi_deg2_basic:.3f} deg^2")
 	else:
 		exp_V_psi_deg2 = None
+		exp_V_psi_deg2_basic = None
 
 	exp_vars = {
 		'exp_var_t0'             : None,
@@ -553,6 +608,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		'exp_var_spec_idx'       : None,
 		'exp_var_tau_ms'         : None,
 		'exp_var_PA'             : exp_V_psi_deg2,
+		'exp_var_PA_basic'       : exp_V_psi_deg2_basic,
 		'exp_var_DM'             : None,
 		'exp_var_RM'             : None,
 		'exp_var_lfrac'          : None,
