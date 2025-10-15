@@ -412,12 +412,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 		)
 		if write:
 			tau = f"{tau_ms[0]:.2f}"
-			if mode == 'gauss':
-				out_file = (
-					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
-					f"seed_{seed}_PA_{gdict['PA'][-1]:.2f}.pkl"
-				)
-			else:  # mode == 'psn'
+			if mode == 'psn':
 				out_file = (
 					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
 					f"seed_{seed}_nseed_{nseed}_PA_{gdict['PA'][-1]:.2f}.pkl"
@@ -523,7 +518,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 				results = list(tqdm(
 					executor.map(partial_func, tasks),
 					total=len(tasks),
-					desc=f"Processing sweep of {xname} ({sweep_mode})"
+					desc=f"Processing sweep of {xname} ({sweep_mode} mode)"
 				))
 
 			yvals = {v: [] for v in xvals}

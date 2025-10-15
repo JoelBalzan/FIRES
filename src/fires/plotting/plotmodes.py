@@ -108,14 +108,14 @@ param_map = {
 	"ngauss"         : r"N_{\mathrm{gauss},0}",
 	"mg_width_low"   : r"W_{\mathrm{low},0}",
 	"mg_width_high"  : r"W_{\mathrm{high},0}",
-	# Variation parameters
+	# Std deviation sweep parameters
 	"t0_i"             : r"\sigma_{t_0}",
 	"width_ms_i"       : r"\sigma_W",
 	"peak_amp_i"       : r"\sigma_A",
 	"spec_idx_i"       : r"\sigma_\alpha",
 	"DM_i"             : r"\sigma_{\mathrm{DM}}",
 	"RM_i"             : r"\sigma_{\mathrm{RM}}",
-	"PA_i"             : r"\sigma_{\psi_{\mathrm{micro}}}",
+	"PA_i"             : r"\sigma_{\psi}",
 	"lfrac_i"          : r"\sigma_{\Pi_L}",
 	"vfrac_i"          : r"\sigma_{\Pi_V}",
 	"dPA_i"            : r"\sigma_{\Delta\psi}",
@@ -279,7 +279,7 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 	return med_vals, percentile_errs
 
 
-def _weight_dict(xvals, yvals, weight_params, weight_by=None):
+def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=False):
 	"""
 	Normalise values in yvals by weights from weight_params for a specific variable or by any parameter.
 
@@ -294,19 +294,24 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 	weight_by : str, optional
 		Parameter name to use for weighting/normalization. Can be any parameter in weight_params.
 		Takes precedence over var_name if both are provided.
+	return_status : bool, optional
+		If True, returns a tuple (normalised_vals, applied) where 'applied' is True when
+		weighting was actually performed; otherwise returns only the dict.
 
 	Returns:
 	--------
-	dict
-		Dictionary with normalised/weighted values for each key in xvals.
+	dict or (dict, bool)
+		Dictionary with normalised/weighted values for each key in xvals, and optionally
+		a boolean indicating if weighting was applied.
 	"""
 	normalised_vals = {}
+	applied = False
 	
 	if weight_by is None:
 		# No weighting requested - return original values
 		for var in xvals:
 			normalised_vals[var] = yvals.get(var, [])
-		return normalised_vals
+		return (normalised_vals, applied) if return_status else normalised_vals
 	
 	# Handle both dict of dicts (multi-parameter case) and list of dicts (single parameter case)
 	if isinstance(weight_params, dict) and any(isinstance(v, dict) for v in weight_params.values()):
@@ -316,7 +321,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 			logging.warning(f"Weighting parameter '{weight_by}' not found in weight dictionaries. Returning unweighted values.")
 			for var in xvals:
 				normalised_vals[var] = yvals.get(var, [])
-			return normalised_vals
+			return (normalised_vals, applied) if return_status else normalised_vals
 			
 		for var in xvals:
 			y_values = yvals.get(var, [])
@@ -324,10 +329,14 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 			weights = var__weight_dict.get(weight_by, [])
 
 			if y_values and weights and len(y_values) == len(weights):
-				normalised_vals[var] = [
-					val / weight if weight != 0 else 0
-					for val, weight in zip(y_values, weights)
-				]
+				out = []
+				for val, weight in zip(y_values, weights):
+					if weight != 0 and np.isfinite(weight):
+						out.append(val / weight)
+						applied = True
+					else:
+						out.append(0)
+				normalised_vals[var] = out
 			else:
 				logging.warning(f"Mismatched lengths or missing data for parameter {var}. Skipping normalization.")
 				normalised_vals[var] = y_values
@@ -335,20 +344,18 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 	elif isinstance(weight_params, (list, tuple)) and len(weight_params) > 0:
 		# Single parameter case: weight_params is like [{param_name: value, ...}, ...]
 		# Extract the weighting parameter value
-		if weight_by in weight_params[0]:
+		if isinstance(weight_params[0], dict) and (weight_by in weight_params[0]):
 			weight_value = weight_params[0][weight_by]
 			if isinstance(weight_value, (list, np.ndarray)) and len(weight_value) > 0:
 				weight_value = weight_value[0]  # Take first value if it's an array
 			
 			for var in xvals:
 				y_values = yvals.get(var, [])
-				if y_values:
-					normalised_vals[var] = [
-						val / weight_value if weight_value != 0 else 0
-						for val in y_values
-					]
+				if y_values and weight_value is not None and weight_value != 0 and np.isfinite(weight_value):
+					normalised_vals[var] = [val / weight_value for val in y_values]
+					applied = True
 				else:
-					normalised_vals[var] = []
+					normalised_vals[var] = list(y_values) if y_values else []
 		else:
 			logging.warning(f"Weighting parameter '{weight_by}' not found in weight_params. Returning unweighted values.")
 			for var in xvals:
@@ -358,7 +365,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None):
 		for var in xvals:
 			normalised_vals[var] = yvals.get(var, [])
 
-	return normalised_vals
+	return (normalised_vals, applied) if return_status else normalised_vals
 
 
 def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
@@ -547,7 +554,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 	- sweep_mode == "sd": x label = SD(xname), no weighting applied
 	- sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
 	"""
-	xname_raw = frb_dict["xname"].removesuffix("_var")
+	xname_raw = frb_dict["xname"]
 	xvals_raw = np.array(frb_dict["xvals"])
 
 	dspec_params = frb_dict.get("dspec_params", None)
@@ -573,10 +580,10 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 	if sweep_mode == "sd":
 		x = xvals_raw
 		base_core = base_name.replace(",0", "").replace("_0", "")
-		xname = rf"\sigma_{{{base_core}}}"
+		xname = param_map.get(f"sd_{xname_raw}", rf"\sigma_{{{base_core}}}")
 		return x, xname
 
-	# Mean sweep or default: allow optional normalization by weight_x_by
+	# Mean sweep or default: allow optional normalisation by weight_x_by
 	weight = None
 	if weight_x_by is not None:
 		# Check in dspec_params
@@ -595,7 +602,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None):
 		if weight is None:
 			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
 
-	# Apply normalization if available
+	# Apply normalisation if available
 	if weight is None:
 		x = xvals_raw
 		xname = base_name
@@ -619,7 +626,7 @@ def _get_weighted_y_name(yname, weight_y_by):
 	if yname == r"Var($\psi$)" and weight_y_by == "PA_i":
 		return r"\mathcal{R}_{\mathrm{\psi}}"
 
-	w_name = param_map.get(weight_y_by, weight_y_by)
+	w_name = param_map.get(weight_y_by.removesuffix("_i"), weight_y_by.removesuffix("_i"))
 	if "/" in w_name:
 		return "(" + yname + ")/" + w_name
 	return yname + '/' + w_name
@@ -757,6 +764,103 @@ def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', 
 	return exp1, exp2
 
 
+def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', weight_y_by=None):
+	exp1, exp2 = _extract_expected_curves(
+		frb_dict["exp_vars"], V_params, xvals, param_key=param_key, weight_y_by=weight_y_by
+	)
+	# Only plot if there are finite expected values
+	has_exp1 = np.any(np.isfinite(exp1))
+	has_exp2 = exp2 is not None and np.any(np.isfinite(exp2))
+	if has_exp1:
+		ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
+	if has_exp2:
+		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
+
+
+def _plot_single_job_common(
+	frb_dict,
+	yname_base,
+	weight_y_by,
+	x_weight_by,
+	figsize,
+	fit,
+	scale,
+	series_label,
+	series_color='black',
+	expected_param_key=None,
+	ax=None,
+	embed=False,
+	plot_expected=True
+):
+	"""
+	Common single-job plotting helper used by plot_pa_var and plot_lfrac_var.
+
+	When embed=True, draws onto the provided Axes 'ax' without setting axis labels/scales
+	or plotting expected curves (unless plot_expected=True). Returns (None, ax, meta)
+	where meta = {'applied': bool, 'x': np.ndarray, 'xname': str}.
+
+	When embed=False (default), creates a new Figure/Axes, sets labels/scales, and returns (fig, ax).
+	"""
+	xvals = frb_dict["xvals"]
+	yvals = frb_dict["yvals"]
+	V_params = frb_dict.get("V_params", {})
+	dspec_params = frb_dict.get("dspec_params", {})
+
+	# Select weight source for y
+	if isinstance(weight_y_by, str) and weight_y_by.endswith("_i"):
+		weight_source = V_params
+	else:
+		weight_source = dspec_params
+
+	# Weight measured values (track if applied)
+	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
+	med_vals, percentile_errs = _median_percentiles(y, xvals)
+
+	# X weighting
+	x, xname = _weight_x_get_xname(frb_dict, weight_x_by=x_weight_by)
+	lower = np.array([lower for (lower, upper) in percentile_errs])
+	upper = np.array([upper for (lower, upper) in percentile_errs])
+
+	# Axes setup
+	created_fig = None
+	if ax is None:
+		created_fig, ax = plt.subplots(figsize=figsize)
+		ax.grid(True, linestyle='--', alpha=0.6)
+		fig = created_fig
+	else:
+		fig = None  # embedding on existing axes
+		if not embed:
+			ax.grid(True, linestyle='--', alpha=0.6)
+
+	# Draw measured series
+	ax.plot(x, med_vals, color=series_color, label=series_label, linewidth=2)
+	ax.fill_between(x, lower, upper, color=series_color, alpha=0.2)
+
+	# Expected curves (optional)
+	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
+		exp_weight = weight_y_by if applied else None
+		_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
+
+	# Optional fit
+	if fit is not None:
+		logging.info(f"Applying fit: {fit}")
+		fit_type, fit_degree = _parse_fit_arg(fit)
+		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
+		if not embed:
+			ax.legend()
+
+	# Labels/scales only in standalone mode
+	if not embed:
+		final_yname = _get_weighted_y_name(yname_base, weight_y_by) if (weight_y_by is not None and applied) else yname_base
+		_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x)
+
+	if embed:
+		meta = {'applied': bool(applied), 'x': x, 'xname': xname}
+		return None, ax, meta
+
+	return fig, ax
+
+
 def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, legend=True):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
@@ -784,10 +888,9 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	"""
 
 	 # Determine y-axis name if not provided
-	yname = _get_weighted_y_name(yname, weight_y_by)
+	base_yname = yname
 
 	colour_list = list(colours.values())
-	expected_plotted = False  # plot expected only once (full-band, total)
 
 	# Prefer a specific run for expected curves if present
 	preferred_run = None
@@ -796,55 +899,66 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			preferred_run = run
 			break
 
+	# Track whether weighting succeeded in all runs
+	weight_applied_all = True
+	first_run_key = next(iter(frb_dict))
+
+	# Keep info for plotting expected after we know if weighting applied
+	exp_ref_run = preferred_run if preferred_run is not None else first_run_key
+	exp_ref_subdict = frb_dict[exp_ref_run]
+
 	for idx, (run, subdict) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {run}:")
 		colour = colour_map[run] if run in colour_map else colour_list[idx % len(colour_list)]
 
-		xvals = np.array(subdict["xvals"])
-		yvals = subdict["yvals"]
-		V_params = subdict["V_params"]
-		dspec_params = subdict["dspec_params"]
-
-		# Weighted y-values for measured data
-		y = _weight_dict(xvals, yvals, V_params, weight_by=weight_y_by)
-		med_vals, percentile_errs = _median_percentiles(y, xvals)
-
-		# Weighted x-values
-		x, xname = _weight_x_get_xname(subdict, weight_x_by=weight_x_by)
-		lower = np.array([lower for (lower, upper) in percentile_errs])
-		upper = np.array([upper for (lower, upper) in percentile_errs])
-
-		# Plot measured median with percentile band
-		ax.plot(x, med_vals, label=run, color=colour, linewidth=2)
-		ax.fill_between(x, lower, upper, color=colour, alpha=0.08)
-
-		# Plot expected curves once (from preferred run if available)
-		if not expected_plotted:
-			if preferred_run is None or run == preferred_run:
-				exp1, exp2 = _extract_expected_curves(
-					subdict["exp_vars"], V_params, xvals, param_key='exp_var_PA', weight_y_by=weight_y_by
-				)
-				# Keep same x-weighting for expected curves
-				ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
-				if exp2 is not None:
-					ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
-				expected_plotted = True
-
-		# Optional fit on measured medians
+		# Per-run fit handling (can be a single string or a list per run)
+		run_fit = None
 		if fit is not None:
-			logging.info(f"Applying fit: {fit}")
 			if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
-				fit_type, fit_degree = _parse_fit_arg(fit[idx])
+				run_fit = fit[idx]
 			else:
-				fit_type, fit_degree = _parse_fit_arg(fit)
-			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
+				run_fit = fit
+
+		# Embed single-job helper for each run (no expected curves per-run)
+		_, ax, meta = _plot_single_job_common(
+			frb_dict=subdict,
+			yname_base=base_yname,
+			weight_y_by=weight_y_by,
+			x_weight_by=weight_x_by,
+			figsize=None,        # unused when embed=True
+			fit=run_fit,
+			scale=scale,           # scales/labels set after loop
+			series_label=run,
+			series_color=colour,
+			expected_param_key=None,
+			ax=ax,
+			embed=True,
+			plot_expected=False
+		)
+
+		if weight_y_by is not None and not meta['applied']:
+			logging.warning(f"Requested weighting by '{weight_y_by}' for run '{run}' but it could not be applied. Using unweighted values.")
+		weight_applied_all &= meta['applied']
 
 		_print_avg_snrs(subdict)
+
+		# Track last x and xname for axis labeling
+		x_last = meta['x']
+		xname = meta['xname']
+
+	# Plot expected curves once (from preferred run if available), matching weighting decision
+	param_key = 'exp_var_' + (weight_y_by.removesuffix('_i'))
+	weight_for_expected = weight_y_by if (weight_y_by is not None and weight_applied_all) else None
+	_plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
+				   param_key=param_key, weight_y_by=weight_for_expected)
 
 	ax.grid(True, linestyle='--', alpha=0.6)
 	if legend:
 		ax.legend()
-	_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+
+	# Decide y-axis label after knowing if weighting applied
+	final_yname = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else base_yname
+	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last)
 
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
@@ -958,41 +1072,18 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 
 	else:	
 		# Single job
-		xvals = frb_dict["xvals"]
-		yvals = frb_dict["yvals"]
-		V_params = frb_dict["V_params"]
-
-		# Measured, normalized by PA_i
-		y = _weight_dict(xvals, yvals, V_params, "PA_i")
-		med_vals, percentile_errs = _median_percentiles(y, xvals)
-
-		# X weighting
-		x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
-
-		lower = np.array([lower for (lower, upper) in percentile_errs])
-		upper = np.array([upper for (lower, upper) in percentile_errs])
-
-		fig, ax = plt.subplots(figsize=figsize)
-		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-		ax.plot(x, med_vals, color='black', label=r'\psi$_{var}$', linewidth=2)
-		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
-
-		# Expected curves (regular and basic), normalized by PA_i as well
-		if "exp_vars" in frb_dict:
-			exp1, exp2 = _extract_expected_curves(
-				frb_dict["exp_vars"], V_params, xvals, param_key='exp_var_PA', weight_y_by="PA_i"
-			)
-			ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
-			if exp2 is not None:
-				ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
-
-		ax.grid(True, linestyle='--', alpha=0.6)
-		if fit is not None:
-			fit_type, fit_degree = _parse_fit_arg(fit)
-			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
-			ax.legend()
-		yname = _get_weighted_y_name(r"Var($\psi$)", "PA_i")
-		_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+		fig, ax = _plot_single_job_common(
+			frb_dict=frb_dict,
+			yname_base=r"Var($\psi$)",
+			weight_y_by="PA_i",
+			x_weight_by="width_ms",
+			figsize=figsize,
+			fit=fit,
+			scale=scale,
+			series_label=r'\psi$_{var}$',
+			series_color='black',
+			expected_param_key='exp_var_PA'
+		)
 	if show_plots:
 		plt.show()
 	if save:
@@ -1113,35 +1204,19 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by=None, yname=yname, legend=legend)
 	else:
-		# Otherwise, plot as usual (single job)
-		xvals = frb_dict["xvals"]
-		yvals = frb_dict["yvals"]
-		V_params = frb_dict["V_params"]
-		dspec_params = frb_dict["dspec_params"]
-		width_ms = np.array(dspec_params[0]["width_ms"])[0]
-	
-		# No weighting for L/I by default (use raw values)
-		y = _weight_dict(xvals, yvals, V_params, None)
-		med_vals, percentile_errs = _median_percentiles(y, xvals)
-	
-		# Fix: pass parameter name, not a numeric value
-		x, xname = _weight_x_get_xname(frb_dict, weight_x_by="width_ms")
-		lower = np.array([lower for (lower, upper) in percentile_errs])
-		upper = np.array([upper for (lower, upper) in percentile_errs])
-	
-		fig, ax = plt.subplots(figsize=figsize)
-		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-		ax.plot(x, med_vals, color='black', label='L/I', linewidth=2)
-		ax.fill_between(x, lower, upper, color='black', alpha=0.2)
-		ax.grid(True, linestyle='--', alpha=0.6)
-		if fit is not None:
-			# Parse fit argument for type/degree
-			fit_type, fit_degree = _parse_fit_arg(fit)
-			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
-			ax.legend()
-		# Proper y-axis label
-		yname = _get_weighted_y_name(r"L/I", None)
-		_set_scale_and_labels(ax, scale, xname=xname, yname=yname, x=x)
+		# Single job via helper
+		fig, ax = _plot_single_job_common(
+			frb_dict=frb_dict,
+			yname_base=r"\Pi_L",
+			weight_y_by="lfrac",              # keep raw L/I by default
+			x_weight_by="width_ms",
+			figsize=figsize,
+			fit=fit,
+			scale=scale,
+			series_label='L/I',
+			series_color='black',
+			expected_param_key=None
+		)
 	if show_plots:
 		plt.show()
 	if save:
