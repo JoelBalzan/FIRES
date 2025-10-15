@@ -370,7 +370,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 
 	if variation_parameter is not None and xname is not None and sweep_mode != "none":
 		if is_variance_sweep:
-			var_key = f"{xname}_sd"
+			var_key = f"sd_{xname}"
 			if var_key not in sd_dict:
 				raise ValueError(f"Variance key '{var_key}' not found for standard deviation sweep.")
 			arr = np.array(sd_dict[var_key], copy=True)
