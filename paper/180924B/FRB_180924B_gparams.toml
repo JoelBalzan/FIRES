@@ -12,7 +12,7 @@
 #	Columns:
 #	t0  		    - Time offset of the Gaussian pulse in milliseconds
 #	width		    - Width of the Gaussian pulse in milliseconds
-#	peak_amp		- Peak amplitude of the Gaussian pulse (Jy)
+#	A		- Peak amplitude of the Gaussian pulse (Jy)
 #	spec_idx		- Spectral index of the Gaussian pulse
 #   tau             - Scattering timescale in milliseconds
 #	DM			    - Dispersion measure in pc/cm^3
@@ -28,7 +28,7 @@
 #   mg_width_high   - Higher width range of the micro-gaussians as a percentage of width_ms
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-#  t0    width  peak_amp  spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width  ngauss  mg_width_low  mg_width_high                   #
+#  t0    width  A  spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width  ngauss  mg_width_low  mg_width_high                   #
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#
   0.0   0.1     5.0       0.0        1.56   0.0   0.0   -10     0.9    -0.1    0.0      0.0          0.0       175       5            20                             # gaussian
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------#

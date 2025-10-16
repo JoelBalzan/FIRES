@@ -25,7 +25,7 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
-								 snr_onpulse)
+                                 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.utils.config import get_parameters, load_params
 from fires.utils.utils import dspecParams, simulated_frb
@@ -281,7 +281,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	gdict = {
 		't0'             : gauss_params[:stddev_row, 0],
 		'width_ms'       : gauss_params[:stddev_row, 1],
-		'peak_amp'       : gauss_params[:stddev_row, 2],
+		'A'       : gauss_params[:stddev_row, 2],
 		'spec_idx'       : gauss_params[:stddev_row, 3],
 		'tau_ms'         : gauss_params[:stddev_row, 4],
 		'DM'             : gauss_params[:stddev_row, 5],
@@ -301,7 +301,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 	sd_dict = {
 		'sd_t0'             : gauss_params[stddev_row, 0],
 		'sd_width_ms'       : gauss_params[stddev_row, 1],
-		'sd_peak_amp'       : gauss_params[stddev_row, 2],
+		'sd_A'       : gauss_params[stddev_row, 2],
 		'sd_spec_idx'       : gauss_params[stddev_row, 3],
 		'sd_tau_ms'         : gauss_params[stddev_row, 4],
 		'sd_DM'             : gauss_params[stddev_row, 5],
@@ -525,14 +525,14 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, obs_file, gaus
 			errs = {v: [] for v in xvals}
 			V_params = {
 				v: {key: [] for key in [
-					't0_i','peak_amp_i','width_ms_i','spec_idx_i','tau_ms_i','PA_i',
+					't0_i','A_i','width_ms_i','spec_idx_i','tau_ms_i','PA_i',
 					'DM_i','RM_i','lfrac_i','vfrac_i','dPA_i','band_centre_mhz_i','band_width_mhz_i'
 				]} for v in xvals
 			}
 			snrs = {v: [] for v in xvals}
 			exp_vars = {
 				v: {key: [] for key in [
-					'exp_var_t0','exp_var_peak_amp','exp_var_width_ms','exp_var_spec_idx','exp_var_tau_ms','exp_var_PA',
+					'exp_var_t0','exp_var_A','exp_var_width_ms','exp_var_spec_idx','exp_var_tau_ms','exp_var_PA',
 					'exp_var_DM','exp_var_RM','exp_var_lfrac','exp_var_vfrac','exp_var_dPA','exp_var_band_centre_mhz','exp_var_band_width_mhz'
 				]} for v in xvals
 			}

@@ -254,7 +254,7 @@ def _triple_convolution_with_width_pdf(
 
 
 def _expected_pa_variance(
-	tau_ms, sigma_deg, ngauss, width_ms, peak_amp, peak_amp_sd,
+	tau_ms, sigma_deg, ngauss, width_ms, A, A_sd,
 	time_ms=None, width_pct_low=None, width_pct_high=None, n_width_samples: int = 31,
 	onpulse_fraction: float = 0.1
 ):
@@ -266,8 +266,8 @@ def _expected_pa_variance(
 	assert time_ms is not None and len(time_ms) >= 3
 
 	# amplitude moments (peak-flux moments)
-	a_mean = float(np.nanmean(peak_amp)) if np.ndim(peak_amp) > 0 else float(peak_amp)
-	a2_mean = a_mean**2 + float(peak_amp_sd)**2
+	a_mean = float(np.nanmean(A)) if np.ndim(A) > 0 else float(A)
+	a2_mean = a_mean**2 + float(A_sd)**2
 	sigma_rad = np.deg2rad(float(sigma_deg))
 
 	t = np.asarray(time_ms, dtype=float)
@@ -400,7 +400,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	
 	t0              = gdict['t0']
 	width_ms        = gdict['width_ms']
-	peak_amp        = gdict['peak_amp']
+	A               = gdict['A']
 	spec_idx        = gdict['spec_idx']
 	tau_ms 	   		= gdict['tau_ms']
 	PA              = gdict['PA']
@@ -418,7 +418,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	# Create width_range list with pairs of [mg_width_low, mg_width_high]
 	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
 
-	sd_peak_amp        = sd_dict['sd_peak_amp']
+	sd_A               = sd_dict['sd_A']
 	sd_spec_idx        = sd_dict['sd_spec_idx']
 	sd_tau_ms          = sd_dict['sd_tau_ms']
 	sd_PA              = sd_dict['sd_PA']
@@ -435,7 +435,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 
 	all_params = {
 		't0_i'             : [],
-		'peak_amp_i'       : [],
+		'A_i'              : [],
 		'width_ms_i'       : [],
 		'spec_idx_i'       : [],
 		'tau_ms_i'         : [],
@@ -453,7 +453,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	for g in range(num_main_gauss):
 		for _ in range(int(ngauss[g])):
 			t0_i              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
-			peak_amp_i        = np.random.normal(peak_amp[g], sd_peak_amp)
+			A_i        = np.random.normal(A[g], sd_A)
 			width_ms_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_ms_i          = np.random.normal(tau_ms[g], sd_tau_ms)
@@ -481,7 +481,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 
 			# Record parameters
 			all_params['t0_i'].append(t0_i)
-			all_params['peak_amp_i'].append(peak_amp_i)
+			all_params['A_i'].append(A_i)
 			all_params['width_ms_i'].append(width_ms_i)
 			all_params['spec_idx_i'].append(spec_idx_i)
 			all_params['tau_ms_i'].append(tau_ms_i)
@@ -494,17 +494,14 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			all_params['band_centre_mhz_i'].append(band_centre_mhz_i)
 			all_params['band_width_mhz_i'].append(band_width_mhz_i)
 
-			# Build spectral weights and normalise to control the band-collapsed peak semantics
-			w_f = (freq_mhz / ref_freq_mhz) ** spec_idx_i
+			# Vectorised micro-shot synthesis
+			norm_amp = A_i * (freq_mhz / ref_freq_mhz) ** spec_idx_i
 			if band_width_mhz[g] != 0.:
 				centre_freq = band_centre_mhz_i if band_centre_mhz_i != 0. else np.median(freq_mhz)
 				bw_sigma = band_width_mhz_i / GAUSSIAN_FWHM_FACTOR
 				if bw_sigma > 0:
 					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
-					w_f *= spectral_profile
-
-			norm_amp = peak_amp_i * (w_f / float(np.sum(w_f)))
-
+					norm_amp *= spectral_profile
 
 			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_ms_i / GAUSSIAN_FWHM_FACTOR)
 			I_ft = norm_amp[:, None] * base_gauss[None, :]
@@ -586,8 +583,8 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			sigma_deg=float(sd_PA),
 			ngauss=N_tot,
 			width_ms=float(np.nanmean(width_ms)),
-			peak_amp=float(np.nanmean(peak_amp)),
-			peak_amp_sd=float(sd_peak_amp),
+			A=float(np.nanmean(A)),
+			A_sd=float(sd_A),
 			time_ms=time_ms,
 			width_pct_low=float(np.nanmean(mg_width_low)),
 			width_pct_high=float(np.nanmean(mg_width_high)),
@@ -611,7 +608,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 
 	exp_vars = {
 		'exp_var_t0'             : None,
-		'exp_var_peak_amp'       : None,
+		'exp_var_A'       : None,
 		'exp_var_width_ms'       : None,
 		'exp_var_spec_idx'       : None,
 		'exp_var_tau_ms'         : None,
