@@ -25,7 +25,7 @@
 #	Columns:
 #	t0  		        - Arrival time of the Gaussian envelope in milliseconds
 #	width		        - FWHM of the Gaussian envelope in milliseconds ( used as arrival_time_microshot_i ~ N(t0,width/(2*sqrt(2log2))) )
-#	A	    	        - Peak amplitude of the Gaussian pulse (Jy) |
+#	A	    	        - Amplitude of the Gaussian pulse (Jy)      |
 # tau             - Scattering timescale in milliseconds      |
 #	DM			        - Dispersion measure in pc/cm^3             | at reference frequency supplied in obsparams.toml
 #	RM			        - Rotation measure in rad/m^2               |
