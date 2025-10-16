@@ -11,7 +11,7 @@
 #	Columns:
 #	t0  		    - Time offset of the Gaussian pulse in milliseconds
 #	width_ms		- Width of the Gaussian pulse in milliseconds
-#	peak_amp		- Peak amplitude of the Gaussian pulse
+#	A		- Peak amplitude of the Gaussian pulse
 #	spec_idx		- Spectral index of the Gaussian pulse
 #	DM			    - Dispersion measure in pc/cm^3
 #	RM			    - Rotation measure in rad/m^2
@@ -26,7 +26,7 @@
 #   mg_width_high   - Higher width range of the micro-gaussians as a percentage of width_ms
 
 ##########################################################################################################################################################################
-#t0     width_ms	peak_amp	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	     band_centre_mhz    band_width_mhz   ngauss  mg_width_low    mg_width_high   #
+#t0     width_ms	A	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	     band_centre_mhz    band_width_mhz   ngauss  mg_width_low    mg_width_high   #
 #(ms)                                            (rad/m2)  (deg)                   (deg/ms)                                              (%)             (%)             #
 ##########################################################################################################################################################################
 -0.15     0.1 	    4.0  	    0.0 	    0.0		0.0		0.0  	0.85 	-0.15 	0.0      0.0                0.0              175     5               20              # gausssian 

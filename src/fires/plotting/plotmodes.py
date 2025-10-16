@@ -24,7 +24,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec)
+                                 process_dspec)
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 
 logging.basicConfig(level=logging.INFO)
@@ -95,7 +95,7 @@ param_map = {
 	# Intrinsic parameters
 	"tau_ms"         : r"\tau_0",
 	"width_ms"       : r"W_0",
-	"peak_amp"       : r"A_0",
+	"A"       : r"A_0",
 	"spec_idx"       : r"\alpha_0",
 	"DM"             : r"\mathrm{DM}_0",
 	"RM"             : r"\mathrm{RM}_0",
@@ -111,7 +111,7 @@ param_map = {
 	# Std deviation sweep parameters
 	"t0_i"             : r"\sigma_{t_0}",
 	"width_ms_i"       : r"\sigma_W",
-	"peak_amp_i"       : r"\sigma_A",
+	"A_i"       : r"\sigma_A",
 	"spec_idx_i"       : r"\sigma_\alpha",
 	"DM_i"             : r"\sigma_{\mathrm{DM}}",
 	"RM_i"             : r"\sigma_{\mathrm{RM}}",
