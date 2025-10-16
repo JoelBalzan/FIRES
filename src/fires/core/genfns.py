@@ -28,8 +28,15 @@ GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2))
 
 #    --------------------------	Functions ---------------------------
 
-def _apply_faraday_rotation(pol_angle_arr, RM, lambda_sq, median_lambda_sq):
-	return np.deg2rad(pol_angle_arr) + RM * (lambda_sq - median_lambda_sq)
+def _apply_faraday_rotation(pol_angle_arr, RM, freq_mhz, ref_freq_mhz):
+	"""
+	Return polarization angle (radians) after Faraday rotation, using ref_freq_mhz
+	as the zero-rotation reference: chi = chi0 + RM * (lambda^2 - lambda_ref^2).
+	"""
+	chi0 = np.deg2rad(pol_angle_arr)
+	lambda_sq = (speed_of_light_cgs * 1.0e-8 / np.asarray(freq_mhz, dtype=float)) ** 2
+	lambda_ref_sq = (speed_of_light_cgs * 1.0e-8 / float(ref_freq_mhz)) ** 2
+	return chi0 + RM * (lambda_sq - lambda_ref_sq)
 
 
 def _calculate_dispersion_delay(DM, freq, ref_freq):
@@ -425,8 +432,6 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	
 			
 	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
-	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2  # Lambda squared array
-	median_lambda_sq = np.nanmedian(lambda_sq)  # Median lambda squared
 
 	all_params = {
 		't0_i'             : [],
@@ -514,7 +519,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
 
 			pol_angle_arr = PA_i + (time_ms - t0_i) * dPA_i
-			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM_i, lambda_sq[:, None], median_lambda_sq)
+			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM_i, freq_mhz[:, None], ref_freq_mhz)
 
 			Q_ft = I_ft * lfrac_i * np.cos(2 * faraday_angles)
 			U_ft = I_ft * lfrac_i * np.sin(2 * faraday_angles)
