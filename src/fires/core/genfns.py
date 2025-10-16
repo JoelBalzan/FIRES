@@ -489,14 +489,17 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			all_params['band_centre_mhz_i'].append(band_centre_mhz_i)
 			all_params['band_width_mhz_i'].append(band_width_mhz_i)
 
-			# Vectorised micro-shot synthesis
-			norm_amp = peak_amp_i * (freq_mhz / ref_freq_mhz) ** spec_idx_i
+			# Build spectral weights and normalise to control the band-collapsed peak semantics
+			w_f = (freq_mhz / ref_freq_mhz) ** spec_idx_i
 			if band_width_mhz[g] != 0.:
 				centre_freq = band_centre_mhz_i if band_centre_mhz_i != 0. else np.median(freq_mhz)
 				bw_sigma = band_width_mhz_i / GAUSSIAN_FWHM_FACTOR
 				if bw_sigma > 0:
 					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
-					norm_amp *= spectral_profile
+					w_f *= spectral_profile
+
+			norm_amp = peak_amp_i * (w_f / float(np.sum(w_f)))
+
 
 			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_ms_i / GAUSSIAN_FWHM_FACTOR)
 			I_ft = norm_amp[:, None] * base_gauss[None, :]
