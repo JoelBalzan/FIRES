@@ -24,7 +24,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-                                 process_dspec)
+								 process_dspec)
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 
 logging.basicConfig(level=logging.INFO)
@@ -92,35 +92,35 @@ colour_map = {
 
 #	--------------------------	Parameter mappings	---------------------------
 param_map = {
-	# Intrinsic parameters
-	"tau_ms"         : r"\tau_0",
-	"width_ms"       : r"W_0",
-	"A"       : r"A_0",
-	"spec_idx"       : r"\alpha_0",
-	"DM"             : r"\mathrm{DM}_0",
-	"RM"             : r"\mathrm{RM}_0",
-	"PA"             : r"\psi_0",
-	"lfrac"          : r"\Pi_{L,0}",
-	"vfrac"          : r"\Pi_{V,0}",
-	"dPA"            : r"\Delta\psi_0",
-	"band_centre_mhz": r"\nu_{\mathrm{c},0}",
-	"band_width_mhz" : r"\Delta \nu_0",
-	"ngauss"         : r"N_{\mathrm{gauss},0}",
-	"mg_width_low"   : r"W_{\mathrm{low},0}",
-	"mg_width_high"  : r"W_{\mathrm{high},0}",
-	# Std deviation sweep parameters
-	"t0_i"             : r"\sigma_{t_0}",
-	"width_ms_i"       : r"\sigma_W",
-	"A_i"       : r"\sigma_A",
-	"spec_idx_i"       : r"\sigma_\alpha",
-	"DM_i"             : r"\sigma_{\mathrm{DM}}",
-	"RM_i"             : r"\sigma_{\mathrm{RM}}",
-	"PA_i"             : r"\sigma_{\psi}",
-	"lfrac_i"          : r"\sigma_{\Pi_L}",
-	"vfrac_i"          : r"\sigma_{\Pi_V}",
-	"dPA_i"            : r"\sigma_{\Delta\psi}",
-	"band_centre_mhz_i": r"\sigma_{\nu_c}",
-	"band_width_mhz_i" : r"\sigma_{\Delta \nu}",
+    # Intrinsic parameters - format: (LaTeX_symbol, unit)
+    "tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
+    "width_ms"       : (r"W_0", r"\mathrm{ms}"),
+    "A"              : (r"A_0", r"\mathrm{Jy}"),
+    "spec_idx"       : (r"\alpha_0", ""),
+    "DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
+    "RM"             : (r"\mathrm{RM}_0", r"\mathrm{rad\,m^{-2}}"),
+    "PA"             : (r"\psi_0", r"\mathrm{deg}"),
+    "lfrac"          : (r"\Pi_{L,0}", ""),
+    "vfrac"          : (r"\Pi_{V,0}", ""),
+    "dPA"            : (r"\Delta\psi_0", r"\mathrm{deg}"),
+    "band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
+    "band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
+    "ngauss"         : (r"N_{\mathrm{gauss},0}", ""),
+    "mg_width_low"   : (r"W_{\mathrm{low},0}", r"\mathrm{ms}"),
+    "mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
+    # Std deviation sweep parameters
+    "t0_i"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
+    "width_ms_i"       : (r"\sigma_W", r"\mathrm{ms}"),
+    "A_i"              : (r"\sigma_A", ""),
+    "spec_idx_i"       : (r"\sigma_\alpha", ""),
+    "DM_i"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
+    "RM_i"             : (r"\sigma_{\mathrm{RM}}", r"\mathrm{rad\,m^{-2}}"),
+    "PA_i"             : (r"\sigma_{\psi}", r"\mathrm{deg}"),
+    "lfrac_i"          : (r"\sigma_{\Pi_L}", ""),
+    "vfrac_i"          : (r"\sigma_{\Pi_V}", ""),
+    "dPA_i"            : (r"\sigma_{\Delta\psi}", r"\mathrm{deg}"),
+    "band_centre_mhz_i": (r"\sigma_{\nu_c}", r"\mathrm{MHz}"),
+    "band_width_mhz_i" : (r"\sigma_{\Delta \nu}", r"\mathrm{MHz}"),
 }
 
 #	--------------------------	PlotMode class	---------------------------
@@ -399,35 +399,39 @@ def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
 			ax.xaxis.set_minor_locator(mticker.NullLocator())
 	
 
-def _set_scale_and_labels(ax, scale, xname, yname, x=None):
-	# Set labels (same for all scales now)
-	ax.set_xlabel(rf"${xname}$")
-	ax.set_ylabel(rf"${yname}$")
-	
-	# Set scales
-	if scale == "logx" or scale == "loglog":
-		ax.set_xscale('log')
-	if scale == "logy" or scale == "loglog":
-		ax.set_yscale('log')
-		_apply_log_decade_ticks(ax, axis='y', base=10)  # enforce 10^k labels
-	# Set limits
-	if x is not None:
-		if scale in ["logx", "loglog"]:
-			x_positive = x[x > 0]
-			if len(x_positive) > 0:
-				ax.set_xlim(x_positive[0], x_positive[-1])
-		else:
-			# Check if x range is valid before setting limits
-			if len(x) > 1 and x[0] != x[-1]:
-				ax.set_xlim(x[0], x[-1])
-			elif len(x) == 1:
-				# For single point, set reasonable range around it
-				center = x[0]
-				if center == 0:
-					ax.set_xlim(-1, 1)
-				else:
-					margin = abs(center) * 0.1
-					ax.set_xlim(center - margin, center + margin)
+def _set_scale_and_labels(ax, scale, xname, yname, x=None, x_unit="", y_unit=""):
+    # Format labels with units in square brackets if non-empty
+    # Units containing LaTeX commands must be kept inside math mode
+    xlabel = rf"${xname}$" + (rf" $[{x_unit}]$" if x_unit else "")
+    ylabel = rf"${yname}$" + (rf" $[{y_unit}]$" if y_unit else "")
+    
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    
+    # Set scales
+    if scale == "logx" or scale == "loglog":
+        ax.set_xscale('log')
+    if scale == "logy" or scale == "loglog":
+        ax.set_yscale('log')
+        _apply_log_decade_ticks(ax, axis='y', base=10)  # enforce 10^k labels
+    # Set limits
+    if x is not None:
+        if scale in ["logx", "loglog"]:
+            x_positive = x[x > 0]
+            if len(x_positive) > 0:
+                ax.set_xlim(x_positive[0], x_positive[-1])
+        else:
+            # Check if x range is valid before setting limits
+            if len(x) > 1 and x[0] != x[-1]:
+                ax.set_xlim(x[0], x[-1])
+            elif len(x) == 1:
+                # For single point, set reasonable range around it
+                center = x[0]
+                if center == 0:
+                    ax.set_xlim(-1, 1)
+                else:
+                    margin = abs(center) * 0.1
+                    ax.set_xlim(center - margin, center + margin)
 
 
 def _make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -544,92 +548,130 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'
 		logging.error(f"Fit failed: {e}")
 
 
-
 def _weight_x_get_xname(frb_dict, weight_x_by=None):
-	"""
-	Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
-	Now supports any intrinsic parameter or variation parameter with flexible weighting.
+    """
+    Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
+    Now supports any intrinsic parameter or variation parameter with flexible weighting.
 
-	Behavior:
-	- sweep_mode == "sd": x label = SD(xname), no weighting applied
-	- sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
-	"""
-	xname_raw = frb_dict["xname"]
-	xvals_raw = np.array(frb_dict["xvals"])
+    Behavior:
+    - sweep_mode == "sd": x label = SD(xname), no weighting applied
+    - sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
+    
+    Returns:
+    --------
+    tuple
+        (x, xname, x_unit) where x_unit is empty string if units cancel
+    """
+    xname_raw = frb_dict["xname"]
+    xvals_raw = np.array(frb_dict["xvals"])
 
-	dspec_params = frb_dict.get("dspec_params", None)
-	V_params = frb_dict.get("V_params", None)
+    dspec_params = frb_dict.get("dspec_params", None)
+    V_params = frb_dict.get("V_params", None)
 
-	# Resolve sweep_mode robustly from dspec_params
-	sweep_mode = None
-	if dspec_params is not None:
-		# Namedtuple-like with attribute
-		sweep_mode = getattr(dspec_params, "sweep_mode", None)
-		# Dict case
-		if sweep_mode is None and isinstance(dspec_params, dict):
-			sweep_mode = dspec_params.get("sweep_mode")
-		# List/tuple container case
-		if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-			first = dspec_params[0]
-			sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
+    # Resolve sweep_mode robustly from dspec_params
+    sweep_mode = None
+    if dspec_params is not None:
+        # Namedtuple-like with attribute
+        sweep_mode = getattr(dspec_params, "sweep_mode", None)
+        # Dict case
+        if sweep_mode is None and isinstance(dspec_params, dict):
+            sweep_mode = dspec_params.get("sweep_mode")
+        # List/tuple container case
+        if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+            first = dspec_params[0]
+            sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
 
-	# Base LaTeX name
-	base_name = param_map.get(xname_raw, xname_raw)
+    # Base LaTeX name and units
+    param_info = param_map.get(xname_raw, (xname_raw, ""))
+    base_name = param_info[0] if isinstance(param_info, tuple) else param_info
+    base_unit = param_info[1] if isinstance(param_info, tuple) else ""
 
-	# Variance sweep: SD(xname), no weighting
-	if sweep_mode == "sd":
-		x = xvals_raw
-		base_core = base_name.replace(",0", "").replace("_0", "")
-		xname = param_map.get(f"sd_{xname_raw}", rf"\sigma_{{{base_core}}}")
-		return x, xname
+    # Variance sweep: SD(xname), no weighting
+    if sweep_mode == "sd":
+        x = xvals_raw
+        base_core = base_name.replace(",0", "").replace("_0", "")
+        sd_info = param_map.get(f"{xname_raw}_i", (rf"\sigma_{{{base_core}}}", base_unit))
+        xname = sd_info[0] if isinstance(sd_info, tuple) else sd_info
+        x_unit = sd_info[1] if isinstance(sd_info, tuple) else base_unit
+        return x, xname, x_unit
 
-	# Mean sweep or default: allow optional normalisation by weight_x_by
-	weight = None
-	if weight_x_by is not None:
-		# Check in dspec_params
-		if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-			if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
-				weight = np.array(dspec_params[0][weight_x_by])[0]
-		elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
-			weight = np.array(dspec_params[weight_x_by])[0]
-		# Check in V_params if not found in dspec_params
-		if weight is None and V_params is not None:
-			if isinstance(V_params, (list, tuple)) and len(V_params) > 0:
-				if isinstance(V_params[0], dict) and weight_x_by in V_params[0]:
-					weight = np.array(V_params[0][weight_x_by])[0]
-			elif isinstance(V_params, dict) and weight_x_by in V_params:
-				weight = np.array(V_params[weight_x_by])[0]
-		if weight is None:
-			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
+    # Mean sweep or default: allow optional normalisation by weight_x_by
+    weight = None
+    weight_unit = ""
+    if weight_x_by is not None:
+        # Check in dspec_params
+        if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+            if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
+                weight = np.array(dspec_params[0][weight_x_by])[0]
+        elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
+            weight = np.array(dspec_params[weight_x_by])[0]
+        # Check in V_params if not found in dspec_params
+        if weight is None and V_params is not None:
+            if isinstance(V_params, (list, tuple)) and len(V_params) > 0:
+                if isinstance(V_params[0], dict) and weight_x_by in V_params[0]:
+                    weight = np.array(V_params[0][weight_x_by])[0]
+            elif isinstance(V_params, dict) and weight_x_by in V_params:
+                weight = np.array(V_params[weight_x_by])[0]
+        if weight is None:
+            logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
+        else:
+            weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
+            weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
 
-	# Apply normalisation if available
-	if weight is None:
-		x = xvals_raw
-		xname = base_name
-	else:
-		x = xvals_raw / weight
-		weight_symbol = param_map.get(weight_x_by, weight_x_by)
-		xname = base_name + r" / " + weight_symbol
+    # Apply normalisation if available
+    if weight is None:
+        x = xvals_raw
+        xname = base_name
+        x_unit = base_unit
+    else:
+        x = xvals_raw / weight
+        weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
+        weight_symbol = weight_info[0] if isinstance(weight_info, tuple) else weight_x_by
+        xname = base_name + r" / " + weight_symbol
+        # Units cancel if they match
+        x_unit = "" if base_unit == weight_unit else f"{base_unit}/{weight_unit}"
 
-	return x, xname
+    return x, xname, x_unit
 
 
 def _get_weighted_y_name(yname, weight_y_by):
-	"""
-	Get LaTeX formatted y-axis name based on the weighting parameter and plot type.
-	"""
-	# No weighting: keep the original label
-	if weight_y_by is None:
-		return yname
+    """
+    Get LaTeX formatted y-axis name based on the weighting parameter and plot type.
+    
+    Returns:
+    --------
+    tuple
+        (formatted_yname, y_unit) where y_unit is empty string if units cancel
+    """
+    # Get base units for the y quantity
+    y_base_unit = ""
+    if yname == r"Var($\psi$)":
+        y_base_unit = r"\mathrm{deg}^2"
+    elif yname == r"\Pi_L":
+        y_base_unit = ""  # dimensionless
 
-	# Special case for PA variance ratio
-	if yname == r"Var($\psi$)" and weight_y_by == "PA_i":
-		return r"\mathcal{R}_{\mathrm{\psi}}"
+    # No weighting: keep the original label
+    if weight_y_by is None:
+        return yname, y_base_unit
 
-	w_name = param_map.get(weight_y_by.removesuffix("_i"), weight_y_by.removesuffix("_i"))
-	if "/" in w_name:
-		return "(" + yname + ")/" + w_name
-	return yname + '/' + w_name
+    # Get weight info
+    weight_info = param_map.get(weight_y_by, (weight_y_by, ""))
+    weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
+
+    # Special case for PA variance ratio
+    if yname == r"Var($\psi$)" and weight_y_by == "PA_i":
+        return r"\mathcal{R}_{\mathrm{\psi}}", ""  # dimensionless ratio
+
+    w_name_raw = weight_y_by.removesuffix("_i")
+    w_info = param_map.get(w_name_raw, (w_name_raw, ""))
+    w_name = w_info[0] if isinstance(w_info, tuple) else w_name_raw
+    
+    formatted_name = yname + '/' + w_name if "/" not in w_name else "(" + yname + ")/" + w_name
+    
+    # Units cancel if they match
+    result_unit = "" if y_base_unit == weight_unit else f"{y_base_unit}/{weight_unit}"
+    
+    return formatted_name, result_unit
 
 
 def _parse_fit_arg(fit_item):
@@ -797,7 +839,7 @@ def _plot_single_job_common(
 
 	When embed=True, draws onto the provided Axes 'ax' without setting axis labels/scales
 	or plotting expected curves (unless plot_expected=True). Returns (None, ax, meta)
-	where meta = {'applied': bool, 'x': np.ndarray, 'xname': str}.
+	where meta = {'applied': bool, 'x': np.ndarray, 'xname': str, 'x_unit': str}.
 
 	When embed=False (default), creates a new Figure/Axes, sets labels/scales, and returns (fig, ax).
 	"""
@@ -816,8 +858,8 @@ def _plot_single_job_common(
 	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
 	med_vals, percentile_errs = _median_percentiles(y, xvals)
 
-	# X weighting
-	x, xname = _weight_x_get_xname(frb_dict, weight_x_by=x_weight_by)
+	# X weighting (now returns units too)
+	x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=x_weight_by)
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
 
@@ -851,11 +893,11 @@ def _plot_single_job_common(
 
 	# Labels/scales only in standalone mode
 	if not embed:
-		final_yname = _get_weighted_y_name(yname_base, weight_y_by) if (weight_y_by is not None and applied) else yname_base
-		_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x)
+		final_yname, y_unit = _get_weighted_y_name(yname_base, weight_y_by) if (weight_y_by is not None and applied) else (yname_base, param_map.get(yname_base, ""))
+		_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x, x_unit=x_unit, y_unit=y_unit)
 
 	if embed:
-		meta = {'applied': bool(applied), 'x': x, 'xname': xname}
+		meta = {'applied': bool(applied), 'x': x, 'xname': xname, 'x_unit': x_unit}
 		return None, ax, meta
 
 	return fig, ax
@@ -942,9 +984,10 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 		_print_avg_snrs(subdict)
 
-		# Track last x and xname for axis labeling
+		# Track last x, xname, and x_unit for axis labeling
 		x_last = meta['x']
 		xname = meta['xname']
+		x_unit = meta['x_unit']
 
 	# Plot expected curves once (from preferred run if available), matching weighting decision
 	param_key = 'exp_var_' + (weight_y_by.removesuffix('_i'))
@@ -957,8 +1000,8 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		ax.legend()
 
 	# Decide y-axis label after knowing if weighting applied
-	final_yname = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else base_yname
-	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last)
+	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
+	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
