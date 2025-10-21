@@ -237,7 +237,19 @@ def main():
 			  "Works with any parameter from V_params (intrinsic/variation) or gparams.\n"
 			  "Only applies to multi-run plots (pa_var/l_frac modes).")
 	)
-	
+	parser.add_argument(
+	"--override-param",
+	type=str,
+	nargs="+",
+	default=None,
+	metavar="PARAM=VALUE",
+	help=("Override gparams parameters. Provide space-separated key=value pairs.\n"
+		  "Examples:\n"
+		  "  --override-param N=5 tau_ms=0.5\n"
+		  "  --override-param lfrac=0.8\n"
+		  "This is useful for comparing l_frac plots with different N values, etc.\n"
+		  "Note: Overrides apply to ALL micro-components uniformly.")
+	)
 	# Simulation Options
 	parser.add_argument(
 		"-d", "--data",
@@ -363,6 +375,22 @@ def main():
 
 	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
 
+	# Parse parameter overrides
+	param_overrides = {}
+	if args.override_param:
+		for override in args.override_param:
+			if "=" not in override:
+				parser.error(f"Invalid override format: '{override}'. Expected 'param=value'.")
+			key, value = override.split("=", 1)
+			key = key.strip()
+			try:
+				# Try to parse as float (works for int too)
+				param_overrides[key] = float(value)
+			except ValueError:
+				parser.error(f"Invalid value for override '{key}': '{value}' (must be numeric).")
+		logging.info(f"Parameter overrides: {param_overrides}")
+
+
 	try:
 		if selected_plot_mode.requires_multiple_frb:
 			if args.data is None:
@@ -388,30 +416,32 @@ def main():
 				sweep_mode   = args.sweep_mode,
 				target_snr   = args.snr,
 				obs_data     = None,
-				obs_params   = None
+				obs_params   = None,
+				param_overrides = param_overrides
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
-				data         = args.data,
-				frb_id       = args.frb_identifier,
-				sim_file     = resolved_sim,
-				gauss_file   = resolved_gauss,
-				scint_file   = resolved_scint,
-				out_dir      = args.output_dir,
-				write        = args.write,
-				mode         = args.mode,
-				seed         = args.seed,
-				nseed        = None,
-				sefd         = args.sefd,
-				n_cpus       = None,
-				plot_mode    = selected_plot_mode,
-				phase_window = None,
-				freq_window  = None,
-				buffer_frac  = args.buffer,
-				sweep_mode   = None,
-				target_snr   = args.snr,
-				obs_data     = args.obs_data,
-				obs_params   = args.obs_params
+				data            = args.data,
+				frb_id          = args.frb_identifier,
+				sim_file        = resolved_sim,
+				gauss_file      = resolved_gauss,
+				scint_file      = resolved_scint,
+				out_dir         = args.output_dir,
+				write           = args.write,
+				mode            = args.mode,
+				seed            = args.seed,
+				nseed           = None,
+				sefd            = args.sefd,
+				n_cpus          = None,
+				plot_mode       = selected_plot_mode,
+				phase_window    = None,
+				freq_window     = None,
+				buffer_frac     = args.buffer,
+				sweep_mode      = None,
+				target_snr      = args.snr,
+				obs_data        = args.obs_data,
+				obs_params      = args.obs_params,
+				param_overrides = param_overrides
 			)
 			if args.chi2_fit:
 				logging.info("Performing chi-squared fitting on the final profiles... \n")

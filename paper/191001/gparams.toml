@@ -35,12 +35,12 @@
 #	dPA             - Change in polarization angle with time in deg/ms
 # band_centre     - Central frequency of the Gaussian in MHz
 # band_width      - Frequency bandwidth of the Gaussian in MHz
-# ngauss          - Number of micro-gausssians used to generate the pulse
+# N          - Number of micro-gausssians used to generate the pulse
 # mg_width_low    - Lower FWHM range of the micro-gaussians as a percentage of width_ms  |
 # mg_width_high   - Higher FWHM range of the micro-gaussians as a percentage of width_ms | Uniform distribution, w_i ~ width * U(mg_width_low/100, mg_width_high/100)
 #
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
-#  t0    width  A         spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width  ngauss  mg_width_low  mg_width_high #
+#  t0    width  A         spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width    N     mg_width_low  mg_width_high #
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
   -2.0  0.5     0.2       0.0        1.78  0.0   0.0    20     0.95   -0.05   0.0      0.0          0.0       100       5            20           # gaussian / gaussian mean
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
