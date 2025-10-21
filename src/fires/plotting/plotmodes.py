@@ -22,6 +22,7 @@ import matplotlib.ticker as mticker
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.stats import circvar
+from scipy.interpolate import interp1d
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
 								 process_dspec)
@@ -904,7 +905,427 @@ def _plot_single_job_common(
 	return fig, ax
 
 
-def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, legend=True):
+def _find_equal_value_intersections(frb_dict, target_param, target_values=None, n_lines=5):
+	"""
+	Find parameter values where different runs have equal values for a specified parameter.
+	
+	This generalizes the equal-variance concept to work with any parameter from V_params
+	or dspec_params (gparams).
+	
+	Parameters:
+	-----------
+	frb_dict : dict
+		Multi-run dictionary with run names as keys
+	target_param : str
+		Parameter name to find equal values for (e.g., 'PA_i', 'tau_ms', 'lfrac')
+		Can be from V_params (intrinsic/variation parameters) or dspec_params (observational)
+	target_values : list or None
+		Specific parameter values to find intersections at. If None, automatically
+		chooses evenly spaced values across the common range.
+	n_lines : int
+		Number of guide lines to plot if target_values is None
+		
+	Returns:
+	--------
+	dict
+		Dictionary mapping target_value -> {run_name: (x_value, y_value)}
+	"""
+	if not _is_multi_run_dict(frb_dict):
+		return {}
+	
+	# Collect all curves and their associated parameter values
+	runs = {}
+	for run_name, subdict in frb_dict.items():
+		xvals = np.array(subdict["xvals"])
+		yvals_dict = subdict["yvals"]
+		
+		# Get median y values for each x
+		med_y, _ = _median_percentiles(yvals_dict, xvals)
+		
+		# Get parameter values for this run
+		V_params = subdict.get("V_params", {})
+		dspec_params = subdict.get("dspec_params", {})
+		
+		# Try to extract target parameter values
+		param_vals = []
+		for xv in xvals:
+			val = None
+			
+			# Check V_params first (for intrinsic/variation parameters)
+			# V_params is structured as {x_value: {param_name: [value1, value2, ...], ...}, ...}
+			if isinstance(V_params, dict) and xv in V_params:
+				param_dict = V_params[xv]
+				if isinstance(param_dict, dict) and target_param in param_dict:
+					val_list = param_dict[target_param]
+					# Take mean of all realizations for this x-value
+					if isinstance(val_list, (list, np.ndarray)) and len(val_list) > 0:
+						val = float(np.nanmean(val_list))
+					elif isinstance(val_list, (int, float)):
+						val = float(val_list)
+			
+			# Check dspec_params (for observational parameters like tau_ms, width_ms, etc.)
+			# These are typically constant across x-values
+			if val is None:
+				# dspec_params can be:
+				# 1. List/tuple of dicts (one per x-value)
+				# 2. Single dict (constant across all x)
+				if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+					# Find the dict corresponding to this x-value
+					idx = np.where(xvals == xv)[0]
+					if len(idx) > 0 and idx[0] < len(dspec_params):
+						dspec_dict = dspec_params[idx[0]]
+						if isinstance(dspec_dict, dict) and target_param in dspec_dict:
+							param_value = dspec_dict[target_param]
+							if isinstance(param_value, (list, np.ndarray)) and len(param_value) > 0:
+								val = float(np.nanmean(param_value))
+							elif isinstance(param_value, (int, float)):
+								val = float(param_value)
+				elif isinstance(dspec_params, dict) and target_param in dspec_params:
+					# Constant value across all x
+					param_value = dspec_params[target_param]
+					if isinstance(param_value, (list, np.ndarray)) and len(param_value) > 0:
+						val = float(np.nanmean(param_value))
+					elif isinstance(param_value, (int, float)):
+						val = float(param_value)
+			
+			param_vals.append(val if val is not None else np.nan)
+		
+		param_vals = np.array(param_vals)
+		
+		# Log what we found
+		valid_count = np.sum(np.isfinite(param_vals))
+		if valid_count > 0:
+			logging.debug(f"Run '{run_name}': found {valid_count}/{len(param_vals)} valid {target_param} values "
+						 f"(range: {np.nanmin(param_vals):.3g} - {np.nanmax(param_vals):.3g})")
+		
+		if len(med_y) > 0 and np.any(np.isfinite(med_y)) and np.any(np.isfinite(param_vals)):
+			runs[run_name] = {
+				'x': xvals,
+				'y': np.array(med_y),
+				'param': param_vals
+			}
+	
+	if len(runs) < 2:
+		logging.warning(f"Need at least 2 runs to find intersections for {target_param}, found {len(runs)}")
+		return {}
+	
+	# Collect all unique parameter values across ALL runs
+	all_unique_params = set()
+	for run_name, run_data in runs.items():
+		valid_vals = run_data['param'][np.isfinite(run_data['param'])]
+		if len(valid_vals) > 0:
+			# Round to avoid floating point precision issues
+			for val in valid_vals:
+				all_unique_params.add(round(val, 10))
+	
+	all_unique_params = sorted(all_unique_params)
+	
+	if len(all_unique_params) < 2:
+		logging.warning(f"Insufficient unique {target_param} values to find intersections (found {len(all_unique_params)})")
+		return {}
+	
+	param_min = min(all_unique_params)
+	param_max = max(all_unique_params)
+	
+	logging.info(f"Parameter '{target_param}': found {len(all_unique_params)} unique values across all runs")
+	logging.info(f"Range: {param_min:.3g} - {param_max:.3g}")
+	
+	# Choose target parameter values
+	if target_values is None:
+		# If we have fewer unique values than requested lines, use all of them
+		if len(all_unique_params) <= n_lines:
+			target_values = list(all_unique_params)
+			logging.info(f"Using all {len(target_values)} unique parameter values")
+		else:
+			# Select evenly spaced values from the unique set
+			# Use indices to select from the sorted unique values
+			indices = np.linspace(0, len(all_unique_params) - 1, n_lines, dtype=int)
+			target_values = [all_unique_params[i] for i in indices]
+			logging.info(f"Selected {n_lines} evenly-spaced values from {len(all_unique_params)} unique values")
+	
+	# For each target parameter value, find (x, y) in each run where param = target
+	intersections = {}
+	
+	for target_val in target_values:
+		run_points = {}
+		
+		for run_name, run_data in runs.items():
+			x = run_data['x']
+			y = run_data['y']
+			param = run_data['param']
+			
+			# Remove NaNs
+			valid = np.isfinite(y) & np.isfinite(param)
+			if not np.any(valid):
+				continue
+				
+			x_valid = x[valid]
+			y_valid = y[valid]
+			param_valid = param[valid]
+			
+			# For constant parameters (all same value), check if this run has the target value
+			param_unique = np.unique(param_valid.round(10))
+			if len(param_unique) == 1:
+				# Constant parameter case - check if it matches target
+				if np.abs(param_unique[0] - target_val) < 1e-9:
+					# Use all points - this will create a vertical line
+					for xi, yi in zip(x_valid, y_valid):
+						run_points[f"{run_name}_{xi}"] = (xi, yi)
+					logging.debug(f"Run '{run_name}': constant {target_param}={target_val:.3g}, using all {len(x_valid)} points")
+				continue
+			
+			# Variable parameter case - interpolate
+			# Check if target value is within range
+			if target_val < np.min(param_valid) or target_val > np.max(param_valid):
+				logging.debug(f"Target {target_val:.3g} outside range for run '{run_name}' "
+							 f"({np.min(param_valid):.3g} - {np.max(param_valid):.3g})")
+				continue
+			
+			# Interpolate to find x and y where param = target_val
+			try:
+				# Sort by param for interpolation
+				sort_idx = np.argsort(param_valid)
+				param_sorted = param_valid[sort_idx]
+				x_sorted = x_valid[sort_idx]
+				y_sorted = y_valid[sort_idx]
+				
+				# Linear interpolation
+				x_interp = np.interp(target_val, param_sorted, x_sorted)
+				y_interp = np.interp(target_val, param_sorted, y_sorted)
+				
+				run_points[run_name] = (x_interp, y_interp)
+				logging.debug(f"Run '{run_name}': {target_param}={target_val:.3g} at x={x_interp:.3g}, y={y_interp:.3g}")
+			except Exception as e:
+				logging.debug(f"Failed to interpolate for run {run_name}: {e}")
+				continue
+		
+		# Only keep if at least 2 points (can be from same run if constant param)
+		if len(run_points) >= 2:
+			intersections[target_val] = run_points
+			logging.info(f"Found {len(run_points)} points at {target_param}={target_val:.3g}")
+	
+	if intersections:
+		logging.info(f"Found {len(intersections)} equal-{target_param} guide lines across runs")
+	else:
+		logging.warning(f"No equal-{target_param} intersections found. Check that:")
+		logging.warning(f"  1. Parameter '{target_param}' exists in V_params or dspec_params")
+		logging.warning(f"  2. Runs have overlapping {target_param} ranges")
+		logging.warning(f"  3. At least 2 runs are present")
+	
+	return intersections
+
+
+def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight_y_by=None, 
+							 target_values=None, n_lines=5, linestyle='--', alpha=0.5, 
+							 color='black', show_labels=True, zorder=0):
+	"""
+	Plot curves connecting points where runs have equal values for a specified parameter,
+	extending to axis bounds. Labels are drawn inline with a background bbox to create a
+	visual gap like '--------- label ---------'.
+	"""
+	intersections = _find_equal_value_intersections(frb_dict, target_param, 
+													target_values, n_lines)
+	if not intersections:
+		logging.info(f"No equal {target_param} intersections found for background lines")
+		return
+
+	# Use final axis settings (should be called after main data is plotted)
+	xlim = ax.get_xlim()
+	ylim = ax.get_ylim()
+	# Ensure increasing order
+	xlim = (min(xlim), max(xlim))
+	ylim = (min(ylim), max(ylim))
+	x_is_log = (ax.get_xscale() == 'log')
+	y_is_log = (ax.get_yscale() == 'log')
+
+	# Resolve weights for normalisation (single constants)
+	first_run = next(iter(frb_dict.values()))
+	V_params = first_run.get("V_params", {})
+	dspec_params = first_run.get("dspec_params", {})
+
+	def _extract_weight(weight_by, src_V, src_D):
+		if weight_by is None:
+			return None
+		src = src_V if weight_by.endswith("_i") else src_D
+		if isinstance(src, (list, tuple)) and len(src) > 0 and isinstance(src[0], dict):
+			w = src[0].get(weight_by, None)
+			if isinstance(w, (list, np.ndarray)):
+				return float(np.array(w).flat[0]) if len(w) else None
+			return float(w) if isinstance(w, (int, float)) else None
+		if isinstance(src, dict):
+			w = src.get(weight_by, None)
+			if isinstance(w, (list, np.ndarray)):
+				return float(np.array(w).flat[0]) if len(w) else None
+			return float(w) if isinstance(w, (int, float)) else None
+		return None
+
+	x_weight = _extract_weight(weight_x_by, V_params, dspec_params)
+	y_weight = _extract_weight(weight_y_by, V_params, dspec_params)
+
+	# Label formatting
+	if target_param.endswith('_i'):
+		base_param = target_param.removesuffix('_i')
+		info = param_map.get(base_param, (base_param, ""))
+		base_name = info[0] if isinstance(info, tuple) else info
+		base_unit = info[1] if isinstance(info, tuple) else ""
+		param_symbol = rf"\mathrm{{Var}}({base_name})"
+		param_unit = (base_unit[:-1] + r"}^2") if (base_unit.startswith(r"\mathrm{") and base_unit.endswith("}")) else (f"{base_unit}^2" if base_unit else "")
+	else:
+		info = param_map.get(target_param, (target_param, ""))
+		param_symbol = info[0] if isinstance(info, tuple) else target_param
+		param_unit = info[1] if isinstance(info, tuple) else ""
+
+	n_intersections = len(intersections)
+
+	def _format_val(v):
+		return f"{v:.1e}" if (abs(v) < 0.01 or abs(v) > 1000) else f"{v:.2f}"
+
+	def _label_text(val):
+		if param_unit:
+			return f"${param_symbol} = {_format_val(val)}\\,{param_unit}$"
+		return f"${param_symbol} = {_format_val(val)}$"
+
+	# Build sampling grid exactly over current bounds
+	def _xgrid():
+		xmin, xmax = xlim
+		if x_is_log:
+			xmin = max(xmin, np.finfo(float).tiny)
+			xmax = max(xmax, xmin * (1 + 1e-6))
+			return np.geomspace(xmin, xmax, 512)
+		return np.linspace(xmin, xmax, 512)
+
+	# Inner bounds helper: returns (lo+margin, hi-margin)
+	def _inner_bounds(lim, frac=0.06, is_log=False):
+		lo, hi = lim
+		if is_log:
+			lo = max(lo, np.finfo(float).tiny)
+			L = np.log10(lo); H = np.log10(hi); m = (H - L) * frac
+			return 10**(L + m), 10**(H - m)
+		span = hi - lo
+		m = span * frac
+		return lo + m, hi - m
+
+	def _clamp(val, lim, frac=0.06, is_log=False):
+		lo_i, hi_i = _inner_bounds(lim, frac=frac, is_log=is_log)
+		return float(np.clip(val, lo_i, hi_i))
+
+	facecolor = ax.get_facecolor()
+
+	for idx, (target_val, run_points) in enumerate(intersections.items()):
+		# Collect points (normalised if requested)
+		xs, ys = [], []
+		for _, (x_val, y_val) in run_points.items():
+			if x_weight is not None and np.isfinite(x_weight) and x_weight > 0:
+				x_val = x_val / x_weight
+			if y_weight is not None and np.isfinite(y_weight) and y_weight > 0:
+				y_val = y_val / y_weight
+			xs.append(x_val)
+			ys.append(y_val)
+
+		if len(xs) < 2:
+			continue
+
+		xs = np.array(xs, dtype=float)
+		ys = np.array(ys, dtype=float)
+
+		# Vertical line (constant x)
+		if np.allclose(np.ptp(xs), 0, rtol=1e-12, atol=1e-12):
+			x_const = _clamp(xs[0], xlim, frac=0.06, is_log=x_is_log)
+			ax.axvline(x_const, linestyle=linestyle, color=color, alpha=alpha, zorder=zorder)
+			if show_labels:
+				# place label mid y-range (log-aware) and clamp
+				if y_is_log:
+					y_lo_i, y_hi_i = _inner_bounds(ylim, frac=0.06, is_log=True)
+					y_lab = np.sqrt(y_lo_i * y_hi_i)
+				else:
+					y_lo_i, y_hi_i = _inner_bounds(ylim, frac=0.06, is_log=False)
+					y_lab = 0.5 * (y_lo_i + y_hi_i)
+				ax.text(
+					x_const, y_lab, _label_text(target_val),
+					fontsize=9, color=color, rotation=90, rotation_mode='anchor',
+					ha='center', va='center', zorder=zorder + 1, clip_on=True,
+					bbox=dict(boxstyle='round,pad=0.2', fc=facecolor, ec='none')
+				)
+			continue
+
+		# Sort, dedupe, and build linear interpolator with extrapolation
+		order = np.argsort(xs)
+		xs_sorted = xs[order]
+		ys_sorted = ys[order]
+		mask_unique = np.concatenate(([True], np.diff(xs_sorted) != 0))
+		xs_sorted = xs_sorted[mask_unique]
+		ys_sorted = ys_sorted[mask_unique]
+		if len(xs_sorted) < 2:
+			continue
+
+		f = interp1d(xs_sorted, ys_sorted, kind='linear', fill_value='extrapolate',
+					 bounds_error=False, assume_sorted=True)
+
+		X = _xgrid()
+		with np.errstate(invalid='ignore'):
+			Y = f(X)
+
+		# Plot the full guide line across the axis range
+		ax.plot(X, Y, linestyle=linestyle, color=color, alpha=alpha, zorder=zorder, clip_on=True)
+
+		if not show_labels:
+			continue
+
+		# Choose a label point from the visible segment inside inner bounds
+		y_lo_i, y_hi_i = _inner_bounds(ylim, frac=0.08, is_log=y_is_log)
+		if y_is_log:
+			inside = np.isfinite(Y) & (Y > 0) & (Y >= y_lo_i) & (Y <= y_hi_i)
+		else:
+			inside = np.isfinite(Y) & (Y >= y_lo_i) & (Y <= y_hi_i)
+
+		if not np.any(inside):
+			# No visible segment; skip label to avoid off-plot text
+			continue
+
+		# Pick the midpoint index of the longest contiguous visible segment
+		idxs = np.where(inside)[0]
+		# Split into contiguous runs
+		splits = np.where(np.diff(idxs) > 1)[0] + 1
+		segments = np.split(idxs, splits)
+		seg = max(segments, key=len)
+		j = seg[len(seg)//2]
+		x_lab = float(X[j])
+		y_lab = float(Y[j])
+
+		# Compute local angle in display coords for proper rotation
+		if x_is_log:
+			step = 1.003
+			x1 = max(X[0], x_lab / step)
+			x2 = min(X[-1], x_lab * step)
+		else:
+			dx = (xlim[1] - xlim[0]) * 1e-3
+			x1 = max(X[0], x_lab - dx)
+			x2 = min(X[-1], x_lab + dx)
+		y1 = float(f(x1))
+		y2 = float(f(x2))
+		p1 = ax.transData.transform((x1, y1))
+		p2 = ax.transData.transform((x2, y2))
+		dx_disp = p2[0] - p1[0]
+		dy_disp = p2[1] - p1[1]
+		angle = 90.0 if dx_disp == 0 else np.degrees(np.arctan2(dy_disp, dx_disp))
+		if angle > 90:
+			angle -= 180
+		elif angle < -90:
+			angle += 180
+
+		# Draw inline label with background box to create the visible gap, clip inside axes
+		ax.text(
+			x_lab, y_lab, _label_text(target_val),
+			fontsize=9, color=color, rotation=angle, rotation_mode='anchor',
+			ha='center', va='center', zorder=zorder + 1, clip_on=True,
+			bbox=dict(boxstyle='round,pad=0.2', fc=facecolor, ec='none')
+		)
+
+	logging.info(f"Plotted {len(intersections)} equal-{target_param} curves")
+
+
+def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, 
+				   legend=True, equal_value_lines=None):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 
@@ -920,17 +1341,18 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		Scale type ("linear", "logx", "logy", "loglog").
 	yname : str
 		Y-axis variable name.
-	colour_map : dict
-		Mapping of run names to colors.
-	colours : dict
-		Default color palette.
-	weight_key : str
-		Key to use for weighting y-values ("PA", "l_frac", or any parameter name).
+	weight_y_by : str or None
+		Key to use for weighting y-values.
 	weight_x_by : str or None, optional
 		Parameter to weight/normalise x-axis by.
+	legend : bool
+		Whether to show legend.
+	equal_value_lines : str or None
+		Parameter name to plot equal-value background lines for (e.g., 'PA_i', 'tau_ms').
+		If None, no background lines are plotted.
 	"""
 
-	 # Determine y-axis name if not provided
+	# Determine y-axis name if not provided
 	base_yname = yname
 
 	colour_list = list(colours.values())
@@ -1006,13 +1428,25 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	_plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
 				   param_key=param_key, weight_y_by=weight_for_expected)
 
-	ax.grid(True, linestyle='--', alpha=0.6)
+	#ax.grid(True, linestyle='--', alpha=0.6)
 	if legend:
 		ax.legend()
 
 	# Decide y-axis label after knowing if weighting applied
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
+
+	# Draw equal-value guide lines after axes limits/scales are final; restore limits to avoid autoscale
+	if equal_value_lines is not None:
+		_xlim0, _ylim0 = ax.get_xlim(), ax.get_ylim()
+		_plot_equal_value_lines(
+			ax, frb_dict, target_param=equal_value_lines,
+			weight_x_by=weight_x_by, weight_y_by=weight_y_by,
+			target_values=None, n_lines=5,
+			linestyle=':', alpha=0.5, color='black', show_labels=True, zorder=0
+		)
+		ax.set_xlim(_xlim0); ax.set_ylim(_ylim0)
+
 
 
 def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
@@ -1083,7 +1517,8 @@ def plot_pa_var(
 	weight_x_by="width_ms",
 	weight_y_by="PA_i",
 	obs_data=None,
-	obs_params=None
+	obs_params=None,
+	equal_value_lines=None
 	):
 	"""
 	Plot the variance of the polarization angle (PA) as a function of scattering parameters.
@@ -1139,7 +1574,9 @@ def plot_pa_var(
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		# Weight measured and expected by PA_i to show ratio R_psi
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, weight_x_by=weight_x_by, yname=yname, legend=legend)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, 
+					   weight_x_by=weight_x_by, yname=yname, legend=legend,
+					   equal_value_lines=equal_value_lines)
 
 	else:	
 		# Single job
@@ -1249,7 +1686,8 @@ def plot_lfrac_var(
 	weight_x_by=None,
 	weight_y_by="lfrac",
 	obs_data=None,
-	obs_params=None
+	obs_params=None,
+	equal_value_lines=None
 	):
 	"""
 	Plot the linear polarization fraction (L/I) as a function of scattering parameters.
@@ -1308,7 +1746,9 @@ def plot_lfrac_var(
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, weight_x_by=weight_x_by, yname=yname, legend=legend)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, 
+					   weight_x_by=weight_x_by, yname=yname, legend=legend,
+					   equal_value_lines=equal_value_lines)
 	else:
 		# Single job via helper
 		fig, ax = _plot_single_job_common(
@@ -1671,6 +2111,7 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 		ax.axhspan(y - y_err, y + y_err, alpha=0.1, color=color, zorder=1)
 
 
+# Define PlotMode instances for each plot type
 pa_var = PlotMode(
 	name="pa_var",
 	process_func=_process_pa_var,

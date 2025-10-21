@@ -227,6 +227,16 @@ def main():
 			  "Can be any intrinsic parameter or variation parameter from gparams.\n"
 			  "Default is mode-specific: 'PA_i' for pa_var, 'lfrac' for l_frac.")
 	)
+	parser.add_argument(
+		"--equal-value-lines",
+		type=str,
+		default=None,
+		metavar="",
+		help=("Plot background guide lines showing where different runs have equal values\n"
+			  "for the specified parameter (e.g., 'PA_i', 'tau_ms', 'lfrac').\n"
+			  "Works with any parameter from V_params (intrinsic/variation) or gparams.\n"
+			  "Only applies to multi-run plots (pa_var/l_frac modes).")
+	)
 	
 	# Simulation Options
 	parser.add_argument(
@@ -432,30 +442,31 @@ def main():
 						print(f"Error: Plot mode '{plot_mode}' is not defined in plotmodes.py. \n")
 						continue
 					plotting_args = {
-						"fname"        : args.frb_identifier,
-						"frb_data"     : FRB if 'FRB' in locals() else None,
-						"mode"         : plot_mode,
-						"gdict"        : gdict if 'gdict' in locals() else None,
-						"frb_dict"     : frb_dict if 'frb_dict' in locals() else None,
-						"out_dir"      : data_directory,
-						"save"         : args.save_plots,
-						"figsize"      : args.figsize,
-						"show_plots"   : args.show_plots,
-						"scale"        : args.plot_scale,
-						"phase_window" : args.phase_window,
-						"freq_window"  : args.freq_window,
-						"fit"          : args.fit,
-						"extension"    : args.extension,
-						"legend"       : args.no_legend,
-						"info"         : args.no_info,
-						"buffer_frac"  : args.buffer,
-						"show_onpulse" : args.show_onpulse,
-						"show_offpulse": args.show_offpulse,
-						"use_latex"    : args.use_latex,
-						"weight_x_by"  : args.weight_x_by,
-						"weight_y_by"  : args.weight_y_by,
-                        "obs_data"     : args.obs_data,
-                        "obs_params"   : args.obs_params
+						"fname"            : args.frb_identifier,
+						"frb_data"         : FRB if 'FRB' in locals() else None,
+						"mode"             : plot_mode,
+						"gdict"            : gdict if 'gdict' in locals() else None,
+						"frb_dict"         : frb_dict if 'frb_dict' in locals() else None,
+						"out_dir"          : data_directory,
+						"save"             : args.save_plots,
+						"figsize"          : args.figsize,
+						"show_plots"       : args.show_plots,
+						"scale"            : args.plot_scale,
+						"phase_window"     : args.phase_window,
+						"freq_window"      : args.freq_window,
+						"fit"              : args.fit,
+						"extension"        : args.extension,
+						"legend"           : args.no_legend,
+						"info"             : args.no_info,
+						"buffer_frac"      : args.buffer,
+						"show_onpulse"     : args.show_onpulse,
+						"show_offpulse"    : args.show_offpulse,
+						"use_latex"        : args.use_latex,
+						"weight_x_by"      : args.weight_x_by,
+						"weight_y_by"      : args.weight_y_by,
+						"obs_data"         : args.obs_data,
+						"obs_params"       : args.obs_params,
+						"equal_value_lines": args.equal_value_lines
 					}
 		
 					plot_function = plot_mode_obj.plot_func
