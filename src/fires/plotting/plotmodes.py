@@ -20,12 +20,12 @@ import warnings
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
+from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 from scipy.stats import circvar
-from scipy.interpolate import interp1d
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec)
+                                 process_dspec)
 from fires.core.genfrb import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 
@@ -107,7 +107,7 @@ param_map = {
 	"dPA"            : (r"\Delta\psi_0", r"\mathrm{deg}"),
 	"band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
 	"band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
-	"ngauss"         : (r"N_{\mathrm{gauss},0}", ""),
+	"N"         : (r"N_{\mathrm{gauss},0}", ""),
 	"mg_width_low"   : (r"W_{\mathrm{low},0}", r"\mathrm{ms}"),
 	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
 	# Std deviation sweep parameters

@@ -25,7 +25,7 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
-                                 snr_onpulse)
+								 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.utils.config import get_parameters, load_params
 from fires.utils.utils import dspecParams, simulated_frb
@@ -57,234 +57,234 @@ def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz
 
 
 def load_data(obs_data_path, obs_params_path=None):
-    """
-    Load real FRB data from individual Stokes I, Q, U, V files and parameter file.
-    
-    Expected file structure:
-    - Individual Stokes files: out_I.npy, out_Q.npy, out_U.npy, out_V.npy
-      OR: {label}_htr_dsI.npy, {label}_htr_dsQ.npy, etc.
-    - Frequency array: {label}_htr_freq.npy or zoom_x_0.npy
-    - Time array: {label}_htr_time.npy or zoom_y_0.npy
-    - Parameters: parameters.txt
-    
-    Parameters:
-    -----------
-    obs_data_path : str
-        Path to directory containing Stokes files, or path to a single Stokes file
-    obs_params_path : str or None
-        Path to parameters.txt file. If None, will search in obs_data_path directory
-        
-    Returns:
-    --------
-    tuple
-        (dspec, freq_mhz, time_ms, gdict) where dspec has shape [4, nfreq, ntime]
-    """
-    # Determine base directory and pattern
-    if os.path.isdir(obs_data_path):
-        data_dir = obs_data_path
-        base_pattern = ""
-        # Try to infer base pattern from directory contents
-        import glob
-        htr_files = glob.glob(os.path.join(data_dir, "*_htr_dsI.npy"))
-        if htr_files:
-            basename = os.path.basename(htr_files[0])
-            base_pattern = basename.replace("_htr_dsI.npy", "")
-    else:
-        data_dir = os.path.dirname(obs_data_path)
-        # Extract base name pattern from filename
-        basename = os.path.basename(obs_data_path)
-        
-        # Handle various naming patterns
-        if '_htr_dsI.npy' in basename:
-            base_pattern = basename.replace('_htr_dsI.npy', '')
-        elif '_htr_dsQ.npy' in basename:
-            base_pattern = basename.replace('_htr_dsQ.npy', '')
-        elif '_htr_dsU.npy' in basename:
-            base_pattern = basename.replace('_htr_dsU.npy', '')
-        elif '_htr_dsV.npy' in basename:
-            base_pattern = basename.replace('_htr_dsV.npy', '')
-        elif 'out_I.npy' in basename or 'out_Q.npy' in basename:
-            base_pattern = ""
-        else:
-            base_pattern = ""
-    
-    logging.info(f"Loading real FRB data from {data_dir}")
-    if base_pattern:
-        logging.info(f"Using base pattern: {base_pattern}")
-    
-    # Find Stokes files - try multiple naming conventions
-    stokes_files = {}
-    for stokes in ['I', 'Q', 'U', 'V']:
-        candidates = []
-        
-        # Pattern 1: {label}_htr_dsI.npy (e.g., 191001_htr_dsI.npy)
-        if base_pattern:
-            candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_ds{stokes}.npy"))
-        
-        # Pattern 2: out_I.npy
-        candidates.append(os.path.join(data_dir, f"out_{stokes}.npy"))
-        
-        # Pattern 3: out_I_noflagged.npy
-        candidates.append(os.path.join(data_dir, f"out_{stokes}_noflagged.npy"))
-        
-        # Pattern 4: Generic patterns
-        if base_pattern:
-            candidates.extend([
-                os.path.join(data_dir, f"{base_pattern}_{stokes}.npy"),
-                os.path.join(data_dir, f"{base_pattern}_ds{stokes}.npy"),
-            ])
-        
-        candidates.extend([
-            os.path.join(data_dir, f"{stokes}.npy"),
-            os.path.join(data_dir, f"stokes_{stokes}.npy"),
-        ])
-        
-        found = False
-        for candidate in candidates:
-            if os.path.exists(candidate):
-                stokes_files[stokes] = candidate
-                found = True
-                logging.info(f"Found Stokes {stokes}: {os.path.basename(candidate)}")
-                break
-        
-        if not found:
-            logging.warning(f"Stokes {stokes} file not found in {data_dir}")
-            stokes_files[stokes] = None
-    
-    # Load Stokes data
-    stokes_arrays = []
-    for stokes in ['I', 'Q', 'U', 'V']:
-        if stokes_files[stokes] is not None:
-            arr = np.load(stokes_files[stokes])
-            stokes_arrays.append(arr)
-        else:
-            # Create zeros if file doesn't exist
-            if len(stokes_arrays) > 0:
-                stokes_arrays.append(np.zeros_like(stokes_arrays[0]))
-            else:
-                # Can't proceed without at least Stokes I
-                if stokes == 'I':
-                    raise FileNotFoundError(
-                        f"Stokes I file required but not found in {data_dir}\n"
-                        f"Tried patterns: out_I.npy, {base_pattern}_htr_dsI.npy, etc."
-                    )
-    
-    # Stack into [4, nfreq, ntime] array
-    dspec = np.array(stokes_arrays)
-    logging.info(f"Loaded dynamic spectrum with shape: {dspec.shape} [Stokes, freq, time]")
-    
-    # Load frequency array
-    freq_mhz = None
-    freq_candidates = []
-    
-    # Pattern 1: {label}_htr_freq.npy
-    if base_pattern:
-        freq_candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_freq.npy"))
-    
-    # Pattern 2: zoom_x_0.npy (frequency axis)
-    freq_candidates.append(os.path.join(data_dir, "zoom_x_0.npy"))
-    
-    # Generic patterns
-    freq_candidates.extend([
-        os.path.join(data_dir, "freq.npy"),
-        os.path.join(data_dir, "frequency.npy"),
-        os.path.join(data_dir, "freqs.npy"),
-    ])
-    
-    # Try with glob for wildcards
-    import glob
-    freq_candidates.extend(glob.glob(os.path.join(data_dir, "*_freq.npy")))
-    freq_candidates.extend(glob.glob(os.path.join(data_dir, "*_htr_freq.npy")))
-    
-    for candidate in freq_candidates:
-        if os.path.exists(candidate):
-            freq_mhz = np.load(candidate)
-            logging.info(f"Loaded frequency array from {os.path.basename(candidate)}: {len(freq_mhz)} channels")
-            break
-    
-    if freq_mhz is None:
-        logging.warning("No frequency array found, creating default MHz array")
-        freq_mhz = np.arange(dspec.shape[1], dtype=float)
-    
-    # Ensure freq_mhz matches dspec dimensions
-    if len(freq_mhz) != dspec.shape[1]:
-        logging.warning(
-            f"Frequency array length ({len(freq_mhz)}) doesn't match dspec freq axis ({dspec.shape[1]}). "
-            "Creating default array."
-        )
-        freq_mhz = np.arange(dspec.shape[1], dtype=float)
-    
-    # Load time array
-    time_ms = None
-    time_candidates = []
-    
-    # Pattern 1: {label}_htr_time.npy
-    if base_pattern:
-        time_candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_time.npy"))
-    
-    # Pattern 2: zoom_y_0.npy (time axis)
-    time_candidates.append(os.path.join(data_dir, "zoom_y_0.npy"))
-    
-    # Generic patterns
-    time_candidates.extend([
-        os.path.join(data_dir, "time.npy"),
-        os.path.join(data_dir, "times.npy"),
-    ])
-    
-    # Try with glob
-    time_candidates.extend(glob.glob(os.path.join(data_dir, "*_time.npy")))
-    time_candidates.extend(glob.glob(os.path.join(data_dir, "*_htr_time.npy")))
-    
-    for candidate in time_candidates:
-        if os.path.exists(candidate):
-            time_ms = np.load(candidate)
-            logging.info(f"Loaded time array from {os.path.basename(candidate)}: {len(time_ms)} samples")
-            break
-    
-    if time_ms is None:
-        logging.warning("No time array found, creating default ms array")
-        time_ms = np.arange(dspec.shape[2], dtype=float)
-    
-    # Ensure time_ms matches dspec dimensions
-    if len(time_ms) != dspec.shape[2]:
-        logging.warning(
-            f"Time array length ({len(time_ms)}) doesn't match dspec time axis ({dspec.shape[2]}). "
-            "Creating default array."
-        )
-        time_ms = np.arange(dspec.shape[2], dtype=float)
-    
-    # Convert time to milliseconds if needed (check if values are too small)
-    if np.median(time_ms) < 1.0 and np.median(time_ms) > 0:
-        logging.info("Time array appears to be in seconds, converting to milliseconds")
-        time_ms = time_ms * 1000.0
-    
-    # Load parameters file
-    gdict = {}
-    if obs_params_path is None:
-        obs_params_path = os.path.join(data_dir, "parameters.txt")
-    
-    if os.path.exists(obs_params_path):
-        logging.info(f"Loading parameters from {os.path.basename(obs_params_path)}")
-        gdict = get_parameters(obs_params_path)
-    else:
-        logging.warning(f"Parameters file not found: {obs_params_path}")
-        # Create minimal gdict with defaults
-        gdict = {
-            'tau_ms': np.array([0.0]),
-            'width_ms': np.array([np.median(np.diff(time_ms)) * 10 if len(time_ms) > 1 else 1.0]),
-            'DM': np.array([0.0]),
-            'RM': np.array([0.0]),
-            'band_centre_mhz': np.array([np.median(freq_mhz) if len(freq_mhz) > 0 else 1000.0]),
-            'band_width_mhz': np.array([np.ptp(freq_mhz) if len(freq_mhz) > 0 else 336.0])
-        }
-    
-    logging.info(
-        f"Final data shape: {dspec.shape}, "
-        f"freq range: {freq_mhz.min():.1f}-{freq_mhz.max():.1f} MHz, "
-        f"time range: {time_ms.min():.3f}-{time_ms.max():.3f} ms"
-    )
-    
-    return dspec, freq_mhz, time_ms, gdict
+	"""
+	Load real FRB data from individual Stokes I, Q, U, V files and parameter file.
+	
+	Expected file structure:
+	- Individual Stokes files: out_I.npy, out_Q.npy, out_U.npy, out_V.npy
+	  OR: {label}_htr_dsI.npy, {label}_htr_dsQ.npy, etc.
+	- Frequency array: {label}_htr_freq.npy or zoom_x_0.npy
+	- Time array: {label}_htr_time.npy or zoom_y_0.npy
+	- Parameters: parameters.txt
+	
+	Parameters:
+	-----------
+	obs_data_path : str
+		Path to directory containing Stokes files, or path to a single Stokes file
+	obs_params_path : str or None
+		Path to parameters.txt file. If None, will search in obs_data_path directory
+		
+	Returns:
+	--------
+	tuple
+		(dspec, freq_mhz, time_ms, gdict) where dspec has shape [4, nfreq, ntime]
+	"""
+	# Determine base directory and pattern
+	if os.path.isdir(obs_data_path):
+		data_dir = obs_data_path
+		base_pattern = ""
+		# Try to infer base pattern from directory contents
+		import glob
+		htr_files = glob.glob(os.path.join(data_dir, "*_htr_dsI.npy"))
+		if htr_files:
+			basename = os.path.basename(htr_files[0])
+			base_pattern = basename.replace("_htr_dsI.npy", "")
+	else:
+		data_dir = os.path.dirname(obs_data_path)
+		# Extract base name pattern from filename
+		basename = os.path.basename(obs_data_path)
+		
+		# Handle various naming patterns
+		if '_htr_dsI.npy' in basename:
+			base_pattern = basename.replace('_htr_dsI.npy', '')
+		elif '_htr_dsQ.npy' in basename:
+			base_pattern = basename.replace('_htr_dsQ.npy', '')
+		elif '_htr_dsU.npy' in basename:
+			base_pattern = basename.replace('_htr_dsU.npy', '')
+		elif '_htr_dsV.npy' in basename:
+			base_pattern = basename.replace('_htr_dsV.npy', '')
+		elif 'out_I.npy' in basename or 'out_Q.npy' in basename:
+			base_pattern = ""
+		else:
+			base_pattern = ""
+	
+	logging.info(f"Loading real FRB data from {data_dir}")
+	if base_pattern:
+		logging.info(f"Using base pattern: {base_pattern}")
+	
+	# Find Stokes files - try multiple naming conventions
+	stokes_files = {}
+	for stokes in ['I', 'Q', 'U', 'V']:
+		candidates = []
+		
+		# Pattern 1: {label}_htr_dsI.npy (e.g., 191001_htr_dsI.npy)
+		if base_pattern:
+			candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_ds{stokes}.npy"))
+		
+		# Pattern 2: out_I.npy
+		candidates.append(os.path.join(data_dir, f"out_{stokes}.npy"))
+		
+		# Pattern 3: out_I_noflagged.npy
+		candidates.append(os.path.join(data_dir, f"out_{stokes}_noflagged.npy"))
+		
+		# Pattern 4: Generic patterns
+		if base_pattern:
+			candidates.extend([
+				os.path.join(data_dir, f"{base_pattern}_{stokes}.npy"),
+				os.path.join(data_dir, f"{base_pattern}_ds{stokes}.npy"),
+			])
+		
+		candidates.extend([
+			os.path.join(data_dir, f"{stokes}.npy"),
+			os.path.join(data_dir, f"stokes_{stokes}.npy"),
+		])
+		
+		found = False
+		for candidate in candidates:
+			if os.path.exists(candidate):
+				stokes_files[stokes] = candidate
+				found = True
+				logging.info(f"Found Stokes {stokes}: {os.path.basename(candidate)}")
+				break
+		
+		if not found:
+			logging.warning(f"Stokes {stokes} file not found in {data_dir}")
+			stokes_files[stokes] = None
+	
+	# Load Stokes data
+	stokes_arrays = []
+	for stokes in ['I', 'Q', 'U', 'V']:
+		if stokes_files[stokes] is not None:
+			arr = np.load(stokes_files[stokes])
+			stokes_arrays.append(arr)
+		else:
+			# Create zeros if file doesn't exist
+			if len(stokes_arrays) > 0:
+				stokes_arrays.append(np.zeros_like(stokes_arrays[0]))
+			else:
+				# Can't proceed without at least Stokes I
+				if stokes == 'I':
+					raise FileNotFoundError(
+						f"Stokes I file required but not found in {data_dir}\n"
+						f"Tried patterns: out_I.npy, {base_pattern}_htr_dsI.npy, etc."
+					)
+	
+	# Stack into [4, nfreq, ntime] array
+	dspec = np.array(stokes_arrays)
+	logging.info(f"Loaded dynamic spectrum with shape: {dspec.shape} [Stokes, freq, time]")
+	
+	# Load frequency array
+	freq_mhz = None
+	freq_candidates = []
+	
+	# Pattern 1: {label}_htr_freq.npy
+	if base_pattern:
+		freq_candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_freq.npy"))
+	
+	# Pattern 2: zoom_x_0.npy (frequency axis)
+	freq_candidates.append(os.path.join(data_dir, "zoom_x_0.npy"))
+	
+	# Generic patterns
+	freq_candidates.extend([
+		os.path.join(data_dir, "freq.npy"),
+		os.path.join(data_dir, "frequency.npy"),
+		os.path.join(data_dir, "freqs.npy"),
+	])
+	
+	# Try with glob for wildcards
+	import glob
+	freq_candidates.extend(glob.glob(os.path.join(data_dir, "*_freq.npy")))
+	freq_candidates.extend(glob.glob(os.path.join(data_dir, "*_htr_freq.npy")))
+	
+	for candidate in freq_candidates:
+		if os.path.exists(candidate):
+			freq_mhz = np.load(candidate)
+			logging.info(f"Loaded frequency array from {os.path.basename(candidate)}: {len(freq_mhz)} channels")
+			break
+	
+	if freq_mhz is None:
+		logging.warning("No frequency array found, creating default MHz array")
+		freq_mhz = np.arange(dspec.shape[1], dtype=float)
+	
+	# Ensure freq_mhz matches dspec dimensions
+	if len(freq_mhz) != dspec.shape[1]:
+		logging.warning(
+			f"Frequency array length ({len(freq_mhz)}) doesn't match dspec freq axis ({dspec.shape[1]}). "
+			"Creating default array."
+		)
+		freq_mhz = np.arange(dspec.shape[1], dtype=float)
+	
+	# Load time array
+	time_ms = None
+	time_candidates = []
+	
+	# Pattern 1: {label}_htr_time.npy
+	if base_pattern:
+		time_candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_time.npy"))
+	
+	# Pattern 2: zoom_y_0.npy (time axis)
+	time_candidates.append(os.path.join(data_dir, "zoom_y_0.npy"))
+	
+	# Generic patterns
+	time_candidates.extend([
+		os.path.join(data_dir, "time.npy"),
+		os.path.join(data_dir, "times.npy"),
+	])
+	
+	# Try with glob
+	time_candidates.extend(glob.glob(os.path.join(data_dir, "*_time.npy")))
+	time_candidates.extend(glob.glob(os.path.join(data_dir, "*_htr_time.npy")))
+	
+	for candidate in time_candidates:
+		if os.path.exists(candidate):
+			time_ms = np.load(candidate)
+			logging.info(f"Loaded time array from {os.path.basename(candidate)}: {len(time_ms)} samples")
+			break
+	
+	if time_ms is None:
+		logging.warning("No time array found, creating default ms array")
+		time_ms = np.arange(dspec.shape[2], dtype=float)
+	
+	# Ensure time_ms matches dspec dimensions
+	if len(time_ms) != dspec.shape[2]:
+		logging.warning(
+			f"Time array length ({len(time_ms)}) doesn't match dspec time axis ({dspec.shape[2]}). "
+			"Creating default array."
+		)
+		time_ms = np.arange(dspec.shape[2], dtype=float)
+	
+	# Convert time to milliseconds if needed (check if values are too small)
+	if np.median(time_ms) < 1.0 and np.median(time_ms) > 0:
+		logging.info("Time array appears to be in seconds, converting to milliseconds")
+		time_ms = time_ms * 1000.0
+	
+	# Load parameters file
+	gdict = {}
+	if obs_params_path is None:
+		obs_params_path = os.path.join(data_dir, "parameters.txt")
+	
+	if os.path.exists(obs_params_path):
+		logging.info(f"Loading parameters from {os.path.basename(obs_params_path)}")
+		gdict = get_parameters(obs_params_path)
+	else:
+		logging.warning(f"Parameters file not found: {obs_params_path}")
+		# Create minimal gdict with defaults
+		gdict = {
+			'tau_ms': np.array([0.0]),
+			'width_ms': np.array([np.median(np.diff(time_ms)) * 10 if len(time_ms) > 1 else 1.0]),
+			'DM': np.array([0.0]),
+			'RM': np.array([0.0]),
+			'band_centre_mhz': np.array([np.median(freq_mhz) if len(freq_mhz) > 0 else 1000.0]),
+			'band_width_mhz': np.array([np.ptp(freq_mhz) if len(freq_mhz) > 0 else 336.0])
+		}
+	
+	logging.info(
+		f"Final data shape: {dspec.shape}, "
+		f"freq range: {freq_mhz.min():.1f}-{freq_mhz.max():.1f} MHz, "
+		f"time range: {time_ms.min():.3f}-{time_ms.max():.3f} ms"
+	)
+	
+	return dspec, freq_mhz, time_ms, gdict
 
 
 def _load_multiple_data_grouped(data):
@@ -305,12 +305,15 @@ def _load_multiple_data_grouped(data):
 		return float('inf')  # Put files without _xvals_ at the end
 	
 	def extract_freq_phase_key(fname):
-		# Extract freq and phase info from filename
-		# Pattern: freq_{freq}_phase_{phase}.pkl
-		m = re.search(r'freq_([^_]+)_phase_([^.]+)\.pkl$', fname)
+		# Extract freq and phase info AND any override parameters from filename
+		# Pattern: freq_{freq}_phase_{phase}[_overrides].pkl
+		m = re.search(r'freq_([^_]+)_phase_([^._]+)(?:_(.+?))?\.pkl$', fname)
 		if m:
 			freq_info = m.group(1)
 			phase_info = m.group(2)
+			override_info = m.group(3) if m.group(3) else None
+			if override_info:
+				return f"{freq_info}, {phase_info}, {override_info}"
 			return f"{freq_info}, {phase_info}"
 		return "unknown"  # fallback for files that don't match pattern
 	
@@ -446,7 +449,7 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
-				target_snr=None):
+				target_snr=None, param_overrides=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -480,7 +483,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	gdict = {
 		't0'             : gauss_params[:stddev_row, 0],
 		'width_ms'       : gauss_params[:stddev_row, 1],
-		'A'       : gauss_params[:stddev_row, 2],
+		'A'              : gauss_params[:stddev_row, 2],
 		'spec_idx'       : gauss_params[:stddev_row, 3],
 		'tau_ms'         : gauss_params[:stddev_row, 4],
 		'DM'             : gauss_params[:stddev_row, 5],
@@ -491,10 +494,26 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'dPA'            : gauss_params[:stddev_row, 10],
 		'band_centre_mhz': gauss_params[:stddev_row, 11],
 		'band_width_mhz' : gauss_params[:stddev_row, 12],
-		'ngauss'         : gauss_params[:stddev_row, 13],
+		'N'              : gauss_params[:stddev_row, 13],
 		'mg_width_low'   : gauss_params[:stddev_row, 14],
 		'mg_width_high'  : gauss_params[:stddev_row, 15]
 	}
+
+	# Apply parameter overrides
+	if param_overrides:
+		for key, value in param_overrides.items():
+			if key in gdict:
+				# Override all components with the same value
+				original_shape = gdict[key].shape
+				gdict[key] = np.full(original_shape, value, dtype=float)
+				logging.info(f"Override applied: {key} = {value} (shape: {original_shape})")
+			elif key in sd_dict:
+				# Allow overriding standard deviations too
+				sd_dict[key] = float(value)
+				logging.info(f"Override applied: {key} = {value} (std dev)")
+			else:
+				logging.warning(f"Override key '{key}' not found in gdict or sd_dict. Ignoring.")
+
 
 	# Micro (psn) σ (std dev) values (scalars per column)
 	sd_dict = {
@@ -759,9 +778,11 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 			if write:
 				xvals_str = f"{xvals[0]:.2f}-{xvals[-1]:.2f}" if len(xvals) > 1 else f"{xvals[0]:.2f}"
+				override_str = "_".join([f"{k}{v}" for k, v in param_overrides.items()]) if param_overrides else ""
 				out_file = (
 					f"{out_dir}{frb_id}_plot_{plot_mode.name}_xname_{xname}_xvals_{xvals_str}_"
-					f"mode_{mode}_freq_{freq_window}_phase_{phase_window}.pkl"
+					f"mode_{mode}_freq_{freq_window}_phase_{phase_window}"
+					f"{'_' + override_str if override_str else ''}.pkl"
 				)
 				with open(out_file, 'wb') as frb_file:
 					pkl.dump((frb_dict), frb_file)

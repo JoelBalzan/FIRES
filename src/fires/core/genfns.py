@@ -254,7 +254,7 @@ def _triple_convolution_with_width_pdf(
 
 
 def _expected_pa_variance(
-	tau_ms, sigma_deg, ngauss, width_ms, A, A_sd,
+	tau_ms, sigma_deg, N, width_ms, A, A_sd,
 	time_ms=None, width_pct_low=None, width_pct_high=None, n_width_samples: int = 31,
 	onpulse_fraction: float = 0.1
 ):
@@ -287,7 +287,7 @@ def _expected_pa_variance(
 	)
 
 	# per-time N_eff
-	N_eff_t = float(ngauss) * (hfg**2) / (h2fg + 1e-300)  # avoid zeros
+	N_eff_t = float(N) * (hfg**2) / (h2fg + 1e-300)  # avoid zeros
 
 	# on-pulse mask: relative to peak of hfg
 	threshold = onpulse_fraction * np.nanmax(hfg)
@@ -301,7 +301,7 @@ def _expected_pa_variance(
 	N_eff_avg = np.nanmean(N_eff_t[mask_on])
 	# guard against very small N_eff_avg
 	if not np.isfinite(N_eff_avg) or N_eff_avg <= 0:
-		N_eff_avg = max(1.0, float(ngauss))
+		N_eff_avg = max(1.0, float(N))
 
 	# variance prefactor (peak amplitude convention)
 	pref = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff_avg) * np.sinh(4.0 * sigma_rad**2)
@@ -317,7 +317,7 @@ def _expected_pa_variance_basic(
     mg_width_high,
     tau_ms,
     sigma_deg,
-    ngauss
+    N
 ) -> tuple[float | None, float | None, dict]:
     """
     Basic PA-variance estimator using broadened widths and an effective shots-per-time argument.
@@ -344,7 +344,7 @@ def _expected_pa_variance_basic(
     W_tot = float(np.sqrt(W**2 + tau_mean**2))
     w_tot = float(np.sqrt(w**2 + tau_mean**2))
 
-    N_eff_t = float(ngauss) * (w_tot / max(W_tot, 1e-12))
+    N_eff_t = float(N) * (w_tot / max(W_tot, 1e-12))
     N_eff_t = max(N_eff_t, 1.0)
 
     sigma = float(sigma_deg)
@@ -411,7 +411,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	dPA             = gdict['dPA']
 	band_centre_mhz = gdict['band_centre_mhz']
 	band_width_mhz  = gdict['band_width_mhz']
-	ngauss		    = gdict['ngauss']
+	N		    = gdict['N']
 	mg_width_low    = gdict['mg_width_low']
 	mg_width_high   = gdict['mg_width_high']
 
@@ -451,7 +451,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 
 	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
-		for _ in range(int(ngauss[g])):
+		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
 			A_i        = np.random.normal(A[g], sd_A)
 			width_ms_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
@@ -575,13 +575,13 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		snr = None
 
 	# Expected PA variance (time-averaged N_eff)
-	N_tot = int(np.nansum(ngauss))
+	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
 	if sd_PA > 0 and N_tot > 1:
 		exp_V_PA_deg2, hfg_diag, h2fg_diag, N_eff_t_diag, N_eff_avg_diag = _expected_pa_variance(
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
 			sigma_deg=float(sd_PA),
-			ngauss=N_tot,
+			N=N_tot,
 			width_ms=float(np.nanmean(width_ms)),
 			A=float(np.nanmean(A)),
 			A_sd=float(sd_A),
@@ -599,7 +599,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			mg_width_high=float(np.nanmean(mg_width_high)),
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
 			sigma_deg=float(sd_PA),
-			ngauss=N_tot
+			N=N_tot
 		)
 		logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
 	else:
