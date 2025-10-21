@@ -27,7 +27,7 @@
 #	width		        - FWHM of the Gaussian envelope in milliseconds ( used as arrival_time_microshot_i ~ N(t0,width/(2*sqrt(2log2))) )
 #	A	    	        - Amplitude of the Gaussian pulse (Jy)      |
 # tau             - Scattering timescale in milliseconds      |
-#	DM			        - Dispersion measure in pc/cm^3             | at reference frequency supplied in obsparams.toml
+#	DM			        - Dispersion measure in pc/cm^3             | at reference frequency supplied in simparams.toml
 #	RM			        - Rotation measure in rad/m^2               |
 #	PA		          - Polarization angle in degrees
 #	(L/I)		        - Linear polarization fraction

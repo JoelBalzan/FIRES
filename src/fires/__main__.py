@@ -25,7 +25,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import configure_matplotlib, plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-                               window_map)
+							   window_map)
 
 
 def main():
@@ -58,7 +58,7 @@ def main():
 	)
 	parser.add_argument(
 		"--edit-config", 
-		choices=["gparams", "obsparams", "scparams"], 
+		choices=["gparams", "simparams", "scparams"], 
 		help="Open config in $EDITOR"
 	)
 
@@ -211,7 +211,23 @@ def main():
 			  "  mean      : sweep the mean value (std dev forced to 0 for that param)\n"
 			  "  sd		   : keep mean fixed, sweep the micro std dev\n")
 	)
-
+	parser.add_argument(
+		"--weight-x-by",
+		type=str,
+		metavar="",
+		help=("Parameter to normalise x-axis values by (e.g., 'width_ms' for τ/W).\n"
+			  "Can be any intrinsic parameter from gparams.\n"
+			  "Default is mode-specific: 'width_ms' for pa_var, None for l_frac.")
+	)
+	parser.add_argument(
+		"--weight-y-by",
+		type=str,
+		metavar="",
+		help=("Parameter to normalise y-axis values by (e.g., 'PA_i' for PA variance ratio, 'lfrac' for L/I ratio).\n"
+			  "Can be any intrinsic parameter or variation parameter from gparams.\n"
+			  "Default is mode-specific: 'PA_i' for pa_var, 'lfrac' for l_frac.")
+	)
+	
 	# Simulation Options
 	parser.add_argument(
 		"-d", "--data",
@@ -219,6 +235,20 @@ def main():
 		default=None,
 		metavar="",
 		help="Path to the data file. If provided, the simulation will use this data instead of generating new data."
+	)
+	parser.add_argument(
+		"--obs-data",
+		type=str,
+		default=None,
+		metavar="",
+		help="Path to observational FRB data to overlay on analytic plots (e.g., for l_frac or pa_var). Should be a .npy or .pkl file with dynamic spectrum."
+	)
+	parser.add_argument(
+		"--obs-params",
+		type=str,
+		default=None,
+		metavar="",
+		help="Path to parameters file for observational data (optional). If not provided, will attempt to extract from --obs-data directory."
 	)
 	parser.add_argument(
 		"-m", "--mode",
@@ -294,7 +324,7 @@ def main():
 		return
 
 	# Resolve parameter file paths 
-	resolved_obs   = str(cfg.find_config_file("obsparams", config_dir=args.config_dir))
+	resolved_sim   = str(cfg.find_config_file("simparams", config_dir=args.config_dir))
 	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir))
 	if args.scint:
 		resolved_scint = str(cfg.find_config_file("scparams", config_dir=args.config_dir))
@@ -331,7 +361,7 @@ def main():
 			frb_dict = generate_frb(
 				data         = args.data,
 				frb_id       = args.frb_identifier,
-				obs_file     = resolved_obs,
+				sim_file     = resolved_sim,
 				gauss_file   = resolved_gauss,
 				scint_file   = resolved_scint,
 				out_dir      = args.output_dir,
@@ -346,13 +376,15 @@ def main():
 				freq_window  = args.freq_window,
 				buffer_frac  = args.buffer,
 				sweep_mode   = args.sweep_mode,
-				target_snr   = args.snr
+				target_snr   = args.snr,
+				obs_data     = None,
+				obs_params   = None
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
 				data         = args.data,
 				frb_id       = args.frb_identifier,
-				obs_file     = resolved_obs,
+				sim_file     = resolved_sim,
 				gauss_file   = resolved_gauss,
 				scint_file   = resolved_scint,
 				out_dir      = args.output_dir,
@@ -367,7 +399,9 @@ def main():
 				freq_window  = None,
 				buffer_frac  = args.buffer,
 				sweep_mode   = None,
-				target_snr   = args.snr
+				target_snr   = args.snr,
+				obs_data     = args.obs_data,
+				obs_params   = args.obs_params
 			)
 			if args.chi2_fit:
 				logging.info("Performing chi-squared fitting on the final profiles... \n")
@@ -417,7 +451,11 @@ def main():
 						"buffer_frac"  : args.buffer,
 						"show_onpulse" : args.show_onpulse,
 						"show_offpulse": args.show_offpulse,
-						"use_latex"    : args.use_latex
+						"use_latex"    : args.use_latex,
+						"weight_x_by"  : args.weight_x_by,
+						"weight_y_by"  : args.weight_y_by,
+                        "obs_data"     : args.obs_data,
+                        "obs_params"   : args.obs_params
 					}
 		
 					plot_function = plot_mode_obj.plot_func

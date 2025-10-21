@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import numpy as np
 import os
 import shutil
 from datetime import datetime
@@ -23,7 +24,7 @@ DIRS = AppDirs(APP_NAME, APP_NAME)
 # Map logical kinds to candidate filenames (first existing wins)
 DEFAULT_FILES = {
     "gparams"  : ("gparams.toml", "gparams.txt"),
-    "obsparams": ("obsparams.toml", "obsparams.txt"),
+    "simparams": ("simparams.toml", "simparams.txt"),
     "scparams" : ("scparams.toml", "scparams.txt"),  # scintillation params
 }
 
@@ -177,29 +178,93 @@ def load_params(kind: str,
 
 # --------------- Legacy TXT parsing ---------------
 # used when loading CELEBI param files
-def get_parameters(filename):
-    parameters = {}
-    with open(filename, 'r') as file:
-        for line in file:
+def get_parameters(filepath):
+    """
+    Parse a parameters.txt file with key = value format.
+    
+    Extracts relevant parameters for FRB analysis and converts to FIRES format.
+    
+    Parameters:
+    -----------
+    filepath : str
+        Path to parameters.txt file
+        
+    Returns:
+    --------
+    dict
+        Dictionary with parameter arrays (e.g., 'DM', 'RM', 'width_ms', 'tau_ms')
+    """
+    params = {}
+    
+    with open(filepath, 'r') as f:
+        for line in f:
             line = line.strip()
-            # Skip empty lines or comment lines
-            if not line or line.startswith('#'):
+            # Skip empty lines and section headers
+            if not line or line.startswith('****') or line.startswith('#'):
                 continue
             
-            # Check for either '=' or ':' separator
+            # Parse key = value
             if '=' in line:
-                key, value = line.split('=', 1)  # Use maxsplit=1 to handle extra '=' in values
-            elif ':' in line:
-                key, value = line.split(':', 1)  # Use maxsplit=1 to handle extra ':' in values
-            else:
-                continue  # Skip lines without either separator
-            
-            # Remove square brackets and their contents from the value
-            import re
-            value = re.sub(r'\[.*?\]', '', value).strip()
-            
-            parameters[key.strip()] = value
-    return parameters
+                parts = line.split('=', 1)
+                key = parts[0].strip()
+                value = parts[1].strip()
+                
+                # Remove trailing comments
+                if '#' in value:
+                    value = value.split('#')[0].strip()
+                
+                params[key] = value
+    
+    # Convert to FIRES format
+    gdict = {}
+    
+    # DM
+    if 'dm_frb' in params:
+        try:
+            gdict['DM'] = np.array([float(params['dm_frb'])])
+        except ValueError:
+            gdict['DM'] = np.array([0.0])
+    else:
+        gdict['DM'] = np.array([0.0])
+    
+    # RM (not in this format, default to 0)
+    gdict['RM'] = np.array([0.0])
+    
+    # Width (estimate from data or use default)
+    gdict['width_ms'] = np.array([1.0])  # Will be updated from data if available
+    
+    # Tau (scattering timescale, not in this format)
+    gdict['tau_ms'] = np.array([0.0])
+    
+    # Center frequency
+    if 'centre_freq_frb' in params:
+        try:
+            gdict['band_centre_mhz'] = np.array([float(params['centre_freq_frb'])])
+        except ValueError:
+            pass
+    
+    # Bandwidth
+    if 'bw' in params:
+        try:
+            gdict['band_width_mhz'] = np.array([float(params['bw'])])
+        except ValueError:
+            pass
+    
+    # RA/Dec for label
+    if 'label' in params:
+        gdict['label'] = params['label']
+    elif 'ra_frb' in params and 'dec_frb' in params:
+        gdict['label'] = f"RA={params['ra_frb']}, Dec={params['dec_frb']}"
+    else:
+        gdict['label'] = "FRB"
+    
+    logging.info(
+        f"Parsed parameters: DM={gdict.get('DM', [0])[0]:.2f} pc/cm³, "
+        f"center_freq={gdict.get('band_centre_mhz', ['N/A'])[0]} MHz, "
+        f"bandwidth={gdict.get('band_width_mhz', ['N/A'])[0]} MHz"
+    )
+    
+    return gdict
 
 
 # --------------- Saving / editing ---------------

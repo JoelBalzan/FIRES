@@ -40,7 +40,7 @@ fires -m psn --plot pa_var l_frac --plot-scale loglog
 Defaults ship with the package and are copied to your user config on first run.
 
 - Package defaults:
-  - `src/fires/data/obsparams.toml`
+  - `src/fires/data/simparams.toml`
   - `src/fires/data/gparams.toml`
   - `src/fires/data/scparams.toml`
 
@@ -50,13 +50,13 @@ Manage config:
 fires --init-config
 
 # Edit in your $EDITOR (VISUAL/EDITOR), falls back to nano
-fires --edit-config obsparams
+fires --edit-config simparams
 fires --edit-config gparams
 fires --edit-config scparams
 ```
 
 - User config directory (Linux, XDG): `~/.config/fires/`
-  - Editable copies: `~/.config/fires/obsparams.toml`, `~/.config/fires/gparams.toml`, `~/.config/fires/scparams.toml`
+  - Editable copies: `~/.config/fires/simparams.toml`, `~/.config/fires/gparams.toml`, `~/.config/fires/scparams.toml`
 
 Override file locations at runtime:
 - `--config-dir /path/to/my/configdir` (to use a different config folder)
@@ -81,7 +81,7 @@ Notes
 Config management:
 - `--config-dir <dir>`: Override user config directory.
 - `--init-config`: Create editable defaults in the user config directory.
-- `--edit-config {gparams,obsparams}`: Open the chosen config in your editor.
+- `--edit-config {gparams,simparams}`: Open the chosen config in your editor.
 
 Tip
 - Some plot modes aggregate across multiple tau values (`pa_var`, `l_frac`).
@@ -109,7 +109,7 @@ src/
       utils.py
       config.py
     data/                # packaged default configs (TOML)
-      obsparams.toml
+      simparams.toml
       gparams.toml
       scparams.toml
 ```
