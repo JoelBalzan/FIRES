@@ -608,7 +608,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 
 	exp_vars = {
 		'exp_var_t0'             : None,
-		'exp_var_A'       : None,
+		'exp_var_A'       		 : None,
 		'exp_var_width_ms'       : None,
 		'exp_var_spec_idx'       : None,
 		'exp_var_tau_ms'         : None,

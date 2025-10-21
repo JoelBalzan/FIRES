@@ -25,6 +25,7 @@ from scipy.stats import circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
 								 process_dspec)
+from fires.core.genfrb import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 
 logging.basicConfig(level=logging.INFO)
@@ -92,35 +93,35 @@ colour_map = {
 
 #	--------------------------	Parameter mappings	---------------------------
 param_map = {
-    # Intrinsic parameters - format: (LaTeX_symbol, unit)
-    "tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
-    "width_ms"       : (r"W_0", r"\mathrm{ms}"),
-    "A"              : (r"A_0", r"\mathrm{Jy}"),
-    "spec_idx"       : (r"\alpha_0", ""),
-    "DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
-    "RM"             : (r"\mathrm{RM}_0", r"\mathrm{rad\,m^{-2}}"),
-    "PA"             : (r"\psi_0", r"\mathrm{deg}"),
-    "lfrac"          : (r"\Pi_{L,0}", ""),
-    "vfrac"          : (r"\Pi_{V,0}", ""),
-    "dPA"            : (r"\Delta\psi_0", r"\mathrm{deg}"),
-    "band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
-    "band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
-    "ngauss"         : (r"N_{\mathrm{gauss},0}", ""),
-    "mg_width_low"   : (r"W_{\mathrm{low},0}", r"\mathrm{ms}"),
-    "mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
-    # Std deviation sweep parameters
-    "t0_i"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
-    "width_ms_i"       : (r"\sigma_W", r"\mathrm{ms}"),
-    "A_i"              : (r"\sigma_A", ""),
-    "spec_idx_i"       : (r"\sigma_\alpha", ""),
-    "DM_i"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
-    "RM_i"             : (r"\sigma_{\mathrm{RM}}", r"\mathrm{rad\,m^{-2}}"),
-    "PA_i"             : (r"\sigma_{\psi}", r"\mathrm{deg}"),
-    "lfrac_i"          : (r"\sigma_{\Pi_L}", ""),
-    "vfrac_i"          : (r"\sigma_{\Pi_V}", ""),
-    "dPA_i"            : (r"\sigma_{\Delta\psi}", r"\mathrm{deg}"),
-    "band_centre_mhz_i": (r"\sigma_{\nu_c}", r"\mathrm{MHz}"),
-    "band_width_mhz_i" : (r"\sigma_{\Delta \nu}", r"\mathrm{MHz}"),
+	# Intrinsic parameters - format: (LaTeX_symbol, unit)
+	"tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
+	"width_ms"       : (r"W_0", r"\mathrm{ms}"),
+	"A"              : (r"A_0", r"\mathrm{Jy}"),
+	"spec_idx"       : (r"\alpha_0", ""),
+	"DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
+	"RM"             : (r"\mathrm{RM}_0", r"\mathrm{rad\,m^{-2}}"),
+	"PA"             : (r"\psi_0", r"\mathrm{deg}"),
+	"lfrac"          : (r"\Pi_{L,0}", ""),
+	"vfrac"          : (r"\Pi_{V,0}", ""),
+	"dPA"            : (r"\Delta\psi_0", r"\mathrm{deg}"),
+	"band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
+	"band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
+	"ngauss"         : (r"N_{\mathrm{gauss},0}", ""),
+	"mg_width_low"   : (r"W_{\mathrm{low},0}", r"\mathrm{ms}"),
+	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
+	# Std deviation sweep parameters
+	"t0_i"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
+	"width_ms_i"       : (r"\sigma_W", r"\mathrm{ms}"),
+	"A_i"              : (r"\sigma_A", ""),
+	"spec_idx_i"       : (r"\sigma_\alpha", ""),
+	"DM_i"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
+	"RM_i"             : (r"\sigma_{\mathrm{RM}}", r"\mathrm{rad\,m^{-2}}"),
+	"PA_i"             : (r"\sigma_{\psi}", r"\mathrm{deg}"),
+	"lfrac_i"          : (r"\sigma_{\Pi_L}", ""),
+	"vfrac_i"          : (r"\sigma_{\Pi_V}", ""),
+	"dPA_i"            : (r"\sigma_{\Delta\psi}", r"\mathrm{deg}"),
+	"band_centre_mhz_i": (r"\sigma_{\nu_c}", r"\mathrm{MHz}"),
+	"band_width_mhz_i" : (r"\sigma_{\Delta \nu}", r"\mathrm{MHz}"),
 }
 
 #	--------------------------	PlotMode class	---------------------------
@@ -400,38 +401,38 @@ def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
 	
 
 def _set_scale_and_labels(ax, scale, xname, yname, x=None, x_unit="", y_unit=""):
-    # Format labels with units in square brackets if non-empty
-    # Units containing LaTeX commands must be kept inside math mode
-    xlabel = rf"${xname}$" + (rf" $[{x_unit}]$" if x_unit else "")
-    ylabel = rf"${yname}$" + (rf" $[{y_unit}]$" if y_unit else "")
-    
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    
-    # Set scales
-    if scale == "logx" or scale == "loglog":
-        ax.set_xscale('log')
-    if scale == "logy" or scale == "loglog":
-        ax.set_yscale('log')
-        _apply_log_decade_ticks(ax, axis='y', base=10)  # enforce 10^k labels
-    # Set limits
-    if x is not None:
-        if scale in ["logx", "loglog"]:
-            x_positive = x[x > 0]
-            if len(x_positive) > 0:
-                ax.set_xlim(x_positive[0], x_positive[-1])
-        else:
-            # Check if x range is valid before setting limits
-            if len(x) > 1 and x[0] != x[-1]:
-                ax.set_xlim(x[0], x[-1])
-            elif len(x) == 1:
-                # For single point, set reasonable range around it
-                center = x[0]
-                if center == 0:
-                    ax.set_xlim(-1, 1)
-                else:
-                    margin = abs(center) * 0.1
-                    ax.set_xlim(center - margin, center + margin)
+	# Format labels with units in square brackets if non-empty
+	# Units containing LaTeX commands must be kept inside math mode
+	xlabel = rf"${xname}$" + (rf" $[{x_unit}]$" if x_unit else "")
+	ylabel = rf"${yname}$" + (rf" $[{y_unit}]$" if y_unit else "")
+	
+	ax.set_xlabel(xlabel)
+	ax.set_ylabel(ylabel)
+	
+	# Set scales
+	if scale == "logx" or scale == "loglog":
+		ax.set_xscale('log')
+	if scale == "logy" or scale == "loglog":
+		ax.set_yscale('log')
+		_apply_log_decade_ticks(ax, axis='y', base=10)  # enforce 10^k labels
+	# Set limits
+	if x is not None:
+		if scale in ["logx", "loglog"]:
+			x_positive = x[x > 0]
+			if len(x_positive) > 0:
+				ax.set_xlim(x_positive[0], x_positive[-1])
+		else:
+			# Check if x range is valid before setting limits
+			if len(x) > 1 and x[0] != x[-1]:
+				ax.set_xlim(x[0], x[-1])
+			elif len(x) == 1:
+				# For single point, set reasonable range around it
+				center = x[0]
+				if center == 0:
+					ax.set_xlim(-1, 1)
+				else:
+					margin = abs(center) * 0.1
+					ax.set_xlim(center - margin, center + margin)
 
 
 def _make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="all"):
@@ -549,129 +550,129 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'
 
 
 def _weight_x_get_xname(frb_dict, weight_x_by=None):
-    """
-    Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
-    Now supports any intrinsic parameter or variation parameter with flexible weighting.
+	"""
+	Extracts the x values and variable name for the x-axis based on the xname of frb_dict.
+	Now supports any intrinsic parameter or variation parameter with flexible weighting.
 
-    Behavior:
-    - sweep_mode == "sd": x label = SD(xname), no weighting applied
-    - sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
-    
-    Returns:
-    --------
-    tuple
-        (x, xname, x_unit) where x_unit is empty string if units cancel
-    """
-    xname_raw = frb_dict["xname"]
-    xvals_raw = np.array(frb_dict["xvals"])
+	Behavior:
+	- sweep_mode == "sd": x label = SD(xname), no weighting applied
+	- sweep_mode == "mean": x label = xname/weight_x_by (if provided), else raw xname
+	
+	Returns:
+	--------
+	tuple
+		(x, xname, x_unit) where x_unit is empty string if units cancel
+	"""
+	xname_raw = frb_dict["xname"]
+	xvals_raw = np.array(frb_dict["xvals"])
 
-    dspec_params = frb_dict.get("dspec_params", None)
-    V_params = frb_dict.get("V_params", None)
+	dspec_params = frb_dict.get("dspec_params", None)
+	V_params = frb_dict.get("V_params", None)
 
-    # Resolve sweep_mode robustly from dspec_params
-    sweep_mode = None
-    if dspec_params is not None:
-        # Namedtuple-like with attribute
-        sweep_mode = getattr(dspec_params, "sweep_mode", None)
-        # Dict case
-        if sweep_mode is None and isinstance(dspec_params, dict):
-            sweep_mode = dspec_params.get("sweep_mode")
-        # List/tuple container case
-        if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-            first = dspec_params[0]
-            sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
+	# Resolve sweep_mode robustly from dspec_params
+	sweep_mode = None
+	if dspec_params is not None:
+		# Namedtuple-like with attribute
+		sweep_mode = getattr(dspec_params, "sweep_mode", None)
+		# Dict case
+		if sweep_mode is None and isinstance(dspec_params, dict):
+			sweep_mode = dspec_params.get("sweep_mode")
+		# List/tuple container case
+		if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+			first = dspec_params[0]
+			sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
 
-    # Base LaTeX name and units
-    param_info = param_map.get(xname_raw, (xname_raw, ""))
-    base_name = param_info[0] if isinstance(param_info, tuple) else param_info
-    base_unit = param_info[1] if isinstance(param_info, tuple) else ""
+	# Base LaTeX name and units
+	param_info = param_map.get(xname_raw, (xname_raw, ""))
+	base_name = param_info[0] if isinstance(param_info, tuple) else param_info
+	base_unit = param_info[1] if isinstance(param_info, tuple) else ""
 
-    # Variance sweep: SD(xname), no weighting
-    if sweep_mode == "sd":
-        x = xvals_raw
-        base_core = base_name.replace(",0", "").replace("_0", "")
-        sd_info = param_map.get(f"{xname_raw}_i", (rf"\sigma_{{{base_core}}}", base_unit))
-        xname = sd_info[0] if isinstance(sd_info, tuple) else sd_info
-        x_unit = sd_info[1] if isinstance(sd_info, tuple) else base_unit
-        return x, xname, x_unit
+	# Variance sweep: SD(xname), no weighting
+	if sweep_mode == "sd":
+		x = xvals_raw
+		base_core = base_name.replace(",0", "").replace("_0", "")
+		sd_info = param_map.get(f"{xname_raw}_i", (rf"\sigma_{{{base_core}}}", base_unit))
+		xname = sd_info[0] if isinstance(sd_info, tuple) else sd_info
+		x_unit = sd_info[1] if isinstance(sd_info, tuple) else base_unit
+		return x, xname, x_unit
 
-    # Mean sweep or default: allow optional normalisation by weight_x_by
-    weight = None
-    weight_unit = ""
-    if weight_x_by is not None:
-        # Check in dspec_params
-        if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-            if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
-                weight = np.array(dspec_params[0][weight_x_by])[0]
-        elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
-            weight = np.array(dspec_params[weight_x_by])[0]
-        # Check in V_params if not found in dspec_params
-        if weight is None and V_params is not None:
-            if isinstance(V_params, (list, tuple)) and len(V_params) > 0:
-                if isinstance(V_params[0], dict) and weight_x_by in V_params[0]:
-                    weight = np.array(V_params[0][weight_x_by])[0]
-            elif isinstance(V_params, dict) and weight_x_by in V_params:
-                weight = np.array(V_params[weight_x_by])[0]
-        if weight is None:
-            logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
-        else:
-            weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
-            weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
+	# Mean sweep or default: allow optional normalisation by weight_x_by
+	weight = None
+	weight_unit = ""
+	if weight_x_by is not None:
+		# Check in dspec_params
+		if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+			if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
+				weight = np.array(dspec_params[0][weight_x_by])[0]
+		elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
+			weight = np.array(dspec_params[weight_x_by])[0]
+		# Check in V_params if not found in dspec_params
+		if weight is None and V_params is not None:
+			if isinstance(V_params, (list, tuple)) and len(V_params) > 0:
+				if isinstance(V_params[0], dict) and weight_x_by in V_params[0]:
+					weight = np.array(V_params[0][weight_x_by])[0]
+			elif isinstance(V_params, dict) and weight_x_by in V_params:
+				weight = np.array(V_params[weight_x_by])[0]
+		if weight is None:
+			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
+		else:
+			weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
+			weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
 
-    # Apply normalisation if available
-    if weight is None:
-        x = xvals_raw
-        xname = base_name
-        x_unit = base_unit
-    else:
-        x = xvals_raw / weight
-        weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
-        weight_symbol = weight_info[0] if isinstance(weight_info, tuple) else weight_x_by
-        xname = base_name + r" / " + weight_symbol
-        # Units cancel if they match
-        x_unit = "" if base_unit == weight_unit else f"{base_unit}/{weight_unit}"
+	# Apply normalisation if available
+	if weight is None:
+		x = xvals_raw
+		xname = base_name
+		x_unit = base_unit
+	else:
+		x = xvals_raw / weight
+		weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
+		weight_symbol = weight_info[0] if isinstance(weight_info, tuple) else weight_x_by
+		xname = base_name + r" / " + weight_symbol
+		# Units cancel if they match
+		x_unit = "" if base_unit == weight_unit else f"{base_unit}/{weight_unit}"
 
-    return x, xname, x_unit
+	return x, xname, x_unit
 
 
 def _get_weighted_y_name(yname, weight_y_by):
-    """
-    Get LaTeX formatted y-axis name based on the weighting parameter and plot type.
-    
-    Returns:
-    --------
-    tuple
-        (formatted_yname, y_unit) where y_unit is empty string if units cancel
-    """
-    # Get base units for the y quantity
-    y_base_unit = ""
-    if yname == r"Var($\psi$)":
-        y_base_unit = r"\mathrm{deg}^2"
-    elif yname == r"\Pi_L":
-        y_base_unit = ""  # dimensionless
+	"""
+	Get LaTeX formatted y-axis name based on the weighting parameter and plot type.
+	
+	Returns:
+	--------
+	tuple
+		(formatted_yname, y_unit) where y_unit is empty string if units cancel
+	"""
+	# Get base units for the y quantity
+	y_base_unit = ""
+	if yname == r"Var($\psi$)":
+		y_base_unit = r"\mathrm{deg}^2"
+	elif yname == r"\Pi_L":
+		y_base_unit = ""  # dimensionless
 
-    # No weighting: keep the original label
-    if weight_y_by is None:
-        return yname, y_base_unit
+	# No weighting: keep the original label
+	if weight_y_by is None:
+		return yname, y_base_unit
 
-    # Get weight info
-    weight_info = param_map.get(weight_y_by, (weight_y_by, ""))
-    weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
+	# Get weight info
+	weight_info = param_map.get(weight_y_by, (weight_y_by, ""))
+	weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
 
-    # Special case for PA variance ratio
-    if yname == r"Var($\psi$)" and weight_y_by == "PA_i":
-        return r"\mathcal{R}_{\mathrm{\psi}}", ""  # dimensionless ratio
+	# Special case for PA variance ratio
+	if yname == r"Var($\psi$)" and weight_y_by == "PA_i":
+		return r"\mathcal{R}_{\mathrm{\psi}}", ""  # dimensionless ratio
 
-    w_name_raw = weight_y_by.removesuffix("_i")
-    w_info = param_map.get(w_name_raw, (w_name_raw, ""))
-    w_name = w_info[0] if isinstance(w_info, tuple) else w_name_raw
-    
-    formatted_name = yname + '/' + w_name if "/" not in w_name else "(" + yname + ")/" + w_name
-    
-    # Units cancel if they match
-    result_unit = "" if y_base_unit == weight_unit else f"{y_base_unit}/{weight_unit}"
-    
-    return formatted_name, result_unit
+	w_name_raw = weight_y_by.removesuffix("_i")
+	w_info = param_map.get(w_name_raw, (w_name_raw, ""))
+	w_name = w_info[0] if isinstance(w_info, tuple) else w_name_raw
+	
+	formatted_name = yname + '/' + w_name if "/" not in w_name else "(" + yname + ")/" + w_name
+	
+	# Units cancel if they match
+	result_unit = "" if y_base_unit == weight_unit else f"{y_base_unit}/{weight_unit}"
+	
+	return formatted_name, result_unit
 
 
 def _parse_fit_arg(fit_item):
@@ -990,7 +991,17 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		x_unit = meta['x_unit']
 
 	# Plot expected curves once (from preferred run if available), matching weighting decision
-	param_key = 'exp_var_' + (weight_y_by.removesuffix('_i'))
+	if weight_y_by is not None:
+		param_key = 'exp_var_' + weight_y_by.removesuffix('_i')
+	elif base_yname == r"Var($\psi$)":
+		param_key = 'exp_var_PA'
+	elif base_yname == r"\Pi_L":
+		param_key = 'exp_var_lfrac'
+	else:
+		# Default fallback
+		param_key = 'exp_var_PA'
+		logging.warning(f"Could not determine expected parameter key for yname='{base_yname}', using default '{param_key}'")
+	
 	weight_for_expected = weight_y_by if (weight_y_by is not None and weight_applied_all) else None
 	_plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
 				   param_key=param_key, weight_y_by=weight_for_expected)
@@ -1056,7 +1067,24 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	return pa_var_deg2, pa_var_err_deg2
 
 
-def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
+def plot_pa_var(
+	frb_dict, 
+	save, 
+	fname, 
+	out_dir, 
+	figsize, 
+	show_plots, 
+	scale, 
+	phase_window, 
+	freq_window, 
+	fit, 
+	extension, 
+	legend,
+	weight_x_by="width_ms",
+	weight_y_by="PA_i",
+	obs_data=None,
+	obs_params=None
+	):
 	"""
 	Plot the variance of the polarization angle (PA) as a function of scattering parameters.
 	
@@ -1111,7 +1139,7 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		# Weight measured and expected by PA_i to show ratio R_psi
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="PA_i", weight_x_by="width_ms", yname=yname, legend=legend)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, weight_x_by=weight_x_by, yname=yname, legend=legend)
 
 	else:	
 		# Single job
@@ -1127,6 +1155,23 @@ def plot_pa_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phas
 			series_color='black',
 			expected_param_key='exp_var_PA'
 		)
+
+	# Overlay observational data if provided
+	if obs_data is not None:
+		try:
+			obs_result = _process_observational_data(
+				obs_data, obs_params, phase_window, freq_window, 
+				buffer_frac=0.1, plot_mode=pa_var
+			)
+			_plot_observational_overlay(ax, obs_result, 
+										weight_x_by=weight_x_by, 
+										weight_y_by=weight_y_by,
+										color='red', marker='*', size=300)
+			if legend:
+				ax.legend()
+		except Exception as e:
+			logging.error(f"Failed to overlay observational data: {e}")
+	
 	if show_plots:
 		plt.show()
 	if save:
@@ -1188,7 +1233,24 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, b
 	return lfrac, lfrac_err
 
 
-def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, phase_window, freq_window, fit, extension, legend):
+def plot_lfrac_var(
+	frb_dict, 
+	save, 
+	fname, 
+	out_dir, 
+	figsize, 
+	show_plots, 
+	scale, 
+	phase_window, 
+	freq_window, 
+	fit, 
+	extension, 
+	legend,
+	weight_x_by=None,
+	weight_y_by="lfrac",
+	obs_data=None,
+	obs_params=None
+	):
 	"""
 	Plot the linear polarization fraction (L/I) as a function of scattering parameters.
 	
@@ -1236,6 +1298,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	- Error bars include both statistical noise and systematic uncertainties
 	- Useful for studying depolarisation effects due to scattering
 	"""
+	# Use defaults if not specified
 
 	# If frb_dict contains multiple job IDs, plot each on the same axes
 	yname = r"\Pi_L"
@@ -1245,7 +1308,7 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by="lfrac", weight_x_by=None, yname=yname, legend=legend)
+		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, weight_x_by=weight_x_by, yname=yname, legend=legend)
 	else:
 		# Single job via helper
 		fig, ax = _plot_single_job_common(
@@ -1260,6 +1323,23 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 			series_color='black',
 			expected_param_key=None
 		)
+
+	# Overlay observational data if provided
+	if obs_data is not None:
+		try:
+			obs_result = _process_observational_data(
+				obs_data, obs_params, phase_window, freq_window,
+				buffer_frac=0.1, plot_mode=l_frac
+			)
+			_plot_observational_overlay(ax, obs_result,
+										weight_x_by=weight_x_by,
+										weight_y_by=weight_y_by,
+										color='pink', marker='*', size=100)
+			if legend:
+				ax.legend()
+		except Exception as e:
+			logging.error(f"Failed to overlay observational data: {e}")
+	
 	if show_plots:
 		plt.show()
 	if save:
@@ -1269,6 +1349,326 @@ def plot_lfrac_var(frb_dict, save, fname, out_dir, figsize, show_plots, scale, p
 		logging.info(f"Saved figure to {name}  \n")
 
 
+def _process_observational_data(obs_data_path, obs_params_path, phase_window, freq_window, buffer_frac, plot_mode):
+	"""
+	Load and process observational FRB data to extract measurements for overlay plotting.
+	
+	Uses the full basicfns processing pipeline to ensure consistency with simulated data.
+	
+	Parameters:
+	-----------
+	obs_data_path : str
+		Path to observational data directory or file
+	obs_params_path : str or None
+		Path to parameters file (optional)
+	phase_window : str
+		Phase window to use for analysis ('total', 'leading', 'trailing')
+	freq_window : str
+		Frequency window to use for analysis
+	buffer_frac : float
+		Buffer fraction for on/off pulse regions
+	plot_mode : PlotMode
+		Plot mode object (determines what to measure)
+		
+	Returns:
+	--------
+	dict
+		Dictionary with measurement results and metadata
+	"""
+	logging.info(f"Loading observational data from {obs_data_path}")
+	
+	# Load the real data
+	if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
+		dspec, freq_mhz, time_ms, gdict = load_data(obs_data_path, obs_params_path)
+	else:
+		raise ValueError(f"Unsupported file format: {obs_data_path}")
+	
+	# Ensure correct shape [4, nfreq, ntime]
+	if dspec.ndim == 2:
+		dspec = dspec[np.newaxis, :, :]
+		zeros = np.zeros_like(dspec[0:1])
+		dspec = np.concatenate([dspec, zeros, zeros, zeros], axis=0)
+	elif dspec.ndim == 3 and dspec.shape[0] < 4:
+		n_missing = 4 - dspec.shape[0]
+		zeros = np.zeros((n_missing, dspec.shape[1], dspec.shape[2]))
+		dspec = np.concatenate([dspec, zeros], axis=0)
+	
+	logging.info(f"Loaded dspec shape: {dspec.shape}, freq range: {freq_mhz.min():.1f}-{freq_mhz.max():.1f} MHz")
+	
+	# Apply frequency windowing BEFORE processing
+	freq_slc = slice(None)
+	if freq_window != "full-band":
+		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
+		freq_mhz = freq_mhz[freq_slc]
+		dspec = dspec[:, freq_slc, :]
+		logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
+	
+	# Process through basicfns pipeline (includes RM correction, noise estimation)
+	ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+	
+	# Get on-pulse window from Stokes I
+	I_profile = np.nansum(corr_dspec[0], axis=0)
+	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
+		I_profile, frac=0.95, buffer_frac=buffer_frac
+	)
+	
+	# Apply phase windowing
+	phase_slc = slice(None)
+	if phase_window != "total":
+		peak_index = int(np.nanargmax(I_profile))
+		phase_slc = _get_phase_window_indices(phase_window, peak_index)
+		# Avoid zero-length windows
+		if isinstance(phase_slc, slice):
+			start = 0 if phase_slc.start is None else phase_slc.start
+			stop = I_profile.size if phase_slc.stop is None else phase_slc.stop
+			if stop - start <= 0:
+				start = max(0, peak_index - 1)
+				stop = min(I_profile.size, peak_index + 1)
+				phase_slc = slice(start, stop)
+		logging.info(f"Applied phase window '{phase_window}': bins {phase_slc.start}-{phase_slc.stop}")
+	
+	# Estimate pulse width if not in gdict
+	if 'width_ms' not in gdict or gdict['width_ms'][0] <= 0:
+		width_samples = np.sum(on_mask)
+		time_res = np.median(np.diff(time_ms)) if len(time_ms) > 1 else 1.0
+		gdict['width_ms'] = np.array([width_samples * time_res])
+		logging.info(f"Estimated pulse width: {gdict['width_ms'][0]:.3f} ms")
+	
+	# Now measure the appropriate quantities based on plot mode
+	x_value = None
+	x_err = None
+	y_value = None
+	y_err = None
+	
+	if plot_mode.name == 'pa_var':
+		# Measure PA variance using circular statistics
+		phits = ts_data.phits[phase_slc]
+		ephits = ts_data.ephits[phase_slc]
+		
+		valid_phits = phits[np.isfinite(phits)]
+		if len(valid_phits) > 0:
+			# Y-axis: PA variance (degrees²)
+			pa_var_rad2 = circvar(2 * valid_phits) / 4.0  # circular variance
+			y_value = np.rad2deg(np.sqrt(pa_var_rad2))**2
+			
+			# Error via bootstrap
+			n_boot = 1000
+			boot_vars = []
+			for _ in range(n_boot):
+				boot_sample = np.random.choice(valid_phits, size=len(valid_phits), replace=True)
+				boot_var = circvar(2 * boot_sample) / 4.0
+				boot_vars.append(np.rad2deg(np.sqrt(boot_var))**2)
+			y_err = np.std(boot_vars)
+			
+			# X-axis: intrinsic PA std dev (for pa_var plots this is typically the x-axis)
+			# Use the measured PA variance as the x-value
+			x_value = np.rad2deg(np.sqrt(pa_var_rad2))
+			x_err = np.rad2deg(np.sqrt(np.nanmean(ephits[np.isfinite(ephits)]**2)))
+			
+			logging.info(f"PA variance: {y_value:.3f} ± {y_err:.3f} deg²")
+			logging.info(f"PA std dev: {x_value:.3f} ± {x_err:.3f} deg")
+		else:
+			logging.warning("No valid PA measurements found")
+	
+	elif plot_mode.name == 'l_frac':
+		# Measure L/I using the time series data
+		I = ts_data.iquvt[0]
+		Q = ts_data.iquvt[1]
+		U = ts_data.iquvt[2]
+		
+		# Get on/off masks from full profile BEFORE phase windowing
+		on_mask_full, off_mask_full, (left, right) = on_off_pulse_masks_from_profile(
+			I, frac=0.95, buffer_frac=buffer_frac
+		)
+		
+		# Now apply phase windowing
+		I_windowed = I[phase_slc]
+		Q_windowed = Q[phase_slc]
+		U_windowed = U[phase_slc]
+		on_mask_windowed = on_mask_full[phase_slc]
+		
+		# Compute L/I on windowed, masked data
+		I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
+		Q_masked = np.where(on_mask_windowed, Q_windowed, np.nan)
+		U_masked = np.where(on_mask_windowed, U_windowed, np.nan)
+		
+		L_windowed = np.sqrt(Q_windowed**2 + U_windowed**2)
+		L_masked = np.sqrt(Q_masked**2 + U_masked**2)
+		
+		integrated_I = np.nansum(I_masked)
+		integrated_L = np.nansum(L_masked)
+		
+		if integrated_I > 0:
+			# Y-axis: L/I
+			y_value = integrated_L / integrated_I
+			
+			# Error estimate using off-pulse noise from FULL profile
+			# (more robust than trying to use windowed off-pulse region)
+			if np.any(off_mask_full):
+				# Use full profile for noise estimation
+				I_offpulse = I[off_mask_full]
+				L_full = np.sqrt(Q**2 + U**2)
+				L_offpulse = L_full[off_mask_full]
+				
+				# Check we have enough samples
+				if len(I_offpulse) > 1 and len(L_offpulse) > 1:
+					noise_I = np.nanstd(I_offpulse, ddof=1)
+					noise_L = np.nanstd(L_offpulse, ddof=1)
+					
+					# Propagate noise through L/I calculation
+					# Assuming N independent samples in the on-pulse region
+					n_on = np.sum(on_mask_windowed)
+					if n_on > 0:
+						# Scale noise by sqrt(N) for integration
+						sigma_I_integrated = noise_I * np.sqrt(n_on)
+						sigma_L_integrated = noise_L * np.sqrt(n_on)
+						
+						# Standard error propagation for ratio
+						y_err = y_value * np.sqrt(
+							(sigma_L_integrated / integrated_L)**2 + 
+							(sigma_I_integrated / integrated_I)**2
+						)
+					else:
+						y_err = 0.1 * y_value  # 10% fallback
+				else:
+					logging.warning("Insufficient off-pulse samples for noise estimation")
+					y_err = 0.1 * y_value  # 10% fallback
+			else:
+				logging.warning("No off-pulse region found for noise estimation")
+				# Alternative: use Ricean bias correction estimate
+				# For high S/N, σ_L/I ≈ 1/SNR
+				snr = integrated_I / (np.nanstd(I[off_mask_full]) * np.sqrt(np.sum(on_mask_windowed)) if np.any(off_mask_full) else integrated_I * 0.1)
+				y_err = 1.0 / snr if snr > 0 else 0.1 * y_value
+			
+			logging.info(f"L/I: {y_value:.3f} ± {y_err:.3f}")
+			
+			# X-axis: depends on what we're plotting against
+			# Option 1: tau/W (scattering timescale ratio)
+			if 'tau_ms' in gdict and 'width_ms' in gdict:
+				tau = float(np.nanmean(gdict['tau_ms']))
+				width = float(np.nanmean(gdict['width_ms']))
+				if width > 0 and tau > 0:
+					x_value = tau / width
+					# Assume 20% uncertainty on tau and 10% on width
+					x_err = x_value * np.sqrt((0.2)**2 + (0.1)**2)
+			
+			# Option 2: PA std dev (if available and more relevant)
+			if x_value is None or x_value == 0:
+				phits = ts_data.phits[phase_slc]
+				valid_phits = phits[np.isfinite(phits)]
+				if len(valid_phits) > 0:
+					pa_var = circvar(2 * valid_phits) / 4.0
+					x_value = np.rad2deg(np.sqrt(pa_var))
+					# Bootstrap error
+					n_boot = 500
+					boot_stds = []
+					for _ in range(n_boot):
+						boot_sample = np.random.choice(valid_phits, size=len(valid_phits), replace=True)
+						boot_var = circvar(2 * boot_sample) / 4.0
+						boot_stds.append(np.rad2deg(np.sqrt(boot_var)))
+					x_err = np.std(boot_stds)
+					logging.info(f"Using PA std dev for x-axis: {x_value:.3f} ± {x_err:.3f} deg")
+		else:
+			logging.warning("Integrated Stokes I is zero or negative")
+	
+	else:
+		raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
+	
+	# Extract label
+	label = gdict.get('label', os.path.splitext(os.path.basename(obs_data_path))[0])
+	
+	result = {
+		'x_value': x_value,
+		'x_err': x_err,
+		'y_value': y_value,
+		'y_err': y_err,
+		'label': label,
+		'dspec': dspec,
+		'freq_mhz': freq_mhz,
+		'time_ms': time_ms,
+		'gdict': gdict
+	}
+	
+	if x_value is not None and y_value is not None:
+		logging.info(f"Observational measurements: x={x_value:.3f}±{x_err if x_err else 0:.3f}, y={y_value:.3f}±{y_err if y_err else 0:.3f}")
+	else:
+		logging.warning("Failed to extract valid measurements from observational data")
+	
+	return result
+
+
+
+def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=None, color='pink', marker='*', size=1):
+	"""
+	Add observational data point with error bars as crosshairs on existing plot.
+	
+	Parameters:
+	-----------
+	ax : matplotlib.axes.Axes
+		Axes to plot on
+	obs_result : dict
+		Result from _process_observational_data
+	weight_x_by : str or None
+		X-axis weighting parameter (for normalization)
+	weight_y_by : str or None
+		Y-axis weighting parameter (for normalization)
+	color : str
+		Color for the observational marker
+	marker : str
+		Marker style
+	size : float
+		Marker size
+	"""
+	x = obs_result['x_value']
+	x_err = obs_result['x_err']
+	y = obs_result['y_value']
+	y_err = obs_result['y_err']
+	label = obs_result['label']
+	
+	if x is None or y is None:
+		logging.warning("Cannot plot observational data: missing x or y value")
+		return
+	
+	# Apply weighting if specified
+	if weight_x_by is not None and weight_x_by in obs_result['gdict']:
+		x_weight = float(np.nanmean(obs_result['gdict'][weight_x_by]))
+		if x_weight > 0 and np.isfinite(x_weight):
+			x = x / x_weight
+			if x_err is not None:
+				x_err = x_err / x_weight
+	
+	if weight_y_by is not None and weight_y_by in obs_result['gdict']:
+		y_weight = float(np.nanmean(obs_result['gdict'][weight_y_by]))
+		if y_weight > 0 and np.isfinite(y_weight):
+			y = y / y_weight
+			if y_err is not None:
+				y_err = y_err / y_weight
+	
+	# Plot central point
+	ax.scatter(x, y, marker=marker, s=size, color=color, 
+			   edgecolors='black', linewidths=1.5, zorder=100,
+			   label=f'Observed: {label}')
+	
+	# Plot error bars as crosshairs
+	if x_err is not None and x_err > 0:
+		ax.errorbar(x, y, xerr=x_err, fmt='none', 
+					ecolor=color, elinewidth=2, capsize=5, capthick=2,
+					zorder=99, alpha=0.7)
+	
+	if y_err is not None and y_err > 0:
+		ax.errorbar(x, y, yerr=y_err, fmt='none',
+					ecolor=color, elinewidth=2, capsize=5, capthick=2,
+					zorder=99, alpha=0.7)
+	
+	# Optionally add shaded regions for error ranges
+	xlims = ax.get_xlim()
+	ylims = ax.get_ylim()
+	
+	if x_err is not None and x_err > 0:
+		ax.axvspan(x - x_err, x + x_err, alpha=0.1, color=color, zorder=1)
+	
+	if y_err is not None and y_err > 0:
+		ax.axhspan(y - y_err, y + y_err, alpha=0.1, color=color, zorder=1)
 
 
 pa_var = PlotMode(

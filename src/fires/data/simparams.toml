@@ -1,20 +1,20 @@
-# Observation Parameters
+# Simulation Parameters
 # ----------------------
 # f0: Starting frequency in MHz
 # f1: Ending frequency in MHz
 # f_res: Frequency resolution in MHz
-# t0: Starting time in milliseconds
+# t0: Starting time in milliseconds, ensure enough off-pulse BEFORE the pulse for noise calculation
 # t1: Ending time in milliseconds
 # t_res: Time resolution in milliseconds
 # scattering_index: Scattering index
 # reference_freq: reference frequency for scattering and dispersion in MHz
 
-[observation]
+[simulation]
 f0    = 751.5
 f1    = 900.5
 f_res = 1
 t0    = -7.4040
-t1    = 11.6184
+t1    = 65
 t_res = 0.0230
-scattering_index = -4
+scattering_index = -4.85
 reference_freq   = 1000
