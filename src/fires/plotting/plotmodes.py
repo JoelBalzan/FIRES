@@ -4,7 +4,7 @@
 #
 # This module defines plot modes and their associated processing and plotting
 # functions for visualizing FRB simulation results. It includes classes and
-# functions for plotting Stokes parameters, polarization angle variance,
+# functions for plotting Stokes parameters, polarisation angle variance,
 # linear fraction, and other derived quantities as a function of scattering
 # and simulation parameters.
 #
@@ -296,7 +296,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 	weight_params : dict or list
 		Parameter dictionaries containing weight factors. Can be V_params, dspec_params, or combined.
 	weight_by : str, optional
-		Parameter name to use for weighting/normalization. Can be any parameter in weight_params.
+		Parameter name to use for weighting/normalisation. Can be any parameter in weight_params.
 		Takes precedence over var_name if both are provided.
 	return_status : bool, optional
 		If True, returns a tuple (normalised_vals, applied) where 'applied' is True when
@@ -342,7 +342,7 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 						out.append(0)
 				normalised_vals[var] = out
 			else:
-				logging.warning(f"Mismatched lengths or missing data for parameter {var}. Skipping normalization.")
+				logging.warning(f"Mismatched lengths or missing data for parameter {var}. Skipping normalisation.")
 				normalised_vals[var] = y_values
 				
 	elif isinstance(weight_params, (list, tuple)) and len(weight_params) > 0:
@@ -787,8 +787,8 @@ def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', 
 	"""
 	Extract expected series for each x in xvals from exp_vars.
 	Handles:
-	 - exp_vars[x][param_key] as list over realizations of either scalar or [regular, basic]
-	 - optional normalization by a variance parameter (e.g., 'PA_i') from V_params
+	 - exp_vars[x][param_key] as list over realisations of either scalar or [regular, basic]
+	 - optional normalisation by a variance parameter (e.g., 'PA_i') from V_params
 
 	Returns:
 	 (exp_primary, exp_secondary) as np.ndarray (second can be None if not present)
@@ -907,7 +907,7 @@ def _find_equal_value_intersections(frb_dict, target_param, target_values=None, 
 				param_dict = V_params[xv]
 				if isinstance(param_dict, dict) and target_param in param_dict:
 					val_list = param_dict[target_param]
-					# Take mean of all realizations for this x-value
+					# Take mean of all realisations for this x-value
 					if isinstance(val_list, (list, np.ndarray)) and len(val_list) > 0:
 						val = float(np.nanmean(val_list))
 					elif isinstance(val_list, (int, float)):
@@ -1667,7 +1667,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	if phits is None or len(phits) == 0:
 		return np.nan, np.nan
 
-	# Use circular variance for polarization angles (in radians)
+	# Use circular variance for polarisation angles (in radians)
 	# PA has a pi-radian ambiguity, so we work with 2*PA
 	valid_phits = phits[np.isfinite(phits)]
 	if len(valid_phits) == 0:
@@ -1705,9 +1705,9 @@ def plot_pa_var(
 	equal_value_lines=None
 	):
 	"""
-	Plot the variance of the polarization angle (PA) as a function of scattering parameters.
+	Plot the variance of the polarisation angle (PA) as a function of scattering parameters.
 	
-	This function creates a plot showing how the polarization angle variance (R_ψ) changes
+	This function creates a plot showing how the polarisation angle variance (R_ψ) changes
 	with scattering timescale or PA variance parameters. It supports both single-run and 
 	multi-run plotting for parameter comparison studies.
 	
@@ -1877,11 +1877,11 @@ def plot_lfrac(
 	equal_value_lines=None
 	):
 	"""
-	Plot the linear polarization fraction (L/I) as a function of scattering parameters.
+	Plot the linear polarisation fraction (L/I) as a function of scattering parameters.
 	
-	This function visualises how the degree of linear polarization changes with varying
+	This function visualises how the degree of linear polarisation changes with varying
 	scattering conditions or other simulation parameters. It computes the integrated
-	linear polarization fraction over specified frequency and phase windows.
+	linear polarisation fraction over specified frequency and phase windows.
 	
 	Parameters:
 	-----------
@@ -2199,9 +2199,9 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 	obs_result : dict
 		Result from _process_observational_data
 	weight_x_by : str or None
-		X-axis weighting parameter (for normalization)
+		X-axis weighting parameter (for normalisation)
 	weight_y_by : str or None
-		Y-axis weighting parameter (for normalization)
+		Y-axis weighting parameter (for normalisation)
 	color : str
 		Color for the observational marker
 	marker : str

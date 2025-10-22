@@ -3,7 +3,7 @@
 # FIRES: The Fast, Intense Radio Emission Simulator
 #
 # This module provides core functions for generating FRB dynamic spectra,
-# applying Faraday rotation, dispersion, noise, and polarization effects.
+# applying Faraday rotation, dispersion, noise, and polarisation effects.
 # It includes both single-Gaussian and multi-Gaussian (micro-shot) models,
 # as well as helper routines for Stokes parameter calculation.
 #
@@ -18,7 +18,8 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import add_noise, compute_required_sefd, scatter_dspec, compute_segments
+from fires.core.basicfns import (add_noise, compute_required_sefd,
+                                 compute_segments, scatter_dspec)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -30,7 +31,7 @@ GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2))
 
 def _apply_faraday_rotation(pol_angle_arr, RM, freq_mhz, ref_freq_mhz):
 	"""
-	Return polarization angle (radians) after Faraday rotation, using ref_freq_mhz
+	Return polarisation angle (radians) after Faraday rotation, using ref_freq_mhz
 	as the zero-rotation reference: chi = chi0 + RM * (lambda^2 - lambda_ref^2).
 	"""
 	chi0 = np.deg2rad(pol_angle_arr)

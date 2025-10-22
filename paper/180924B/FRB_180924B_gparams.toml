@@ -17,10 +17,10 @@
 #   tau             - Scattering timescale in milliseconds
 #	DM			    - Dispersion measure in pc/cm^3
 #	RM			    - Rotation measure in rad/m^2
-#	PA		        - Polarization angle in degrees
-#	(L/I)		    - Linear polarization fraction
-#	(V/I)		    - Circular polarization fraction
-#	dPA             - Change in polarization angle with time in deg/ms
+#	PA		        - Polarisation angle in degrees
+#	(L/I)		    - Linear polarisation fraction
+#	(V/I)		    - Circular polarisation fraction
+#	dPA             - Change in polarisation angle with time in deg/ms
 #   band_centre     - Central frequency of the Gaussian in MHz
 #   band_width      - Frequency bandwidth of the Gaussian in MHz
 #   N          - Number of micro-gausssians used to generate the pulse in psn mode

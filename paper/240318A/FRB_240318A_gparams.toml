@@ -15,10 +15,10 @@
 #	spec_idx		- Spectral index of the Gaussian pulse
 #	DM			    - Dispersion measure in pc/cm^3
 #	RM			    - Rotation measure in rad/m^2
-#	PA		        - Polarization angle in degrees
-#	(L/I)		    - Linear polarization fraction
-#	(V/I)		    - Circular polarization fraction
-#	dPA             - Change in polarization angle with time in deg/ms
+#	PA		        - Polarisation angle in degrees
+#	(L/I)		    - Linear polarisation fraction
+#	(V/I)		    - Circular polarisation fraction
+#	dPA             - Change in polarisation angle with time in deg/ms
 #   band_centre_mhz - Central frequency of the Gaussian
 #   band_width_mhz  - Frequency bandwidth of the Gaussian
 #   N          - Number of micro-gausssians used to generate the pulse in mgauss mode

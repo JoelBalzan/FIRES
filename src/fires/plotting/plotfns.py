@@ -3,7 +3,7 @@
 # FIRES: The Fast, Intense Radio Emission Simulator
 #
 # This module provides plotting functions for visualizing FRB simulation results,
-# including Stokes parameter profiles, dynamic spectra, polarization angle,
+# including Stokes parameter profiles, dynamic spectra, polarisation angle,
 # and derived quantities as a function of simulation parameters.
 #
 # Author: JB
@@ -190,7 +190,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension, 
 					legend, info, buffer_frac, show_onpulse, show_offpulse):
 	"""
-		Plot I, L, V, dynamic spectrum and polarization angle.
+		Plot I, L, V, dynamic spectrum and polarisation angle.
 		Inputs:
 			- dspec: Dynamic spectrum data
 			- freq_mhz: Frequency array in MHz

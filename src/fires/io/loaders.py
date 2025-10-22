@@ -5,8 +5,8 @@
 
 import logging
 import os
-import re
 import pickle as pkl
+import re
 from collections import defaultdict
 
 import numpy as np
@@ -421,8 +421,8 @@ def load_multiple_data_grouped(data):
 					if match:
 						param = match.group(1)
 						value = match.group(2)
-						normalized_value = normalise_override_value(value)
-						cleaned_parts.append(f"{param}{normalized_value}")
+						normalised_value = normalise_override_value(value)
+						cleaned_parts.append(f"{param}{normalised_value}")
 					else:
 						cleaned_parts.append(part)
 				
