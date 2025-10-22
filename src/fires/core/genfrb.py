@@ -700,7 +700,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
 
 		else:
-			dspec, snr, _, _ = _generate_dspec(
+			dspec, snr, _, _, _ = _generate_dspec(
 			xname=None,
 			mode=mode,
 			var=None,
@@ -708,9 +708,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			target_snr=target_snr,			
 			**dspec_params._asdict()
 		)
-		_, _, _, noise_spec = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
 		frb_data = simulated_frb(
-			frb_id, dspec, dspec_params, snr
+			frb_id, corrdspec, dspec_params, snr
 		)
 		if write:
 			tau = f"{tau_ms[0]:.2f}"
