@@ -106,17 +106,65 @@ def gaussian_model(x, amp, mean, stddev):
     return amp * np.exp(-((x - mean) ** 2) / (2 * stddev ** 2))
 
 
-window_map = {
-	'1q': 'lowest-quarter',
-	'2q': 'lower-mid-quarter',
-	'3q': 'upper-mid-quarter',
-	'4q': 'highest-quarter',
-	'full': 'full-band',
-
-    'first': 'leading',
-	'last': 'trailing',
-	'all': 'total'
+# Canonical short aliases
+_freq_alias = {
+    '1q': '1q',
+    '2q': '2q',
+    '3q': '3q',
+    '4q': '4q',
+    'full': 'full',
+    'full-band': 'full',
+    'lowest-quarter': '1q',
+    'lower-mid-quarter': '2q',
+    'upper-mid-quarter': '3q',
+    'highest-quarter': '4q',
 }
+_phase_alias = {
+    'first': 'first',
+    'leading': 'first',
+    'last': 'last',
+    'trailing': 'last',
+    'all': 'all',
+    'total': 'all',
+}
+
+def normalise_freq_window(name: str, target: str = 'dspec') -> str:
+    """
+    Normalise frequency window names.
+
+    target = 'dspec'     -> long names used when slicing dspec:
+                           {'1q'->'lowest-quarter', ..., 'full'->'full-band'}
+    target = 'segments'  -> keys used in segments dict:
+                           {'1q','2q','3q','4q','all'}
+    """
+    key = str(name).strip().lower()
+    short = _freq_alias.get(key, 'full')
+    if target == 'segments':
+        return 'all' if short == 'full' else short
+    # dspec (long names)
+    if short == 'full':
+        return 'full-band'
+    return {
+        '1q': 'lowest-quarter',
+        '2q': 'lower-mid-quarter',
+        '3q': 'upper-mid-quarter',
+        '4q': 'highest-quarter',
+    }[short]
+
+def normalise_phase_window(name: str, target: str = 'dspec') -> str:
+    """
+    Normalise phase window names.
+
+    target = 'dspec'     -> {'first'->'leading', 'last'->'trailing', 'all'->'total'}
+    target = 'segments'  -> segment keys {'first','last','total'}
+    """
+    key = str(name).strip().lower()
+    short = _phase_alias.get(key, 'all')
+    if target == 'segments':
+        return {'first': 'first', 'last': 'last', 'all': 'total'}[short]
+    # dspec
+    return {'first': 'leading', 'last': 'trailing', 'all': 'total'}[short]
+
 
 # Universal constants 
 gravitational_constant_cgs	=	6.67430e-8					#	Universal gravitational constant in CGS

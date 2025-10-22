@@ -17,6 +17,7 @@ import logging
 import os
 
 import numpy as np
+from scipy.stats import circvar
 from RMtools_1D.do_RMclean_1D import run_rmclean
 from RMtools_1D.do_RMsynth_1D import run_rmsynth
 from scipy.ndimage import gaussian_filter1d
@@ -944,3 +945,144 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buf
 	N_on = int(mask_on.sum())
 	snr = np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1))) if (sigma is not None and sigma > 0) else 0.0
 	return snr, (left, right)
+
+
+def _phase_slices_from_peak(n_time: int, peak_index: int) -> dict[str, slice]:
+    """
+    Build standard phase slices relative to peak index.
+    Returns dict with 'first' (leading), 'last' (trailing), and 'total'.
+    """
+    first = slice(0, max(0, int(peak_index)))
+    last = slice(max(0, int(peak_index)), int(n_time))
+    total = slice(None)
+    return {"first": first, "last": last, "total": total}
+
+
+def _integrated_fractions_from_timeseries(I, Q, U, V, L, on_mask) -> tuple[float, float]:
+    """
+    Compute integrated L/I and V/I using on-pulse mask.
+    Inputs are 1-D time series arrays; L is debiased linear from est_profiles.
+    """
+    I_masked = np.where(on_mask, I, np.nan)
+    Q_masked = np.where(on_mask, Q, np.nan)
+    U_masked = np.where(on_mask, U, np.nan)
+    V_masked = np.where(on_mask, V, np.nan)
+    L_masked = np.where(on_mask, L, np.nan)
+
+    integrated_I = np.nansum(I_masked)
+    integrated_V = np.nansum(V_masked)
+    integrated_L = np.nansum(L_masked)
+
+    if not np.isfinite(integrated_I) or integrated_I == 0:
+        return np.nan, np.nan
+
+    return float(integrated_L / integrated_I), float(integrated_V / integrated_I)
+
+
+def _pa_variance_deg2(phits: np.ndarray) -> float:
+    """
+    Circular variance of PA in deg^2. phits in radians, uses circvar on 2*PA, divides by 4.
+    Returns deg^2.
+    """
+    valid = np.isfinite(phits)
+    if not np.any(valid):
+        return np.nan
+    pa_var_rad2 = circvar(2.0 * phits[valid]) / 4.0
+    # convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
+    return float(np.rad2deg(np.sqrt(pa_var_rad2))**2)
+
+
+def _freq_quarter_slices(n_chan: int) -> dict[str, slice]:
+    """
+    Build frequency quarter slices over channel index.
+    Returns dict for '1q','2q','3q','4q','all'.
+    """
+    q = max(1, n_chan // 4)
+    return {
+        "1q": slice(0, q),
+        "2q": slice(q, 2*q),
+        "3q": slice(2*q, 3*q),
+        "4q": slice(3*q, None),
+        "all": slice(None)
+    }
+
+
+def compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac=0.1) -> dict:
+    """
+    Compute per-segment measurements from a single dynamic spectrum:
+      - phase segments: first (leading), last (trailing), total
+      - freq segments: 1q, 2q, 3q, 4q, all
+
+    Each segment records:
+      - Vpsi: Var(psi) in deg^2, measured from PA time series (not micro params)
+      - Lfrac: integrated L/I over on-pulse (95% boxcar with buffer)
+      - Vfrac: integrated V/I over on-pulse
+
+    Returns:
+      {
+        'phase': {
+          'first' : {'Vpsi':..., 'Lfrac':..., 'Vfrac':...},
+          'last'  : {...},
+          'total' : {...}
+        },
+        'freq' : {
+          '1q' : {...}, '2q': {...}, '3q': {...}, '4q': {...}, 'all': {...}
+        }
+      }
+    """
+    # Process full-band once (RM correction + masks)
+    tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+
+    Its = tsdata_full.iquvt[0]
+    Qts = tsdata_full.iquvt[1]
+    Uts = tsdata_full.iquvt[2]
+    Vts = tsdata_full.iquvt[3]
+    Lts = tsdata_full.Lts
+    phits = tsdata_full.phits  # radians
+    n_time = Its.size
+
+    # On-pulse mask from full-band I (consistent with snr calculations)
+    on_mask, _, (left, right) = on_off_pulse_masks_from_profile(Its, frac=0.95, buffer_frac=buffer_frac)
+    peak_index = int(np.nanargmax(Its)) if n_time > 0 else 0
+    phase_slices = _phase_slices_from_peak(n_time, peak_index)
+
+    def _measure_phase_slice(slc: slice) -> dict:
+        # Build slice mask
+        slc_mask = np.zeros(n_time, dtype=bool)
+        start = 0 if slc.start is None else slc.start
+        stop = n_time if slc.stop is None else slc.stop
+        if stop > start:
+            slc_mask[start:stop] = True
+        # Restrict to on-pulse within this slice
+        on_mask_slice = on_mask & slc_mask
+
+        Vpsi = _pa_variance_deg2(phits[slc_mask])
+        Lfrac, Vfrac = _integrated_fractions_from_timeseries(Its, Qts, Uts, Vts, Lts, on_mask_slice)
+        return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
+
+    phase_measures = {name: _measure_phase_slice(slc) for name, slc in phase_slices.items()}
+
+    # Frequency quarters (compute tsdata per slice to keep RM correction + masks consistent)
+    n_chan = corr_dspec.shape[1]
+    fq = _freq_quarter_slices(n_chan)
+
+    def _measure_freq_slice(slc: slice) -> dict:
+        dspec_f = corr_dspec[:, slc, :]
+        freq_f = freq_mhz[slc] if isinstance(slc, slice) else freq_mhz
+        # Re-run process_dspec on the subset to get consistent on/off windows in this sub-band
+        tsdata_f, _, _, _ = process_dspec(dspec_f, freq_f, gdict, buffer_frac)
+        I = tsdata_f.iquvt[0]
+        Q = tsdata_f.iquvt[1]
+        U = tsdata_f.iquvt[2]
+        V = tsdata_f.iquvt[3]
+        L = tsdata_f.Lts
+        ph = tsdata_f.phits
+        # New on-pulse for sub-band
+        on_m, _, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
+        Vpsi = _pa_variance_deg2(ph)
+        Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
+        return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
+
+    freq_measures = {name: _measure_freq_slice(slc) for name, slc in fq.items()}
+
+    return {"phase": phase_measures, "freq": freq_measures}

@@ -288,216 +288,196 @@ def load_data(obs_data_path, obs_params_path=None):
 
 
 def _load_multiple_data_grouped(data):
-    """
-    Group simulation outputs by freq and phase info (everything after freq_ and phase_).
-    Loads ALL files per group and merges their xvals/yvals together.
-    Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
-    Dictionary is sorted by override parameter values (e.g., N=10, N=100, N=1000).
-    """
-    import re
-    from collections import defaultdict
-    
-    logging.info(f"Loading grouped data from {data}...")
+	"""
+	Group simulation outputs by freq and phase info (everything after freq_ and phase_).
+	Loads ALL files per group and merges their xvals/yvals together.
+	Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
+	Dictionary is sorted by override parameter values (e.g., N=10, N=100, N=1000).
+	"""
+	import re
+	from collections import defaultdict
+	
+	logging.info(f"Loading grouped data from {data}...")
   
-    def normalise_override_value(value_str):
-        """Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
-        try:
-            val = float(value_str)
-            if val.is_integer():
-                return str(int(val))
-            else:
-                return f"{val:.2f}"
-        except ValueError:
-            return value_str
-    
-    def extract_override_params(freq_phase_key):
-        """
-        Extract override parameters from freq_phase_key for sorting.
-        Returns dict of {param_name: numeric_value}.
-        Example: "full-band, leading, N10_tau5.5" -> {'N': 10, 'tau': 5.5}
-        """
-        parts = freq_phase_key.split(', ')
-        if len(parts) < 3:
-            return {}
-        
-        override_str = parts[2]  # e.g., "N10_tau5.5"
-        override_dict = {}
-        
-        # Split by underscore to get individual param=value pairs
-        for part in override_str.split('_'):
-            match = re.match(r'([a-zA-Z_]+)([0-9.]+)', part)
-            if match:
-                param = match.group(1)
-                value = float(match.group(2))
-                override_dict[param] = value
-        
-        return override_dict
-    
-    def sort_key_for_freq_phase(freq_phase_key):
-        """
-        Generate sort key for freq_phase_key.
-        Sorts by: (freq, phase, N, tau_ms, lfrac, ...) in that order.
-        """
-        parts = freq_phase_key.split(', ')
-        freq_info = parts[0] if len(parts) > 0 else ""
-        phase_info = parts[1] if len(parts) > 1 else ""
-        
-        override_params = extract_override_params(freq_phase_key)
-        
-        # Sort order: freq, phase, then override params in a specific order
-        # Common params: N, tau, lfrac, vfrac, PA, DM, RM, width
-        param_order = ['N', 'tau', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width']
-        
-        sort_tuple = [freq_info, phase_info]
-        for param in param_order:
-            sort_tuple.append(override_params.get(param, 0))  # 0 if param not present
-        
-        return tuple(sort_tuple)
-    
-    def extract_freq_phase_key(fname):
-        # Extract freq and phase info and any override parameters from filename
-        # Pattern: ...freq_{freq}_phase_{phase}[_{overrides}].pkl
-        m = re.search(r'_freq_([a-z\-]+)_phase_([a-z\-]+)(?:_(.+?))?\.pkl$', fname)
-        if m:
-            freq_info = m.group(1)
-            phase_info = m.group(2)
-            override_info = m.group(3) if m.group(3) else None
-            
-            if override_info:
-                parts = override_info.split('_')
-                cleaned_parts = []
-                
-                for part in parts:
-                    if not part:
-                        continue
-                    match = re.match(r'([a-zA-Z_]+)([0-9.]+)', part)
-                    if match:
-                        param = match.group(1)
-                        value = match.group(2)
-                        normalized_value = normalise_override_value(value)
-                        cleaned_parts.append(f"{param}{normalized_value}")
-                    else:
-                        cleaned_parts.append(part)
-                
-                if cleaned_parts:
-                    override_label = "_".join(cleaned_parts)
-                    return f"{freq_info}, {phase_info}, {override_label}"
-            
-            return f"{freq_info}, {phase_info}"
-        
-        logging.warning(f"Could not parse freq/phase from filename: {fname}")
-        return "unknown"  
-    
-    file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
-    logging.info(f"Found {len(file_names)} .pkl files")
-    
-    groups = defaultdict(list)
-    
-    # Group files by freq/phase/override key
-    for fname in file_names:
-        freq_phase_key = extract_freq_phase_key(fname)
-        groups[freq_phase_key].append(fname)
-    
-    # Sort groups by override parameters
-    sorted_keys = sorted(groups.keys(), key=sort_key_for_freq_phase)
-    
-    logging.info(f"Grouped files into {len(groups)} unique series (sorted by override params):")
-    for key in sorted_keys:
-        logging.info(f"  '{key}': {len(groups[key])} files")
+	def normalise_override_value(value_str):
+		"""Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
+		try:
+			val = float(value_str)
+			if val.is_integer():
+				return str(int(val))
+			else:
+				return f"{val:.2f}"
+		except ValueError:
+			return value_str
+	
+	def extract_override_params(freq_phase_key):
+		"""
+		Extract override parameters from freq_phase_key for sorting.
+		Returns dict of {param_name: numeric_value}.
+		Example: "full-band, leading, N10_tau5.5" -> {'N': 10, 'tau': 5.5}
+		"""
+		parts = freq_phase_key.split(', ')
+		if len(parts) < 3:
+			return {}
+		
+		override_str = parts[2]  # e.g., "N10_tau5.5"
+		override_dict = {}
+		
+		# Split by underscore to get individual param=value pairs
+		for part in override_str.split('_'):
+			match = re.match(r'([a-zA-Z_]+)([0-9.]+)', part)
+			if match:
+				param = match.group(1)
+				value = float(match.group(2))
+				override_dict[param] = value
+		
+		return override_dict
+	
+	def sort_key_for_freq_phase(freq_phase_key):
+		"""
+		Generate sort key for freq_phase_key.
+		Sorts by: (freq, phase, N, tau_ms, lfrac, ...) in that order.
+		"""
+		parts = freq_phase_key.split(', ')
+		freq_info = parts[0] if len(parts) > 0 else ""
+		phase_info = parts[1] if len(parts) > 1 else ""
+		
+		override_params = extract_override_params(freq_phase_key)
+		
+		# Sort order: freq, phase, then override params in a specific order
+		# Common params: N, tau, lfrac, vfrac, PA, DM, RM, width
+		param_order = ['N', 'tau', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width']
+		
+		sort_tuple = [freq_info, phase_info]
+		for param in param_order:
+			sort_tuple.append(override_params.get(param, 0))  # 0 if param not present
+		
+		return tuple(sort_tuple)
+	
+	def extract_freq_phase_key(fname):
+		# Extract freq and phase info and any override parameters from filename
+		# Pattern: ...freq_{freq}_phase_{phase}[_{overrides}].pkl
+		m = re.search(r'_freq_([a-z\-]+)_phase_([a-z\-]+)(?:_(.+?))?\.pkl$', fname)
+		if m:
+			freq_info = m.group(1)
+			phase_info = m.group(2)
+			override_info = m.group(3) if m.group(3) else None
+			
+			if override_info:
+				parts = override_info.split('_')
+				cleaned_parts = []
+				
+				for part in parts:
+					if not part:
+						continue
+					match = re.match(r'([a-zA-Z_]+)([0-9.]+)', part)
+					if match:
+						param = match.group(1)
+						value = match.group(2)
+						normalized_value = normalise_override_value(value)
+						cleaned_parts.append(f"{param}{normalized_value}")
+					else:
+						cleaned_parts.append(part)
+				
+				if cleaned_parts:
+					override_label = "_".join(cleaned_parts)
+					return f"{freq_info}, {phase_info}, {override_label}"
+			
+			return f"{freq_info}, {phase_info}"
+		
+		logging.warning(f"Could not parse freq/phase from filename: {fname}")
+		return "unknown"  
+	
+	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
+	logging.info(f"Found {len(file_names)} .pkl files")
+	
+	groups = defaultdict(list)
+	
+	# Group files by freq/phase/override key
+	for fname in file_names:
+		freq_phase_key = extract_freq_phase_key(fname)
+		groups[freq_phase_key].append(fname)
+	
+	# Sort groups by override parameters
+	sorted_keys = sorted(groups.keys(), key=sort_key_for_freq_phase)
+	
+	logging.info(f"Grouped files into {len(groups)} unique series (sorted by override params):")
+	for key in sorted_keys:
+		logging.info(f"  '{key}': {len(groups[key])} files")
 
-    all_results = {}
-    
-    for freq_phase_key in sorted_keys:
-        file_list = groups[freq_phase_key]
-        
-        # Initialize merged data structures
-        xname = None
-        plot_mode = None
-        dspec_params = None
-        all_xvals = []
-        all_yvals = {}
-        all_errs = {}
-        all_V_params = {}
-        all_exp_vars = {}
-        all_snrs = {}
-        
-        # Track which xvals we've seen to avoid duplicates
-        seen_xvals = set()
-        
-        logging.info(f"Merging {len(file_list)} files for series '{freq_phase_key}'")
-        
-        for fname in file_list:
-            with open(os.path.join(data, fname), "rb") as f:
-                obj = pkl.load(f)
-            
-            if not isinstance(obj, dict):
-                logging.warning(f"File {fname} does not contain expected dict structure")
-                continue
-            
-            # Set metadata from first file
-            if xname is None:
-                xname = obj["xname"]
-                plot_mode = obj["plot_mode"]
-                dspec_params = obj["dspec_params"]
-            
-            # Get data from this file
-            xvals = obj["xvals"]
-            yvals = obj["yvals"]
-            errs = obj["errs"]
-            V_params = obj["V_params"]
-            exp_vars = obj["exp_vars"]
-            snrs = obj["snrs"]
-            
-            # Merge xvals and associated data
-            for v in xvals:
-                if v in seen_xvals:
-                    logging.debug(f"Skipping duplicate xval {v} from {fname}")
-                    continue
-                
-                seen_xvals.add(v)
-                all_xvals.append(v)
-                
-                # Initialize nested dicts for this xval if needed
-                if v not in all_yvals:
-                    all_yvals[v] = []
-                    all_errs[v] = []
-                    all_snrs[v] = []
-                    all_V_params[v] = {key: [] for key in V_params[v].keys()}
-                    all_exp_vars[v] = {key: [] for key in exp_vars[v].keys()}
-                
-                # Append data for this xval
-                all_yvals[v].extend(yvals[v])
-                all_errs[v].extend(errs[v])
-                all_snrs[v].extend(snrs[v])
-                
-                for key in V_params[v].keys():
-                    all_V_params[v][key].extend(V_params[v][key])
-                
-                for key in exp_vars[v].keys():
-                    all_exp_vars[v][key].extend(exp_vars[v][key])
-        
-        # Sort xvals for consistent plotting
-        all_xvals = sorted(all_xvals)
-        
-        all_results[freq_phase_key] = {
-            'xname': xname,
-            'xvals': all_xvals,
-            'yvals': all_yvals,
-            'errs': all_errs,
-            'V_params': all_V_params,
-            'exp_vars': all_exp_vars,
-            'dspec_params': dspec_params,
-            'plot_mode': plot_mode,
-            'snrs': all_snrs
-        }
-        
-        logging.info(
-            f"Merged '{freq_phase_key}': {len(all_xvals)} unique xvals, "
-            f"range {min(all_xvals):.1f}-{max(all_xvals):.1f}"
-        )
+	all_results = {}
+	
+	for freq_phase_key in sorted_keys:
+		file_list = groups[freq_phase_key]
+		
+		xname = None
+		plot_mode = None
+		dspec_params = None
+		all_xvals = []
+		all_measures = {}
+		all_V_params = {}
+		all_exp_vars = {}
+		all_snrs = {}
 
-    logging.info(f"Returning {len(all_results)} unique series (sorted)\n")
-    return all_results
+		seen_xvals = set()
+		logging.info(f"Merging {len(file_list)} files for series '{freq_phase_key}'")
+		
+		for fname in file_list:
+			with open(os.path.join(data, fname), "rb") as f:
+				obj = pkl.load(f)
+			if not isinstance(obj, dict):
+				logging.warning(f"File {fname} does not contain expected dict structure")
+				continue
+			
+			if xname is None:
+				xname = obj.get("xname")
+				plot_mode = obj.get("plot_mode")
+				dspec_params = obj.get("dspec_params")
+
+			xvals = obj.get("xvals", [])
+			snrs = obj.get("snrs", {})
+			V_params = obj.get("V_params", {})
+			exp_vars = obj.get("exp_vars", {})
+			measures = obj.get("measures", {})
+
+			# Merge xvals and associated data
+			for v in xvals:
+				if v not in seen_xvals:
+					seen_xvals.add(v)
+					all_xvals.append(v)
+				# init per-xval
+				if v not in all_measures:
+					all_measures[v] = []
+					all_snrs[v] = []
+					all_V_params[v] = {key: [] for key in V_params.get(v, {}).keys()}
+					all_exp_vars[v] = {key: [] for key in exp_vars.get(v, {}).keys()}
+				# extend
+				all_measures[v].extend(measures.get(v, []))
+				all_snrs[v].extend(snrs.get(v, []))
+				for key, arr in V_params.get(v, {}).items():
+					all_V_params[v][key].extend(arr)
+				for key, arr in exp_vars.get(v, {}).items():
+					all_exp_vars[v][key].extend(arr)
+		
+		all_xvals = sorted(all_xvals)
+		all_results[freq_phase_key] = {
+			'xname': xname,
+			'xvals': all_xvals,
+			'measures': all_measures,     
+			'V_params': all_V_params,
+			'exp_vars': all_exp_vars,
+			'dspec_params': dspec_params,
+			'plot_mode': plot_mode,
+			'snrs': all_snrs
+		}
+		
+		logging.info(
+			f"Merged '{freq_phase_key}': {len(all_xvals)} unique xvals, "
+			f"range {min(all_xvals):.1f}-{max(all_xvals):.1f}"
+		)
+
+	logging.info(f"Returning {len(all_results)} unique series (sorted)\n")
+	return all_results
 
 
 def _generate_dspec(xname, mode, var, plot_multiple_frb, target_snr=None, **params):
@@ -526,20 +506,20 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, target_snr=None, **para
 def _process_task(task, xname, mode, plot_mode, **params):
 	"""
 	Process a single task (combination of timescale and realization).
-	Dynamically uses the provided process_func for mode-specific processing.
+	Now returns the per-segment measures from psn_dspec, not a single window value.
 	"""
 	var, realization = task
 	base_seed = params.get("seed", None)
 	current_seed = (base_seed + realization) if base_seed is not None else None
 
-	# Work on a per-call copy to avoid cross-task mutation
 	local_params = dict(params)
 	local_params["seed"] = current_seed
 	
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
-	# Generate dynamic spectrum
-	dspec, snr, V_params, exp_vars = _generate_dspec(
+	# Generate dynamic spectrum + segments
+	# psn_dspec now returns: dspec, snr, V_params, exp_vars, measures
+	dspec, snr, V_params, exp_vars, measures = _generate_dspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -547,22 +527,8 @@ def _process_task(task, xname, mode, plot_mode, **params):
 		**local_params
 	)
 
-	process_func = plot_mode.process_func
- 
-	# Dynamically select only the needed arguments for process_func
-	sig = inspect.signature(process_func)
-	allowed_args = set(sig.parameters.keys())
-	# Always provide dspec as the first argument
-	process_func_args = {'dspec': dspec}
-	# Add other allowed arguments from local_params if present
-	process_func_args.update({
-		k: local_params[k]
-		for k in allowed_args if k in local_params and k not in ('dspec')
-	})
-
-	xvals, result_err = process_func(**process_func_args)
-
-	return var, xvals, result_err, V_params, snr, exp_vars
+	# Return the entire measures dict for this realization
+	return var, measures, V_params, snr, exp_vars
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
@@ -857,8 +823,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					desc=f"Processing sweep of {xname} ({sweep_mode} mode)"
 				))
 
-			yvals = {v: [] for v in xvals}
-			errs = {v: [] for v in xvals}
+			measures = {v: [] for v in xvals}
 			V_params = {
 				v: {key: [] for key in [
 					't0_i','A_i','width_ms_i','spec_idx_i','tau_ms_i','PA_i',
@@ -873,9 +838,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				]} for v in xvals
 			}
 
-			for var, val, err, params_dict, snr, exp_var_psi_deg2 in results:
-				yvals[var].append(val)
-				errs[var].append(err)
+			for var, seg_measures, params_dict, snr, exp_var_psi_deg2 in results:
+				measures[var].append(seg_measures)
 				snrs[var].append(snr)
 				for key, value in params_dict.items():
 					V_params[var][key].append(value)
@@ -885,8 +849,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			frb_dict = {
 				"xname": xname,
 				"xvals": xvals,
-				"yvals": yvals,
-				"errs": errs,
+				"measures": measures,         # <- replaces 'yvals'
 				"V_params": V_params,
 				"exp_vars": exp_vars,
 				"dspec_params": dspec_params,

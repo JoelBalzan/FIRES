@@ -18,7 +18,7 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import add_noise, compute_required_sefd, scatter_dspec
+from fires.core.basicfns import add_noise, compute_required_sefd, scatter_dspec, compute_segments
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -622,5 +622,5 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		'exp_var_band_width_mhz' : None
 	}
 
-	return dspec, snr, V_params, exp_vars
+	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac)
 
