@@ -25,7 +25,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import configure_matplotlib, plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-							   window_map)
+							   normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -354,11 +354,8 @@ def main():
 		resolved_scint = None
 
 
-	# Map long freq-window names to abbreviated forms
-	if args.freq_window in window_map:
-		args.freq_window = window_map[args.freq_window]
-	if args.phase_window in window_map:
-		args.phase_window = window_map[args.phase_window]
+	args.freq_window = normalise_freq_window(args.freq_window, target='dspec')
+	args.phase_window = normalise_phase_window(args.phase_window, target='dspec')
 
 	if args.plot[0] not in plot_modes and args.plot[0] not in ("all", "None"):
 			parser.error(f"Invalid plot mode: {args.plot[0]}")
