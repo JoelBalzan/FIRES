@@ -451,9 +451,41 @@ def _make_plot_fname(plot_type, scale, fname, freq_window="all", phase_window="a
 
 def _is_multi_run_dict(frb_dict):
 	"""
-	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'tau_ms' keys).
+	Returns True if frb_dict contains multiple run dictionaries (i.e., is a dict of dicts with 'xvals' keys).
 	"""
-	return all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
+	return isinstance(frb_dict, dict) and all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
+
+
+def _select_phase_key(phase_window: str) -> str:
+	return normalise_phase_window(phase_window, target='segments')
+
+def _select_freq_key(freq_window: str) -> str:
+	return normalise_freq_window(freq_window, target='segments')
+
+def _extract_value_from_segments(seg_dict, plot_type: str, phase_window: str, freq_window: str):
+	if not isinstance(seg_dict, dict):
+		return np.nan
+	phase_key = _select_phase_key(phase_window)
+	freq_key = _select_freq_key(freq_window)
+	metric = 'Vpsi' if plot_type == 'pa_var' else ('Lfrac' if plot_type == 'l_frac' else None)
+	if metric is None:
+		return np.nan
+	if phase_key != 'total':
+		return seg_dict.get('phase', {}).get(phase_key, {}).get(metric, np.nan)
+	return seg_dict.get('freq', {}).get(freq_key, {}).get(metric, np.nan)
+
+def _yvals_from_measures_dict(xvals, measures, plot_type: str, phase_window: str, freq_window: str) -> dict:
+	"""
+	Build yvals dict {xv: [values...]} from a measures dict produced by compute_segments.
+	Does not mutate inputs.
+	"""
+	yvals = {}
+	for xv in xvals:
+		vals = []
+		for seg in measures.get(xv, []):
+			vals.append(_extract_value_from_segments(seg, plot_type, phase_window, freq_window))
+		yvals[xv] = vals
+	return yvals
 
 
 def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'):
@@ -821,90 +853,6 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 		ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
 	if has_exp2:
 		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
-
-
-def _plot_single_job_common(
-	frb_dict,
-	yname_base,
-	weight_y_by,
-	x_weight_by,
-	figsize,
-	fit,
-	scale,
-	series_label,
-	series_color='black',
-	expected_param_key=None,
-	ax=None,
-	embed=False,
-	plot_expected=True
-):
-	"""
-	Common single-job plotting helper used by plot_pa_var and plot_lfrac_var.
-
-	When embed=True, draws onto the provided Axes 'ax' without setting axis labels/scales
-	or plotting expected curves (unless plot_expected=True). Returns (None, ax, meta)
-	where meta = {'applied': bool, 'x': np.ndarray, 'xname': str, 'x_unit': str}.
-
-	When embed=False (default), creates a new Figure/Axes, sets labels/scales, and returns (fig, ax).
-	"""
-	xvals = frb_dict["xvals"]
-	yvals = frb_dict["yvals"]
-	V_params = frb_dict.get("V_params", {})
-	dspec_params = frb_dict.get("dspec_params", {})
-
-	# Select weight source for y
-	if isinstance(weight_y_by, str) and weight_y_by.endswith("_i"):
-		weight_source = V_params
-	else:
-		weight_source = dspec_params
-
-	# Weight measured values (track if applied)
-	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
-	med_vals, percentile_errs = _median_percentiles(y, xvals)
-
-	# X weighting (now returns units too)
-	x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=x_weight_by)
-	lower = np.array([lower for (lower, upper) in percentile_errs])
-	upper = np.array([upper for (lower, upper) in percentile_errs])
-
-	# Axes setup
-	created_fig = None
-	if ax is None:
-		created_fig, ax = plt.subplots(figsize=figsize)
-		ax.grid(True, linestyle='--', alpha=0.6)
-		fig = created_fig
-	else:
-		fig = None  # embedding on existing axes
-		if not embed:
-			ax.grid(True, linestyle='--', alpha=0.6)
-
-	# Draw measured series
-	ax.plot(x, med_vals, color=series_color, label=series_label, linewidth=2)
-	ax.fill_between(x, lower, upper, color=series_color, alpha=0.2)
-
-	# Expected curves (optional)
-	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
-		exp_weight = weight_y_by if applied else None
-		_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
-
-	# Optional fit
-	if fit is not None:
-		logging.info(f"Applying fit: {fit}")
-		fit_type, fit_degree = _parse_fit_arg(fit)
-		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
-		if not embed:
-			ax.legend()
-
-	# Labels/scales only in standalone mode
-	if not embed:
-		final_yname, y_unit = _get_weighted_y_name(yname_base, weight_y_by) if (weight_y_by is not None and applied) else (yname_base, param_map.get(yname_base, ""))
-		_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x, x_unit=x_unit, y_unit=y_unit)
-
-	if embed:
-		meta = {'applied': bool(applied), 'x': x, 'xname': xname, 'x_unit': x_unit}
-		return None, ax, meta
-
-	return fig, ax
 
 
 def _find_equal_value_intersections(frb_dict, target_param, target_values=None, n_lines=5):
@@ -1415,8 +1363,94 @@ def _get_series_label(freq_phase_key):
 	return ", ".join(formatted_parts)
 
 
+def _plot_single_job_common(
+	frb_dict,
+	yname_base,
+	weight_y_by,
+	x_weight_by,
+	figsize,
+	fit,
+	scale,
+	series_label,
+	series_color='black',
+	expected_param_key=None,
+	ax=None,
+	embed=False,
+	plot_expected=True,
+	yvals_override=None  
+):
+	"""
+	Common single-job plotting helper used by plot_pa_var and plot_lfrac_var.
+
+	When embed=True, draws onto the provided Axes 'ax' without setting axis labels/scales
+	or plotting expected curves (unless plot_expected=True). Returns (None, ax, meta)
+	where meta = {'applied': bool, 'x': np.ndarray, 'xname': str, 'x_unit': str}.
+
+	When embed=False (default), creates a new Figure/Axes, sets labels/scales, and returns (fig, ax).
+	"""
+	xvals = frb_dict["xvals"]
+	yvals = yvals_override if yvals_override is not None else frb_dict["yvals"]  # changed
+	V_params = frb_dict.get("V_params", {})
+	dspec_params = frb_dict.get("dspec_params", {})
+
+	# Select weight source for y
+	if isinstance(weight_y_by, str) and weight_y_by.endswith("_i"):
+		weight_source = V_params
+	else:
+		weight_source = dspec_params
+
+	# Weight measured values (track if applied)
+	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
+	med_vals, percentile_errs = _median_percentiles(y, xvals)
+
+	# X weighting (now returns units too)
+	x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=x_weight_by)
+	lower = np.array([lower for (lower, upper) in percentile_errs])
+	upper = np.array([upper for (lower, upper) in percentile_errs])
+
+	# Axes setup
+	created_fig = None
+	if ax is None:
+		created_fig, ax = plt.subplots(figsize=figsize)
+		ax.grid(True, linestyle='--', alpha=0.6)
+		fig = created_fig
+	else:
+		fig = None  # embedding on existing axes
+		if not embed:
+			ax.grid(True, linestyle='--', alpha=0.6)
+
+	# Draw measured series
+	ax.plot(x, med_vals, color=series_color, label=series_label, linewidth=2)
+	ax.fill_between(x, lower, upper, color=series_color, alpha=0.2)
+
+	# Expected curves (optional)
+	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
+		exp_weight = weight_y_by if applied else None
+		_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
+
+	# Optional fit
+	if fit is not None:
+		logging.info(f"Applying fit: {fit}")
+		fit_type, fit_degree = _parse_fit_arg(fit)
+		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
+		if not embed:
+			ax.legend()
+
+	# Labels/scales only in standalone mode
+	if not embed:
+		final_yname, y_unit = _get_weighted_y_name(yname_base, weight_y_by) if (weight_y_by is not None and applied) else (yname_base, param_map.get(yname_base, ""))
+		_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x, x_unit=x_unit, y_unit=y_unit)
+
+	if embed:
+		meta = {'applied': bool(applied), 'x': x, 'xname': xname, 'x_unit': x_unit}
+		return None, ax, meta
+
+	return fig, ax
+
+
 def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, 
-				   legend=True, equal_value_lines=None):
+				   legend=True, equal_value_lines=None, plot_type='pa_var',  
+				   phase_window='total', freq_window='full-band'):          
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 
@@ -1477,7 +1511,6 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		base_label = ", ".join(parts[:2])  # e.g., "full-band, leading"
 		base_groups[base_label].append(freq_phase_key)
 	
-	# Function to create color shades
 	def get_color_shades(base_color, n_shades):
 		"""
 		Generate n_shades of a base color, from darker to lighter.
@@ -1488,34 +1521,24 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		if n_shades == 1:
 			return [base_color]
 		
-		# Convert hex to RGB
 		rgb = mcolors.hex2color(base_color)
-		
-		# Create shades by blending with white (lighter) and black (darker)
 		shades = []
 		for i in range(n_shades):
-			# Interpolate from darker (0.6 * color) to lighter (1.0 * color + 0.3 * white)
 			if n_shades == 2:
-				# For 2 shades: darker and original
 				factors = [0.7, 1.0]
 			elif n_shades == 3:
-				# For 3 shades: darker, original, lighter
 				factors = [0.6, 1.0, 1.3]
 			else:
-				# General case: spread from dark to light
 				t = i / (n_shades - 1)
 				factors = [0.5 + 0.8 * t]
 			
 			factor = factors[i] if i < len(factors) else 0.5 + 0.8 * (i / (n_shades - 1))
 			
 			if factor <= 1.0:
-				# Darken by multiplying RGB values
 				new_rgb = tuple(max(0, min(1, c * factor)) for c in rgb)
 			else:
-				# Lighten by blending with white
-				blend = factor - 1.0  # 0.0 to 0.3
+				blend = factor - 1.0  
 				new_rgb = tuple(max(0, min(1, c + (1 - c) * blend)) for c in rgb)
-			
 			shades.append(mcolors.rgb2hex(new_rgb))
 		
 		return shades
@@ -1523,31 +1546,24 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	for idx, (freq_phase_key, run_data) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {freq_phase_key}:")
 		
-		# Generate clean label for this series
 		series_label = _get_series_label(freq_phase_key)
 		
-		# Extract base label for color selection
 		parts = freq_phase_key.split(', ')
 		base_label = ", ".join(parts[:2])
 		
-		# Get base color from map
 		base_color = colour_map.get(series_label)
 		if base_color is None:
-			# Try matching just the freq/phase part
 			base_color = colour_map.get(base_label, colour_list[idx % len(colour_list)])
 		
 		# If multiple series share the same freq/phase, use color shades
 		series_in_group = base_groups[base_label]
 		if len(series_in_group) > 1:
-			# Get all shades for this group
 			shades = get_color_shades(base_color, len(series_in_group))
-			# Find which index this series is in the group
 			group_idx = series_in_group.index(freq_phase_key)
 			color = shades[group_idx]
 		else:
 			color = base_color
 
-		# Per-run fit handling (can be a single string or a list per run)
 		run_fit = None
 		if fit is not None:
 			if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
@@ -1555,35 +1571,36 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			else:
 				run_fit = fit
 
-		# Embed single-job helper for each run (no expected curves per-run)
+		if "measures" not in run_data:
+			raise KeyError(f"Run '{freq_phase_key}' missing 'measures'.")
+		yvals_run = _yvals_from_measures_dict(run_data["xvals"], run_data["measures"], plot_type, phase_window, freq_window)
+
 		_, ax, meta = _plot_single_job_common(
 			frb_dict=run_data,
 			yname_base=base_yname,
 			weight_y_by=weight_y_by,
 			x_weight_by=weight_x_by,
-			figsize=None,        # unused when embed=True
+			figsize=None,
 			fit=run_fit,
-			scale=scale,           # scales/labels set after loop
+			scale=scale,
 			series_label=series_label,
 			series_color=color,
 			expected_param_key=None,
 			ax=ax,
 			embed=True,
-			plot_expected=False  # Don't plot expected per-run
+			plot_expected=False,
+			yvals_override=yvals_run 
 		)
-
 		if weight_y_by is not None and not meta['applied']:
 			logging.warning(f"Requested weighting by '{weight_y_by}' for run '{freq_phase_key}' but it could not be applied. Using unweighted values.")
 		weight_applied_all &= meta['applied']
 
 		_print_avg_snrs(run_data)
 
-		# Track last x, xname, and x_unit for axis labeling
 		x_last = meta['x']
 		xname = meta['xname']
 		x_unit = meta['x_unit']
 
-	# Plot expected curves once (from preferred run if available), matching weighting decision
 	if weight_y_by is not None:
 		param_key = 'exp_var_' + weight_y_by.removesuffix('_i')
 	elif base_yname == r"Var($\psi$)":
@@ -1591,7 +1608,6 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	elif base_yname == r"\Pi_L":
 		param_key = 'exp_var_lfrac'
 	else:
-		# Default fallback
 		param_key = 'exp_var_PA'
 		logging.warning(f"Could not determine expected parameter key for yname='{base_yname}', using default '{param_key}'")
 	
@@ -1602,11 +1618,9 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	if legend:
 		ax.legend(fontsize=14, loc='best')
 
-	# Decide y-axis label after knowing if weighting applied
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 
-	# Draw equal-value guide lines after axes limits/scales are final; restore limits to avoid autoscale
 	if equal_value_lines is not None:
 		_xlim0, _ylim0 = ax.get_xlim(), ax.get_ylim()
 		_plot_equal_value_lines(
@@ -1669,75 +1683,6 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 	
 	logging.info(f"Var(psi) = {pa_var_deg2:.3f} +/- {pa_var_err_deg2:.3f}")
 	return pa_var_deg2, pa_var_err_deg2
-
-
-def _select_phase_key(phase_window: str) -> str:
-    # Use utils normaliser to segment key set
-    return normalise_phase_window(phase_window, target='segments')
-
-def _select_freq_key(freq_window: str) -> str:
-    # Use utils normaliser to segment key set
-    return normalise_freq_window(freq_window, target='segments')
-
-def _extract_value_from_segments(seg_dict, plot_type: str, phase_window: str, freq_window: str):
-	"""
-	Pick the correct scalar from a segments dict for the requested plot.
-	plot_type in {'pa_var', 'l_frac'}.
-	Priority: if a specific phase is requested (not total), use phase; else use freq.
-	"""
-	if not isinstance(seg_dict, dict):
-		return np.nan
-
-	phase_key = _select_phase_key(phase_window)
-	freq_key = _select_freq_key(freq_window)
-
-	# Choose metric name
-	if plot_type == 'pa_var':
-		metric = 'Vpsi'
-	elif plot_type == 'l_frac':
-		metric = 'Lfrac'
-	else:
-		return np.nan
-
-	# Prefer phase-specific if user asked for leading/trailing
-	if phase_key != 'total':
-		return seg_dict.get('phase', {}).get(phase_key, {}).get(metric, np.nan)
-
-	# Otherwise pick frequency slice (default 'all')
-	return seg_dict.get('freq', {}).get(freq_key, {}).get(metric, np.nan)
-
-def _adapt_measures_to_yvals(frb_dict, plot_type: str, phase_window: str, freq_window: str):
-	"""
-	Transform a measures-based frb_dict into a yvals dict consumed by existing plotting code.
-	For each run: yvals[x] = list of values extracted from segments across realizations.
-	"""
-	if not _is_multi_run_dict(frb_dict):
-		return frb_dict  # nothing to do
-
-	adapted = {}
-	for run_key, sub in frb_dict.items():
-		if not isinstance(sub, dict) or "xvals" not in sub:
-			adapted[run_key] = sub
-			continue
-		xvals = sub["xvals"]
-		measures = sub.get("measures")
-		if measures is None:
-			# Already legacy or transformed
-			adapted[run_key] = sub
-			continue
-
-		yvals = {}
-		for xv in xvals:
-			vals = []
-			for seg in measures.get(xv, []):
-				vals.append(_extract_value_from_segments(seg, plot_type, phase_window, freq_window))
-			yvals[xv] = vals
-
-		# Shallow copy and replace yvals
-		new_sub = dict(sub)
-		new_sub["yvals"] = yvals
-		adapted[run_key] = new_sub
-	return adapted
 
 
 def plot_pa_var(
@@ -1809,20 +1754,18 @@ def plot_pa_var(
 	if figsize is None:
 		figsize = (10, 9)
 
-	if _is_multi_run_dict(frb_dict) and any("measures" in sub for sub in frb_dict.values()):
-		frb_dict = _adapt_measures_to_yvals(frb_dict, plot_type='pa_var', phase_window=phase_window, freq_window=freq_window)
-
-	# If frb_dict contains multiple runs, plot each on the same axes
+	# Multi-run
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-		# Weight measured and expected by PA_i to show ratio R_psi
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, 
-					   weight_x_by=weight_x_by, yname=yname, legend=legend,
-					   equal_value_lines=equal_value_lines)
-
-	else:	
-		# Single job
+		_plot_multirun(
+			frb_dict, ax, fit=fit, scale=scale, yname=yname,
+			weight_y_by=weight_y_by, weight_x_by=weight_x_by,
+			legend=legend, equal_value_lines=equal_value_lines,
+			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window  # NEW
+		)
+	else:
+		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'pa_var', phase_window, freq_window)
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
 			yname_base=r"Var($\psi$)",
@@ -1833,9 +1776,10 @@ def plot_pa_var(
 			scale=scale,
 			series_label=r'\psi$_{var}$',
 			series_color='black',
-			expected_param_key='exp_var_PA'
+			expected_param_key='exp_var_PA',
+			yvals_override=yvals  # NEW
 		)
-
+		
 	# Overlay observational data if provided
 	if obs_data is not None:
 		try:
@@ -1987,28 +1931,29 @@ def plot_lfrac(
 	if figsize is None:
 		figsize = (10, 9)
 
-	if _is_multi_run_dict(frb_dict) and any("measures" in sub for sub in frb_dict.values()):
-		frb_dict = _adapt_measures_to_yvals(frb_dict, plot_type='l_frac', phase_window=phase_window, freq_window=freq_window)
-
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-		_plot_multirun(frb_dict, ax, fit=fit, scale=scale, weight_y_by=weight_y_by, 
-					   weight_x_by=weight_x_by, yname=yname, legend=legend,
-					   equal_value_lines=equal_value_lines)
+		_plot_multirun(
+			frb_dict, ax, fit=fit, scale=scale, yname=yname,
+			weight_y_by=weight_y_by, weight_x_by=weight_x_by,
+			legend=legend, equal_value_lines=equal_value_lines,
+			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window  # NEW
+		)
 	else:
-		# Single job via helper
+		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
 			yname_base=r"\Pi_L",
-			weight_y_by="lfrac",              # keep raw L/I by default
+			weight_y_by="lfrac",
 			x_weight_by="width_ms",
 			figsize=figsize,
 			fit=fit,
 			scale=scale,
 			series_label='L/I',
 			series_color='black',
-			expected_param_key=None
+			expected_param_key=None,
+			yvals_override=yvals  # NEW
 		)
 
 	# Overlay observational data if provided
