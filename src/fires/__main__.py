@@ -3,7 +3,7 @@
 # FIRES: The Fast, Intense Radio Emission Simulator
 #
 # This script serves as the main entry point for simulating Fast Radio Bursts (FRBs)
-# with scattering and polarization effects. It parses command-line arguments,
+# with scattering and polarisation effects. It parses command-line arguments,
 # manages simulation and output options, and calls the appropriate functions for
 # generating FRBs and plotting results.
 #
@@ -25,7 +25,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import configure_matplotlib, plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-							   normalise_freq_window, normalise_phase_window)
+                               normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -84,8 +84,8 @@ def main():
 	  			'leading', 'trailing', 'total'
 		],
 		metavar="",
-		help=("Window for plotting PA variance and L fraction.\n"
-  			 "Choose 'leading', 'trailing', or 'total'. Default is 'total'."
+		help=("Select the phase window for the simulation. Uses the pulse peak and bounds of the on-pulse region.\n"
+  			 "Default is 'total' or 'all'."
 	  )
 	)
 	parser.add_argument(
@@ -93,12 +93,12 @@ def main():
 		type=str,
 		default="full",
 		choices=[
-			'1q', '2q', '3q', '4q', 'full',  # abbreviated
-			'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', 'full-band'  # long
+			'1q', '2q', '3q', '4q', 'full',  
+			'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', 'full-band' 
    		],
 		metavar="",
 		help=("Frequency window for plotting PA variance and L/I.\n"
-  			  "Choose 'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', or 'full-band'. Default is 'full-band'."
+  			  "Default is 'full-band' or 'full'."
 	  )
 	)
 	parser.add_argument(
@@ -124,11 +124,11 @@ def main():
 		help=(
 			"Generate plots. Pass 'all' to generate all (non-pa_var and l_frac) plots, or specify one or more plot names separated by spaces:\n"
 			"  'iquv': Plot the Stokes parameters (I, Q, U, V) vs. time or frequency.\n"
-			"  'lvpa': Plot linear polarization (L) and polarization angle (PA) vs. time.\n"
-			"  'dpa': Plot the derivative of the polarization angle (dPA/dt) vs. time.\n"
+			"  'lvpa': Plot linear polarisation (L) and polarisation angle (PA) vs. time.\n"
+			"  'dpa': Plot the derivative of the polarisation angle (dPA/dt) vs. time.\n"
 			"  'RM': Plot the rotation measure (RM) vs. frequency from RM-Tools.\n"
-			"  'pa_var': Plot the variance of the polarization angle (PA) vs. swept parameter in gparams.\n"
-			"  'l_frac': Plot the fraction of linear polarization (L/I)/(L/I)_0 vs. swept parameter in gparams.\n"
+			"  'pa_var': Plot the variance of the polarisation angle (PA) vs. swept parameter in gparams.\n"
+			"  'l_frac': Plot the fraction of linear polarisation (L/I)/(L/I)_0 vs. swept parameter in gparams.\n"
 			"Pass 'None' to disable all plots."
 		)
 	)
@@ -431,8 +431,8 @@ def main():
 				sefd            = args.sefd,
 				n_cpus          = None,
 				plot_mode       = selected_plot_mode,
-				phase_window    = None,
-				freq_window     = None,
+				phase_window    = args.phase_window,
+				freq_window     = args.freq_window,
 				buffer_frac     = args.buffer,
 				sweep_mode      = None,
 				target_snr      = args.snr,

@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 	"""
-	Perform rotation measure (RM) synthesis using RMtools to determine the RM and polarization properties.
+	Perform rotation measure (RM) synthesis using RMtools to determine the RM and polarisation properties.
 
 	Parameters:
 	-----------
@@ -53,8 +53,8 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
 		Four-element list containing:
 		[0] RM value in rad/m²
 		[1] RM uncertainty in rad/m²
-		[2] Intrinsic polarization angle at λ²=0 in degrees
-		[3] Uncertainty in polarization angle in degrees
+		[2] Intrinsic polarisation angle at λ²=0 in degrees
+		[3] Uncertainty in polarisation angle in degrees
 		
 	Notes:
 	------
@@ -112,8 +112,8 @@ def estimate_rm(dspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, sa
 		RM synthesis results: [RM, dRM, pol_angle_0, dpol_angle_0]
 		- RM: Rotation measure in rad/m²
 		- dRM: Uncertainty in RM in rad/m²  
-		- pol_angle_0: Intrinsic polarization angle in degrees
-		- dpol_angle_0: Uncertainty in polarization angle in degrees
+		- pol_angle_0: Intrinsic polarisation angle in degrees
+		- dpol_angle_0: Uncertainty in polarisation angle in degrees
 	"""
 
 
@@ -181,7 +181,7 @@ def rm_correct_dspec(dspec, freq_mhz, rm0):
 
 def est_profiles(dspec, noise_stokes, left, right):
 	"""
-	Extract and analyze time-resolved polarization profiles from a dynamic spectrum.
+	Extract and analyze time-resolved polarisation profiles from a dynamic spectrum.
 	
 	Parameters:
 	Parameters:
@@ -198,13 +198,13 @@ def est_profiles(dspec, noise_stokes, left, right):
 	Returns:
 	--------
 	frb_time_series
-		Object containing time-resolved polarization measurements:
+		Object containing time-resolved polarisation measurements:
 		- iquvt: Time series of I, Q, U, V
-		- lts, elts: Linear polarization intensity and error
-		- pts, epts: Total polarization intensity and error  
-		- phits, dphits: Linear polarization angle and error (degrees)
-		- psits, dpsits: Circular polarization angle and error (degrees)
-		- Fractional polarizations: qfrac, ufrac, vfrac, lfrac, pfrac with errors
+		- lts, elts: Linear polarisation intensity and error
+		- pts, epts: Total polarisation intensity and error  
+		- phits, dphits: Linear polarisation angle and error (degrees)
+		- psits, dpsits: Circular polarisation angle and error (degrees)
+		- Fractional polarisations: qfrac, ufrac, vfrac, lfrac, pfrac with errors
 	"""
 	pa_mask_sigma = 2.0  # PA detection threshold in sigma_L
 
@@ -236,7 +236,7 @@ def est_profiles(dspec, noise_stokes, left, right):
 		eLts = np.full_like(Lts, np.nan)
 		eLts[det] = sigma_L[det]
 	
-		# Total polarization
+		# Total polarisation
 		Pts = np.sqrt(Lts**2 + Vts**2)
 		ePts = np.sqrt((Lts**2 * eLts**2) + (Vts**2 * Vts_rms**2)) / np.maximum(Pts, eps)
 
@@ -261,7 +261,7 @@ def est_profiles(dspec, noise_stokes, left, right):
 		phits[~keep] = np.nan
 		ephits[~keep] = np.nan
 
-		# Fractional polarizations
+		# Fractional polarisations
 		qfrac = Qts / Its
 		ufrac = Uts / Its
 		vfrac = Vts / Its
@@ -290,7 +290,7 @@ def est_profiles(dspec, noise_stokes, left, right):
 
 def est_spectra(dspec, noisespec, left_window_ms, right_window_ms):
 	"""
-	Extract frequency-resolved polarization spectra by integrating over a specified time window.
+	Extract frequency-resolved polarisation spectra by integrating over a specified time window.
 
 	Parameters:
 	-----------
@@ -306,14 +306,14 @@ def est_spectra(dspec, noisespec, left_window_ms, right_window_ms):
 	Returns:
 	--------
 	frb_spectrum
-		Object containing frequency-resolved polarization measurements:
+		Object containing frequency-resolved polarisation measurements:
 		- iquvspec: Integrated Stokes I, Q, U, V spectra
 		- noispec0: Noise spectra scaled for integration time
-		- lspec, dlspec: Linear polarization intensity and error vs frequency
-		- pspec, dpspec: Total polarization intensity and error vs frequency
-		- Fractional polarization spectra with errors: qfracspec, ufracspec, etc.
-		- phispec, dphispec: Linear polarization angle and error vs frequency  
-		- psispec, dpsispec: Circular polarization angle and error vs frequency
+		- lspec, dlspec: Linear polarisation intensity and error vs frequency
+		- pspec, dpspec: Total polarisation intensity and error vs frequency
+		- Fractional polarisation spectra with errors: qfracspec, ufracspec, etc.
+		- phispec, dphispec: Linear polarisation angle and error vs frequency  
+		- psispec, dpsispec: Circular polarisation angle and error vs frequency
 	"""
 	 
 	# Average the dynamic spectrum over the specified time range
@@ -332,22 +332,22 @@ def est_spectra(dspec, noisespec, left_window_ms, right_window_ms):
 	pspec  = np.sqrt(lspec ** 2 + vspec ** 2)
 	dpspec = np.sqrt((lspec * dlspec) ** 2 + (vspec * noispec0[3]) ** 2) / np.maximum(pspec, 1e-12)
 
-	# Calculate the fractional polarizations
+	# Calculate the fractional polarisations
 	qfracspec = qspec / ispec
 	ufracspec = uspec / ispec
 	vfracspec = vspec / ispec
-	# Calculate the errors in fractional polarizations
+	# Calculate the errors in fractional polarisations
 	dqfrac = np.sqrt((qspec * noispec0[0]) ** 2 + (ispec * noispec0[1]) ** 2) / (ispec ** 2)
 	dufrac = np.sqrt((uspec * noispec0[0]) ** 2 + (ispec * noispec0[2]) ** 2) / (ispec ** 2)
 	dvfrac = np.sqrt((vspec * noispec0[0]) ** 2 + (ispec * noispec0[3]) ** 2) / (ispec ** 2)
 
-	# Calculate the fractional linear and total polarizations
+	# Calculate the fractional linear and total polarisations
 	lfracspec = lspec / ispec
 	dlfrac	  = np.sqrt((lspec * noispec0[0]) ** 2 + (ispec * dlspec) ** 2) / (ispec ** 2)
 	pfracspec = pspec / ispec
 	dpfrac 	  = np.sqrt((pspec * noispec0[0]) ** 2 + (ispec * dpspec) ** 2) / (ispec ** 2)
 
-	# Calculate the polarization angles
+	# Calculate the polarisation angles
 	phispec  = np.rad2deg(0.5 * np.arctan2(uspec, qspec))		
 	dphispec = np.rad2deg(0.5 * np.sqrt(uspec**2 * noispec0[1]**2 + qspec**2 * noispec0[2]**2) / np.maximum(uspec ** 2 + qspec ** 2, 1e-12))
 
@@ -947,17 +947,6 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buf
 	return snr, (left, right)
 
 
-def _phase_slices_from_peak(n_time: int, peak_index: int) -> dict[str, slice]:
-    """
-    Build standard phase slices relative to peak index.
-    Returns dict with 'first' (leading), 'last' (trailing), and 'total'.
-    """
-    first = slice(0, max(0, int(peak_index)))
-    last = slice(max(0, int(peak_index)), int(n_time))
-    total = slice(None)
-    return {"first": first, "last": last, "total": total}
-
-
 def _integrated_fractions_from_timeseries(I, Q, U, V, L, on_mask) -> tuple[float, float]:
     """
     Compute integrated L/I and V/I using on-pulse mask.
@@ -1005,6 +994,17 @@ def _freq_quarter_slices(n_chan: int) -> dict[str, slice]:
         "4q": slice(3*q, None),
         "all": slice(None)
     }
+
+
+def _phase_slices_from_peak(n_time: int, peak_index: int) -> dict[str, slice]:
+    """
+    Build standard phase slices relative to peak index.
+    Returns dict with 'first' (leading), 'last' (trailing), and 'total'.
+    """
+    first = slice(0, max(0, int(peak_index)))
+    last = slice(max(0, int(peak_index)), int(n_time))
+    total = slice(None)
+    return {"first": first, "last": last, "total": total}
 
 
 def compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac=0.1) -> dict:
