@@ -325,7 +325,7 @@ def main():
 	parser.add_argument(
 		"--scint",
 		action="store_true",
-		help="Enable scintillation effects."
+		help="Enable scintillation effects from scparamts.toml."
 	)
 
 	args = parser.parse_args()
@@ -460,7 +460,8 @@ def main():
 					print("Chi-squared fitting failed. \n")
 
 		# Print simulation status
-		print(f"Simulation completed. \n")
+		if args.data is None:
+			print(f"Simulation completed. \n")
 
 		# Call the plotting function if required
 		if args.plot != 'None' and (args.save_plots == True or args.show_plots == True):
