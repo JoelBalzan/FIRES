@@ -335,193 +335,192 @@ def load_data(obs_data_path, obs_params_path=None):
 
 
 def load_multiple_data_grouped(data):
-    """
-    Group simulation outputs by override parameters (e.g., N, tau, lfrac).
-    Loads ALL files per group and merges their xvals/measures together.
-    Returns unwrapped dict if single series, dict-of-dicts if multiple series.
-    """
-    import re
-    from collections import defaultdict
-    
-    logging.info(f"Loading grouped data from {data}...")
+	"""
+	Group simulation outputs by override parameters (e.g., N, tau, lfrac).
+	Loads ALL files per group and merges their xvals/measures together.
+	Returns unwrapped dict if single series, dict-of-dicts if multiple series.
+	"""
+	import re
+	from collections import defaultdict
+	
+	logging.info(f"Loading grouped data from {data}...")
   
-    def normalise_override_value(value_str):
-        """Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
-        try:
-            val = float(value_str)
-            if val.is_integer():
-                return str(int(val))
-            else:
-                return f"{val:.2f}"
-        except ValueError:
-            return value_str
-    
-    def extract_override_key(fname):
-        """
-        Extract override parameters from filename for grouping.
-        Pattern: sweep_{idx}_n{nseed}_plot_{mode}_xname_{xname}_xvals_{range}_mode_{mode}[_{overrides}].pkl
-        Returns: string like "N100" or "N100_tau5.5" or "" if no overrides
-        """
-        # Match override parameters after mode_{mode}_
-        # They appear as key-value pairs like N100, tau5.5, etc.
-        m = re.search(r'_mode_\w+_(.+?)\.pkl$', fname)
-        if not m:
-            return ""  # No overrides
-        
-        trailing = m.group(1)
-        
-        # Extract parameter patterns like N100, tau5.5, PA10, etc.
-        param_pattern = r'([a-zA-Z_]+)([0-9.]+)'
-        matches = re.findall(param_pattern, trailing)
-        
-        if not matches:
-            return ""
-        
-        # Build normalized key
-        parts = []
-        for param, value in matches:
-            # Skip non-override fields (like xvals range)
-            if param in ['xvals', 'sweep', 'plot', 'xname', 'mode']:
-                continue
-            
-            normalised_value = normalise_override_value(value)
-            parts.append(f"{param}{normalised_value}")
-        
-        return "_".join(parts) if parts else ""
-    
-    def extract_override_params_for_sorting(override_key):
-        """
-        Convert override_key string to dict for sorting.
-        Example: "N100_tau5.5" -> {'N': 100, 'tau': 5.5}
-        """
-        if not override_key:
-            return {}
-        
-        override_dict = {}
-        param_pattern = r'([a-zA-Z_]+)([0-9.]+)'
-        matches = re.findall(param_pattern, override_key)
-        
-        for param, value in matches:
-            try:
-                override_dict[param] = float(value)
-            except ValueError:
-                pass
-        
-        return override_dict
-    
-    def sort_key_for_overrides(override_key):
-        """
-        Generate sort key for override parameters.
-        Sorts by: N, tau, lfrac, vfrac, PA, DM, RM, width in that order.
-        """
-        override_params = extract_override_params_for_sorting(override_key)
-        
-        # Sort order for common parameters
-        param_order = ['N', 'tau', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width']
-        
-        sort_tuple = []
-        for param in param_order:
-            sort_tuple.append(override_params.get(param, 0))  # 0 if param not present
-        
-        return tuple(sort_tuple)
-    
-    file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
-    logging.info(f"Found {len(file_names)} .pkl files")
-    
-    groups = defaultdict(list)
-    
-    # Group files by override parameters
-    for fname in file_names:
-        override_key = extract_override_key(fname)
-        groups[override_key].append(fname)
-    
-    # Sort groups by override parameters
-    sorted_keys = sorted(groups.keys(), key=sort_key_for_overrides)
-    
-    logging.info(f"Grouped files into {len(groups)} unique series (sorted by override params):")
-    for override_key in sorted_keys:
-        label = override_key if override_key else "baseline"
-        logging.info(f"  '{label}': {len(groups[override_key])} files")
+	def normalise_override_value(value_str):
+		"""Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
+		try:
+			val = float(value_str)
+			if val.is_integer():
+				return str(int(val))
+			else:
+				return f"{val:.2f}"
+		except ValueError:
+			return value_str
+	
+	def extract_override_key(fname):
+		"""
+		Extract override parameters from filename for grouping.
+		Pattern: sweep_{idx}_n{nseed}_plot_{mode}_xname_{xname}_xvals_{range}_mode_psn_{overrides}.pkl
+	
+		Examples:
+		- sweep_0_n100_plot_l_frac_xname_PA_xvals_0.00-4.00_mode_psn_N100.pkl -> "N100"
+		- sweep_5_n100_plot_l_frac_xname_PA_xvals_25.00-29.00_mode_psn_N1000.pkl -> "N1000"
+	
+		Returns: string like "N100" or "N100_tau5.5" or "" if no overrides
+		"""
+		m = re.search(r'_mode_psn_(.+?)\.pkl$', fname)
+		if not m:
+			return ""
+	
+		override_str = m.group(1)
+	
+		override_parts = override_str.split('_')
+	
+		normalized_parts = []
+		for part in override_parts:
+			match = re.match(r'^([a-zA-Z]+)([0-9.]+)$', part)
+			if match:
+				param = match.group(1)
+				value = match.group(2)
+				normalized_value = normalise_override_value(value)
+				normalized_parts.append(f"{param}{normalized_value}")
+			else:
+				logging.debug(f"Skipping unexpected override part: {part}")
+	
+		return "_".join(normalized_parts) if normalized_parts else ""
+	
+	def extract_override_params_for_sorting(override_key):
+		"""
+		Convert override_key string to dict for sorting.
+		Example: "N100_tau5.5" -> {'N': 100, 'tau': 5.5}
+		"""
+		if not override_key:
+			return {}
+		
+		override_dict = {}
+		param_pattern = r'([a-zA-Z_]+)([0-9.]+)'
+		matches = re.findall(param_pattern, override_key)
+		
+		for param, value in matches:
+			try:
+				override_dict[param] = float(value)
+			except ValueError:
+				pass
+		
+		return override_dict
+	
+	def sort_key_for_overrides(override_key):
+		"""
+		Generate sort key for override parameters.
+		Sorts by: N, tau, lfrac, vfrac, PA, DM, RM, width in that order.
+		"""
+		override_params = extract_override_params_for_sorting(override_key)
+		
+		# Sort order for common parameters
+		param_order = ['N', 'tau', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width']
+		
+		sort_tuple = []
+		for param in param_order:
+			sort_tuple.append(override_params.get(param, 0))  # 0 if param not present
+		
+		return tuple(sort_tuple)
+	
+	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
+	logging.info(f"Found {len(file_names)} .pkl files")
+	
+	groups = defaultdict(list)
+	
+	# Group files by override parameters
+	for fname in file_names:
+		override_key = extract_override_key(fname)
+		groups[override_key].append(fname)
+	
+	# Sort groups by override parameters
+	sorted_keys = sorted(groups.keys(), key=sort_key_for_overrides)
+	
+	logging.info(f"Grouped files into {len(groups)} unique series (sorted by override params):")
+	for override_key in sorted_keys:
+		label = override_key if override_key else "baseline"
+		logging.info(f"  '{label}': {len(groups[override_key])} files")
 
-    all_results = {}
-    
-    for override_key in sorted_keys:
-        file_list = groups[override_key]
-        
-        xname = None
-        plot_mode = None
-        dspec_params = None
-        all_xvals = []
-        all_measures = {}
-        all_V_params = {}
-        all_exp_vars = {}
-        all_snrs = {}
+	all_results = {}
+	
+	for override_key in sorted_keys:
+		file_list = groups[override_key]
+		
+		xname = None
+		plot_mode = None
+		dspec_params = None
+		all_xvals = []
+		all_measures = {}
+		all_V_params = {}
+		all_exp_vars = {}
+		all_snrs = {}
 
-        seen_xvals = set()
-        label = override_key if override_key else "baseline"
-        logging.info(f"Merging {len(file_list)} files for series '{label}'")
-        
-        for fname in file_list:
-            with open(os.path.join(data, fname), "rb") as f:
-                obj = pkl.load(f)
-            if not isinstance(obj, dict):
-                logging.warning(f"File {fname} does not contain expected dict structure")
-                continue
-            
-            if xname is None:
-                xname = obj.get("xname")
-                plot_mode = obj.get("plot_mode")
-                dspec_params = obj.get("dspec_params")
+		seen_xvals = set()
+		label = override_key if override_key else "baseline"
+		logging.info(f"Merging {len(file_list)} files for series '{label}'")
+		
+		for fname in file_list:
+			with open(os.path.join(data, fname), "rb") as f:
+				obj = pkl.load(f)
+			if not isinstance(obj, dict):
+				logging.warning(f"File {fname} does not contain expected dict structure")
+				continue
+			
+			if xname is None:
+				xname = obj.get("xname")
+				plot_mode = obj.get("plot_mode")
+				dspec_params = obj.get("dspec_params")
 
-            xvals = obj.get("xvals", [])
-            snrs = obj.get("snrs", {})
-            V_params = obj.get("V_params", {})
-            exp_vars = obj.get("exp_vars", {})
-            measures = obj.get("measures", {})
+			xvals = obj.get("xvals", [])
+			snrs = obj.get("snrs", {})
+			V_params = obj.get("V_params", {})
+			exp_vars = obj.get("exp_vars", {})
+			measures = obj.get("measures", {})
 
-            # Merge xvals and associated data
-            for v in xvals:
-                if v not in seen_xvals:
-                    seen_xvals.add(v)
-                    all_xvals.append(v)
-                # init per-xval
-                if v not in all_measures:
-                    all_measures[v] = []
-                    all_snrs[v] = []
-                    all_V_params[v] = {key: [] for key in V_params.get(v, {}).keys()}
-                    all_exp_vars[v] = {key: [] for key in exp_vars.get(v, {}).keys()}
-                # extend
-                all_measures[v].extend(measures.get(v, []))
-                all_snrs[v].extend(snrs.get(v, []))
-                for key, arr in V_params.get(v, {}).items():
-                    all_V_params[v][key].extend(arr)
-                for key, arr in exp_vars.get(v, {}).items():
-                    all_exp_vars[v][key].extend(arr)
-        
-        all_xvals = sorted(all_xvals)
-        series_key = label  # Use override params as key
-        all_results[series_key] = {
-            'xname': xname,
-            'xvals': all_xvals,
-            'measures': all_measures,     
-            'V_params': all_V_params,
-            'exp_vars': all_exp_vars,
-            'dspec_params': dspec_params,
-            'plot_mode': plot_mode,
-            'snrs': all_snrs
-        }
-        
-        logging.info(
-            f"Merged '{label}': {len(all_xvals)} unique xvals, "
-            f"range {min(all_xvals):.1f}-{max(all_xvals):.1f}"
-        )
+			# Merge xvals and associated data
+			for v in xvals:
+				if v not in seen_xvals:
+					seen_xvals.add(v)
+					all_xvals.append(v)
+				# init per-xval
+				if v not in all_measures:
+					all_measures[v] = []
+					all_snrs[v] = []
+					all_V_params[v] = {key: [] for key in V_params.get(v, {}).keys()}
+					all_exp_vars[v] = {key: [] for key in exp_vars.get(v, {}).keys()}
+				# extend
+				all_measures[v].extend(measures.get(v, []))
+				all_snrs[v].extend(snrs.get(v, []))
+				for key, arr in V_params.get(v, {}).items():
+					all_V_params[v][key].extend(arr)
+				for key, arr in exp_vars.get(v, {}).items():
+					all_exp_vars[v][key].extend(arr)
+		
+		all_xvals = sorted(all_xvals)
+		series_key = label  # Use override params as key
+		all_results[series_key] = {
+			'xname': xname,
+			'xvals': all_xvals,
+			'measures': all_measures,     
+			'V_params': all_V_params,
+			'exp_vars': all_exp_vars,
+			'dspec_params': dspec_params,
+			'plot_mode': plot_mode,
+			'snrs': all_snrs
+		}
+		
+		logging.info(
+			f"Merged '{label}': {len(all_xvals)} unique xvals, "
+			f"range {min(all_xvals):.1f}-{max(all_xvals):.1f}"
+		)
 
-    logging.info(f"Returning {len(all_results)} unique series (sorted)\n")
-    
-    # If only one series, return unwrapped dict instead of nested structure
-    if len(all_results) == 1:
-        single_key = list(all_results.keys())[0]
-        logging.info(f"Single series detected ('{single_key}'), returning unwrapped dict for window comparison")
-        return all_results[single_key]
-    
-    return all_results
+	logging.info(f"Returning {len(all_results)} unique series (sorted)\n")
+	
+	# If only one series, return unwrapped dict instead of nested structure
+	if len(all_results) == 1:
+		single_key = list(all_results.keys())[0]
+		logging.info(f"Single series detected ('{single_key}'), returning unwrapped dict for window comparison")
+		return all_results[single_key]
+	
+	return all_results

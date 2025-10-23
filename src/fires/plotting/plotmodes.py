@@ -22,10 +22,10 @@ import matplotlib.ticker as mticker
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
-from scipy.stats import circvar, circstd
+from scipy.stats import circstd, circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec)
+                                 process_dspec)
 from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -486,7 +486,7 @@ def _yvals_from_measures_dict(xvals, measures, plot_type: str, phase_window: str
 	return yvals
 
 
-def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'):
+def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, colour='black'):
 	"""
 	Fit the data (x, y) with the specified function and plot the fit on ax.
 	"""
@@ -577,7 +577,7 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, color='black'
 			return
 		y_model, fit_label = handler(x_fit, y_fit)
 		if y_model is not None:
-			ax.plot(x_fit, y_model, '--', color=color, label=fit_label if label is None else label)
+			ax.plot(x_fit, y_model, '--', color=colour, label=fit_label if label is None else label)
 	except Exception as e:
 		logging.error(f"Fit failed: {e}")
 
@@ -853,349 +853,6 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
 
 
-def _find_equal_value_intersections(frb_dict, target_param, target_values=None, n_lines=5,
-									plot_type='pa_var', phase_window='total', freq_window='full-band'):
-	"""
-	Find parameter values where different runs have equal values for a specified parameter.
-	Now derives y-values from 'measures' instead of legacy 'yvals'.
-
-	Parameters:
-	-----------
-	frb_dict : dict
-		Multi-run dictionary with run names as keys
-	target_param : str
-		Parameter name to find equal values for (e.g., 'PA_i', 'tau_ms', 'lfrac')
-	target_values : list or None
-		Specific parameter values to find intersections at. If None, auto-select
-	n_lines : int
-		Number of guide lines to plot if target_values is None
-	plot_type : str
-		'pa_var' or 'l_frac' (determines which metric to extract from measures)
-	phase_window : str
-		Phase window alias ('total'/'leading'/'trailing' or equivalents)
-	freq_window : str
-		Frequency window alias ('full-band'/'1q'...'4q' or equivalents)
-	"""
-	if not _is_multi_run_dict(frb_dict):
-		return {}
-	
-	runs = {}
-	for run_name, subdict in frb_dict.items():
-		xvals = np.array(subdict["xvals"])
-
-		if "measures" not in subdict:
-			logging.warning(f"Run '{run_name}' missing 'measures'; skipping")
-			continue
-		yvals_dict = _yvals_from_measures_dict(xvals, subdict["measures"], plot_type, phase_window, freq_window)
-
-		med_y, _ = _median_percentiles(yvals_dict, xvals)
-		
-		V_params = subdict.get("V_params", {})
-		dspec_params = subdict.get("dspec_params", {})
-		
-		param_vals = []
-		for xv in xvals:
-			val = None
-			if isinstance(V_params, dict) and xv in V_params:
-				param_dict = V_params[xv]
-				if isinstance(param_dict, dict) and target_param in param_dict:
-					val_list = param_dict[target_param]
-					if isinstance(val_list, (list, np.ndarray)) and len(val_list) > 0:
-						val = float(np.nanmean(val_list))
-					elif isinstance(val_list, (int, float)):
-						val = float(val_list)
-			if val is None:
-				if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-					idx = np.where(xvals == xv)[0]
-					if len(idx) > 0 and idx[0] < len(dspec_params):
-						dspec_dict = dspec_params[idx[0]]
-						if isinstance(dspec_dict, dict) and target_param in dspec_dict:
-							param_value = dspec_dict[target_param]
-							if isinstance(param_value, (list, np.ndarray)) and len(param_value) > 0:
-								val = float(np.nanmean(param_value))
-							elif isinstance(param_value, (int, float)):
-								val = float(param_value)
-				elif isinstance(dspec_params, dict) and target_param in dspec_params:
-					param_value = dspec_params[target_param]
-					if isinstance(param_value, (list, np.ndarray)) and len(param_value) > 0:
-						val = float(np.nanmean(param_value))
-					elif isinstance(param_value, (int, float)):
-						val = float(param_value)
-			param_vals.append(val if val is not None else np.nan)
-		
-		param_vals = np.array(param_vals)
-		valid_count = np.sum(np.isfinite(param_vals))
-		if valid_count > 0 and np.any(np.isfinite(med_y)):
-			runs[run_name] = {
-				'x': xvals,
-				'y': np.array(med_y, dtype=float),
-				'param': param_vals
-			}
-	
-	if len(runs) < 2:
-		logging.warning(f"Need at least 2 runs to find intersections for {target_param}, found {len(runs)}")
-		return {}
-	
-	all_unique_params = set()
-	for run_name, run_data in runs.items():
-		valid_vals = run_data['param'][np.isfinite(run_data['param'])]
-		for val in valid_vals:
-			all_unique_params.add(round(float(val), 10))
-	all_unique_params = sorted(all_unique_params)
-	
-	if len(all_unique_params) < 2:
-		logging.warning(f"Insufficient unique {target_param} values to find intersections (found {len(all_unique_params)})")
-		return {}
-	
-	if target_values is None:
-		if len(all_unique_params) <= n_lines:
-			target_values = list(all_unique_params)
-		else:
-			indices = np.linspace(0, len(all_unique_params) - 1, n_lines, dtype=int)
-			target_values = [all_unique_params[i] for i in indices]
-	
-	intersections = {}
-	for target_val in target_values:
-		run_points = {}
-		for run_name, run_data in runs.items():
-			x = run_data['x']; y = run_data['y']; param = run_data['param']
-			valid = np.isfinite(y) & np.isfinite(param)
-			if not np.any(valid):
-				continue
-			xv = x[valid]; yv = y[valid]; pv = param[valid]
-			unique = np.unique(pv.round(10))
-			if len(unique) == 1:
-				if np.abs(unique[0] - target_val) < 1e-9:
-					for xi, yi in zip(xv, yv):
-						run_points[f"{run_name}_{xi}"] = (xi, yi)
-				continue
-			if target_val < np.min(pv) or target_val > np.max(pv):
-				continue
-			try:
-				order = np.argsort(pv)
-				p_sorted = pv[order]
-				x_sorted = xv[order]
-				y_sorted = yv[order]
-				x_interp = np.interp(target_val, p_sorted, x_sorted)
-				y_interp = np.interp(target_val, p_sorted, y_sorted)
-				run_points[run_name] = (x_interp, y_interp)
-			except Exception:
-				continue
-		if len(run_points) >= 2:
-			intersections[target_val] = run_points
-	return intersections
-
-
-def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight_y_by=None, 
-							 target_values=None, n_lines=5, linestyle='--', alpha=0.5, 
-							 color='black', show_labels=True, zorder=0,
-							 plot_type='pa_var', phase_window='total', freq_window='full-band'):
-	"""
-	Plot curves connecting points where runs have equal values for a specified parameter,
-	extending to axis bounds. Labels are drawn inline with a background bbox to create a
-	visual gap like '--------- label ---------'.
-	"""
-	intersections = _find_equal_value_intersections(
-		frb_dict, target_param, target_values, n_lines,
-		plot_type=plot_type, phase_window=phase_window, freq_window=freq_window
-	)
-	if not intersections:
-		logging.info(f"No equal {target_param} intersections found for background lines")
-		return
-
-	# Use final axis settings (should be called after main data is plotted)
-	xlim = ax.get_xlim()
-	ylim = ax.get_ylim()
-	# Ensure increasing order
-	xlim = (min(xlim), max(xlim))
-	ylim = (min(ylim), max(ylim))
-	x_is_log = (ax.get_xscale() == 'log')
-	y_is_log = (ax.get_yscale() == 'log')
-
-	# Resolve weights for normalisation (single constants)
-	first_run = next(iter(frb_dict.values()))
-	V_params = first_run.get("V_params", {})
-	dspec_params = first_run.get("dspec_params", {})
-
-	def _extract_weight(weight_by, src_V, src_D):
-		if weight_by is None:
-			return None
-		src = src_V if weight_by.endswith("_i") else src_D
-		if isinstance(src, (list, tuple)) and len(src) > 0 and isinstance(src[0], dict):
-			w = src[0].get(weight_by, None)
-			if isinstance(w, (list, np.ndarray)):
-				return float(np.array(w).flat[0]) if len(w) else None
-			return float(w) if isinstance(w, (int, float)) else None
-		if isinstance(src, dict):
-			w = src.get(weight_by, None)
-			if isinstance(w, (list, np.ndarray)):
-				return float(np.array(w).flat[0]) if len(w) else None
-			return float(w) if isinstance(w, (int, float)) else None
-		return None
-
-	x_weight = _extract_weight(weight_x_by, V_params, dspec_params)
-	y_weight = _extract_weight(weight_y_by, V_params, dspec_params)
-
-	# Label formatting
-	if target_param.endswith('_i'):
-		base_param = target_param.removesuffix('_i')
-		info = param_map.get(base_param, (base_param, ""))
-		base_name = info[0] if isinstance(info, tuple) else info
-		base_unit = info[1] if isinstance(info, tuple) else ""
-		param_symbol = rf"\mathrm{{Var}}({base_name})"
-		param_unit = (base_unit[:-1] + r"}^2") if (base_unit.startswith(r"\mathrm{") and base_unit.endswith("}")) else (f"{base_unit}^2" if base_unit else "")
-	else:
-		info = param_map.get(target_param, (target_param, ""))
-		param_symbol = info[0] if isinstance(info, tuple) else target_param
-		param_unit = info[1] if isinstance(info, tuple) else ""
-
-	def _format_val(v):
-		return f"{v:.1e}" if (abs(v) < 0.01 or abs(v) > 1000) else f"{v:.2f}"
-
-	def _label_text(val):
-		if param_unit:
-			return f"${param_symbol} = {_format_val(val)}\\,{param_unit}$"
-		return f"${param_symbol} = {_format_val(val)}$"
-
-	# Build sampling grid exactly over current bounds
-	def _xgrid():
-		xmin, xmax = xlim
-		if x_is_log:
-			xmin = max(xmin, np.finfo(float).tiny)
-			xmax = max(xmax, xmin * (1 + 1e-6))
-			return np.geomspace(xmin, xmax, 512)
-		return np.linspace(xmin, xmax, 512)
-
-	# Inner bounds helper: returns (lo+margin, hi-margin)
-	def _inner_bounds(lim, frac=0.06, is_log=False):
-		lo, hi = lim
-		if is_log:
-			lo = max(lo, np.finfo(float).tiny)
-			L = np.log10(lo); H = np.log10(hi); m = (H - L) * frac
-			return 10**(L + m), 10**(H - m)
-		span = hi - lo
-		m = span * frac
-		return lo + m, hi - m
-
-	def _clamp(val, lim, frac=0.06, is_log=False):
-		lo_i, hi_i = _inner_bounds(lim, frac=frac, is_log=is_log)
-		return float(np.clip(val, lo_i, hi_i))
-
-	facecolor = ax.get_facecolor()
-
-	for idx, (target_val, run_points) in enumerate(intersections.items()):
-		# Collect points (normalised if requested)
-		xs, ys = [], []
-		for _, (x_val, y_val) in run_points.items():
-			if x_weight is not None and np.isfinite(x_weight) and x_weight > 0:
-				x_val = x_val / x_weight
-			if y_weight is not None and np.isfinite(y_weight) and y_weight > 0:
-				y_val = y_val / y_weight
-			xs.append(x_val)
-			ys.append(y_val)
-
-		if len(xs) < 2:
-			continue
-
-		xs = np.array(xs, dtype=float)
-		ys = np.array(ys, dtype=float)
-
-		# Vertical line (constant x)
-		if np.allclose(np.ptp(xs), 0, rtol=1e-12, atol=1e-12):
-			x_const = _clamp(xs[0], xlim, frac=0.06, is_log=x_is_log)
-			ax.axvline(x_const, linestyle=linestyle, color=color, alpha=alpha, zorder=zorder)
-			if show_labels:
-				# place label mid y-range (log-aware) and clamp
-				if y_is_log:
-					y_lo_i, y_hi_i = _inner_bounds(ylim, frac=0.06, is_log=True)
-					y_lab = np.sqrt(y_lo_i * y_hi_i)
-				else:
-					y_lo_i, y_hi_i = _inner_bounds(ylim, frac=0.06, is_log=False)
-					y_lab = 0.5 * (y_lo_i + y_hi_i)
-				ax.text(
-					x_const, y_lab, _label_text(target_val),
-					fontsize=9, color=color, rotation=90, rotation_mode='anchor',
-					ha='center', va='center', zorder=zorder + 1, clip_on=True,
-					bbox=dict(boxstyle='round,pad=0.2', fc=facecolor, ec='none')
-				)
-			continue
-
-		# Sort, dedupe, and build linear interpolator with extrapolation
-		order = np.argsort(xs)
-		xs_sorted = xs[order]
-		ys_sorted = ys[order]
-		mask_unique = np.concatenate(([True], np.diff(xs_sorted) != 0))
-		xs_sorted = xs_sorted[mask_unique]
-		ys_sorted = ys_sorted[mask_unique]
-		if len(xs_sorted) < 2:
-			continue
-
-		f = interp1d(xs_sorted, ys_sorted, kind='linear', fill_value='extrapolate',
-					 bounds_error=False, assume_sorted=True)
-
-		X = _xgrid()
-		with np.errstate(invalid='ignore'):
-			Y = f(X)
-
-		# Plot the full guide line across the axis range
-		ax.plot(X, Y, linestyle=linestyle, color=color, alpha=alpha, zorder=zorder, clip_on=True)
-
-		if not show_labels:
-			continue
-
-		# Choose a label point from the visible segment inside inner bounds
-		y_lo_i, y_hi_i = _inner_bounds(ylim, frac=0.08, is_log=y_is_log)
-		if y_is_log:
-			inside = np.isfinite(Y) & (Y > 0) & (Y >= y_lo_i) & (Y <= y_hi_i)
-		else:
-			inside = np.isfinite(Y) & (Y >= y_lo_i) & (Y <= y_hi_i)
-
-		if not np.any(inside):
-			# No visible segment; skip label to avoid off-plot text
-			continue
-
-		# Pick the midpoint index of the longest contiguous visible segment
-		idxs = np.where(inside)[0]
-		# Split into contiguous runs
-		splits = np.where(np.diff(idxs) > 1)[0] + 1
-		segments = np.split(idxs, splits)
-		seg = max(segments, key=len)
-		j = seg[len(seg)//2]
-		x_lab = float(X[j])
-		y_lab = float(Y[j])
-
-		# Compute local angle in display coords for proper rotation
-		if x_is_log:
-			step = 1.003
-			x1 = max(X[0], x_lab / step)
-			x2 = min(X[-1], x_lab * step)
-		else:
-			dx = (xlim[1] - xlim[0]) * 1e-3
-			x1 = max(X[0], x_lab - dx)
-			x2 = min(X[-1], x_lab + dx)
-		y1 = float(f(x1))
-		y2 = float(f(x2))
-		p1 = ax.transData.transform((x1, y1))
-		p2 = ax.transData.transform((x2, y2))
-		dx_disp = p2[0] - p1[0]
-		dy_disp = p2[1] - p1[1]
-		angle = 90.0 if dx_disp == 0 else np.degrees(np.arctan2(dy_disp, dx_disp))
-		if angle > 90:
-			angle -= 180
-		elif angle < -90:
-			angle += 180
-
-		# Draw inline label with background box to create the visible gap, clip inside axes
-		ax.text(
-			x_lab, y_lab, _label_text(target_val),
-			fontsize=9, color=color, rotation=angle, rotation_mode='anchor',
-			ha='center', va='center', zorder=zorder + 1, clip_on=True,
-			bbox=dict(boxstyle='round,pad=0.2', fc=facecolor, ec='none')
-		)
-
-	logging.info(f"Plotted {len(intersections)} equal-{target_param} curves\n")
-
-
 def _format_override_label(override_str):
 	"""
 	Format override string for use in plot labels.
@@ -1307,31 +964,31 @@ def _plot_single_run_multi_window(
 	varying_phase = len(set(phase_windows)) > 1
 	
 	if varying_freq and not varying_phase:
-		def get_color(freq_win, phase_win):
+		def get_colour(freq_win, phase_win):
 			freq_label = normalise_freq_window(freq_win, target='dspec')
 			phase_label = normalise_phase_window(phase_win, target='dspec')
 			key = f"{freq_label}, {phase_label}"
 			return colour_map.get(key, colours['blue'])
 	
 	elif varying_phase and not varying_freq:
-		phase_colors = {
+		phase_colours = {
 			'leading': colours['orange'],
 			'trailing': colours['green'],
 			'total': colours['purple']
 		}
-		def get_color(freq_win, phase_win):
+		def get_colour(freq_win, phase_win):
 			phase_label = normalise_phase_window(phase_win, target='dspec')
-			return phase_colors.get(phase_label, colours['blue'])
+			return phase_colours.get(phase_label, colours['blue'])
 	
 	elif varying_freq and varying_phase:
-		# Both varying: use combination from colour_map or cycle through colors
-		def get_color(freq_win, phase_win):
+		# Both varying: use combination from colour_map or cycle through colours
+		def get_colour(freq_win, phase_win):
 			freq_label = normalise_freq_window(freq_win, target='dspec')
 			phase_label = normalise_phase_window(phase_win, target='dspec')
 			key = f"{freq_label}, {phase_label}"
 			if key in colour_map:
 				return colour_map[key]
-			# Fallback: cycle through base colors
+			# Fallback: cycle through base colours
 			idx = window_pairs.index((freq_win, phase_win))
 			if n_combos <= len(colours):
 				return list(colours.values())[idx % len(colours)]
@@ -1340,7 +997,7 @@ def _plot_single_run_multi_window(
 			return cmap(idx)
 	
 	else:
-		def get_color(freq_win, phase_win):
+		def get_colour(freq_win, phase_win):
 			freq_label = normalise_freq_window(freq_win, target='dspec')
 			phase_label = normalise_phase_window(phase_win, target='dspec')
 			key = f"{freq_label}, {phase_label}"
@@ -1380,13 +1037,13 @@ def _plot_single_run_multi_window(
 		else:
 			series_label = f"{freq_label}, {phase_label}"
 		
-		color = get_color(freq_win, phase_win)
-		ax.plot(x, med_vals, color=color, label=series_label, linewidth=2)
-		ax.fill_between(x, lower, upper, color=color, alpha=0.2)
+		colour = get_colour(freq_win, phase_win)
+		ax.plot(x, med_vals, color=colour, label=series_label, linewidth=2)
+		ax.fill_between(x, lower, upper, color=colour, alpha=0.2)
 		
 		if fit is not None:
 			fit_type, fit_degree = _parse_fit_arg(fit)
-			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=color)
+			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
 	
 	# Observational overlay
 	if obs_data is not None:
@@ -1407,7 +1064,7 @@ def _plot_single_run_multi_window(
 						plot_mode=plot_mode_obj
 					)
 					
-					color = get_color(freq_win, phase_win)
+					colour = get_colour(freq_win, phase_win)
 					
 					freq_label = freq_canonical
 					phase_label = phase_canonical
@@ -1426,7 +1083,7 @@ def _plot_single_run_multi_window(
 						ax, obs_result,
 						weight_x_by=weight_x_by,
 						weight_y_by=weight_y_by,
-						color=color,
+						colour=colour,
 						marker='*',
 						size=300
 					)
@@ -1439,7 +1096,7 @@ def _plot_single_run_multi_window(
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 	
 	if legend:
-		ax.legend(fontsize=14, loc='best')
+		ax.legend(loc='best')
 
 
 def _plot_single_job_common(
@@ -1451,7 +1108,7 @@ def _plot_single_job_common(
 	fit,
 	scale,
 	series_label,
-	series_color='black',
+	series_colour='black',
 	expected_param_key=None,
 	ax=None,
 	embed=False,
@@ -1499,8 +1156,8 @@ def _plot_single_job_common(
 			ax.grid(True, linestyle='--', alpha=0.6)
 
 	# Draw measured series
-	ax.plot(x, med_vals, color=series_color, label=series_label, linewidth=2)
-	ax.fill_between(x, lower, upper, color=series_color, alpha=0.2)
+	ax.plot(x, med_vals, color=series_colour, label=series_label, linewidth=2)
+	ax.fill_between(x, lower, upper, color=series_colour, alpha=0.2)
 
 	# Expected curves (optional)
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
@@ -1528,189 +1185,179 @@ def _plot_single_job_common(
 
 
 def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, 
-				   legend=True, equal_value_lines=None, plot_type='pa_var',  
-				   phase_window='total', freq_window='full-band'):          
-	"""
-	Common plotting logic for plot_pa_var and plot_lfrac_var.
+                   legend=True, plot_type='pa_var',  
+                   phase_window='total', freq_window='full-band'):          
+    """
+    Common plotting logic for plot_pa_var and plot_lfrac_var.
 
-	Parameters:
-	-----------
-	frb_dict : dict
-		Dictionary containing FRB simulation data.
-	ax : matplotlib.axes.Axes
-		Axis object for plotting.
-	fit : str or list
-		Fit type or list of fit types.
-	scale : str
-		Scale type ("linear", "logx", "logy", "loglog").
-	yname : str
-		Y-axis variable name.
-	weight_y_by : str or None
-		Key to use for weighting y-values.
-	weight_x_by : str or None, optional
-		Parameter to weight/normalise x-axis by.
-	legend : bool
-		Whether to show legend.
-	equal_value_lines : str or None
-		Parameter name to plot equal-value background lines for (e.g., 'PA_i', 'tau_ms').
-		If None, no background lines are plotted.
-	"""
+    Parameters:
+    -----------
+    frb_dict : dict
+        Dictionary containing FRB simulation data.
+    ax : matplotlib.axes.Axes
+        Axis object for plotting.
+    fit : str or list
+        Fit type or list of fit types.
+    scale : str
+        Scale type ("linear", "logx", "logy", "loglog").
+    yname : str
+        Y-axis variable name.
+    weight_y_by : str or None
+        Key to use for weighting y-values.
+    weight_x_by : str or None, optional
+        Parameter to weight/normalise x-axis by.
+    legend : bool
+        Whether to show legend.
 
-	# Determine y-axis name if not provided
-	base_yname = yname
+    """
 
-	colour_list = list(colours.values())
+    # Determine y-axis name if not provided
+    base_yname = yname
 
-	# Resolve current window labels (long form) for legend/color mapping
-	curr_freq_label = normalise_freq_window(freq_window, target='dspec')      # e.g. 'lowest-quarter', 'full-band'
-	curr_phase_label = normalise_phase_window(phase_window, target='dspec')   # e.g. 'leading', 'trailing', 'total'
-	base_label_for_all = f"{curr_freq_label}, {curr_phase_label}"
+    colour_list = list(colours.values())
 
-	# Prefer a specific run for expected curves if present
-	preferred_run = None
-	for run in frb_dict.keys():
-		if "full-band" in run and "total" in run:
-			preferred_run = run
-			break
+    # Resolve current window labels (long form) for legend/colour mapping
+    curr_freq_label = normalise_freq_window(freq_window, target='dspec')      # e.g. 'lowest-quarter', 'full-band'
+    curr_phase_label = normalise_phase_window(phase_window, target='dspec')   # e.g. 'leading', 'trailing', 'total'
+    base_label_for_all = f"{curr_freq_label}, {curr_phase_label}"
 
-	# Track whether weighting succeeded in all runs
-	weight_applied_all = True
-	first_run_key = next(iter(frb_dict))
+    # Prefer a specific run for expected curves if present
+    preferred_run = None
+    for run in frb_dict.keys():
+        if "full-band" in run and "total" in run:
+            preferred_run = run
+            break
 
-	# Keep info for plotting expected after we know if weighting applied
-	exp_ref_run = preferred_run if preferred_run is not None else first_run_key
-	exp_ref_subdict = frb_dict[exp_ref_run]
+    # Track whether weighting succeeded in all runs
+    weight_applied_all = True
+    first_run_key = next(iter(frb_dict))
 
-	# Track last x, xname, and x_unit for axis labeling
-	x_last = None
-	xname = None
-	x_unit = None
+    # Keep info for plotting expected after we know if weighting applied
+    exp_ref_run = preferred_run if preferred_run is not None else first_run_key
+    exp_ref_subdict = frb_dict[exp_ref_run]
 
-	from collections import defaultdict
-	base_groups = defaultdict(list)
-	for freq_phase_key in frb_dict.keys():
-		base_groups[base_label_for_all].append(freq_phase_key)
-	
-	def get_color_shades(base_color, n_shades):
-		"""
-		Generate n_shades of a base color, from darker to lighter.
-		Returns list of hex colors.
-		"""
-		import matplotlib.colors as mcolors
+    # Track last x, xname, and x_unit for axis labeling
+    x_last = None
+    xname = None
+    x_unit = None
+
+    from collections import defaultdict
+    base_groups = defaultdict(list)
+    for freq_phase_key in frb_dict.keys():
+        # Group by override parameters only (everything in the key IS the override)
+        base_groups[freq_phase_key].append(freq_phase_key)
+    
+    def get_colour_shades(base_colour, n_shades):
+        """
+        Generate n_shades of a base colour, from darker to lighter.
+        Returns list of hex colours.
+        """
+        import matplotlib.colors as mcolors
+        
+        if n_shades == 1:
+            return [base_colour]
+
+        rgb = mcolors.hex2color(base_colour)
+        shades = []
+        for i in range(n_shades):
+            if n_shades == 2:
+                factors = [0.7, 1.0]
+            elif n_shades == 3:
+                factors = [0.6, 1.0, 1.3]
+            else:
+                t = i / (n_shades - 1)
+                factors = [0.5 + 0.8 * t]
+            
+            factor = factors[i] if i < len(factors) else 0.5 + 0.8 * (i / (n_shades - 1))
+            
+            if factor <= 1.0:
+                new_rgb = tuple(max(0, min(1, c * factor)) for c in rgb)
+            else:
+                blend = factor - 1.0  
+                new_rgb = tuple(max(0, min(1, c + (1 - c) * blend)) for c in rgb)
+            shades.append(mcolors.rgb2hex(new_rgb))
+        
+        return shades
+
+    # Get base colour for the current window
+    base_colour = colour_map.get(base_label_for_all, colours['purple'])
+    
+    # Generate shades for all runs
+    n_runs = len(frb_dict)
+    if n_runs > 1:
+        colour_shades = get_colour_shades(base_colour, n_runs)
+    else:
+        colour_shades = [base_colour]
+
+    for idx, (override_key, run_data) in enumerate(frb_dict.items()):
+        logging.info(f"Processing {override_key}:")
 		
-		if n_shades == 1:
-			return [base_color]
-		
-		rgb = mcolors.hex2color(base_color)
-		shades = []
-		for i in range(n_shades):
-			if n_shades == 2:
-				factors = [0.7, 1.0]
-			elif n_shades == 3:
-				factors = [0.6, 1.0, 1.3]
-			else:
-				t = i / (n_shades - 1)
-				factors = [0.5 + 0.8 * t]
-			
-			factor = factors[i] if i < len(factors) else 0.5 + 0.8 * (i / (n_shades - 1))
-			
-			if factor <= 1.0:
-				new_rgb = tuple(max(0, min(1, c * factor)) for c in rgb)
-			else:
-				blend = factor - 1.0  
-				new_rgb = tuple(max(0, min(1, c + (1 - c) * blend)) for c in rgb)
-			shades.append(mcolors.rgb2hex(new_rgb))
-		
-		return shades
+        override_label = _format_override_label(override_key) if override_key else ""
+        
+        if override_label:
+            series_label = f"{base_label_for_all}, {override_label}"
+        else:
+            series_label = base_label_for_all
+        
+        # Use shade of base colour
+        colour = colour_shades[idx]
 
-	for idx, (freq_phase_key, run_data) in enumerate(frb_dict.items()):
-		logging.info(f"Processing {freq_phase_key}:")
-		
-		# Build series label using CURRENT windows, append overrides from filename
-		parts = freq_phase_key.split(', ')
-		override_str = ", ".join(parts[2:]) if len(parts) > 2 else ""
-		override_label = _format_override_label(override_str) if override_str else ""
-		series_label = f"{base_label_for_all}" + (f", {override_label}" if override_label else "")
+        run_fit = None
+        if fit is not None:
+            if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
+                run_fit = fit[idx]
+            else:
+                run_fit = fit
 
-		# Base color keyed by current windows
-		base_color = colour_map.get(base_label_for_all, colour_list[idx % len(colour_list)])
-		 
-		# If multiple series share the same base (current windows), use shades
-		series_in_group = base_groups[base_label_for_all]
-		if len(series_in_group) > 1:
-			shades = get_color_shades(base_color, len(series_in_group))
-			group_idx = series_in_group.index(freq_phase_key)
-			color = shades[group_idx]
-		else:
-			color = base_color
+        if "measures" not in run_data:
+            raise KeyError(f"Run '{override_key}' missing 'measures'.")
+        yvals_run = _yvals_from_measures_dict(run_data["xvals"], run_data["measures"], plot_type, phase_window, freq_window)
 
-		run_fit = None
-		if fit is not None:
-			if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
-				run_fit = fit[idx]
-			else:
-				run_fit = fit
+        _, ax, meta = _plot_single_job_common(
+            frb_dict=run_data,
+            yname_base=base_yname,
+            weight_y_by=weight_y_by,
+            x_weight_by=weight_x_by,
+            figsize=None,
+            fit=run_fit,
+            scale=scale,
+            series_label=series_label,
+            series_colour=colour,
+            expected_param_key=None,
+            ax=ax,
+            embed=True,
+            plot_expected=False,
+            yvals_override=yvals_run 
+        )
+        if weight_y_by is not None and not meta['applied']:
+            logging.warning(f"Requested weighting by '{weight_y_by}' for run '{override_key}' but it could not be applied. Using unweighted values.")
+        weight_applied_all &= meta['applied']
 
-		if "measures" not in run_data:
-			raise KeyError(f"Run '{freq_phase_key}' missing 'measures'.")
-		yvals_run = _yvals_from_measures_dict(run_data["xvals"], run_data["measures"], plot_type, phase_window, freq_window)
+        _print_avg_snrs(run_data)
 
-		_, ax, meta = _plot_single_job_common(
-			frb_dict=run_data,
-			yname_base=base_yname,
-			weight_y_by=weight_y_by,
-			x_weight_by=weight_x_by,
-			figsize=None,
-			fit=run_fit,
-			scale=scale,
-			series_label=series_label,
-			series_color=color,
-			expected_param_key=None,
-			ax=ax,
-			embed=True,
-			plot_expected=False,
-			yvals_override=yvals_run 
-		)
-		if weight_y_by is not None and not meta['applied']:
-			logging.warning(f"Requested weighting by '{weight_y_by}' for run '{freq_phase_key}' but it could not be applied. Using unweighted values.")
-		weight_applied_all &= meta['applied']
+        x_last = meta['x']
+        xname = meta['xname']
+        x_unit = meta['x_unit']
 
-		_print_avg_snrs(run_data)
+    if weight_y_by is not None:
+        param_key = 'exp_var_' + weight_y_by.removesuffix('_i')
+    elif base_yname == r"\mathbb{V}(\psi)":
+        param_key = 'exp_var_PA'
+    elif base_yname == r"\Pi_L":
+        param_key = 'exp_var_lfrac'
+    else:
+        param_key = 'exp_var_PA'
+        logging.warning(f"Could not determine expected parameter key for yname='{base_yname}', using default '{param_key}'")
+    
+    weight_for_expected = weight_y_by if (weight_y_by is not None and weight_applied_all) else None
+    _plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
+                   param_key=param_key, weight_y_by=weight_for_expected)
 
-		x_last = meta['x']
-		xname = meta['xname']
-		x_unit = meta['x_unit']
+    if legend:
+        ax.legend(loc='best')
 
-	if weight_y_by is not None:
-		param_key = 'exp_var_' + weight_y_by.removesuffix('_i')
-	elif base_yname == r"Var($\psi$)":
-		param_key = 'exp_var_PA'
-	elif base_yname == r"\Pi_L":
-		param_key = 'exp_var_lfrac'
-	else:
-		param_key = 'exp_var_PA'
-		logging.warning(f"Could not determine expected parameter key for yname='{base_yname}', using default '{param_key}'")
-	
-	weight_for_expected = weight_y_by if (weight_y_by is not None and weight_applied_all) else None
-	_plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
-				   param_key=param_key, weight_y_by=weight_for_expected)
-
-	if legend:
-		ax.legend(fontsize=14, loc='best')
-
-	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
-	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
-
-	if equal_value_lines is not None:
-		_xlim0, _ylim0 = ax.get_xlim(), ax.get_ylim()
-		_plot_equal_value_lines(
-			ax, frb_dict, target_param=equal_value_lines,
-			weight_x_by=weight_x_by, weight_y_by=weight_y_by,
-			target_values=None, n_lines=5,
-			linestyle=':', alpha=0.5, color='black', show_labels=True, zorder=0,
-			plot_type=plot_type, phase_window=phase_window, freq_window=freq_window  
-		)
-		ax.set_xlim(_xlim0); ax.set_ylim(_ylim0)
+    final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
+    _set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 
 
 
@@ -1783,7 +1430,6 @@ def plot_pa_var(
 	weight_y_by=None,
 	obs_data=None,
 	obs_params=None,
-	equal_value_lines=None,
 	compare_windows=None,
 	buffer_frac=0.1
 	):
@@ -1831,11 +1477,11 @@ def plot_pa_var(
 		
 	Notes:
 	------
-	- For multi-run plots, each run is plotted with different colors and includes
+	- For multi-run plots, each run is plotted with different colours and includes
 	  median values with 16th-84th percentile error bands
 	- X-axis shows τ/W (scattering time normalised by pulse width) 
 	- Y-axis shows R_ψ, the variance ratio of polarisation angles
-	- Automatic color mapping is applied for predefined run types
+	- Automatic colour mapping is applied for predefined run types
 	"""
 
 	yname = r"\mathbb{V}(\psi)"
@@ -1879,17 +1525,17 @@ def plot_pa_var(
 		_plot_multirun(
 			frb_dict, ax, fit=fit, scale=scale, yname=yname,
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by,
-			legend=legend, equal_value_lines=equal_value_lines,
+			legend=legend, 
 			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window  
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'pa_var', phase_window, freq_window)
 
-		# Determine color based on the selected window
+		# Determine colour based on the selected window
 		freq_label = normalise_freq_window(freq_window, target='dspec')
 		phase_label = normalise_phase_window(phase_window, target='dspec')
 		key = f"{freq_label}, {phase_label}"
-		series_color = colour_map.get(key, colours['purple']) 
+		series_colour = colour_map.get(key, colours['purple']) 
 
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
@@ -1900,7 +1546,7 @@ def plot_pa_var(
 			fit=fit,
 			scale=scale,
 			series_label=r'\psi$_{var}$',
-			series_color=series_color,
+			series_colour=series_colour,
 			expected_param_key='exp_var_PA',
 			yvals_override=yvals  
 		)
@@ -1915,7 +1561,7 @@ def plot_pa_var(
 			_plot_observational_overlay(ax, obs_result, 
 										weight_x_by=weight_x_by, 
 										weight_y_by=weight_y_by,
-										color='red', marker='*', size=300)
+										colour='red', marker='*', size=300)
 			if legend:
 				ax.legend()
 		except Exception as e:
@@ -1996,7 +1642,6 @@ def plot_lfrac(
 	weight_y_by=None,
 	obs_data=None,
 	obs_params=None,
-	equal_value_lines=None,
 	compare_windows=None,
 	buffer_frac=0.1
 	):
@@ -2095,17 +1740,17 @@ def plot_lfrac(
 		_plot_multirun(
 			frb_dict, ax, fit=fit, scale=scale, yname=yname,
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by,
-			legend=legend, equal_value_lines=equal_value_lines,
+			legend=legend,
 			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window  
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
 
-		# Determine color based on the selected window
+		# Determine colour based on the selected window
 		freq_label = normalise_freq_window(freq_window, target='dspec')
 		phase_label = normalise_phase_window(phase_window, target='dspec')
 		key = f"{freq_label}, {phase_label}"
-		series_color = colour_map.get(key, colours['purple'])  # default to purple
+		series_colour = colour_map.get(key, colours['purple'])  # default to purple
 		
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
@@ -2116,7 +1761,7 @@ def plot_lfrac(
 			fit=fit,
 			scale=scale,
 			series_label='L/I',
-			series_color=series_color,
+			series_colour=series_colour,
 			expected_param_key=None,
 			yvals_override=yvals
 		)
@@ -2131,7 +1776,7 @@ def plot_lfrac(
 			_plot_observational_overlay(ax, obs_result,
 										weight_x_by=weight_x_by,
 										weight_y_by=weight_y_by,
-										color='pink', marker='*', size=100)
+										colour='pink', marker='*', size=100)
 			if legend:
 				ax.legend()
 		except Exception as e:
@@ -2338,9 +1983,9 @@ def _process_observational_data(obs_data_path, obs_params_path, phase_window, fr
         logging.warning("Failed to extract valid measurements from observational data")
     
     return result
-	
 
-def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=None, color='pink', marker='*', size=1):
+
+def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=None, colour='pink', marker='*', size=1):
 	"""
 	Add observational data point with error bars as crosshairs on existing plot.
 	
@@ -2354,8 +1999,8 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 		X-axis weighting parameter (for normalisation)
 	weight_y_by : str or None
 		Y-axis weighting parameter (for normalisation)
-	color : str
-		Color for the observational marker
+	colour : str
+		colour for the observational marker
 	marker : str
 		Marker style
 	size : float
@@ -2387,28 +2032,28 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 				y_err = y_err / y_weight
 	
 	# Plot central point
-	ax.scatter(x, y, marker=marker, s=size, color=color, 
-			   edgecolors='black', linewidths=1.5, zorder=100,
+	ax.scatter(x, y, marker=marker, s=size, color=colour, 
+			   edgecolors='black', linewidths=1., zorder=100,
 			   label=label)
 	
 	# Plot error bars as crosshairs
 	#if x_err is not None and x_err > 0:
 	#	ax.errorbar(x, y, xerr=x_err, fmt='none', 
-	#				ecolor=color, elinewidth=2, capsize=5, capthick=2,
+	#				ecolor=colour, elinewidth=2, capsize=5, capthick=2,
 	#				zorder=99, alpha=0.7)
 	#
 	#if y_err is not None and y_err > 0:
 	#	ax.errorbar(x, y, yerr=y_err, fmt='none',
-	#				ecolor=color, elinewidth=2, capsize=5, capthick=2,
+	#				ecolor=colour, elinewidth=2, capsize=5, capthick=2,
 	#				zorder=99, alpha=0.7)
 	#
 	# Optionally add shaded regions for error ranges
 	
 	if x_err is not None and x_err > 0:
-		ax.axvspan(x - x_err, x + x_err, alpha=0.3, color=color, zorder=1)
+		ax.axvspan(x - x_err, x + x_err, alpha=0.3, color=colour, zorder=1)
 	
 	if y_err is not None and y_err > 0:
-		ax.axhspan(y - y_err, y + y_err, alpha=0.3, color=color, zorder=1)
+		ax.axhspan(y - y_err, y + y_err, alpha=0.3, color=colour, zorder=1)
 
 
 # Define PlotMode instances for each plot type
