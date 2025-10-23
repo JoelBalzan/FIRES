@@ -38,15 +38,9 @@ def main():
 		parser.print_help()
 		return 0
 
-
-	# Input Parameters
-	parser.add_argument(
-		"-f", "--frb_identifier",
-		type=str,
-		default="FRB",
-		metavar="",
-		help="Identifier for the simulated FRB."
-	)
+	# =====================================================================
+	# Configuration Management
+	# =====================================================================
 	parser.add_argument(
 		"--config-dir", 
 		type=str, 
@@ -63,8 +57,23 @@ def main():
 		help="Open config in $EDITOR"
 	)
 
-
-	# Output Options
+	# =====================================================================
+	# Input/Output
+	# =====================================================================
+	parser.add_argument(
+		"-f", "--frb_identifier",
+		type=str,
+		default="FRB",
+		metavar="",
+		help="Identifier for the simulated FRB."
+	)
+	parser.add_argument(
+		"-d", "--data",
+		type=str,
+		default=None,
+		metavar="",
+		help="Path to the data file. If provided, the simulation will use this data instead of generating new data."
+	)
 	parser.add_argument(
 		"-o", "--output-dir",
 		type=str,
@@ -78,6 +87,87 @@ def main():
 		help="If set, the simulation will be saved to disk. Default is False."
 	)
 	parser.add_argument(
+		"-v", "--verbose",
+		action="store_true",
+		help="Enable verbose output."
+	)
+
+	# =====================================================================
+	# Simulation Parameters
+	# =====================================================================
+	parser.add_argument(
+		"-m", "--mode",
+		type=str,
+		default='psn',
+		choices=['psn'],
+		metavar="",
+		help=("Mode for generating pulses: 'psn'. Default is 'psn.'\n"
+			  "'psn' will generate a gaussian distribution of gaussian micro-shots."
+		   )
+	)
+	parser.add_argument(
+		"--seed",
+		type=int,
+		default=None,
+		metavar="",
+		help="Set seed for repeatability in psn mode."
+	)
+	parser.add_argument(
+		"--nseed",
+		type=int,
+		default=1,
+		metavar="",
+		help="How many realisations to generate for pa_var and l_frac plots."
+	)
+	parser.add_argument(
+		"--ncpu",
+		type=int,
+		default=1,
+		metavar="",
+		help="Number of CPUs to use for parallel processing. Default is 1 (single-threaded)."
+	)
+	parser.add_argument(
+		"--sefd",
+		type=float,
+		default=0.0,
+		metavar="",
+		help="System equivalent flux density in Jansky for adding noise. Default is 0 Jy (no noise)."
+	)
+	parser.add_argument(
+		"--snr",
+		type=float,
+		default=None,
+		metavar="",
+		help="Target S/N for the pulse peak. If set, this will override the --sefd option."
+	)
+	parser.add_argument(
+		"--scint",
+		action="store_true",
+		help="Enable scintillation effects from scparamts.toml."
+	)
+	parser.add_argument(
+		"--chi2-fit",
+		action="store_true",
+		help="Enable chi-squared fitting on the final profiles (plot != pa_var and l_frac)."
+	)
+	parser.add_argument(
+		"--override-param",
+		type=str,
+		nargs="+",
+		default=None,
+		metavar="PARAM=VALUE",
+		help=("Override gparams parameters. Provide space-separated key=value pairs.\n"
+			  "Examples:\n"
+			  "  --override-param N=5 tau_ms=0.5\n"
+			  "  --override-param lfrac=0.8\n"
+			  "This is useful for comparing l_frac plots with different N values, etc.\n"
+			  "Note: Overrides apply to ALL micro-components uniformly.")
+	)
+
+	# =====================================================================
+	# Window Selection
+	# =====================================================================
+	parser.add_argument(
 		"--phase-window",
 		type=str,
 		default="all",
@@ -86,7 +176,7 @@ def main():
 		],
 		metavar="",
 		help=("Select the phase window for the simulation. Uses the pulse peak and bounds of the on-pulse region.\n"
-  			 "Default is 'total' or 'all'."
+			   "Default is 'total' or 'all'."
 	  )
 	)
 	parser.add_argument(
@@ -96,10 +186,10 @@ def main():
 		choices=[
 			'1q', '2q', '3q', '4q', 'full',  
 			'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', 'full-band' 
-   		],
+		   ],
 		metavar="",
-		help=("Frequency window for plotting PA variance and L/I.\n"
-  			  "Default is 'full-band' or 'full'."
+		help=("Select the frequency window for the simulation.\n"
+				"Default is 'full-band' or 'full'."
 	  )
 	)
 	parser.add_argument(
@@ -109,13 +199,10 @@ def main():
 		metavar="",
 		help="Buffer time in between on- and off-pulse regions as a fraction of the pulse width for noise estimation. Default is 0.1."
 	)
-	parser.add_argument(
-		"-v", "--verbose",
-		action="store_true",
-		help="Enable verbose output."
-	)
 
-	# Plotting Options
+	# =====================================================================
+	# Plotting Options - General
+	# =====================================================================
 	parser.add_argument(
 		"-p", "--plot",
 		nargs="+",
@@ -145,6 +232,11 @@ def main():
 		help="Disable plot display. "
 	)
 	parser.add_argument(
+		"--use-latex",
+		action="store_true",
+		help="Use LaTeX for plot text."
+	)
+	parser.add_argument(
 		"--figsize",
 		type=float,
 		nargs=2,
@@ -158,23 +250,6 @@ def main():
 		default="pdf",
 		metavar="",
 		help="File extension for saved plots. Default is 'pdf'."
-	)
-	parser.add_argument(
-		"--plot-scale",
-		type=str,
-		default="linear",
-		choices=['linear', 'logx', 'logy', 'loglog'],
-		metavar="",
-		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
-	)
-	parser.add_argument(
-		"--fit",
-		nargs="+",
-		default=None,
-		metavar="",
-		help=("Fit function for pa_var and l_frac plots.\n"
-  			 "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
-	  		)
 	)
 	parser.add_argument(
 		"--no-legend",
@@ -196,10 +271,26 @@ def main():
 		action="store_true",
 		help="Show off-pulse region in plots."
 	)
+
+	# =====================================================================
+	# Plotting Options - Analytic Plots (pa_var, l_frac)
+	# =====================================================================
 	parser.add_argument(
-		"--use-latex",
-		action="store_true",
-		help="Use LaTeX for plot text."
+		"--plot-scale",
+		type=str,
+		default="linear",
+		choices=['linear', 'logx', 'logy', 'loglog'],
+		metavar="",
+		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
+	)
+	parser.add_argument(
+		"--fit",
+		nargs="+",
+		default=None,
+		metavar="",
+		help=("Fit function for pa_var and l_frac plots.\n"
+			   "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
+	  		)
 	)
 	parser.add_argument(
 		"--sweep-mode",
@@ -239,19 +330,6 @@ def main():
 			  "Only applies to multi-run plots (pa_var/l_frac modes).")
 	)
 	parser.add_argument(
-	"--override-param",
-	type=str,
-	nargs="+",
-	default=None,
-	metavar="PARAM=VALUE",
-	help=("Override gparams parameters. Provide space-separated key=value pairs.\n"
-		  "Examples:\n"
-		  "  --override-param N=5 tau_ms=0.5\n"
-		  "  --override-param lfrac=0.8\n"
-		  "This is useful for comparing l_frac plots with different N values, etc.\n"
-		  "Note: Overrides apply to ALL micro-components uniformly.")
-	)
-	parser.add_argument(
 		"--compare-windows",
 		type=str,
 		nargs="+",
@@ -267,14 +345,9 @@ def main():
 			  "Only works with single-run data (not multi-run sweeps).")
 	)
 
-	# Simulation Options
-	parser.add_argument(
-		"-d", "--data",
-		type=str,
-		default=None,
-		metavar="",
-		help="Path to the data file. If provided, the simulation will use this data instead of generating new data."
-	)
+	# =====================================================================
+	# Observational Data Overlay
+	# =====================================================================
 	parser.add_argument(
 		"--obs-data",
 		type=str,
@@ -289,63 +362,11 @@ def main():
 		metavar="",
 		help="Path to parameters file for observational data (optional). If not provided, will attempt to extract from --obs-data directory."
 	)
-	parser.add_argument(
-		"-m", "--mode",
-		type=str,
-		default='psn',
-		choices=['psn'],
-		metavar="",
-		help=("Mode for generating pulses: 'psn'. Default is 'psn.'\n"
-			  "'psn' will generate a gaussian distribution of gaussian micro-shots."
-		   )
-	)
-	parser.add_argument(
-		"--seed",
-		type=int,
-		default=None,
-		metavar="",
-		help="Set seed for repeatability in psn mode."
-	)
-	parser.add_argument(
-		"--nseed",
-		type=int,
-		default=1,
-		metavar="",
-		help="How many realisations to generate for pa_var and l_frac plots."
-	)
-	parser.add_argument(
-		"--sefd",
-		type=float,
-		default=0.0,
-		metavar="",
-		help="System equivalent flux density in Jansky for adding noise. Default is 0 Jy (no noise)."
-	)
-	parser.add_argument(
-		"--snr",
-		type=float,
-		default=None,
-		metavar="",
-		help="Target S/N for the pulse peak. If set, this will override the --sefd option."
-	)
-	parser.add_argument(
-		"--ncpu",
-		type=int,
-		default=1,
-		metavar="",
-		help="Number of CPUs to use for parallel processing. Default is 1 (single-threaded)."
-	)
-	parser.add_argument(
-		"--chi2-fit",
-		action="store_true",
-		help="Enable chi-squared fitting on the final profiles (plot != pa_var and l_frac)."
-	)
-	parser.add_argument(
-		"--scint",
-		action="store_true",
-		help="Enable scintillation effects from scparamts.toml."
-	)
-	args = parser.parse_args()
 
+	# =====================================================================
+	# Main Execution
+	# =====================================================================
+	args = parser.parse_args()
 
 	init_logging(args.verbose)
 	if args.verbose:
