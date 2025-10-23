@@ -317,12 +317,12 @@ def load_data(obs_data_path, obs_params_path=None):
 		logging.warning(f"Parameters file not found: {obs_params_path}")
 		# Create minimal gdict with defaults
 		gdict = {
-			'tau_ms': np.array([0.0]),
-			'width_ms': np.array([np.median(np.diff(time_ms)) * 10 if len(time_ms) > 1 else 1.0]),
+			#'tau_ms': np.array([0.0]),
+			#'width_ms': np.array([np.median(np.diff(time_ms)) * 10 if len(time_ms) > 1 else 1.0]),
 			'DM': np.array([0.0]),
 			'RM': np.array([0.0]),
-			'band_centre_mhz': np.array([np.median(freq_mhz) if len(freq_mhz) > 0 else 1000.0]),
-			'band_width_mhz': np.array([np.ptp(freq_mhz) if len(freq_mhz) > 0 else 336.0])
+			#'band_centre_mhz': np.array([np.median(freq_mhz) if len(freq_mhz) > 0 else 1000.0]),
+			#'band_width_mhz': np.array([np.ptp(freq_mhz) if len(freq_mhz) > 0 else 336.0])
 		}
 	
 	logging.info(

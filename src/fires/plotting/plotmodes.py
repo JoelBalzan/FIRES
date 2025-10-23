@@ -22,16 +22,15 @@ import matplotlib.ticker as mticker
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
-from scipy.stats import circvar
+from scipy.stats import circvar, circstd
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-                                 process_dspec)
+								 process_dspec)
 from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logging.basicConfig(level=logging.INFO)
-# Suppress noisy fontTools subset INFO messages
 for _name in ("fontTools", "fontTools.subset"):
 	_lg = logging.getLogger(_name)
 	_lg.setLevel(logging.WARNING)   
@@ -62,7 +61,7 @@ def configure_matplotlib(use_latex=False):
 
 	if use_latex:
 		try:
-			plt.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}\usepackage{siunitx}'
+			plt.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}\usepackage{amssymb}\usepackage{siunitx}'
 		except Exception as e:
 			warnings.warn(f"LaTeX setup failed ({e}); falling back to non-LaTeX text rendering.")
 			plt.rcParams['text.usetex'] = False
@@ -680,7 +679,7 @@ def _get_weighted_y_name(yname, weight_y_by):
 	"""
 	# Get base units for the y quantity
 	y_base_unit = ""
-	if yname == r"Var($\psi$)":
+	if yname == r"\mathbb{V}(\psi)":
 		y_base_unit = r"\mathrm{deg}^2"
 	elif yname == r"\Pi_L":
 		y_base_unit = ""  # dimensionless
@@ -694,7 +693,7 @@ def _get_weighted_y_name(yname, weight_y_by):
 	weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
 
 	# Special case for PA variance ratio
-	if yname == r"Var($\psi$)" and weight_y_by == "PA_i":
+	if yname == r"\mathbb{V}(\psi)" and weight_y_by == "PA_i":
 		return r"\mathcal{R}_{\mathrm{\psi}}", ""  # dimensionless ratio
 
 	w_name_raw = weight_y_by.removesuffix("_i")
@@ -1252,7 +1251,7 @@ def _plot_single_run_multi_window(
 	frb_dict,
 	ax,
 	plot_type,
-	window_pairs=None,  # CHANGED: now takes explicit pairs
+	window_pairs=None,  
 	weight_y_by=None,
 	weight_x_by=None,
 	fit=None,
@@ -1435,7 +1434,7 @@ def _plot_single_run_multi_window(
 			logging.error(f"Failed to overlay observational data: {e}")
 	
 	# Set axis labels and scales
-	base_yname = r"Var($\psi$)" if plot_type == 'pa_var' else r"\Pi_L"
+	base_yname = r"\mathbb{V}(\psi)" if plot_type == 'pa_var' else r"\Pi_L"
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if weight_y_by else (base_yname, "")
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 	
@@ -1780,8 +1779,8 @@ def plot_pa_var(
 	fit, 
 	extension, 
 	legend,
-	weight_x_by="width_ms",
-	weight_y_by="PA_i",
+	weight_x_by=None,
+	weight_y_by=None,
 	obs_data=None,
 	obs_params=None,
 	equal_value_lines=None,
@@ -1839,7 +1838,7 @@ def plot_pa_var(
 	- Automatic color mapping is applied for predefined run types
 	"""
 
-	yname = r"Var($\psi$)"
+	yname = r"\mathbb{V}(\psi)"
 	if figsize is None:
 		figsize = (10, 9)
 
@@ -1894,7 +1893,7 @@ def plot_pa_var(
 
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
-			yname_base=r"Var($\psi$)",
+			yname_base=yname,
 			weight_y_by="PA_i",
 			x_weight_by="width_ms",
 			figsize=figsize,
@@ -1994,7 +1993,7 @@ def plot_lfrac(
 	extension, 
 	legend,
 	weight_x_by=None,
-	weight_y_by="lfrac",
+	weight_y_by=None,
 	obs_data=None,
 	obs_params=None,
 	equal_value_lines=None,
@@ -2148,211 +2147,198 @@ def plot_lfrac(
 
 
 def _process_observational_data(obs_data_path, obs_params_path, phase_window, freq_window, buffer_frac, plot_mode):
-	"""
-	Load and process observational FRB data to extract measurements for overlay plotting.
+    """
+    Load and process observational FRB data to extract measurements for overlay plotting.
+    
+    Uses the full basicfns processing pipeline to ensure consistency with simulated data.
+    
+    Parameters:
+    -----------
+    obs_data_path : str
+        Path to observational data directory or file
+    obs_params_path : str or None
+        Path to parameters file (optional)
+    phase_window : str
+        Phase window to use for analysis ('total', 'leading', 'trailing')
+    freq_window : str
+        Frequency window to use for analysis
+    buffer_frac : float
+        Buffer fraction for on/off pulse regions
+    plot_mode : PlotMode
+        Plot mode object (determines what to measure)
+        
+    Returns:
+    --------
+    dict
+        Dictionary with measurement results and metadata
+    """
+    if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
+        dspec, freq_mhz, time_ms, gdict = load_data(obs_data_path, obs_params_path)
+    else:
+        raise ValueError(f"Unsupported file format: {obs_data_path}")
+    
+    if dspec.ndim == 2:
+        dspec = dspec[np.newaxis, :, :]
+        zeros = np.zeros_like(dspec[0:1])
+        dspec = np.concatenate([dspec, zeros, zeros, zeros], axis=0)
+    elif dspec.ndim == 3 and dspec.shape[0] < 4:
+        n_missing = 4 - dspec.shape[0]
+        zeros = np.zeros((n_missing, dspec.shape[1], dspec.shape[2]))
+        dspec = np.concatenate([dspec, zeros], axis=0)
+    
+    if freq_window != "full-band":
+        freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
+        freq_mhz = freq_mhz[freq_slc]
+        dspec = dspec[:, freq_slc, :]
+        logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
+    
+    ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+    
+    I_profile = ts_data.iquvt[0]
+    L_profile = ts_data.Lts
+    peak_index = int(np.nanargmax(I_profile))
+    
+    if phase_window != "total":
+        phase_slc = _get_phase_window_indices(phase_window, peak_index)
+        if isinstance(phase_slc, slice):
+            start = 0 if phase_slc.start is None else phase_slc.start
+            stop = I_profile.size if phase_slc.stop is None else phase_slc.stop
+            if stop - start <= 0:
+                start = max(0, peak_index - 1)
+                stop = min(I_profile.size, peak_index + 1)
+                phase_slc = slice(start, stop)
+        logging.info(f"Applied phase window '{phase_window}': bins {phase_slc.start}-{phase_slc.stop}")
+    else:
+        phase_slc = slice(None)
+    
+    on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
+        I_profile, frac=0.95, buffer_frac=buffer_frac
+    )
+    
+    x_value = None
+    x_err = None
+    y_value = None
+    y_err = None
+    
+    if plot_mode.name == 'pa_var':
+        phits = ts_data.phits[phase_slc]
+        ephits = ts_data.ephits[phase_slc]
+        
+        valid_mask = np.isfinite(phits) & np.isfinite(ephits)
+        valid_phits = phits[valid_mask]
+        valid_ephits = ephits[valid_mask]
+        
+        if len(valid_phits) > 0:
+            # Use circstd directly for PA standard deviation (handles 2*PA internally)
+            # PA has π ambiguity, so use high=np.pi to work with 2*PA properly
+            pa_std_rad = circstd(2 * valid_phits, high=2*np.pi) / 2
+            pa_std_deg = np.rad2deg(pa_std_rad)
+            
+            # Y-axis: PA variance in deg²
+            y_value = pa_std_deg**2
+            
+            # Y error: uncertainty in variance measurement
+            n_samples = len(valid_phits)
+            mean_pa_err = np.sqrt(np.mean(valid_ephits**2))
+            y_err = 2 * pa_std_deg * np.rad2deg(mean_pa_err / np.sqrt(n_samples))
+            
+            # X-axis: PA standard deviation
+            x_value = pa_std_deg
+            # X error: uncertainty in std dev from N samples: σ_σ ≈ σ / √(2N)
+            x_err = x_value / np.sqrt(2 * n_samples)
+            
+            gdict['PA_i'] = np.array([x_value])
+            
+            logging.info(f"PA variance: {y_value:.3f} ± {y_err:.3f} deg² (N={n_samples})")
+            logging.info(f"PA std dev (measured): {x_value:.3f} ± {x_err:.3f} deg")
+        else:
+            logging.warning("No valid PA measurements found")
+    
+    elif plot_mode.name == 'l_frac':
+        # Apply phase window and on-pulse mask
+        I_windowed = I_profile[phase_slc]
+        L_windowed = L_profile[phase_slc]
+        on_mask_windowed = on_mask[phase_slc]
+        
+        I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
+        L_masked = np.where(on_mask_windowed, L_windowed, np.nan)
+        
+        integrated_I = np.nansum(I_masked)
+        integrated_L = np.nansum(L_masked)
+        
+        if integrated_I > 0:
+            y_value = integrated_L / integrated_I
+            
+            # Estimate errors from off-pulse noise
+            I_offpulse = I_profile[off_mask]
+            L_offpulse = L_profile[off_mask]
+            
+            if len(I_offpulse) > 1 and len(L_offpulse) > 1:
+                noise_I = np.nanstd(I_offpulse, ddof=1)
+                noise_L = np.nanstd(L_offpulse, ddof=1)
+                
+                n_on = np.sum(on_mask_windowed)
+                if n_on > 0:
+                    sigma_I_integrated = noise_I * np.sqrt(n_on)
+                    sigma_L_integrated = noise_L * np.sqrt(n_on)
+                    
+                    y_err = y_value * np.sqrt(
+                        (sigma_L_integrated / integrated_L)**2 + 
+                        (sigma_I_integrated / integrated_I)**2
+                    )
+                else:
+                    y_err = 0.1 * y_value
+            else:
+                y_err = 0.1 * y_value
+            
+            logging.info(f"L/I (measured): {y_value:.3f} ± {y_err:.3f}")
+            
+            # X-axis: PA standard deviation using circstd
+            phits = ts_data.phits[phase_slc]
+            ephits = ts_data.ephits[phase_slc]
+            valid_mask = np.isfinite(phits) & np.isfinite(ephits)
+            valid_phits = phits[valid_mask]
+            valid_ephits = ephits[valid_mask]
+            
+            if len(valid_phits) > 0:
+                pa_std_rad = circstd(2 * valid_phits, high=2*np.pi) / 2
+                x_value = np.rad2deg(pa_std_rad)
+                
+                # X error: uncertainty in std dev from N samples
+                n_samples = len(valid_phits)
+                x_err = x_value / np.sqrt(2 * n_samples)
+                
+                gdict['PA_i'] = np.array([x_value])
+                logging.info(f"Using PA std dev for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg (N={n_samples})")
+        else:
+            logging.warning("Integrated Stokes I is zero or negative")
+    
+    else:
+        raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
+    
+    label = gdict.get('label', os.path.splitext(os.path.basename(obs_data_path))[0])
+    
+    result = {
+        'x_value': x_value,
+        'x_err': x_err,
+        'y_value': y_value,
+        'y_err': y_err,
+        'label': label,
+        'dspec': corr_dspec,
+        'freq_mhz': freq_mhz,
+        'time_ms': time_ms,
+        'gdict': gdict,
+        'ts_data': ts_data, 
+        'noisespec': noisespec
+    }
+    
+    if x_value is not None and y_value is not None:
+        logging.info(f"Observational measurements: x={x_value:.3f}±{x_err if x_err else 0:.3f}, y={y_value:.3f}±{y_err if y_err else 0:.3f}")
+    else:
+        logging.warning("Failed to extract valid measurements from observational data")
+    
+    return result
 	
-	Uses the full basicfns processing pipeline to ensure consistency with simulated data.
-	
-	Parameters:
-	-----------
-	obs_data_path : str
-		Path to observational data directory or file
-	obs_params_path : str or None
-		Path to parameters file (optional)
-	phase_window : str
-		Phase window to use for analysis ('total', 'leading', 'trailing')
-	freq_window : str
-		Frequency window to use for analysis
-	buffer_frac : float
-		Buffer fraction for on/off pulse regions
-	plot_mode : PlotMode
-		Plot mode object (determines what to measure)
-		
-	Returns:
-	--------
-	dict
-		Dictionary with measurement results and metadata
-	"""
-	if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
-		dspec, freq_mhz, time_ms, gdict = load_data(obs_data_path, obs_params_path)
-	else:
-		raise ValueError(f"Unsupported file format: {obs_data_path}")
-	
-	if dspec.ndim == 2:
-		dspec = dspec[np.newaxis, :, :]
-		zeros = np.zeros_like(dspec[0:1])
-		dspec = np.concatenate([dspec, zeros, zeros, zeros], axis=0)
-	elif dspec.ndim == 3 and dspec.shape[0] < 4:
-		n_missing = 4 - dspec.shape[0]
-		zeros = np.zeros((n_missing, dspec.shape[1], dspec.shape[2]))
-		dspec = np.concatenate([dspec, zeros], axis=0)
-	
-	if freq_window != "full-band":
-		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-		freq_mhz = freq_mhz[freq_slc]
-		dspec = dspec[:, freq_slc, :]
-		logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
-	
-	ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
-	
-	I_profile = ts_data.iquvt[0]
-	peak_index = int(np.nanargmax(I_profile))
-	
-	if phase_window != "total":
-		phase_slc = _get_phase_window_indices(phase_window, peak_index)
-		if isinstance(phase_slc, slice):
-			start = 0 if phase_slc.start is None else phase_slc.start
-			stop = I_profile.size if phase_slc.stop is None else phase_slc.stop
-			if stop - start <= 0:
-				start = max(0, peak_index - 1)
-				stop = min(I_profile.size, peak_index + 1)
-				phase_slc = slice(start, stop)
-		logging.info(f"Applied phase window '{phase_window}': bins {phase_slc.start}-{phase_slc.stop}")
-	else:
-		phase_slc = slice(None)
-	
-	if 'width_ms' not in gdict or gdict['width_ms'][0] <= 0:
-		on_mask, _, _ = on_off_pulse_masks_from_profile(I_profile, frac=0.95, buffer_frac=buffer_frac)
-		width_samples = np.sum(on_mask)
-		time_res = np.median(np.diff(time_ms)) if len(time_ms) > 1 else 1.0
-		gdict['width_ms'] = np.array([width_samples * time_res])
-		logging.info(f"Estimated pulse width: {gdict['width_ms'][0]:.3f} ms")
-	
-	x_value = None
-	x_err = None
-	y_value = None
-	y_err = None
-	
-	if plot_mode.name == 'pa_var':
-		phits = ts_data.phits[phase_slc]
-		ephits = ts_data.ephits[phase_slc]
-		
-		valid_phits = phits[np.isfinite(phits)]
-		if len(valid_phits) > 0:
-			pa_var_rad2 = circvar(2 * valid_phits) / 4.0
-			y_value = np.rad2deg(np.sqrt(pa_var_rad2))**2
-			
-			n_boot = 1000
-			boot_vars = []
-			for _ in range(n_boot):
-				boot_sample = np.random.choice(valid_phits, size=len(valid_phits), replace=True)
-				boot_var = circvar(2 * boot_sample) / 4.0
-				boot_vars.append(np.rad2deg(np.sqrt(boot_var))**2)
-			y_err = np.std(boot_vars)
-			
-			x_value = np.rad2deg(np.sqrt(pa_var_rad2))
-			x_err = np.rad2deg(np.sqrt(np.nanmean(ephits[np.isfinite(ephits)]**2)))
-			
-			logging.info(f"PA variance: {y_value:.3f} ± {y_err:.3f} deg²")
-			logging.info(f"PA std dev: {x_value:.3f} ± {x_err:.3f} deg")
-		else:
-			logging.warning("No valid PA measurements found")
-	
-	elif plot_mode.name == 'l_frac':
-		I = ts_data.iquvt[0]
-		Q = ts_data.iquvt[1]
-		U = ts_data.iquvt[2]
-		
-		on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-			I, frac=0.95, buffer_frac=buffer_frac
-		)
-		
-		I_windowed = I[phase_slc]
-		Q_windowed = Q[phase_slc]
-		U_windowed = U[phase_slc]
-		on_mask_windowed = on_mask[phase_slc]
-		
-		I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
-		Q_masked = np.where(on_mask_windowed, Q_windowed, np.nan)
-		U_masked = np.where(on_mask_windowed, U_windowed, np.nan)
-		
-		L_masked = np.sqrt(Q_masked**2 + U_masked**2)
-		
-		integrated_I = np.nansum(I_masked)
-		integrated_L = np.nansum(L_masked)
-		
-		if integrated_I > 0:
-			y_value = integrated_L / integrated_I
-			
-			I_offpulse = I[off_mask]
-			L_full = np.sqrt(Q**2 + U**2)
-			L_offpulse = L_full[off_mask]
-			
-			if len(I_offpulse) > 1 and len(L_offpulse) > 1:
-				noise_I = np.nanstd(I_offpulse, ddof=1)
-				noise_L = np.nanstd(L_offpulse, ddof=1)
-				
-				n_on = np.sum(on_mask_windowed)
-				if n_on > 0:
-					sigma_I_integrated = noise_I * np.sqrt(n_on)
-					sigma_L_integrated = noise_L * np.sqrt(n_on)
-					
-					y_err = y_value * np.sqrt(
-						(sigma_L_integrated / integrated_L)**2 + 
-						(sigma_I_integrated / integrated_I)**2
-					)
-				else:
-					y_err = 0.1 * y_value
-			else:
-				logging.warning("Insufficient off-pulse samples for noise estimation")
-				y_err = 0.1 * y_value
-			
-			logging.info(f"L/I: {y_value:.3f} ± {y_err:.3f}")
-			
-			# X-axis: tau/W or PA std dev
-			if 'tau_ms' in gdict and 'width_ms' in gdict:
-				tau = float(np.nanmean(gdict['tau_ms']))
-				width = float(np.nanmean(gdict['width_ms']))
-				if width > 0 and tau > 0:
-					x_value = tau / width
-					x_err = x_value * np.sqrt((0.2)**2 + (0.1)**2)
-			
-			# Fallback to PA std dev if tau/W not available
-			if x_value is None or x_value == 0:
-				phits = ts_data.phits[phase_slc]
-				valid_phits = phits[np.isfinite(phits)]
-				if len(valid_phits) > 0:
-					pa_var = circvar(2 * valid_phits) / 4.0
-					x_value = np.rad2deg(np.sqrt(pa_var))
-					# Bootstrap error
-					n_boot = 500
-					boot_stds = []
-					for _ in range(n_boot):
-						boot_sample = np.random.choice(valid_phits, size=len(valid_phits), replace=True)
-						boot_var = circvar(2 * boot_sample) / 4.0
-						boot_stds.append(np.rad2deg(np.sqrt(boot_var)))
-					x_err = np.std(boot_stds)
-					logging.info(f"Using PA std dev for x-axis: {x_value:.3f} ± {x_err:.3f} deg")
-		else:
-			logging.warning("Integrated Stokes I is zero or negative")
-	
-	else:
-		raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
-	
-	label = gdict.get('label', os.path.splitext(os.path.basename(obs_data_path))[0])
-	
-	result = {
-		'x_value': x_value,
-		'x_err': x_err,
-		'y_value': y_value,
-		'y_err': y_err,
-		'label': label,
-		'dspec': corr_dspec,
-		'freq_mhz': freq_mhz,
-		'time_ms': time_ms,
-		'gdict': gdict,
-		'ts_data': ts_data, 
-		'noisespec': noisespec
-	}
-	
-	if x_value is not None and y_value is not None:
-		logging.info(f"Observational measurements: x={x_value:.3f}±{x_err if x_err else 0:.3f}, y={y_value:.3f}±{y_err if y_err else 0:.3f}")
-	else:
-		logging.warning("Failed to extract valid measurements from observational data")
-	
-	return result
-
-
 
 def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=None, color='pink', marker='*', size=1):
 	"""
