@@ -304,12 +304,25 @@ def main():
 			  "  sd		   : keep mean fixed, sweep the micro std dev\n")
 	)
 	parser.add_argument(
-		"--weight-x-by",
-		type=str,
-		metavar="",
-		help=("Parameter to normalise x-axis values by (e.g., 'width_ms' for τ/W).\n"
-			  "Can be any intrinsic parameter from gparams.\n"
-			  "Default is mode-specific: 'width_ms' for pa_var, None for l_frac.")
+	    "--weight-x-by",
+	    type=str,
+	    metavar="",
+	    help=("Parameter to normalise x-axis values by (e.g., 'width_ms' for τ/W).\n"
+	          "Can be any intrinsic parameter from gparams.\n"
+	          "Default is mode-specific: 'width_ms' for pa_var, None for l_frac.")
+	)
+	parser.add_argument(
+	    "--x-measured",
+	    type=str,
+	    metavar="",
+	    choices=['Vpsi', 'Lfrac', 'Vfrac'],
+	    help=("Use a measured quantity on the x-axis instead of input parameters.\n"
+	          "Options:\n"
+	          "  Vpsi  : Measured PA variance (deg²)\n"
+	          "  Lfrac : Measured integrated L/I\n"
+	          "  Vfrac : Measured integrated V/I\n"
+	          "Example: --x-measured Vpsi for PA variance on x-axis\n"
+	          "Cannot be used with --weight-x-by.")
 	)
 	parser.add_argument(
 		"--weight-y-by",
@@ -318,6 +331,14 @@ def main():
 		help=("Parameter to normalise y-axis values by (e.g., 'PA_i' for PA variance ratio, 'lfrac' for L/I ratio).\n"
 			  "Can be any intrinsic parameter or variation parameter from gparams.\n"
 			  "Default is mode-specific: 'PA_i' for pa_var, 'lfrac' for l_frac.")
+	)
+	parser.add_argument(
+	    "--equal-value-lines",
+	    action='store_true',
+	    help=("Plot background lines showing constant swept parameter values.\n"
+	          "Only works when --x-measured is specified.\n"
+	          "Automatically uses the swept parameter (e.g., PA_i) from the simulation.\n"
+	          "Example: --x-measured Vpsi --equal-value-lines")
 	)
 	parser.add_argument(
 		"--compare-windows",
@@ -530,7 +551,9 @@ def main():
 						"weight_y_by"      : args.weight_y_by,
 						"obs_data"         : args.obs_data,
 						"obs_params"       : args.obs_params,
-						"compare_windows"  : window_pairs
+						"compare_windows"  : window_pairs,
+						"x_measured"       : args.x_measured,
+						"equal_value_lines": args.equal_value_lines
 					}
 		
 					plot_function = plot_mode_obj.plot_func
