@@ -25,8 +25,8 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
-                                 add_noise, process_dspec, scatter_dspec,
-                                 snr_onpulse)
+								 add_noise, process_dspec, scatter_dspec,
+								 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.io.loaders import load_data, load_multiple_data_grouped
 from fires.utils.config import load_params
@@ -110,93 +110,93 @@ def _process_task(task, xname, mode, plot_mode, **params):
 
 
 def _normalize_freq_key(key: str | None) -> str:
-    if key is None:
-        return "all"
-    k = str(key).lower()
-    alias = {
-        "full": "all", "full-band": "all", "fullband": "all",
-        "lowest-quarter": "1q", "lower-mid-quarter": "2q",
-        "upper-mid-quarter": "3q", "highest-quarter": "4q"
-    }
-    return alias.get(k, k)
+	if key is None:
+		return "all"
+	k = str(key).lower()
+	alias = {
+		"full": "all", "full-band": "all", "fullband": "all",
+		"lowest-quarter": "1q", "lower-mid-quarter": "2q",
+		"upper-mid-quarter": "3q", "highest-quarter": "4q"
+	}
+	return alias.get(k, k)
 
 def _normalize_phase_key(key: str | None) -> str:
-    if key is None:
-        return "total"
-    k = str(key).lower()
-    alias = {"leading": "first", "trailing": "last", "all": "total"}
-    return alias.get(k, k)
+	if key is None:
+		return "total"
+	k = str(key).lower()
+	alias = {"leading": "first", "trailing": "last", "all": "total"}
+	return alias.get(k, k)
 
 # ...existing code...
 
 def _window_dspec(dspec: np.ndarray,
-                  freq_mhz: np.ndarray,
-                  time_ms: np.ndarray,
-                  freq_window=None,
-                  phase_window=None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Apply optional frequency and phase windows. Supports:
-      - freq_window: [fmin,fmax] MHz or '1q'|'2q'|'3q'|'4q'|'all' (+ synonyms)
-      - phase_window: [tmin,tmax] ms or 'first'|'last'|'total' (+ synonyms)
-    Returns windowed (dspec, freq_mhz, time_ms).
-    """
-    dspec_w = dspec
-    f_w = freq_mhz
-    t_w = time_ms
+				  freq_mhz: np.ndarray,
+				  time_ms: np.ndarray,
+				  freq_window=None,
+				  phase_window=None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+	"""
+	Apply optional frequency and phase windows. Supports:
+	  - freq_window: [fmin,fmax] MHz or '1q'|'2q'|'3q'|'4q'|'all' (+ synonyms)
+	  - phase_window: [tmin,tmax] ms or 'first'|'last'|'total' (+ synonyms)
+	Returns windowed (dspec, freq_mhz, time_ms).
+	"""
+	dspec_w = dspec
+	f_w = freq_mhz
+	t_w = time_ms
 
-    nf0, nt0 = dspec.shape[1], dspec.shape[2]
+	nf0, nt0 = dspec.shape[1], dspec.shape[2]
 
-    # Frequency window
-    if freq_window is not None:
-        if isinstance(freq_window, (list, tuple, np.ndarray)) and len(freq_window) == 2:
-            fmin, fmax = float(freq_window[0]), float(freq_window[1])
-            fmask = (f_w >= min(fmin, fmax)) & (f_w <= max(fmin, fmax))
-            if np.any(fmask):
-                logging.info(f"Applying freq_window [{min(fmin,fmax):.2f}, {max(fmin,fmax):.2f}] MHz "
-                             f"-> {np.count_nonzero(fmask)}/{len(f_w)} channels")
-                dspec_w = dspec_w[:, fmask, :]
-                f_w = f_w[fmask]
-            else:
-                logging.warning("freq_window produced empty selection; ignoring frequency window.")
-        elif isinstance(freq_window, str):
-            key = _normalize_freq_key(freq_window)
-            slc_dict = _freq_quarter_slices(dspec_w.shape[1])
-            slc = slc_dict.get(key, slc_dict["all"])
-            prev = dspec_w.shape[1]
-            dspec_w = dspec_w[:, slc, :]
-            f_w = f_w[slc]
-            logging.info(f"Applying freq_window '{freq_window}' (-> '{key}') -> {dspec_w.shape[1]}/{prev} channels")
-        else:
-            logging.warning(f"Unrecognised freq_window={freq_window}; ignoring.")
+	# Frequency window
+	if freq_window is not None:
+		if isinstance(freq_window, (list, tuple, np.ndarray)) and len(freq_window) == 2:
+			fmin, fmax = float(freq_window[0]), float(freq_window[1])
+			fmask = (f_w >= min(fmin, fmax)) & (f_w <= max(fmin, fmax))
+			if np.any(fmask):
+				logging.info(f"Applying freq_window [{min(fmin,fmax):.2f}, {max(fmin,fmax):.2f}] MHz "
+							 f"-> {np.count_nonzero(fmask)}/{len(f_w)} channels")
+				dspec_w = dspec_w[:, fmask, :]
+				f_w = f_w[fmask]
+			else:
+				logging.warning("freq_window produced empty selection; ignoring frequency window.")
+		elif isinstance(freq_window, str):
+			key = _normalize_freq_key(freq_window)
+			slc_dict = _freq_quarter_slices(dspec_w.shape[1])
+			slc = slc_dict.get(key, slc_dict["all"])
+			prev = dspec_w.shape[1]
+			dspec_w = dspec_w[:, slc, :]
+			f_w = f_w[slc]
+			logging.info(f"Applying freq_window '{freq_window}' (-> '{key}') -> {dspec_w.shape[1]}/{prev} channels")
+		else:
+			logging.warning(f"Unrecognised freq_window={freq_window}; ignoring.")
 
-    # Phase/time window
-    if phase_window is not None:
-        if isinstance(phase_window, (list, tuple, np.ndarray)) and len(phase_window) == 2:
-            tmin, tmax = float(phase_window[0]), float(phase_window[1])
-            tmask = (t_w >= min(tmin, tmax)) & (t_w <= max(tmin, tmax))
-            if np.any(tmask):
-                logging.info(f"Applying phase_window [{min(tmin,tmax):.2f}, {max(tmin,tmax):.2f}] ms "
-                             f"-> {np.count_nonzero(tmask)}/{len(t_w)} time bins")
-                dspec_w = dspec_w[:, :, tmask]
-                t_w = t_w[tmask]
-            else:
-                logging.warning("phase_window produced empty selection; ignoring phase window.")
-        elif isinstance(phase_window, str):
-            key = _normalize_phase_key(phase_window)
-            # Peak index from Stokes I (freq-summed)
-            I_time = np.nansum(dspec_w[0], axis=0) if dspec_w.shape[1] > 0 else np.zeros_like(t_w)
-            peak_idx = int(np.nanargmax(I_time)) if I_time.size > 0 else 0
-            slc_dict = _phase_slices_from_peak(dspec_w.shape[2], peak_idx)
-            slc = slc_dict.get(key, slice(None))
-            prev = dspec_w.shape[2]
-            dspec_w = dspec_w[:, :, slc]
-            t_w = t_w[slc]
-            logging.info(f"Applying phase_window '{phase_window}' (-> '{key}', peak idx {peak_idx}) "
-                         f"-> {dspec_w.shape[2]}/{prev} time bins")
-        else:
-            logging.warning(f"Unrecognised phase_window={phase_window}; ignoring.")
+	# Phase/time window
+	if phase_window is not None:
+		if isinstance(phase_window, (list, tuple, np.ndarray)) and len(phase_window) == 2:
+			tmin, tmax = float(phase_window[0]), float(phase_window[1])
+			tmask = (t_w >= min(tmin, tmax)) & (t_w <= max(tmin, tmax))
+			if np.any(tmask):
+				logging.info(f"Applying phase_window [{min(tmin,tmax):.2f}, {max(tmin,tmax):.2f}] ms "
+							 f"-> {np.count_nonzero(tmask)}/{len(t_w)} time bins")
+				dspec_w = dspec_w[:, :, tmask]
+				t_w = t_w[tmask]
+			else:
+				logging.warning("phase_window produced empty selection; ignoring phase window.")
+		elif isinstance(phase_window, str):
+			key = _normalize_phase_key(phase_window)
+			# Peak index from Stokes I (freq-summed)
+			I_time = np.nansum(dspec_w[0], axis=0) if dspec_w.shape[1] > 0 else np.zeros_like(t_w)
+			peak_idx = int(np.nanargmax(I_time)) if I_time.size > 0 else 0
+			slc_dict = _phase_slices_from_peak(dspec_w.shape[2], peak_idx)
+			slc = slc_dict.get(key, slice(None))
+			prev = dspec_w.shape[2]
+			dspec_w = dspec_w[:, :, slc]
+			t_w = t_w[slc]
+			logging.info(f"Applying phase_window '{phase_window}' (-> '{key}', peak idx {peak_idx}) "
+						 f"-> {dspec_w.shape[2]}/{prev} time bins")
+		else:
+			logging.warning(f"Unrecognised phase_window={phase_window}; ignoring.")
 
-    return dspec_w, f_w, t_w
+	return dspec_w, f_w, t_w
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
@@ -546,26 +546,38 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				"snrs": snrs,
 			}
 
-			print("_".join([f"{k}{v}" for k, v in param_overrides.items()]) if param_overrides else "")
 			if write:
-				xvals_str = f"{xvals[0]:.2f}-{xvals[-1]:.2f}" if len(xvals) > 1 else f"{xvals[0]:.2f}"
-				override_str = ""
+				sweep_idx = _array_id if _array_count > 1 else 0
+			
+				parts = [f"sweep_{sweep_idx}", f"n{nseed}", f"plot_{plot_mode.name}", f"xname_{xname}"]
+			
+				if len(xvals) > 0:
+					parts.append(f"xvals_{min(xvals):.2f}-{max(xvals):.2f}")
+			
+				parts.append(f"mode_{mode}")
+			
 				if param_overrides:
-					formatted_overrides = []
-					for k, v in param_overrides.items():
-						if isinstance(v, float) and v.is_integer():
-							formatted_overrides.append(f"{k}{int(v)}")
+					override_parts = []
+					for key, val in sorted(param_overrides.items()):
+						if isinstance(val, (int, np.integer)):
+							override_parts.append(f"{key}{val}")
+						elif isinstance(val, (float, np.floating)):
+							if val.is_integer():
+								override_parts.append(f"{key}{int(val)}")
+							else:
+								override_parts.append(f"{key}{val:.2f}")
 						else:
-							formatted_overrides.append(f"{k}{v:.2f}")
-					override_str = "_".join(formatted_overrides)
-				
-				out_file = (
-					f"{out_dir}{frb_id}_plot_{plot_mode.name}_xname_{xname}_xvals_{xvals_str}_"
-					f"mode_{mode}_freq_{freq_window}_phase_{phase_window}"
-					f"{'_' + override_str if override_str else ''}.pkl"
-				)
-				with open(out_file, 'wb') as frb_file:
-					pkl.dump((frb_dict), frb_file)
-				logging.info(f"Saved FRB data to {out_file}")
+							override_parts.append(f"{key}{val}")
+			
+					if override_parts:
+						parts.extend(override_parts)
+			
+				fname = "_".join(parts) + ".pkl"
+				fpath = os.path.join(out_dir, fname)
+			
+				with open(fpath, "wb") as f:
+					pkl.dump(frb_dict, f) 
+			
+				logging.info(f"Saved results to {fpath}")
 
 			return frb_dict

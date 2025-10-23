@@ -25,11 +25,10 @@ from scipy.optimize import curve_fit
 from scipy.stats import circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec)
-from fires.core.genfrb import load_data
+                                 process_dspec)
+from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
-
 
 logging.basicConfig(level=logging.INFO)
 # Suppress noisy fontTools subset INFO messages
@@ -855,72 +854,59 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
 
 
-def _find_equal_value_intersections(frb_dict, target_param, target_values=None, n_lines=5):
+def _find_equal_value_intersections(frb_dict, target_param, target_values=None, n_lines=5,
+									plot_type='pa_var', phase_window='total', freq_window='full-band'):
 	"""
 	Find parameter values where different runs have equal values for a specified parameter.
-	
-	This generalizes the equal-variance concept to work with any parameter from V_params
-	or dspec_params (gparams).
-	
+	Now derives y-values from 'measures' instead of legacy 'yvals'.
+
 	Parameters:
 	-----------
 	frb_dict : dict
 		Multi-run dictionary with run names as keys
 	target_param : str
 		Parameter name to find equal values for (e.g., 'PA_i', 'tau_ms', 'lfrac')
-		Can be from V_params (intrinsic/variation parameters) or dspec_params (observational)
 	target_values : list or None
-		Specific parameter values to find intersections at. If None, automatically
-		chooses evenly spaced values across the common range.
+		Specific parameter values to find intersections at. If None, auto-select
 	n_lines : int
 		Number of guide lines to plot if target_values is None
-		
-	Returns:
-	--------
-	dict
-		Dictionary mapping target_value -> {run_name: (x_value, y_value)}
+	plot_type : str
+		'pa_var' or 'l_frac' (determines which metric to extract from measures)
+	phase_window : str
+		Phase window alias ('total'/'leading'/'trailing' or equivalents)
+	freq_window : str
+		Frequency window alias ('full-band'/'1q'...'4q' or equivalents)
 	"""
 	if not _is_multi_run_dict(frb_dict):
 		return {}
 	
-	# Collect all curves and their associated parameter values
 	runs = {}
 	for run_name, subdict in frb_dict.items():
 		xvals = np.array(subdict["xvals"])
-		yvals_dict = subdict["yvals"]
-		
-		# Get median y values for each x
+
+		if "measures" not in subdict:
+			logging.warning(f"Run '{run_name}' missing 'measures'; skipping")
+			continue
+		yvals_dict = _yvals_from_measures_dict(xvals, subdict["measures"], plot_type, phase_window, freq_window)
+
 		med_y, _ = _median_percentiles(yvals_dict, xvals)
 		
-		# Get parameter values for this run
 		V_params = subdict.get("V_params", {})
 		dspec_params = subdict.get("dspec_params", {})
 		
-		# Try to extract target parameter values
 		param_vals = []
 		for xv in xvals:
 			val = None
-			
-			# Check V_params first (for intrinsic/variation parameters)
-			# V_params is structured as {x_value: {param_name: [value1, value2, ...], ...}, ...}
 			if isinstance(V_params, dict) and xv in V_params:
 				param_dict = V_params[xv]
 				if isinstance(param_dict, dict) and target_param in param_dict:
 					val_list = param_dict[target_param]
-					# Take mean of all realisations for this x-value
 					if isinstance(val_list, (list, np.ndarray)) and len(val_list) > 0:
 						val = float(np.nanmean(val_list))
 					elif isinstance(val_list, (int, float)):
 						val = float(val_list)
-			
-			# Check dspec_params (for observational parameters like tau_ms, width_ms, etc.)
-			# These are typically constant across x-values
 			if val is None:
-				# dspec_params can be:
-				# 1. List/tuple of dicts (one per x-value)
-				# 2. Single dict (constant across all x)
 				if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-					# Find the dict corresponding to this x-value
 					idx = np.where(xvals == xv)[0]
 					if len(idx) > 0 and idx[0] < len(dspec_params):
 						dspec_dict = dspec_params[idx[0]]
@@ -931,27 +917,19 @@ def _find_equal_value_intersections(frb_dict, target_param, target_values=None, 
 							elif isinstance(param_value, (int, float)):
 								val = float(param_value)
 				elif isinstance(dspec_params, dict) and target_param in dspec_params:
-					# Constant value across all x
 					param_value = dspec_params[target_param]
 					if isinstance(param_value, (list, np.ndarray)) and len(param_value) > 0:
 						val = float(np.nanmean(param_value))
 					elif isinstance(param_value, (int, float)):
 						val = float(param_value)
-			
 			param_vals.append(val if val is not None else np.nan)
 		
 		param_vals = np.array(param_vals)
-		
-		# Log what we found
 		valid_count = np.sum(np.isfinite(param_vals))
-		if valid_count > 0:
-			logging.debug(f"Run '{run_name}': found {valid_count}/{len(param_vals)} valid {target_param} values "
-						 f"(range: {np.nanmin(param_vals):.3g} - {np.nanmax(param_vals):.3g})")
-		
-		if len(med_y) > 0 and np.any(np.isfinite(med_y)) and np.any(np.isfinite(param_vals)):
+		if valid_count > 0 and np.any(np.isfinite(med_y)):
 			runs[run_name] = {
 				'x': xvals,
-				'y': np.array(med_y),
+				'y': np.array(med_y, dtype=float),
 				'param': param_vals
 			}
 	
@@ -959,122 +937,69 @@ def _find_equal_value_intersections(frb_dict, target_param, target_values=None, 
 		logging.warning(f"Need at least 2 runs to find intersections for {target_param}, found {len(runs)}")
 		return {}
 	
-	# Collect all unique parameter values across ALL runs
 	all_unique_params = set()
 	for run_name, run_data in runs.items():
 		valid_vals = run_data['param'][np.isfinite(run_data['param'])]
-		if len(valid_vals) > 0:
-			# Round to avoid floating point precision issues
-			for val in valid_vals:
-				all_unique_params.add(round(val, 10))
-	
+		for val in valid_vals:
+			all_unique_params.add(round(float(val), 10))
 	all_unique_params = sorted(all_unique_params)
 	
 	if len(all_unique_params) < 2:
 		logging.warning(f"Insufficient unique {target_param} values to find intersections (found {len(all_unique_params)})")
 		return {}
 	
-	param_min = min(all_unique_params)
-	param_max = max(all_unique_params)
-	
-	logging.info(f"Parameter '{target_param}': found {len(all_unique_params)} unique values across all runs")
-	logging.info(f"Range: {param_min:.3g} - {param_max:.3g}")
-	
-	# Choose target parameter values
 	if target_values is None:
-		# If we have fewer unique values than requested lines, use all of them
 		if len(all_unique_params) <= n_lines:
 			target_values = list(all_unique_params)
-			logging.info(f"Using all {len(target_values)} unique parameter values")
 		else:
-			# Select evenly spaced values from the unique set
-			# Use indices to select from the sorted unique values
 			indices = np.linspace(0, len(all_unique_params) - 1, n_lines, dtype=int)
 			target_values = [all_unique_params[i] for i in indices]
-			logging.info(f"Selected {n_lines} evenly-spaced values from {len(all_unique_params)} unique values")
 	
-	# For each target parameter value, find (x, y) in each run where param = target
 	intersections = {}
-	
 	for target_val in target_values:
 		run_points = {}
-		
 		for run_name, run_data in runs.items():
-			x = run_data['x']
-			y = run_data['y']
-			param = run_data['param']
-			
-			# Remove NaNs
+			x = run_data['x']; y = run_data['y']; param = run_data['param']
 			valid = np.isfinite(y) & np.isfinite(param)
 			if not np.any(valid):
 				continue
-				
-			x_valid = x[valid]
-			y_valid = y[valid]
-			param_valid = param[valid]
-			
-			# For constant parameters (all same value), check if this run has the target value
-			param_unique = np.unique(param_valid.round(10))
-			if len(param_unique) == 1:
-				# Constant parameter case - check if it matches target
-				if np.abs(param_unique[0] - target_val) < 1e-9:
-					# Use all points - this will create a vertical line
-					for xi, yi in zip(x_valid, y_valid):
+			xv = x[valid]; yv = y[valid]; pv = param[valid]
+			unique = np.unique(pv.round(10))
+			if len(unique) == 1:
+				if np.abs(unique[0] - target_val) < 1e-9:
+					for xi, yi in zip(xv, yv):
 						run_points[f"{run_name}_{xi}"] = (xi, yi)
-					logging.debug(f"Run '{run_name}': constant {target_param}={target_val:.3g}, using all {len(x_valid)} points")
 				continue
-			
-			# Variable parameter case - interpolate
-			# Check if target value is within range
-			if target_val < np.min(param_valid) or target_val > np.max(param_valid):
-				logging.debug(f"Target {target_val:.3g} outside range for run '{run_name}' "
-							 f"({np.min(param_valid):.3g} - {np.max(param_valid):.3g})")
+			if target_val < np.min(pv) or target_val > np.max(pv):
 				continue
-			
-			# Interpolate to find x and y where param = target_val
 			try:
-				# Sort by param for interpolation
-				sort_idx = np.argsort(param_valid)
-				param_sorted = param_valid[sort_idx]
-				x_sorted = x_valid[sort_idx]
-				y_sorted = y_valid[sort_idx]
-				
-				# Linear interpolation
-				x_interp = np.interp(target_val, param_sorted, x_sorted)
-				y_interp = np.interp(target_val, param_sorted, y_sorted)
-				
+				order = np.argsort(pv)
+				p_sorted = pv[order]
+				x_sorted = xv[order]
+				y_sorted = yv[order]
+				x_interp = np.interp(target_val, p_sorted, x_sorted)
+				y_interp = np.interp(target_val, p_sorted, y_sorted)
 				run_points[run_name] = (x_interp, y_interp)
-				logging.debug(f"Run '{run_name}': {target_param}={target_val:.3g} at x={x_interp:.3g}, y={y_interp:.3g}")
-			except Exception as e:
-				logging.debug(f"Failed to interpolate for run {run_name}: {e}")
+			except Exception:
 				continue
-		
-		# Only keep if at least 2 points (can be from same run if constant param)
 		if len(run_points) >= 2:
 			intersections[target_val] = run_points
-			logging.info(f"Found {len(run_points)} points at {target_param}={target_val:.3g}")
-	
-	if intersections:
-		logging.info(f"Found {len(intersections)} equal-{target_param} guide lines across runs")
-	else:
-		logging.warning(f"No equal-{target_param} intersections found. Check that:")
-		logging.warning(f"  1. Parameter '{target_param}' exists in V_params or dspec_params")
-		logging.warning(f"  2. Runs have overlapping {target_param} ranges")
-		logging.warning(f"  3. At least 2 runs are present")
-	
 	return intersections
 
 
 def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight_y_by=None, 
 							 target_values=None, n_lines=5, linestyle='--', alpha=0.5, 
-							 color='black', show_labels=True, zorder=0):
+							 color='black', show_labels=True, zorder=0,
+							 plot_type='pa_var', phase_window='total', freq_window='full-band'):
 	"""
 	Plot curves connecting points where runs have equal values for a specified parameter,
 	extending to axis bounds. Labels are drawn inline with a background bbox to create a
 	visual gap like '--------- label ---------'.
 	"""
-	intersections = _find_equal_value_intersections(frb_dict, target_param, 
-													target_values, n_lines)
+	intersections = _find_equal_value_intersections(
+		frb_dict, target_param, target_values, n_lines,
+		plot_type=plot_type, phase_window=phase_window, freq_window=freq_window
+	)
 	if not intersections:
 		logging.info(f"No equal {target_param} intersections found for background lines")
 		return
@@ -1124,8 +1049,6 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 		info = param_map.get(target_param, (target_param, ""))
 		param_symbol = info[0] if isinstance(info, tuple) else target_param
 		param_unit = info[1] if isinstance(info, tuple) else ""
-
-	n_intersections = len(intersections)
 
 	def _format_val(v):
 		return f"{v:.1e}" if (abs(v) < 0.01 or abs(v) > 1000) else f"{v:.2f}"
@@ -1325,42 +1248,199 @@ def _format_override_label(override_str):
 	return ", ".join(formatted)
 
 
-def _get_series_label(freq_phase_key):
+def _plot_single_run_multi_window(
+	frb_dict,
+	ax,
+	plot_type,
+	window_pairs=None,  # CHANGED: now takes explicit pairs
+	weight_y_by=None,
+	weight_x_by=None,
+	fit=None,
+	scale="linear",
+	legend=True,
+	obs_data=None,
+	obs_params=None,
+	buffer_frac=0.1
+):
 	"""
-	Generate a clean series label from freq_phase_key.
+	Plot multiple freq/phase window combinations from a SINGLE run on the same axes.
 	
-	Examples:
-		'full, total, N100' -> 'full-band, total, N=100'
-		'1q, leading' -> 'lowest-quarter, leading'
+	Parameters:
+	-----------
+	frb_dict : dict
+		Single-run dict with 'measures', 'xvals', 'V_params', etc.
+	ax : matplotlib.axes.Axes
+		Axes to plot on
+	plot_type : str
+		'pa_var' or 'l_frac'
+	window_pairs : list of tuples or None
+		List of (freq_window, phase_window) pairs to plot.
+		e.g., [('1q', 'total'), ('4q', 'total'), ('all', 'leading')]
+		If None, defaults to [('all', 'total')].
+	weight_y_by : str or None
+	weight_x_by : str or None
+	fit : str or None
+	scale : str
+	legend : bool
+	obs_data : str or None
+	obs_params : str or None
+	buffer_frac : float
 	"""
-	parts = [p.strip() for p in freq_phase_key.split(',')]
+	if window_pairs is None:
+		window_pairs = [('all', 'total')]
 	
-	# Map abbreviated freq windows to full names
-	freq_map = {
-		'1q': 'lowest-quarter',
-		'2q': 'lower-mid-quarter',
-		'3q': 'upper-mid-quarter',
-		'4q': 'highest-quarter',
-		'full': 'full-band'
-	}
+	xvals = frb_dict["xvals"]
+	measures = frb_dict["measures"]
+	V_params = frb_dict.get("V_params", {})
+	dspec_params = frb_dict.get("dspec_params", {})
 	
-	# Map phase windows
-	phase_map = {
-		'first': 'leading',
-		'last': 'trailing',
-		'all': 'total'
-	}
+	if isinstance(weight_y_by, str) and weight_y_by.endswith("_i"):
+		weight_source = V_params
+	else:
+		weight_source = dspec_params
 	
-	formatted_parts = []
-	for i, part in enumerate(parts):
-		if i == 0:  # Frequency window
-			formatted_parts.append(freq_map.get(part, part))
-		elif i == 1:  # Phase window
-			formatted_parts.append(phase_map.get(part, part))
-		else:  # Override parameters
-			formatted_parts.append(_format_override_label(part))
+	n_combos = len(window_pairs)
 	
-	return ", ".join(formatted_parts)
+	freq_windows = [pair[0] for pair in window_pairs]
+	phase_windows = [pair[1] for pair in window_pairs]
+	
+	varying_freq = len(set(freq_windows)) > 1
+	varying_phase = len(set(phase_windows)) > 1
+	
+	if varying_freq and not varying_phase:
+		def get_color(freq_win, phase_win):
+			freq_label = normalise_freq_window(freq_win, target='dspec')
+			phase_label = normalise_phase_window(phase_win, target='dspec')
+			key = f"{freq_label}, {phase_label}"
+			return colour_map.get(key, colours['blue'])
+	
+	elif varying_phase and not varying_freq:
+		phase_colors = {
+			'leading': colours['orange'],
+			'trailing': colours['green'],
+			'total': colours['purple']
+		}
+		def get_color(freq_win, phase_win):
+			phase_label = normalise_phase_window(phase_win, target='dspec')
+			return phase_colors.get(phase_label, colours['blue'])
+	
+	elif varying_freq and varying_phase:
+		# Both varying: use combination from colour_map or cycle through colors
+		def get_color(freq_win, phase_win):
+			freq_label = normalise_freq_window(freq_win, target='dspec')
+			phase_label = normalise_phase_window(phase_win, target='dspec')
+			key = f"{freq_label}, {phase_label}"
+			if key in colour_map:
+				return colour_map[key]
+			# Fallback: cycle through base colors
+			idx = window_pairs.index((freq_win, phase_win))
+			if n_combos <= len(colours):
+				return list(colours.values())[idx % len(colours)]
+			import matplotlib.cm as cm
+			cmap = cm.get_cmap('tab20', n_combos)
+			return cmap(idx)
+	
+	else:
+		def get_color(freq_win, phase_win):
+			freq_label = normalise_freq_window(freq_win, target='dspec')
+			phase_label = normalise_phase_window(phase_win, target='dspec')
+			key = f"{freq_label}, {phase_label}"
+			return colour_map.get(key, colours['purple']) 
+	
+	x_last = None
+	xname = None
+	x_unit = None
+	
+	for idx, (freq_win, phase_win) in enumerate(window_pairs):
+		yvals = _yvals_from_measures_dict(xvals, measures, plot_type, phase_win, freq_win)
+		
+		y_weighted, applied = _weight_dict(
+			xvals, yvals, weight_source, 
+			weight_by=weight_y_by, 
+			return_status=True
+		)
+		
+		med_vals, percentile_errs = _median_percentiles(y_weighted, xvals)
+		lower = np.array([lo for (lo, hi) in percentile_errs])
+		upper = np.array([hi for (lo, hi) in percentile_errs])
+		
+		if x_last is None:
+			x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by)
+			x_last = x
+		
+		freq_label = normalise_freq_window(freq_win, target='dspec')
+		phase_label = normalise_phase_window(phase_win, target='dspec')
+		
+		# Build series label based on what's varying
+		if varying_freq and varying_phase:
+			series_label = f"{freq_label}, {phase_label}"
+		elif varying_freq:
+			series_label = freq_label
+		elif varying_phase:
+			series_label = phase_label
+		else:
+			series_label = f"{freq_label}, {phase_label}"
+		
+		color = get_color(freq_win, phase_win)
+		ax.plot(x, med_vals, color=color, label=series_label, linewidth=2)
+		ax.fill_between(x, lower, upper, color=color, alpha=0.2)
+		
+		if fit is not None:
+			fit_type, fit_degree = _parse_fit_arg(fit)
+			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=color)
+	
+	# Observational overlay
+	if obs_data is not None:
+		try:
+			plot_mode_obj = plot_modes.get(plot_type)
+			if plot_mode_obj is None:
+				logging.warning(f"Unknown plot_type '{plot_type}' for observational overlay")
+			else:
+				for idx, (freq_win, phase_win) in enumerate(window_pairs):
+					freq_canonical = normalise_freq_window(freq_win, target='dspec')
+					phase_canonical = normalise_phase_window(phase_win, target='dspec')
+					
+					obs_result = _process_observational_data(
+						obs_data, obs_params, 
+						phase_canonical,
+						freq_canonical,
+						buffer_frac=buffer_frac, 
+						plot_mode=plot_mode_obj
+					)
+					
+					color = get_color(freq_win, phase_win)
+					
+					freq_label = freq_canonical
+					phase_label = phase_canonical
+					if varying_freq and varying_phase:
+						obs_label = f"{obs_result['label']} ({freq_label}, {phase_label})"
+					elif varying_freq:
+						obs_label = f"{obs_result['label']} ({freq_label})"
+					elif varying_phase:
+						obs_label = f"{obs_result['label']} ({phase_label})"
+					else:
+						obs_label = obs_result['label']
+					
+					obs_result['label'] = obs_label
+					
+					_plot_observational_overlay(
+						ax, obs_result,
+						weight_x_by=weight_x_by,
+						weight_y_by=weight_y_by,
+						color=color,
+						marker='*',
+						size=300
+					)
+		except Exception as e:
+			logging.error(f"Failed to overlay observational data: {e}")
+	
+	# Set axis labels and scales
+	base_yname = r"Var($\psi$)" if plot_type == 'pa_var' else r"\Pi_L"
+	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if weight_y_by else (base_yname, "")
+	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
+	
+	if legend:
+		ax.legend(fontsize=14, loc='best')
 
 
 def _plot_single_job_common(
@@ -1482,6 +1562,11 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 	colour_list = list(colours.values())
 
+	# Resolve current window labels (long form) for legend/color mapping
+	curr_freq_label = normalise_freq_window(freq_window, target='dspec')      # e.g. 'lowest-quarter', 'full-band'
+	curr_phase_label = normalise_phase_window(phase_window, target='dspec')   # e.g. 'leading', 'trailing', 'total'
+	base_label_for_all = f"{curr_freq_label}, {curr_phase_label}"
+
 	# Prefer a specific run for expected curves if present
 	preferred_run = None
 	for run in frb_dict.keys():
@@ -1502,14 +1587,10 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	xname = None
 	x_unit = None
 
-	# Group series by base freq/phase (without override params)
 	from collections import defaultdict
 	base_groups = defaultdict(list)
 	for freq_phase_key in frb_dict.keys():
-		# Extract base label (freq, phase only)
-		parts = freq_phase_key.split(', ')
-		base_label = ", ".join(parts[:2])  # e.g., "full-band, leading"
-		base_groups[base_label].append(freq_phase_key)
+		base_groups[base_label_for_all].append(freq_phase_key)
 	
 	def get_color_shades(base_color, n_shades):
 		"""
@@ -1546,17 +1627,17 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	for idx, (freq_phase_key, run_data) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {freq_phase_key}:")
 		
-		series_label = _get_series_label(freq_phase_key)
-		
+		# Build series label using CURRENT windows, append overrides from filename
 		parts = freq_phase_key.split(', ')
-		base_label = ", ".join(parts[:2])
-		
-		base_color = colour_map.get(series_label)
-		if base_color is None:
-			base_color = colour_map.get(base_label, colour_list[idx % len(colour_list)])
-		
-		# If multiple series share the same freq/phase, use color shades
-		series_in_group = base_groups[base_label]
+		override_str = ", ".join(parts[2:]) if len(parts) > 2 else ""
+		override_label = _format_override_label(override_str) if override_str else ""
+		series_label = f"{base_label_for_all}" + (f", {override_label}" if override_label else "")
+
+		# Base color keyed by current windows
+		base_color = colour_map.get(base_label_for_all, colour_list[idx % len(colour_list)])
+		 
+		# If multiple series share the same base (current windows), use shades
+		series_in_group = base_groups[base_label_for_all]
 		if len(series_in_group) > 1:
 			shades = get_color_shades(base_color, len(series_in_group))
 			group_idx = series_in_group.index(freq_phase_key)
@@ -1627,7 +1708,8 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			ax, frb_dict, target_param=equal_value_lines,
 			weight_x_by=weight_x_by, weight_y_by=weight_y_by,
 			target_values=None, n_lines=5,
-			linestyle=':', alpha=0.5, color='black', show_labels=True, zorder=0
+			linestyle=':', alpha=0.5, color='black', show_labels=True, zorder=0,
+			plot_type=plot_type, phase_window=phase_window, freq_window=freq_window  
 		)
 		ax.set_xlim(_xlim0); ax.set_ylim(_ylim0)
 
@@ -1702,7 +1784,9 @@ def plot_pa_var(
 	weight_y_by="PA_i",
 	obs_data=None,
 	obs_params=None,
-	equal_value_lines=None
+	equal_value_lines=None,
+	compare_windows=None,
+	buffer_frac=0.1
 	):
 	"""
 	Plot the variance of the polarisation angle (PA) as a function of scattering parameters.
@@ -1740,6 +1824,11 @@ def plot_pa_var(
 		'poly,N' (polynomial of degree N), 'exp', 'log', etc.
 	extension : str
 		File extension for saved plots (e.g., 'pdf', 'png').
+	compare_windows : dict or None
+		If provided, enables multi-window comparison from a SINGLE run.
+		Format: {'freq': ['1q', '4q', 'all'], 'phase': ['first', 'last', 'total']}
+		Plots all combinations of freq x phase windows on same axes.
+		Overrides phase_window/freq_window parameters.
 		
 	Notes:
 	------
@@ -1754,6 +1843,36 @@ def plot_pa_var(
 	if figsize is None:
 		figsize = (10, 9)
 
+	if compare_windows is not None:
+		if _is_multi_run_dict(frb_dict):
+			logging.warning("compare_windows only works with single-run data; ignoring.")
+		else:
+			fig, ax = plt.subplots(figsize=figsize)
+			fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
+			_plot_single_run_multi_window(
+				frb_dict=frb_dict,
+				ax=ax,
+				plot_type='pa_var',
+				window_pairs=compare_windows,
+				weight_y_by=weight_y_by,
+				weight_x_by=weight_x_by,
+				fit=fit,
+				scale=scale,
+				legend=legend,
+				obs_data=obs_data,
+				obs_params=obs_params,
+				buffer_frac=buffer_frac
+			)
+			# Save/show
+			if show_plots:
+				plt.show()
+			if save:
+				name = f"{fname}_{scale}_pa_var_window_comparison.{extension}"
+				name = os.path.join(out_dir, name)
+				fig.savefig(name, dpi=600)
+				logging.info(f"Saved figure to {name}\n")
+			return
+
 	# Multi-run
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
@@ -1762,10 +1881,17 @@ def plot_pa_var(
 			frb_dict, ax, fit=fit, scale=scale, yname=yname,
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by,
 			legend=legend, equal_value_lines=equal_value_lines,
-			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window  # NEW
+			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window  
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'pa_var', phase_window, freq_window)
+
+		# Determine color based on the selected window
+		freq_label = normalise_freq_window(freq_window, target='dspec')
+		phase_label = normalise_phase_window(phase_window, target='dspec')
+		key = f"{freq_label}, {phase_label}"
+		series_color = colour_map.get(key, colours['purple']) 
+
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
 			yname_base=r"Var($\psi$)",
@@ -1775,9 +1901,9 @@ def plot_pa_var(
 			fit=fit,
 			scale=scale,
 			series_label=r'\psi$_{var}$',
-			series_color='black',
+			series_color=series_color,
 			expected_param_key='exp_var_PA',
-			yvals_override=yvals  # NEW
+			yvals_override=yvals  
 		)
 		
 	# Overlay observational data if provided
@@ -1815,16 +1941,13 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, b
 		dspec = dspec[:, freq_slc, :]
 
 	if phase_window != "total":
-		# Collapse to time profile and find peak robustly
 		Its = np.nansum(dspec, axis=(0, 1))
 		peak_index = int(np.nanargmax(Its))
 		phase_slc = _get_phase_window_indices(phase_window, peak_index)
-		# Avoid zero-length windows
 		if isinstance(phase_slc, slice):
 			start = 0 if phase_slc.start is None else phase_slc.start
 			stop = Its.size if phase_slc.stop is None else phase_slc.stop
 			if stop - start <= 0:
-				# Fallback to at least a single-sample window around the peak
 				start = max(0, peak_index - 1)
 				stop = min(Its.size, peak_index + 1)
 				phase_slc = slice(start, stop)
@@ -1874,7 +1997,9 @@ def plot_lfrac(
 	weight_y_by="lfrac",
 	obs_data=None,
 	obs_params=None,
-	equal_value_lines=None
+	equal_value_lines=None,
+	compare_windows=None,
+	buffer_frac=0.1
 	):
 	"""
 	Plot the linear polarisation fraction (L/I) as a function of scattering parameters.
@@ -1913,6 +2038,11 @@ def plot_lfrac(
 		'poly,N' (polynomial of degree N), 'exp', 'log', etc.
 	extension : str
 		File extension for saved plots (e.g., 'pdf', 'png').
+	compare_windows : dict or None
+		If provided, enables multi-window comparison from a SINGLE run.
+		Format: {'freq': ['1q', '4q', 'all'], 'phase': ['first', 'last', 'total']}
+		Plots all combinations of freq x phase windows on same axes.
+		Overrides phase_window/freq_window parameters.
 		
 	Notes:
 	------
@@ -1931,6 +2061,35 @@ def plot_lfrac(
 	if figsize is None:
 		figsize = (10, 9)
 
+	if compare_windows is not None:
+		if _is_multi_run_dict(frb_dict):
+			logging.warning("compare_windows only works with single-run data; ignoring.")
+		else:
+			fig, ax = plt.subplots(figsize=figsize)
+			fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
+			_plot_single_run_multi_window(
+				frb_dict=frb_dict,
+				ax=ax,
+				plot_type='l_frac',
+				window_pairs=compare_windows,
+				weight_y_by=weight_y_by,
+				weight_x_by=weight_x_by,
+				fit=fit,
+				scale=scale,
+				legend=legend,
+				obs_data=obs_data,
+				obs_params=obs_params,
+				buffer_frac=0.1
+			)
+			if show_plots:
+				plt.show()
+			if save:
+				name = f"{fname}_{scale}_l_frac_window_comparison.{extension}"
+				name = os.path.join(out_dir, name)
+				fig.savefig(name, dpi=600)
+				logging.info(f"Saved figure to {name}\n")
+			return
+
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
@@ -1938,10 +2097,17 @@ def plot_lfrac(
 			frb_dict, ax, fit=fit, scale=scale, yname=yname,
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by,
 			legend=legend, equal_value_lines=equal_value_lines,
-			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window  # NEW
+			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window  
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
+
+		# Determine color based on the selected window
+		freq_label = normalise_freq_window(freq_window, target='dspec')
+		phase_label = normalise_phase_window(phase_window, target='dspec')
+		key = f"{freq_label}, {phase_label}"
+		series_color = colour_map.get(key, colours['purple'])  # default to purple
+		
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
 			yname_base=r"\Pi_L",
@@ -1951,9 +2117,9 @@ def plot_lfrac(
 			fit=fit,
 			scale=scale,
 			series_label='L/I',
-			series_color='black',
+			series_color=series_color,
 			expected_param_key=None,
-			yvals_override=yvals  # NEW
+			yvals_override=yvals
 		)
 
 	# Overlay observational data if provided

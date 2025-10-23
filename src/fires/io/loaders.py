@@ -15,92 +15,92 @@ logging.basicConfig(level=logging.INFO)
 
 
 def get_parameters(filepath):
-    """
-    Parse a parameters.txt file with key = value format.
-    
-    Extracts relevant parameters for FRB analysis and converts to FIRES format.
-    
-    Parameters:
-    -----------
-    filepath : str
-        Path to parameters.txt file
-        
-    Returns:
-    --------
-    dict
-        Dictionary with parameter arrays (e.g., 'DM', 'RM', 'width_ms', 'tau_ms')
-    """
-    params = {}
-    
-    with open(filepath, 'r') as f:
-        for line in f:
-            line = line.strip()
-            # Skip empty lines and section headers
-            if not line or line.startswith('****') or line.startswith('#'):
-                continue
-            
-            # Parse key = value
-            if '=' in line:
-                parts = line.split('=', 1)
-                key = parts[0].strip()
-                value = parts[1].strip()
-                
-                # Remove trailing comments
-                if '#' in value:
-                    value = value.split('#')[0].strip()
-                
-                params[key] = value
-    
-    # Convert to FIRES format
-    gdict = {}
-    
-    # DM
-    if 'dm_frb' in params:
-        try:
-            gdict['DM'] = np.array([float(params['dm_frb'])])
-        except ValueError:
-            gdict['DM'] = np.array([0.0])
-    else:
-        gdict['DM'] = np.array([0.0])
-    
-    # RM (not in this format, default to 0)
-    gdict['RM'] = np.array([0.0])
-    
-    # Width (estimate from data or use default)
-    gdict['width_ms'] = np.array([1.0])  # Will be updated from data if available
-    
-    # Tau (scattering timescale, not in this format)
-    gdict['tau_ms'] = np.array([0.0])
-    
-    # Center frequency
-    if 'centre_freq_frb' in params:
-        try:
-            gdict['band_centre_mhz'] = np.array([float(params['centre_freq_frb'])])
-        except ValueError:
-            pass
-    
-    # Bandwidth
-    if 'bw' in params:
-        try:
-            gdict['band_width_mhz'] = np.array([float(params['bw'])])
-        except ValueError:
-            pass
-    
-    # RA/Dec for label
-    if 'label' in params:
-        gdict['label'] = params['label']
-    elif 'ra_frb' in params and 'dec_frb' in params:
-        gdict['label'] = f"RA={params['ra_frb']}, Dec={params['dec_frb']}"
-    else:
-        gdict['label'] = "FRB"
-    
-    logging.info(
-        f"Parsed parameters: DM={gdict.get('DM', [0])[0]:.2f} pc/cm³, "
-        f"center_freq={gdict.get('band_centre_mhz', ['N/A'])[0]} MHz, "
-        f"bandwidth={gdict.get('band_width_mhz', ['N/A'])[0]} MHz"
-    )
-    
-    return gdict
+	"""
+	Parse a parameters.txt file with key = value format.
+	
+	Extracts relevant parameters for FRB analysis and converts to FIRES format.
+	
+	Parameters:
+	-----------
+	filepath : str
+		Path to parameters.txt file
+		
+	Returns:
+	--------
+	dict
+		Dictionary with parameter arrays (e.g., 'DM', 'RM', 'width_ms', 'tau_ms')
+	"""
+	params = {}
+	
+	with open(filepath, 'r') as f:
+		for line in f:
+			line = line.strip()
+			# Skip empty lines and section headers
+			if not line or line.startswith('****') or line.startswith('#'):
+				continue
+			
+			# Parse key = value
+			if '=' in line:
+				parts = line.split('=', 1)
+				key = parts[0].strip()
+				value = parts[1].strip()
+				
+				# Remove trailing comments
+				if '#' in value:
+					value = value.split('#')[0].strip()
+				
+				params[key] = value
+	
+	# Convert to FIRES format
+	gdict = {}
+	
+	# DM
+	if 'dm_frb' in params:
+		try:
+			gdict['DM'] = np.array([float(params['dm_frb'])])
+		except ValueError:
+			gdict['DM'] = np.array([0.0])
+	else:
+		gdict['DM'] = np.array([0.0])
+	
+	# RM (not in this format, default to 0)
+	gdict['RM'] = np.array([0.0])
+	
+	# Width (estimate from data or use default)
+	gdict['width_ms'] = np.array([1.0])  # Will be updated from data if available
+	
+	# Tau (scattering timescale, not in this format)
+	gdict['tau_ms'] = np.array([0.0])
+	
+	# Center frequency
+	if 'centre_freq_frb' in params:
+		try:
+			gdict['band_centre_mhz'] = np.array([float(params['centre_freq_frb'])])
+		except ValueError:
+			pass
+	
+	# Bandwidth
+	if 'bw' in params:
+		try:
+			gdict['band_width_mhz'] = np.array([float(params['bw'])])
+		except ValueError:
+			pass
+	
+	# RA/Dec for label
+	if 'label' in params:
+		gdict['label'] = params['label']
+	elif 'ra_frb' in params and 'dec_frb' in params:
+		gdict['label'] = f"RA={params['ra_frb']}, Dec={params['dec_frb']}"
+	else:
+		gdict['label'] = "FRB"
+	
+	logging.info(
+		f"Parsed parameters: DM={gdict.get('DM', [0])[0]:.2f} pc/cm³, "
+		f"center_freq={gdict.get('band_centre_mhz', ['N/A'])[0]} MHz, "
+		f"bandwidth={gdict.get('band_width_mhz', ['N/A'])[0]} MHz"
+	)
+	
+	return gdict
 
 
 def load_data(obs_data_path, obs_params_path=None):
@@ -335,193 +335,193 @@ def load_data(obs_data_path, obs_params_path=None):
 
 
 def load_multiple_data_grouped(data):
-	"""
-	Group simulation outputs by freq and phase info (everything after freq_ and phase_).
-	Loads ALL files per group and merges their xvals/yvals together.
-	Returns a dictionary: {freq_phase_key: {'xname': ..., 'xvals': ..., 'yvals': ..., ...}, ...}
-	Dictionary is sorted by override parameter values (e.g., N=10, N=100, N=1000).
-	"""
-	import re
-	from collections import defaultdict
-	
-	logging.info(f"Loading grouped data from {data}...")
+    """
+    Group simulation outputs by override parameters (e.g., N, tau, lfrac).
+    Loads ALL files per group and merges their xvals/measures together.
+    Returns unwrapped dict if single series, dict-of-dicts if multiple series.
+    """
+    import re
+    from collections import defaultdict
+    
+    logging.info(f"Loading grouped data from {data}...")
   
-	def normalise_override_value(value_str):
-		"""Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
-		try:
-			val = float(value_str)
-			if val.is_integer():
-				return str(int(val))
-			else:
-				return f"{val:.2f}"
-		except ValueError:
-			return value_str
-	
-	def extract_override_params(freq_phase_key):
-		"""
-		Extract override parameters from freq_phase_key for sorting.
-		Returns dict of {param_name: numeric_value}.
-		Example: "full-band, leading, N10_tau5.5" -> {'N': 10, 'tau': 5.5}
-		"""
-		parts = freq_phase_key.split(', ')
-		if len(parts) < 3:
-			return {}
-		
-		override_str = parts[2]  # e.g., "N10_tau5.5"
-		override_dict = {}
-		
-		# Split by underscore to get individual param=value pairs
-		for part in override_str.split('_'):
-			match = re.match(r'([a-zA-Z_]+)([0-9.]+)', part)
-			if match:
-				param = match.group(1)
-				value = float(match.group(2))
-				override_dict[param] = value
-		
-		return override_dict
-	
-	def sort_key_for_freq_phase(freq_phase_key):
-		"""
-		Generate sort key for freq_phase_key.
-		Sorts by: (freq, phase, N, tau_ms, lfrac, ...) in that order.
-		"""
-		parts = freq_phase_key.split(', ')
-		freq_info = parts[0] if len(parts) > 0 else ""
-		phase_info = parts[1] if len(parts) > 1 else ""
-		
-		override_params = extract_override_params(freq_phase_key)
-		
-		# Sort order: freq, phase, then override params in a specific order
-		# Common params: N, tau, lfrac, vfrac, PA, DM, RM, width
-		param_order = ['N', 'tau', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width']
-		
-		sort_tuple = [freq_info, phase_info]
-		for param in param_order:
-			sort_tuple.append(override_params.get(param, 0))  # 0 if param not present
-		
-		return tuple(sort_tuple)
-	
-	def extract_freq_phase_key(fname):
-		# Extract freq and phase info and any override parameters from filename
-		# Pattern: ...freq_{freq}_phase_{phase}[_{overrides}].pkl
-		m = re.search(r'_freq_([a-z\-]+)_phase_([a-z\-]+)(?:_(.+?))?\.pkl$', fname)
-		if m:
-			freq_info = m.group(1)
-			phase_info = m.group(2)
-			override_info = m.group(3) if m.group(3) else None
-			
-			if override_info:
-				parts = override_info.split('_')
-				cleaned_parts = []
-				
-				for part in parts:
-					if not part:
-						continue
-					match = re.match(r'([a-zA-Z_]+)([0-9.]+)', part)
-					if match:
-						param = match.group(1)
-						value = match.group(2)
-						normalised_value = normalise_override_value(value)
-						cleaned_parts.append(f"{param}{normalised_value}")
-					else:
-						cleaned_parts.append(part)
-				
-				if cleaned_parts:
-					override_label = "_".join(cleaned_parts)
-					return f"{freq_info}, {phase_info}, {override_label}"
-			
-			return f"{freq_info}, {phase_info}"
-		
-		logging.warning(f"Could not parse freq/phase from filename: {fname}")
-		return "unknown"  
-	
-	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
-	logging.info(f"Found {len(file_names)} .pkl files")
-	
-	groups = defaultdict(list)
-	
-	# Group files by freq/phase/override key
-	for fname in file_names:
-		freq_phase_key = extract_freq_phase_key(fname)
-		groups[freq_phase_key].append(fname)
-	
-	# Sort groups by override parameters
-	sorted_keys = sorted(groups.keys(), key=sort_key_for_freq_phase)
-	
-	logging.info(f"Grouped files into {len(groups)} unique series (sorted by override params):")
-	for key in sorted_keys:
-		logging.info(f"  '{key}': {len(groups[key])} files")
+    def normalise_override_value(value_str):
+        """Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
+        try:
+            val = float(value_str)
+            if val.is_integer():
+                return str(int(val))
+            else:
+                return f"{val:.2f}"
+        except ValueError:
+            return value_str
+    
+    def extract_override_key(fname):
+        """
+        Extract override parameters from filename for grouping.
+        Pattern: sweep_{idx}_n{nseed}_plot_{mode}_xname_{xname}_xvals_{range}_mode_{mode}[_{overrides}].pkl
+        Returns: string like "N100" or "N100_tau5.5" or "" if no overrides
+        """
+        # Match override parameters after mode_{mode}_
+        # They appear as key-value pairs like N100, tau5.5, etc.
+        m = re.search(r'_mode_\w+_(.+?)\.pkl$', fname)
+        if not m:
+            return ""  # No overrides
+        
+        trailing = m.group(1)
+        
+        # Extract parameter patterns like N100, tau5.5, PA10, etc.
+        param_pattern = r'([a-zA-Z_]+)([0-9.]+)'
+        matches = re.findall(param_pattern, trailing)
+        
+        if not matches:
+            return ""
+        
+        # Build normalized key
+        parts = []
+        for param, value in matches:
+            # Skip non-override fields (like xvals range)
+            if param in ['xvals', 'sweep', 'plot', 'xname', 'mode']:
+                continue
+            
+            normalised_value = normalise_override_value(value)
+            parts.append(f"{param}{normalised_value}")
+        
+        return "_".join(parts) if parts else ""
+    
+    def extract_override_params_for_sorting(override_key):
+        """
+        Convert override_key string to dict for sorting.
+        Example: "N100_tau5.5" -> {'N': 100, 'tau': 5.5}
+        """
+        if not override_key:
+            return {}
+        
+        override_dict = {}
+        param_pattern = r'([a-zA-Z_]+)([0-9.]+)'
+        matches = re.findall(param_pattern, override_key)
+        
+        for param, value in matches:
+            try:
+                override_dict[param] = float(value)
+            except ValueError:
+                pass
+        
+        return override_dict
+    
+    def sort_key_for_overrides(override_key):
+        """
+        Generate sort key for override parameters.
+        Sorts by: N, tau, lfrac, vfrac, PA, DM, RM, width in that order.
+        """
+        override_params = extract_override_params_for_sorting(override_key)
+        
+        # Sort order for common parameters
+        param_order = ['N', 'tau', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width']
+        
+        sort_tuple = []
+        for param in param_order:
+            sort_tuple.append(override_params.get(param, 0))  # 0 if param not present
+        
+        return tuple(sort_tuple)
+    
+    file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
+    logging.info(f"Found {len(file_names)} .pkl files")
+    
+    groups = defaultdict(list)
+    
+    # Group files by override parameters
+    for fname in file_names:
+        override_key = extract_override_key(fname)
+        groups[override_key].append(fname)
+    
+    # Sort groups by override parameters
+    sorted_keys = sorted(groups.keys(), key=sort_key_for_overrides)
+    
+    logging.info(f"Grouped files into {len(groups)} unique series (sorted by override params):")
+    for override_key in sorted_keys:
+        label = override_key if override_key else "baseline"
+        logging.info(f"  '{label}': {len(groups[override_key])} files")
 
-	all_results = {}
-	
-	for freq_phase_key in sorted_keys:
-		file_list = groups[freq_phase_key]
-		
-		xname = None
-		plot_mode = None
-		dspec_params = None
-		all_xvals = []
-		all_measures = {}
-		all_V_params = {}
-		all_exp_vars = {}
-		all_snrs = {}
+    all_results = {}
+    
+    for override_key in sorted_keys:
+        file_list = groups[override_key]
+        
+        xname = None
+        plot_mode = None
+        dspec_params = None
+        all_xvals = []
+        all_measures = {}
+        all_V_params = {}
+        all_exp_vars = {}
+        all_snrs = {}
 
-		seen_xvals = set()
-		logging.info(f"Merging {len(file_list)} files for series '{freq_phase_key}'")
-		
-		for fname in file_list:
-			with open(os.path.join(data, fname), "rb") as f:
-				obj = pkl.load(f)
-			if not isinstance(obj, dict):
-				logging.warning(f"File {fname} does not contain expected dict structure")
-				continue
-			
-			if xname is None:
-				xname = obj.get("xname")
-				plot_mode = obj.get("plot_mode")
-				dspec_params = obj.get("dspec_params")
+        seen_xvals = set()
+        label = override_key if override_key else "baseline"
+        logging.info(f"Merging {len(file_list)} files for series '{label}'")
+        
+        for fname in file_list:
+            with open(os.path.join(data, fname), "rb") as f:
+                obj = pkl.load(f)
+            if not isinstance(obj, dict):
+                logging.warning(f"File {fname} does not contain expected dict structure")
+                continue
+            
+            if xname is None:
+                xname = obj.get("xname")
+                plot_mode = obj.get("plot_mode")
+                dspec_params = obj.get("dspec_params")
 
-			xvals = obj.get("xvals", [])
-			snrs = obj.get("snrs", {})
-			V_params = obj.get("V_params", {})
-			exp_vars = obj.get("exp_vars", {})
-			measures = obj.get("measures", {})
+            xvals = obj.get("xvals", [])
+            snrs = obj.get("snrs", {})
+            V_params = obj.get("V_params", {})
+            exp_vars = obj.get("exp_vars", {})
+            measures = obj.get("measures", {})
 
-			# Merge xvals and associated data
-			for v in xvals:
-				if v not in seen_xvals:
-					seen_xvals.add(v)
-					all_xvals.append(v)
-				# init per-xval
-				if v not in all_measures:
-					all_measures[v] = []
-					all_snrs[v] = []
-					all_V_params[v] = {key: [] for key in V_params.get(v, {}).keys()}
-					all_exp_vars[v] = {key: [] for key in exp_vars.get(v, {}).keys()}
-				# extend
-				all_measures[v].extend(measures.get(v, []))
-				all_snrs[v].extend(snrs.get(v, []))
-				for key, arr in V_params.get(v, {}).items():
-					all_V_params[v][key].extend(arr)
-				for key, arr in exp_vars.get(v, {}).items():
-					all_exp_vars[v][key].extend(arr)
-		
-		all_xvals = sorted(all_xvals)
-		all_results[freq_phase_key] = {
-			'xname': xname,
-			'xvals': all_xvals,
-			'measures': all_measures,     
-			'V_params': all_V_params,
-			'exp_vars': all_exp_vars,
-			'dspec_params': dspec_params,
-			'plot_mode': plot_mode,
-			'snrs': all_snrs
-		}
-		
-		logging.info(
-			f"Merged '{freq_phase_key}': {len(all_xvals)} unique xvals, "
-			f"range {min(all_xvals):.1f}-{max(all_xvals):.1f}"
-		)
+            # Merge xvals and associated data
+            for v in xvals:
+                if v not in seen_xvals:
+                    seen_xvals.add(v)
+                    all_xvals.append(v)
+                # init per-xval
+                if v not in all_measures:
+                    all_measures[v] = []
+                    all_snrs[v] = []
+                    all_V_params[v] = {key: [] for key in V_params.get(v, {}).keys()}
+                    all_exp_vars[v] = {key: [] for key in exp_vars.get(v, {}).keys()}
+                # extend
+                all_measures[v].extend(measures.get(v, []))
+                all_snrs[v].extend(snrs.get(v, []))
+                for key, arr in V_params.get(v, {}).items():
+                    all_V_params[v][key].extend(arr)
+                for key, arr in exp_vars.get(v, {}).items():
+                    all_exp_vars[v][key].extend(arr)
+        
+        all_xvals = sorted(all_xvals)
+        series_key = label  # Use override params as key
+        all_results[series_key] = {
+            'xname': xname,
+            'xvals': all_xvals,
+            'measures': all_measures,     
+            'V_params': all_V_params,
+            'exp_vars': all_exp_vars,
+            'dspec_params': dspec_params,
+            'plot_mode': plot_mode,
+            'snrs': all_snrs
+        }
+        
+        logging.info(
+            f"Merged '{label}': {len(all_xvals)} unique xvals, "
+            f"range {min(all_xvals):.1f}-{max(all_xvals):.1f}"
+        )
 
-	logging.info(f"Returning {len(all_results)} unique series (sorted)\n")
-	return all_results
+    logging.info(f"Returning {len(all_results)} unique series (sorted)\n")
+    
+    # If only one series, return unwrapped dict instead of nested structure
+    if len(all_results) == 1:
+        single_key = list(all_results.keys())[0]
+        logging.info(f"Single series detected ('{single_key}'), returning unwrapped dict for window comparison")
+        return all_results[single_key]
+    
+    return all_results

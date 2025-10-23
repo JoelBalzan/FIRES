@@ -12,6 +12,7 @@
 # -----------------------------------------------------------------------------
 
 import argparse
+from email import parser
 import logging
 #	--------------------------	Import modules	---------------------------
 import os
@@ -25,7 +26,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import configure_matplotlib, plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-                               normalise_freq_window, normalise_phase_window)
+							   normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -250,6 +251,22 @@ def main():
 		  "This is useful for comparing l_frac plots with different N values, etc.\n"
 		  "Note: Overrides apply to ALL micro-components uniformly.")
 	)
+	parser.add_argument(
+		"--compare-windows",
+		type=str,
+		nargs="+",
+		metavar="FREQ:PHASE",
+		help=("Compare multiple freq/phase windows from a SINGLE run on same plot.\n"
+			  "Format: --compare-windows FREQ:PHASE [FREQ:PHASE ...]\n"
+			  "Examples:\n"
+			  "  --compare-windows all:leading all:trailing all:total\n"
+			  "  --compare-windows 1q:total 4q:total all:total\n"
+			  "  --compare-windows all:leading 1q:total 4q:trailing\n"
+			  "Valid FREQ: all, 1q, 2q, 3q, 4q, full-band, etc.\n"
+			  "Valid PHASE: leading, trailing, total, first, last, all\n"
+			  "Only works with single-run data (not multi-run sweeps).")
+	)
+
 	# Simulation Options
 	parser.add_argument(
 		"-d", "--data",
@@ -327,17 +344,15 @@ def main():
 		action="store_true",
 		help="Enable scintillation effects from scparamts.toml."
 	)
-
 	args = parser.parse_args()
 
-	# Initialise logging 
+
 	init_logging(args.verbose)
 	if args.verbose:
 		LOG.debug("Verbose logging enabled.")
 
-	# Handle config management
+
 	if args.init_config:
-		# Overwrite user config with packaged defaults, creating timestamped backups
 		cfg.init_user_config(overwrite=True, backup=True)
 		print(f"Config files synced to: {cfg.user_config_dir()}\n")
 		return 0
@@ -345,7 +360,7 @@ def main():
 		cfg.edit_params(args.edit_config, config_dir=args.config_dir)
 		return
 
-	# Resolve parameter file paths 
+
 	resolved_sim   = str(cfg.find_config_file("simparams", config_dir=args.config_dir))
 	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir))
 	if args.scint:
@@ -357,14 +372,25 @@ def main():
 	args.freq_window = normalise_freq_window(args.freq_window, target='dspec')
 	args.phase_window = normalise_phase_window(args.phase_window, target='dspec')
 
+
+	window_pairs = None
+	if args.compare_windows:
+		pairs = []
+		for spec in args.compare_windows:
+			if ':' not in spec:
+				parser.error(f"Invalid --compare-windows format: '{spec}'. Expected 'freq:phase'.")
+			freq, phase = spec.split(':', 1)
+			pairs.append((freq.strip(), phase.strip()))
+		window_pairs = pairs if pairs else None
+
+
 	if args.plot[0] not in plot_modes and args.plot[0] not in ("all", "None"):
 			parser.error(f"Invalid plot mode: {args.plot[0]}")
 
-	# Set the global data directory variable
+
 	global data_directory
 	data_directory = args.output_dir
 
-	# Check if the output directory exists, if not create it
 	if args.write or args.save_plots:
 		os.makedirs(args.output_dir, exist_ok=True)
 		print(f"Output directory: '{data_directory}' \n")
@@ -372,7 +398,7 @@ def main():
 
 	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
 
-	# Parse parameter overrides
+
 	param_overrides = {}
 	if args.override_param:
 		for override in args.override_param:
@@ -381,7 +407,6 @@ def main():
 			key, value = override.split("=", 1)
 			key = key.strip()
 			try:
-				# Try to parse as float (works for int too)
 				param_overrides[key] = float(value)
 			except ValueError:
 				parser.error(f"Invalid value for override '{key}': '{value}' (must be numeric).")
@@ -494,7 +519,8 @@ def main():
 						"weight_y_by"      : args.weight_y_by,
 						"obs_data"         : args.obs_data,
 						"obs_params"       : args.obs_params,
-						"equal_value_lines": args.equal_value_lines
+						"equal_value_lines": args.equal_value_lines,
+						"compare_windows"  : window_pairs
 					}
 		
 					plot_function = plot_mode_obj.plot_func

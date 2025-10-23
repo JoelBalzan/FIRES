@@ -534,14 +534,11 @@ def process_dspec(dspec, freq_mhz, gdict, buffer_frac):
 	else:
 		corrdspec = dspec.copy()
 
-	# Use Stokes I to find the on-pulse window
 	I = np.nansum(corrdspec[0], axis=0)
 	left, right = boxcar_width(I, frac=0.95)
 
-	# New: buffer around on-pulse window for off-pulse noise estimation
 	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
 
-	# Estimate noise using off-pulse region with buffer
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 
 	tsdata = est_profiles(corrdspec, noise_stokes, left, right)
@@ -1030,7 +1027,6 @@ def compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac=0.1) -> dict:
         }
       }
     """
-    # Process full-band once (RM correction + masks)
     tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
 
     Its = tsdata_full.iquvt[0]
@@ -1041,19 +1037,16 @@ def compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac=0.1) -> dict:
     phits = tsdata_full.phits  # radians
     n_time = Its.size
 
-    # On-pulse mask from full-band I (consistent with snr calculations)
     on_mask, _, (left, right) = on_off_pulse_masks_from_profile(Its, frac=0.95, buffer_frac=buffer_frac)
     peak_index = int(np.nanargmax(Its)) if n_time > 0 else 0
     phase_slices = _phase_slices_from_peak(n_time, peak_index)
 
     def _measure_phase_slice(slc: slice) -> dict:
-        # Build slice mask
         slc_mask = np.zeros(n_time, dtype=bool)
         start = 0 if slc.start is None else slc.start
         stop = n_time if slc.stop is None else slc.stop
         if stop > start:
             slc_mask[start:stop] = True
-        # Restrict to on-pulse within this slice
         on_mask_slice = on_mask & slc_mask
 
         Vpsi = _pa_variance_deg2(phits[slc_mask])
@@ -1062,14 +1055,12 @@ def compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac=0.1) -> dict:
 
     phase_measures = {name: _measure_phase_slice(slc) for name, slc in phase_slices.items()}
 
-    # Frequency quarters (compute tsdata per slice to keep RM correction + masks consistent)
     n_chan = corr_dspec.shape[1]
     fq = _freq_quarter_slices(n_chan)
 
     def _measure_freq_slice(slc: slice) -> dict:
         dspec_f = corr_dspec[:, slc, :]
         freq_f = freq_mhz[slc] if isinstance(slc, slice) else freq_mhz
-        # Re-run process_dspec on the subset to get consistent on/off windows in this sub-band
         tsdata_f, _, _, _ = process_dspec(dspec_f, freq_f, gdict, buffer_frac)
         I = tsdata_f.iquvt[0]
         Q = tsdata_f.iquvt[1]
@@ -1077,7 +1068,7 @@ def compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac=0.1) -> dict:
         V = tsdata_f.iquvt[3]
         L = tsdata_f.Lts
         ph = tsdata_f.phits
-        # New on-pulse for sub-band
+
         on_m, _, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
         Vpsi = _pa_variance_deg2(ph)
         Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
