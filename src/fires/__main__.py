@@ -320,16 +320,6 @@ def main():
 			  "Default is mode-specific: 'PA_i' for pa_var, 'lfrac' for l_frac.")
 	)
 	parser.add_argument(
-		"--equal-value-lines",
-		type=str,
-		default=None,
-		metavar="",
-		help=("Plot background guide lines showing where different runs have equal values\n"
-			  "for the specified parameter (e.g., 'PA_i', 'tau_ms', 'lfrac').\n"
-			  "Works with any parameter from V_params (intrinsic/variation) or gparams.\n"
-			  "Only applies to multi-run plots (pa_var/l_frac modes).")
-	)
-	parser.add_argument(
 		"--compare-windows",
 		type=str,
 		nargs="+",
@@ -540,7 +530,6 @@ def main():
 						"weight_y_by"      : args.weight_y_by,
 						"obs_data"         : args.obs_data,
 						"obs_params"       : args.obs_params,
-						"equal_value_lines": args.equal_value_lines,
 						"compare_windows"  : window_pairs
 					}
 		
