@@ -980,164 +980,169 @@ def _format_override_label(override_str):
 
 
 def _plot_equal_value_lines(ax, frb_dict, target_param='PA_i', weight_x_by=None, weight_y_by=None,
-                            target_values=None, n_lines=5, linestyle=':', alpha=0.5, color='black',
-                            show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
-                            freq_window='full-band', x_measured=None, y_measured=None):
-    """
-    Plot background lines showing constant values of a swept parameter.
-    
-    When plotting measured quantities (e.g., measured PA variance vs measured L/I),
-    this draws lines connecting points that share the same swept parameter value
-    (the xvals parameter).
-    
-    Parameters:
-    -----------
-    ax : matplotlib.axes.Axes
-        Axes to plot on
-    frb_dict : dict
-        Multi-run dict containing simulation results
-    target_param : str
-        Parameter name to plot equal-value lines for (typically xname from data)
-    weight_x_by : str or None
-        X-axis weighting parameter
-    weight_y_by : str or None
-        Y-axis weighting parameter
-    x_measured : str or None
-        If set, x-axis uses measured quantity (e.g., 'Vpsi')
-    y_measured : str or None
-        If set, y-axis uses measured quantity (e.g., 'Lfrac')
-    target_values : list or None
-        Specific parameter values to plot lines for. If None, auto-select n_lines evenly spaced values.
-    n_lines : int
-        Number of lines to plot if target_values is None
-    linestyle : str
-        Line style for contours
-    alpha : float
-        Transparency
-    color : str
-        Line color
-    show_labels : bool
-        Whether to show value labels on lines
-    zorder : int
-        Z-order for line plotting
-    plot_type : str
-        Type of plot ('pa_var' or 'l_frac')
-    phase_window : str
-        Phase window for extraction
-    freq_window : str
-        Frequency window for extraction
-    """
-    
-    # Collect all xvals across runs (these are the swept parameter values)
-    all_xvals = set()
-    
-    for run_key, run_data in frb_dict.items():
-        for xv in run_data["xvals"]:
-            if np.isfinite(xv):
-                all_xvals.add(float(xv))
-    
-    if not all_xvals:
-        logging.warning(f"No valid xvals found. Cannot plot equal-value lines.")
-        return
-    
-    # Select which values to plot
-    sorted_values = sorted(all_xvals)
-    
-    if target_values is None:
-        # Auto-select evenly spaced values
-        if len(sorted_values) <= n_lines:
-            selected_values = sorted_values
-        else:
-            indices = np.linspace(0, len(sorted_values) - 1, n_lines, dtype=int)
-            selected_values = [sorted_values[i] for i in indices]
-    else:
-        # Use specified values
-        selected_values = [v for v in target_values if v in all_xvals]
-    
-    logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines")
-    
-    # For each selected xval, collect (x, y) points across all runs
-    for xval in selected_values:
-        x_points = []
-        y_points = []
-        
-        for run_key, run_data in frb_dict.items():
-            xvals = run_data["xvals"]
-            measures = run_data["measures"]
-            V_params = run_data.get("V_params", {})
-            dspec_params = run_data.get("dspec_params", {})
-            
-            # Find index of this xval in the run
-            xval_indices = np.where(np.isclose(xvals, xval, rtol=1e-6))[0]
-            
-            if len(xval_indices) == 0:
-                continue
-            
-            # Extract x-values (measured or swept)
-            if x_measured is not None:
-                x_vals, _, _ = _weight_x_get_xname(run_data, weight_x_by=weight_x_by, x_measured=x_measured)
-            else:
-                x_vals, _, _ = _weight_x_get_xname(run_data, weight_x_by=weight_x_by, x_measured=None)
-            
-            # Extract y-values (measured)
-            if y_measured is not None:
-                y_quantity = y_measured
-            else:
-                y_quantity = 'Vpsi' if plot_type == 'pa_var' else 'Lfrac'
-            
-            yvals_dict = _yvals_from_measures_dict(xvals, measures, plot_type, phase_window, freq_window)
-            
-            # Apply y-weighting if specified
-            if weight_y_by is not None:
-                weight_source = V_params if weight_y_by.endswith("_i") else dspec_params
-                yvals_weighted, _ = _weight_dict(xvals, yvals_dict, weight_source, weight_by=weight_y_by, return_status=True)
-            else:
-                yvals_weighted = yvals_dict
-            
-            # For each matching xval index, get the (x, y) coordinate
-            for idx in xval_indices:
-                # Get x coordinate
-                x_coord = x_vals[idx] if idx < len(x_vals) else np.nan
-                
-                # Get y coordinate (median of measurements)
-                xv_key = xvals[idx]
-                y_vals = yvals_weighted.get(xv_key, [])
-                y_coord = np.nanmedian(y_vals) if y_vals else np.nan
-                
-                if np.isfinite(x_coord) and np.isfinite(y_coord):
-                    x_points.append(x_coord)
-                    y_points.append(y_coord)
-        
-        # Plot line connecting points with this xval
-        if len(x_points) >= 2:
-            # Sort by x for proper line drawing
-            sorted_indices = np.argsort(x_points)
-            x_sorted = np.array(x_points)[sorted_indices]
-            y_sorted = np.array(y_points)[sorted_indices]
-            
-            ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, 
-                   color=color, linewidth=1.5, zorder=zorder)
-            
-            # Add label at the end of the line
-            if show_labels:
-                # Format parameter value nicely
-                param_info = param_map.get(target_param, (target_param, ""))
-                param_symbol = param_info[0] if isinstance(param_info, tuple) else target_param
-                
-                # Format value (remove unnecessary decimals)
-                if xval == int(xval):
-                    val_str = f"{int(xval)}"
-                else:
-                    val_str = f"{xval:.2g}"
-                
-                label_text = rf"${param_symbol} = {val_str}$"
-                
-                # Place label at the rightmost point
-                ax.text(x_sorted[0], y_sorted[0], label_text,
-                       fontsize=15, alpha=alpha+0.2, color=color, zorder=0,
-                       verticalalignment='bottom', horizontalalignment='left',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-                                alpha=0.7, edgecolor='none'))
+							target_values=None, n_lines=5, linestyle=':', alpha=0.5, color='black',
+							show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
+							freq_window='full-band', x_measured=None, y_measured=None, interpolate=True,
+							interp_kind='cubic', interp_points=100):
+	"""
+	Plot background lines showing constant values of a swept parameter.
+	
+	When plotting measured quantities (e.g., measured PA variance vs measured L/I),
+	this draws lines connecting points that share the same swept parameter value
+	(the xvals parameter).
+	
+	Parameters:
+	-----------
+	ax : matplotlib.axes.Axes
+		Axes to plot on
+	frb_dict : dict
+		Multi-run dict containing simulation results
+	target_param : str
+		Parameter name to plot equal-value lines for (typically xname from data)
+	weight_x_by : str or None
+		X-axis weighting parameter
+	weight_y_by : str or None
+		Y-axis weighting parameter
+	x_measured : str or None
+		If set, x-axis uses measured quantity (e.g., 'Vpsi')
+	y_measured : str or None
+		If set, y-axis uses measured quantity (e.g., 'Lfrac')
+	target_values : list or None
+		Specific parameter values to plot lines for. If None, auto-select n_lines evenly spaced values.
+	n_lines : int
+		Number of lines to plot if target_values is None
+	linestyle : str
+		Line style for contours
+	alpha : float
+		Transparency
+	color : str
+		Line color
+	show_labels : bool
+		Whether to show value labels on lines
+	zorder : int
+		Z-order for line plotting
+	plot_type : str
+		Type of plot ('pa_var' or 'l_frac')
+	phase_window : str
+		Phase window for extraction
+	freq_window : str
+		Frequency window for extraction
+	interpolate : bool
+		If True, use interpolation to create smooth curves between points
+	interp_kind : str
+		Interpolation method: 'linear', 'quadratic', 'cubic', 'slinear', etc.
+		See scipy.interpolate.interp1d for options
+	interp_points : int
+		Number of points to use in interpolated curve
+	"""
+	
+	# Collect all xvals across runs (these are the swept parameter values)
+	all_xvals = set()
+	
+	for run_key, run_data in frb_dict.items():
+		for xv in run_data["xvals"]:
+			if np.isfinite(xv):
+				all_xvals.add(float(xv))
+	
+	if not all_xvals:
+		logging.warning(f"No valid xvals found. Cannot plot equal-value lines.")
+		return
+	
+	# Select which values to plot
+	sorted_values = sorted(all_xvals)
+	
+	if target_values is None:
+		# Auto-select evenly spaced values
+		if len(sorted_values) <= n_lines:
+			selected_values = sorted_values
+		else:
+			indices = np.linspace(0, len(sorted_values) - 1, n_lines, dtype=int)
+			selected_values = [sorted_values[i] for i in indices]
+	else:
+		# Use specified values
+		selected_values = [v for v in target_values if v in all_xvals]
+	
+	logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines")
+	
+	# For each selected xval, collect (x, y) points ACROSS RUNS
+	for xval in selected_values:
+		x_points = []
+		y_points = []
+		for run_key, run_data in frb_dict.items():
+			xvals = run_data["xvals"]
+			measures = run_data["measures"]
+			V_params = run_data.get("V_params", {})
+			dspec_params = run_data.get("dspec_params", {})
+
+			# Find index of this xval in the run
+			xval_indices = np.where(np.isclose(xvals, xval, rtol=1e-6))[0]
+			if len(xval_indices) == 0:
+				continue
+
+			# Extract measured x and y for this run at this xval
+			if x_measured is not None:
+				x_vals, _, _ = _weight_x_get_xname(run_data, weight_x_by=weight_x_by, x_measured=x_measured)
+			else:
+				x_vals, _, _ = _weight_x_get_xname(run_data, weight_x_by=weight_x_by, x_measured=None)
+
+			if y_measured is not None:
+				y_quantity = y_measured
+			else:
+				y_quantity = 'Vpsi' if plot_type == 'pa_var' else 'Lfrac'
+
+			yvals_dict = _yvals_from_measures_dict(xvals, measures, plot_type, phase_window, freq_window)
+
+			# Apply y-weighting if specified
+			if weight_y_by is not None:
+				weight_source = V_params if weight_y_by.endswith("_i") else dspec_params
+				yvals_weighted, _ = _weight_dict(xvals, yvals_dict, weight_source, weight_by=weight_y_by, return_status=True)
+			else:
+				yvals_weighted = yvals_dict
+
+			for idx in xval_indices:
+				x_coord = x_vals[idx] if idx < len(x_vals) else np.nan
+				xv_key = xvals[idx]
+				y_vals = yvals_weighted.get(xv_key, [])
+				y_coord = np.nanmedian(y_vals) if y_vals else np.nan
+
+				if np.isfinite(x_coord) and np.isfinite(y_coord):
+					x_points.append(x_coord)
+					y_points.append(y_coord)
+
+		# Now plot/interpolate the curve for this xval
+		if len(x_points) >= 2:
+			sorted_indices = np.argsort(x_points)
+			x_sorted = np.array(x_points)[sorted_indices]
+			y_sorted = np.array(y_points)[sorted_indices]
+
+			if interpolate and len(x_points) >= 3:
+				try:
+					actual_kind = interp_kind
+					if interp_kind == 'cubic' and len(x_points) < 4:
+						actual_kind = 'quadratic'
+					if interp_kind == 'quadratic' and len(x_points) < 3:
+						actual_kind = 'linear'
+					f = interp1d(x_sorted, y_sorted, kind=actual_kind, bounds_error=False, fill_value='extrapolate')
+					x_smooth = np.linspace(x_sorted.min(), x_sorted.max(), interp_points)
+					y_smooth = f(x_smooth)
+					ax.plot(x_smooth, y_smooth, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+				except Exception as e:
+					logging.warning(f"Interpolation failed: {e}. Falling back to direct line plot.")
+					ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+			else:
+				ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+
+			# Label at leftmost point
+			if show_labels:
+				param_info = param_map.get(target_param, (target_param, ""))
+				param_symbol = param_info[0] if isinstance(param_info, tuple) else target_param
+				val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
+				label_text = rf"${param_symbol} = {val_str}$"
+				ax.text(x_sorted[0], y_sorted[0], label_text,
+						fontsize=15, alpha=alpha+0.2, color=color, zorder=0,
+						verticalalignment='bottom', horizontalalignment='left',
+						bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+								 alpha=0.7, edgecolor='none'))
 
 
 def _plot_single_run_multi_window(
@@ -1281,7 +1286,21 @@ def _plot_single_run_multi_window(
 		if fit is not None:
 			fit_type, fit_degree = _parse_fit_arg(fit)
 			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
-	
+
+	if "exp_vars" in frb_dict:
+		V_params = frb_dict.get("V_params", {})
+		xvals = frb_dict["xvals"]
+		if plot_type == 'pa_var':
+			param_key = 'exp_var_PA'
+		elif plot_type == 'l_frac':
+			param_key = 'exp_var_lfrac'
+		else:
+			param_key = None
+		if param_key is not None:
+			# Use the same x as the first window for expected curve
+			x, _, _ = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by)
+			_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=param_key, weight_y_by=weight_y_by)
+			
 	# Observational overlay
 	if obs_data is not None:
 		try:
@@ -1342,7 +1361,7 @@ def _plot_single_job_common(
 	yname_base,
 	weight_y_by,
 	weight_x_by,
-	x_measured,  # NEW
+	x_measured,
 	figsize,
 	fit,
 	scale,
@@ -2033,241 +2052,241 @@ def plot_lfrac(
 
 
 def _process_observational_data(obs_data_path, obs_params_path, phase_window, freq_window, buffer_frac, plot_mode, x_measured=None):
-    """
-    Load and process observational FRB data to extract measurements for overlay plotting.
-    
-    Uses the full basicfns processing pipeline to ensure consistency with simulated data.
-    
-    Parameters:
-    -----------
-    obs_data_path : str
-        Path to observational data directory or file
-    obs_params_path : str or None
-        Path to parameters file (optional)
-    phase_window : str
-        Phase window to use for analysis ('total', 'leading', 'trailing')
-    freq_window : str
-        Frequency window to use for analysis
-    buffer_frac : float
-        Buffer fraction for on/off pulse regions
-    plot_mode : PlotMode
-        Plot mode object (determines what to measure)
-    x_measured : str or None
-        If set, use measured quantity on x-axis (e.g., 'Vpsi')
-        
-    Returns:
-    --------
-    dict
-        Dictionary with measurement results and metadata
-    """
-    if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
-        dspec, freq_mhz, time_ms, gdict = load_data(obs_data_path, obs_params_path)
-    else:
-        raise ValueError(f"Unsupported file format: {obs_data_path}")
-    
-    if dspec.ndim == 2:
-        dspec = dspec[np.newaxis, :, :]
-        zeros = np.zeros_like(dspec[0:1])
-        dspec = np.concatenate([dspec, zeros, zeros, zeros], axis=0)
-    elif dspec.ndim == 3 and dspec.shape[0] < 4:
-        n_missing = 4 - dspec.shape[0]
-        zeros = np.zeros((n_missing, dspec.shape[1], dspec.shape[2]))
-        dspec = np.concatenate([dspec, zeros], axis=0)
-    
-    if freq_window != "full-band":
-        freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-        freq_mhz = freq_mhz[freq_slc]
-        dspec = dspec[:, freq_slc, :]
-        logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
-    
-    ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
-    
-    I_profile = ts_data.iquvt[0]
-    L_profile = ts_data.Lts
-    peak_index = int(np.nanargmax(I_profile))
-    
-    if phase_window != "total":
-        phase_slc = _get_phase_window_indices(phase_window, peak_index)
-        if isinstance(phase_slc, slice):
-            start = 0 if phase_slc.start is None else phase_slc.start
-            stop = I_profile.size if phase_slc.stop is None else phase_slc.stop
-            if stop - start <= 0:
-                start = max(0, peak_index - 1)
-                stop = min(I_profile.size, peak_index + 1)
-                phase_slc = slice(start, stop)
-        logging.info(f"Applied phase window '{phase_window}': bins {phase_slc.start}-{phase_slc.stop}")
-    else:
-        phase_slc = slice(None)
-    
-    on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-        I_profile, frac=0.95, buffer_frac=buffer_frac
-    )
-    
-    x_value = None
-    x_err = None
-    y_value = None
-    y_err = None
-    
-    # Compute PA measurements (needed for both plot types)
-    phits = ts_data.phits[phase_slc]
-    ephits = ts_data.ephits[phase_slc]
-    
-    valid_mask = np.isfinite(phits) & np.isfinite(ephits)
-    valid_phits = phits[valid_mask]
-    valid_ephits = ephits[valid_mask]
-    
-    pa_std_deg = None
-    pa_var_deg2 = None
-    pa_std_err = None
-    pa_var_err = None
-    n_samples = 0
-    
-    if len(valid_phits) > 0:
-        # PA standard deviation (handles 2*PA for π ambiguity)
-        pa_std_rad = circstd(2 * valid_phits, high=2*np.pi) / 2
-        pa_std_deg = np.rad2deg(pa_std_rad)
-        
-        # PA variance (deg²)
-        pa_var_deg2 = pa_std_deg**2
-        
-        # Errors
-        n_samples = len(valid_phits)
-        mean_pa_err = np.sqrt(np.mean(valid_ephits**2))
-        
-        # Std dev error: σ_σ ≈ σ / √(2N)
-        pa_std_err = pa_std_deg / np.sqrt(2 * n_samples)
-        
-        # Variance error: σ_(σ²) ≈ 2σ * σ_σ
-        pa_var_err = 2 * pa_std_deg * np.rad2deg(mean_pa_err / np.sqrt(n_samples))
-        
-        gdict['PA_i'] = np.array([pa_std_deg])
-    
-    # Determine x-axis based on x_measured parameter
-    if x_measured == 'Vpsi':
-        # X-axis: measured PA variance (deg²)
-        x_value = pa_var_deg2
-        x_err = pa_var_err
-        logging.info(f"Using PA variance for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg² (N={n_samples})")
-    elif x_measured == 'Lfrac':
-        # X-axis: measured L/I
-        I_windowed = I_profile[phase_slc]
-        L_windowed = L_profile[phase_slc]
-        on_mask_windowed = on_mask[phase_slc]
-        
-        I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
-        L_masked = np.where(on_mask_windowed, L_windowed, np.nan)
-        
-        integrated_I = np.nansum(I_masked)
-        integrated_L = np.nansum(L_masked)
-        
-        if integrated_I > 0:
-            x_value = integrated_L / integrated_I
-            
-            # Estimate error from off-pulse noise
-            I_offpulse = I_profile[off_mask]
-            L_offpulse = L_profile[off_mask]
-            
-            if len(I_offpulse) > 1 and len(L_offpulse) > 1:
-                noise_I = np.nanstd(I_offpulse, ddof=1)
-                noise_L = np.nanstd(L_offpulse, ddof=1)
-                
-                n_on = np.sum(on_mask_windowed)
-                if n_on > 0:
-                    sigma_I_integrated = noise_I * np.sqrt(n_on)
-                    sigma_L_integrated = noise_L * np.sqrt(n_on)
-                    
-                    x_err = x_value * np.sqrt(
-                        (sigma_L_integrated / integrated_L)**2 + 
-                        (sigma_I_integrated / integrated_I)**2
-                    )
-                else:
-                    x_err = 0.1 * x_value
-            else:
-                x_err = 0.1 * x_value
-            
-            logging.info(f"Using L/I for x-axis (measured): {x_value:.3f} ± {x_err:.3f}")
-        else:
-            logging.warning("Cannot use L/I for x-axis: integrated I is zero")
-    else:
-        # Default: X-axis is PA std dev (intrinsic parameter)
-        x_value = pa_std_deg
-        x_err = pa_std_err
-        if x_value is not None:
-            logging.info(f"Using PA std dev for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg (N={n_samples})")
-    
-    # Determine y-axis based on plot mode
-    if plot_mode.name == 'pa_var':
-        y_value = pa_var_deg2
-        y_err = pa_var_err
-        if y_value is not None:
-            logging.info(f"PA variance: {y_value:.3f} ± {y_err:.3f} deg² (N={n_samples})")
-    
-    elif plot_mode.name == 'l_frac':
-        # Apply phase window and on-pulse mask
-        I_windowed = I_profile[phase_slc]
-        L_windowed = L_profile[phase_slc]
-        on_mask_windowed = on_mask[phase_slc]
-        
-        I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
-        L_masked = np.where(on_mask_windowed, L_windowed, np.nan)
-        
-        integrated_I = np.nansum(I_masked)
-        integrated_L = np.nansum(L_masked)
-        
-        if integrated_I > 0:
-            y_value = integrated_L / integrated_I
-            
-            # Estimate errors from off-pulse noise
-            I_offpulse = I_profile[off_mask]
-            L_offpulse = L_profile[off_mask]
-            
-            if len(I_offpulse) > 1 and len(L_offpulse) > 1:
-                noise_I = np.nanstd(I_offpulse, ddof=1)
-                noise_L = np.nanstd(L_offpulse, ddof=1)
-                
-                n_on = np.sum(on_mask_windowed)
-                if n_on > 0:
-                    sigma_I_integrated = noise_I * np.sqrt(n_on)
-                    sigma_L_integrated = noise_L * np.sqrt(n_on)
-                    
-                    y_err = y_value * np.sqrt(
-                        (sigma_L_integrated / integrated_L)**2 + 
-                        (sigma_I_integrated / integrated_I)**2
-                    )
-                else:
-                    y_err = 0.1 * y_value
-            else:
-                y_err = 0.1 * y_value
-            
-            logging.info(f"L/I (measured): {y_value:.3f} ± {y_err:.3f}")
-        else:
-            logging.warning("Integrated Stokes I is zero or negative")
-    
-    else:
-        raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
-    
-    label = gdict.get('label', os.path.splitext(os.path.basename(obs_data_path))[0])
-    
-    result = {
-        'x_value': x_value,
-        'x_err': x_err,
-        'y_value': y_value,
-        'y_err': y_err,
-        'label': label,
-        'dspec': corr_dspec,
-        'freq_mhz': freq_mhz,
-        'time_ms': time_ms,
-        'gdict': gdict,
-        'ts_data': ts_data, 
-        'noisespec': noisespec
-    }
-    
-    if x_value is not None and y_value is not None:
-        logging.info(f"Observational measurements: x={x_value:.3f}±{x_err if x_err else 0:.3f}, y={y_value:.3f}±{y_err if y_err else 0:.3f}")
-    else:
-        logging.warning("Failed to extract valid measurements from observational data")
-    
-    return result
+	"""
+	Load and process observational FRB data to extract measurements for overlay plotting.
+	
+	Uses the full basicfns processing pipeline to ensure consistency with simulated data.
+	
+	Parameters:
+	-----------
+	obs_data_path : str
+		Path to observational data directory or file
+	obs_params_path : str or None
+		Path to parameters file (optional)
+	phase_window : str
+		Phase window to use for analysis ('total', 'leading', 'trailing')
+	freq_window : str
+		Frequency window to use for analysis
+	buffer_frac : float
+		Buffer fraction for on/off pulse regions
+	plot_mode : PlotMode
+		Plot mode object (determines what to measure)
+	x_measured : str or None
+		If set, use measured quantity on x-axis (e.g., 'Vpsi')
+		
+	Returns:
+	--------
+	dict
+		Dictionary with measurement results and metadata
+	"""
+	if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
+		dspec, freq_mhz, time_ms, gdict = load_data(obs_data_path, obs_params_path)
+	else:
+		raise ValueError(f"Unsupported file format: {obs_data_path}")
+	
+	if dspec.ndim == 2:
+		dspec = dspec[np.newaxis, :, :]
+		zeros = np.zeros_like(dspec[0:1])
+		dspec = np.concatenate([dspec, zeros, zeros, zeros], axis=0)
+	elif dspec.ndim == 3 and dspec.shape[0] < 4:
+		n_missing = 4 - dspec.shape[0]
+		zeros = np.zeros((n_missing, dspec.shape[1], dspec.shape[2]))
+		dspec = np.concatenate([dspec, zeros], axis=0)
+	
+	if freq_window != "full-band":
+		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
+		freq_mhz = freq_mhz[freq_slc]
+		dspec = dspec[:, freq_slc, :]
+		logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
+	
+	ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+	
+	I_profile = ts_data.iquvt[0]
+	L_profile = ts_data.Lts
+	peak_index = int(np.nanargmax(I_profile))
+	
+	if phase_window != "total":
+		phase_slc = _get_phase_window_indices(phase_window, peak_index)
+		if isinstance(phase_slc, slice):
+			start = 0 if phase_slc.start is None else phase_slc.start
+			stop = I_profile.size if phase_slc.stop is None else phase_slc.stop
+			if stop - start <= 0:
+				start = max(0, peak_index - 1)
+				stop = min(I_profile.size, peak_index + 1)
+				phase_slc = slice(start, stop)
+		logging.info(f"Applied phase window '{phase_window}': bins {phase_slc.start}-{phase_slc.stop}")
+	else:
+		phase_slc = slice(None)
+	
+	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
+		I_profile, frac=0.95, buffer_frac=buffer_frac
+	)
+	
+	x_value = None
+	x_err = None
+	y_value = None
+	y_err = None
+	
+	# Compute PA measurements (needed for both plot types)
+	phits = ts_data.phits[phase_slc]
+	ephits = ts_data.ephits[phase_slc]
+	
+	valid_mask = np.isfinite(phits) & np.isfinite(ephits)
+	valid_phits = phits[valid_mask]
+	valid_ephits = ephits[valid_mask]
+	
+	pa_std_deg = None
+	pa_var_deg2 = None
+	pa_std_err = None
+	pa_var_err = None
+	n_samples = 0
+	
+	if len(valid_phits) > 0:
+		# PA standard deviation (handles 2*PA for π ambiguity)
+		pa_std_rad = circstd(2 * valid_phits, high=2*np.pi) / 2
+		pa_std_deg = np.rad2deg(pa_std_rad)
+		
+		# PA variance (deg²)
+		pa_var_deg2 = pa_std_deg**2
+		
+		# Errors
+		n_samples = len(valid_phits)
+		mean_pa_err = np.sqrt(np.mean(valid_ephits**2))
+		
+		# Std dev error: σ_σ ≈ σ / √(2N)
+		pa_std_err = pa_std_deg / np.sqrt(2 * n_samples)
+		
+		# Variance error: σ_(σ²) ≈ 2σ * σ_σ
+		pa_var_err = 2 * pa_std_deg * np.rad2deg(mean_pa_err / np.sqrt(n_samples))
+		
+		gdict['PA_i'] = np.array([pa_std_deg])
+	
+	# Determine x-axis based on x_measured parameter
+	if x_measured == 'Vpsi':
+		# X-axis: measured PA variance (deg²)
+		x_value = pa_var_deg2
+		x_err = pa_var_err
+		logging.info(f"Using PA variance for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg² (N={n_samples})")
+	elif x_measured == 'Lfrac':
+		# X-axis: measured L/I
+		I_windowed = I_profile[phase_slc]
+		L_windowed = L_profile[phase_slc]
+		on_mask_windowed = on_mask[phase_slc]
+		
+		I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
+		L_masked = np.where(on_mask_windowed, L_windowed, np.nan)
+		
+		integrated_I = np.nansum(I_masked)
+		integrated_L = np.nansum(L_masked)
+		
+		if integrated_I > 0:
+			x_value = integrated_L / integrated_I
+			
+			# Estimate error from off-pulse noise
+			I_offpulse = I_profile[off_mask]
+			L_offpulse = L_profile[off_mask]
+			
+			if len(I_offpulse) > 1 and len(L_offpulse) > 1:
+				noise_I = np.nanstd(I_offpulse, ddof=1)
+				noise_L = np.nanstd(L_offpulse, ddof=1)
+				
+				n_on = np.sum(on_mask_windowed)
+				if n_on > 0:
+					sigma_I_integrated = noise_I * np.sqrt(n_on)
+					sigma_L_integrated = noise_L * np.sqrt(n_on)
+					
+					x_err = x_value * np.sqrt(
+						(sigma_L_integrated / integrated_L)**2 + 
+						(sigma_I_integrated / integrated_I)**2
+					)
+				else:
+					x_err = 0.1 * x_value
+			else:
+				x_err = 0.1 * x_value
+			
+			logging.info(f"Using L/I for x-axis (measured): {x_value:.3f} ± {x_err:.3f}")
+		else:
+			logging.warning("Cannot use L/I for x-axis: integrated I is zero")
+	else:
+		# Default: X-axis is PA std dev (intrinsic parameter)
+		x_value = pa_std_deg
+		x_err = pa_std_err
+		if x_value is not None:
+			logging.info(f"Using PA std dev for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg (N={n_samples})")
+	
+	# Determine y-axis based on plot mode
+	if plot_mode.name == 'pa_var':
+		y_value = pa_var_deg2
+		y_err = pa_var_err
+		if y_value is not None:
+			logging.info(f"PA variance: {y_value:.3f} ± {y_err:.3f} deg² (N={n_samples})")
+	
+	elif plot_mode.name == 'l_frac':
+		# Apply phase window and on-pulse mask
+		I_windowed = I_profile[phase_slc]
+		L_windowed = L_profile[phase_slc]
+		on_mask_windowed = on_mask[phase_slc]
+		
+		I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
+		L_masked = np.where(on_mask_windowed, L_windowed, np.nan)
+		
+		integrated_I = np.nansum(I_masked)
+		integrated_L = np.nansum(L_masked)
+		
+		if integrated_I > 0:
+			y_value = integrated_L / integrated_I
+			
+			# Estimate errors from off-pulse noise
+			I_offpulse = I_profile[off_mask]
+			L_offpulse = L_profile[off_mask]
+			
+			if len(I_offpulse) > 1 and len(L_offpulse) > 1:
+				noise_I = np.nanstd(I_offpulse, ddof=1)
+				noise_L = np.nanstd(L_offpulse, ddof=1)
+				
+				n_on = np.sum(on_mask_windowed)
+				if n_on > 0:
+					sigma_I_integrated = noise_I * np.sqrt(n_on)
+					sigma_L_integrated = noise_L * np.sqrt(n_on)
+					
+					y_err = y_value * np.sqrt(
+						(sigma_L_integrated / integrated_L)**2 + 
+						(sigma_I_integrated / integrated_I)**2
+					)
+				else:
+					y_err = 0.1 * y_value
+			else:
+				y_err = 0.1 * y_value
+			
+			logging.info(f"L/I (measured): {y_value:.3f} ± {y_err:.3f}")
+		else:
+			logging.warning("Integrated Stokes I is zero or negative")
+	
+	else:
+		raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
+	
+	label = gdict.get('label', os.path.splitext(os.path.basename(obs_data_path))[0])
+	
+	result = {
+		'x_value': x_value,
+		'x_err': x_err,
+		'y_value': y_value,
+		'y_err': y_err,
+		'label': label,
+		'dspec': corr_dspec,
+		'freq_mhz': freq_mhz,
+		'time_ms': time_ms,
+		'gdict': gdict,
+		'ts_data': ts_data, 
+		'noisespec': noisespec
+	}
+	
+	if x_value is not None and y_value is not None:
+		logging.info(f"Observational measurements: x={x_value:.3f}±{x_err if x_err else 0:.3f}, y={y_value:.3f}±{y_err if y_err else 0:.3f}")
+	else:
+		logging.warning("Failed to extract valid measurements from observational data")
+	
+	return result
 
 
 def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=None, colour='pink', marker='*', size=200):
