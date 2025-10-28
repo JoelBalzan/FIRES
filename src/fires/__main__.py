@@ -279,9 +279,15 @@ def main():
 		"--plot-scale",
 		type=str,
 		default="linear",
-		choices=['linear', 'logx', 'logy', 'loglog'],
+		choices=['linear', 'logx', 'logy', 'log'],
 		metavar="",
-		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'loglog'. Default is 'linear'."
+		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'log'. Default is 'linear'."
+	)
+	parser.add_argument(
+    	"--nstep",
+    	type=int,
+    	default=20,
+    	help="Number of steps for logarithmic parameter sweeps (default: 20)."
 	)
 	parser.add_argument(
 		"--fit",
@@ -451,27 +457,28 @@ def main():
 				logging.info(f"Processing with {args.ncpu} threads. \n")
    
 			frb_dict = generate_frb(
-				data         = args.data,
-				frb_id       = args.frb_identifier,
-				sim_file     = resolved_sim,
-				gauss_file   = resolved_gauss,
-				scint_file   = resolved_scint,
-				out_dir      = args.output_dir,
-				write        = args.write,
-				mode         = args.mode,
-				seed         = args.seed,
-				nseed        = args.nseed,
-				sefd         = args.sefd,
-				n_cpus       = args.ncpu,
-				plot_mode    = selected_plot_mode,
-				phase_window = args.phase_window,
-				freq_window  = args.freq_window,
-				buffer_frac  = args.buffer,
-				sweep_mode   = args.sweep_mode,
-				target_snr   = args.snr,
-				obs_data     = None,
-				obs_params   = None,
-				param_overrides = param_overrides
+				data            = args.data,
+				frb_id          = args.frb_identifier,
+				sim_file        = resolved_sim,
+				gauss_file      = resolved_gauss,
+				scint_file      = resolved_scint,
+				out_dir         = args.output_dir,
+				write           = args.write,
+				mode            = args.mode,
+				seed            = args.seed,
+				nseed           = args.nseed,
+				sefd            = args.sefd,
+				n_cpus          = args.ncpu,
+				plot_mode       = selected_plot_mode,
+				phase_window    = args.phase_window,
+				freq_window     = args.freq_window,
+				buffer_frac     = args.buffer,
+				sweep_mode      = args.sweep_mode,
+				target_snr      = args.snr,
+				obs_data        = None,
+				obs_params      = None,
+				param_overrides = param_overrides,
+				nstep           = args.nstep
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(

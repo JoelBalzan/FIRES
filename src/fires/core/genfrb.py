@@ -201,7 +201,7 @@ def _window_dspec(dspec: np.ndarray,
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
-				target_snr=None, param_overrides=None):
+				nstep, target_snr=None, param_overrides=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -223,7 +223,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	time_ms  = np.arange(t_start, t_end + t_res, t_res, dtype=float)
 
 	# Load Gaussian parameters
-	gauss_params = np.loadtxt(gauss_file)
+	gauss_params = np.loadtxt(gauss_file, dtype=str)
 
 	# Split structural rows
 	stddev_row   = -4   # Gaussian std dev (psn micro variation)
@@ -288,7 +288,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	sweep_stop  = gauss_params[stop_row]
 	sweep_step  = gauss_params[step_row]
 
-	active_cols = np.where(sweep_step != 0.0)[0]
+	# Detect if step is 'log'
+	active_cols = np.where((sweep_step != '0') & (sweep_step != '0.0'))[0]
 	if plot_mode.requires_multiple_frb and data is None:
 		if active_cols.size == 0:
 			logging.error("No sweep defined (all step = 0) but multi-FRB plot requested.")
@@ -298,13 +299,19 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			sys.exit(1)
 	sweep_col = active_cols[0] if active_cols.size == 1 else None
 
+	# Parse start/stop/step as float unless 'log'
+	def parse_val(val):
+		try:
+			return float(val)
+		except Exception:
+			return val
+
 	sweep_spec = {
 		'col_index': sweep_col,
-		'start'    : sweep_start[sweep_col] if sweep_col is not None else None,
-		'stop'     : sweep_stop[sweep_col]  if sweep_col is not None else None,
+		'start'    : parse_val(sweep_start[sweep_col]) if sweep_col is not None else None,
+		'stop'     : parse_val(sweep_stop[sweep_col])  if sweep_col is not None else None,
 		'step'     : sweep_step[sweep_col]  if sweep_col is not None else None
 	}
-
 	if scint_file is not None:
 		scint = load_params("scparams", scint_file, "scintillation")
 		if scint.get("derive_from_tau", False):
@@ -432,19 +439,27 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					"Use --sweep-mode mean or --sweep-mode sd and set exactly one non-zero step in gparams."
 				)
 
-			if np.all(gauss_params[step_row, :] == 0.0):
-				logging.error("No sweep defined (all step sizes zero) but a multi-FRB plot was requested.")
-				logging.info("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
-				sys.exit(1)
+		if np.all((gauss_params[step_row, :] == '0') | (gauss_params[step_row, :] == '0.0')):
+			logging.error("No sweep defined (all step sizes zero) but a multi-FRB plot was requested.")
+			sys.exit(1)
 
-			col_idx = sweep_spec['col_index']
-			if col_idx is None:
-				raise ValueError("Could not determine sweep column (no non-zero step).")
+		col_idx = sweep_spec['col_index']
+		if col_idx is None:
+			raise ValueError("Could not determine sweep column (no non-zero step).")
 
-			start = sweep_spec['start']; stop = sweep_spec['stop']; step = sweep_spec['step']
-			if step is None or step <= 0:
+		start = sweep_spec['start']
+		stop = sweep_spec['stop']
+		step = sweep_spec['step']
+
+		# --- LOGIC FOR LOGARITHMIC STEP ---
+		if isinstance(step, str) and step.strip().lower() == 'log':
+			if start <= 0 or stop <= 0:
+				raise ValueError("Logarithmic sweep requires positive start/stop values.")
+			xvals = np.logspace(np.log10(start), np.log10(stop), nstep)
+		else:
+			step = float(step)
+			if step <= 0:
 				raise ValueError("Sweep step must be > 0.")
-
 			n_steps = int(np.round((stop - start) / step))
 			end = start + n_steps * step
 			xvals = np.linspace(start, end, n_steps + 1)
