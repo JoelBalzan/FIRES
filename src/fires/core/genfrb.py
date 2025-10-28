@@ -81,7 +81,7 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_sn
 	    )
 
 
-def _process_task(task, xname, mode, plot_mode, dspec_params):
+def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None):
 	"""
 	Process a single task (combination of timescale and realisation).
 	"""
@@ -99,7 +99,8 @@ def _process_task(task, xname, mode, plot_mode, dspec_params):
 		mode=mode,
 		var=var,
 		plot_multiple_frb=requires_multiple_frb,
-		**local_params
+		dspec_params=local_params,
+		target_snr=target_snr
 	)
 
 	return var, measures, V_params, snr, exp_vars
