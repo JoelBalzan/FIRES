@@ -187,7 +187,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension, 
+def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension, 
 					legend, info, buffer_frac, show_onpulse, show_offpulse):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
@@ -254,20 +254,20 @@ def plot_ilv_pa_ds(dspec, freq_mhz, time_ms, save, fname, outdir, tsdata, figsiz
 
 
 	# Highlight on- and off-pulse regions if requested
+	gdict = dspec_params.gdict
 	if show_onpulse or show_offpulse:
-		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac, one_sided_offpulse=True)
+		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
 		if show_onpulse:
-			# Shade on-pulse region
 			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
 		if show_offpulse:
-			# Shade off-pulse regions using a normalised-y transform (fills full height)
 			axs[1].fill_between(
 			time_ms, 0, 1, where=off_mask,
 			color='lightcoral', alpha=0.15,
 			transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
 		)
 	
-	axs[1].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
+	axs[1].tick_params(axis='x', direction='in', length=3)  
+	axs[1].set_xticklabels([])  
 	if snr is not None:
 		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
 	else:
