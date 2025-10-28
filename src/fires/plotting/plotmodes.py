@@ -96,7 +96,7 @@ colour_map = {
 param_map = {
 	# Intrinsic parameters - format: (LaTeX_symbol, unit)
 	"tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
-	"width"       	 : (r"W_0", r"\mathrm{ms}"),
+	"width_ms"     	 : (r"W_0", r"\mathrm{ms}"),
 	"A"              : (r"A_0", r"\mathrm{Jy}"),
 	"spec_idx"       : (r"\alpha_0", ""),
 	"DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
@@ -112,7 +112,7 @@ param_map = {
 	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
 	# Std deviation sweep parameters
 	"t0_i"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
-	"width_i"       : (r"\sigma_W", r"\mathrm{ms}"),
+	"width_ms_i"       : (r"\sigma_W", r"\mathrm{ms}"),
 	"A_i"              : (r"\sigma_A", ""),
 	"spec_idx_i"       : (r"\sigma_\alpha", ""),
 	"DM_i"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
