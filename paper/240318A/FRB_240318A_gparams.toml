@@ -10,7 +10,7 @@
 #
 #	Columns:
 #	t0  		    - Time offset of the Gaussian pulse in milliseconds
-#	width_ms		- Width of the Gaussian pulse in milliseconds
+#	width		- Width of the Gaussian pulse in milliseconds
 #	A		- Peak amplitude of the Gaussian pulse
 #	spec_idx		- Spectral index of the Gaussian pulse
 #	DM			    - Dispersion measure in pc/cm^3
@@ -22,11 +22,11 @@
 #   band_centre_mhz - Central frequency of the Gaussian
 #   band_width_mhz  - Frequency bandwidth of the Gaussian
 #   N          - Number of micro-gausssians used to generate the pulse in mgauss mode
-#   mg_width_low    - Lower width range of the micro-gaussians as a percentage of width_ms
-#   mg_width_high   - Higher width range of the micro-gaussians as a percentage of width_ms
+#   mg_width_low    - Lower width range of the micro-gaussians as a percentage of width
+#   mg_width_high   - Higher width range of the micro-gaussians as a percentage of width
 
 ##########################################################################################################################################################################
-#t0     width_ms	A	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	     band_centre_mhz    band_width_mhz   N  mg_width_low    mg_width_high   #
+#t0     width	A	spec_idx	DM		RM		PA	    lfrac	vfrac	dPA	     band_centre_mhz    band_width_mhz   N  mg_width_low    mg_width_high   #
 #(ms)                                            (rad/m2)  (deg)                   (deg/ms)                                              (%)             (%)             #
 ##########################################################################################################################################################################
 -0.15     0.1 	    4.0  	    0.0 	    0.0		0.0		0.0  	0.85 	-0.15 	0.0      0.0                0.0              175     5               20              # gausssian 

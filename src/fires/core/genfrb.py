@@ -20,14 +20,13 @@ import pickle as pkl
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from itertools import product
-from tracemalloc import start
 
 import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
-								 add_noise, process_dspec, scatter_dspec,
-								 snr_onpulse)
+                                 add_noise, process_dspec, scatter_dspec,
+                                 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.io.loaders import load_data, load_multiple_data_grouped
 from fires.utils.config import load_params
@@ -85,7 +84,6 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, target_snr=None, **para
 def _process_task(task, xname, mode, plot_mode, **params):
 	"""
 	Process a single task (combination of timescale and realisation).
-	Now returns the per-segment measures from psn_dspec, not a single window value.
 	"""
 	var, realisation = task
 	base_seed = params.get("seed", None)
@@ -96,8 +94,6 @@ def _process_task(task, xname, mode, plot_mode, **params):
 	
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
-	# Generate dynamic spectrum + segments
-	# psn_dspec now returns: dspec, snr, V_params, exp_vars, measures
 	dspec, snr, V_params, exp_vars, measures = _generate_dspec(
 		xname=xname,
 		mode=mode,
@@ -106,7 +102,6 @@ def _process_task(task, xname, mode, plot_mode, **params):
 		**local_params
 	)
 
-	# Return the entire measures dict for this realisation
 	return var, measures, V_params, snr, exp_vars
 
 
@@ -128,7 +123,6 @@ def _normalize_phase_key(key: str | None) -> str:
 	alias = {"leading": "first", "trailing": "last", "all": "total"}
 	return alias.get(k, k)
 
-# ...existing code...
 
 def _window_dspec(dspec: np.ndarray,
 				  freq_mhz: np.ndarray,
@@ -145,9 +139,6 @@ def _window_dspec(dspec: np.ndarray,
 	f_w = freq_mhz
 	t_w = time_ms
 
-	nf0, nt0 = dspec.shape[1], dspec.shape[2]
-
-	# Frequency window
 	if freq_window is not None:
 		if isinstance(freq_window, (list, tuple, np.ndarray)) and len(freq_window) == 2:
 			fmin, fmax = float(freq_window[0]), float(freq_window[1])
@@ -170,7 +161,6 @@ def _window_dspec(dspec: np.ndarray,
 		else:
 			logging.warning(f"Unrecognised freq_window={freq_window}; ignoring.")
 
-	# Phase/time window
 	if phase_window is not None:
 		if isinstance(phase_window, (list, tuple, np.ndarray)) and len(phase_window) == 2:
 			tmin, tmax = float(phase_window[0]), float(phase_window[1])
@@ -184,7 +174,6 @@ def _window_dspec(dspec: np.ndarray,
 				logging.warning("phase_window produced empty selection; ignoring phase window.")
 		elif isinstance(phase_window, str):
 			key = _normalize_phase_key(phase_window)
-			# Peak index from Stokes I (freq-summed)
 			I_time = np.nansum(dspec_w[0], axis=0) if dspec_w.shape[1] > 0 else np.zeros_like(t_w)
 			peak_idx = int(np.nanargmax(I_time)) if I_time.size > 0 else 0
 			slc_dict = _phase_slices_from_peak(dspec_w.shape[2], peak_idx)
@@ -224,7 +213,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	time_ms  = np.arange(t_start, t_end + t_res, t_res, dtype=float)
 
 	# Load Gaussian parameters
-	gauss_params = np.loadtxt(gauss_file, dtype=str)
+	gauss_params = np.loadtxt(gauss_file)
 
 	# Split structural rows
 	stddev_row   = -4   # Gaussian std dev (psn micro variation)
@@ -235,7 +224,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	# Means (main components)
 	gdict = {
 		't0'             : gauss_params[:stddev_row, 0],
-		'width_ms'       : gauss_params[:stddev_row, 1],
+		'width'       : gauss_params[:stddev_row, 1],
 		'A'              : gauss_params[:stddev_row, 2],
 		'spec_idx'       : gauss_params[:stddev_row, 3],
 		'tau_ms'         : gauss_params[:stddev_row, 4],
@@ -270,7 +259,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 	sd_dict = {
 		'sd_t0'             : gauss_params[stddev_row, 0],
-		'sd_width_ms'       : gauss_params[stddev_row, 1],
+		'sd_width'       : gauss_params[stddev_row, 1],
 		'sd_A'       		: gauss_params[stddev_row, 2],
 		'sd_spec_idx'       : gauss_params[stddev_row, 3],
 		'sd_tau_ms'         : gauss_params[stddev_row, 4],
@@ -289,8 +278,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	sweep_stop  = gauss_params[stop_row]
 	sweep_step  = gauss_params[step_row]
 
-	# Detect if step is 'log'
-	active_cols = np.where((sweep_step != '0') & (sweep_step != '0.0'))[0]
+	active_cols = np.where(sweep_step != 0.0)[0]
 	if plot_mode.requires_multiple_frb and data is None:
 		if active_cols.size == 0:
 			logging.error("No sweep defined (all step = 0) but multi-FRB plot requested.")
@@ -300,19 +288,13 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			sys.exit(1)
 	sweep_col = active_cols[0] if active_cols.size == 1 else None
 
-	# Parse start/stop/step as float unless 'log'
-	def parse_val(val):
-		try:
-			return float(val)
-		except Exception:
-			return val
-
 	sweep_spec = {
 		'col_index': sweep_col,
-		'start'    : parse_val(sweep_start[sweep_col]) if sweep_col is not None else None,
-		'stop'     : parse_val(sweep_stop[sweep_col])  if sweep_col is not None else None,
+		'start'    : sweep_start[sweep_col] if sweep_col is not None else None,
+		'stop'     : sweep_stop[sweep_col]  if sweep_col is not None else None,
 		'step'     : sweep_step[sweep_col]  if sweep_col is not None else None
 	}
+
 	if scint_file is not None:
 		scint = load_params("scparams", scint_file, "scintillation")
 		if scint.get("derive_from_tau", False):
@@ -440,34 +422,39 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					"Use --sweep-mode mean or --sweep-mode sd and set exactly one non-zero step in gparams."
 				)
 
-		if np.all((gauss_params[step_row, :] == '0') | (gauss_params[step_row, :] == '0.0')):
-			logging.error("No sweep defined (all step sizes zero) but a multi-FRB plot was requested.")
-			sys.exit(1)
+			if np.all(gauss_params[step_row, :] == 0.0):
+				logging.error("No sweep defined (all step sizes zero) but a multi-FRB plot was requested.")
+				logging.info("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
+				sys.exit(1)
 
-		col_idx = sweep_spec['col_index']
-		if col_idx is None:
-			raise ValueError("Could not determine sweep column (no non-zero step).")
+			col_idx = sweep_spec['col_index']
+			if col_idx is None:
+				raise ValueError("Could not determine sweep column (no non-zero step).")
 
-		start = sweep_spec['start']
-		stop = sweep_spec['stop']
-		step = sweep_spec['step']
-
-		# --- LOGIC FOR LOGARITHMIC STEP ---
-		if isinstance(step, str) and step.strip().lower() == 'log':
-			if start <= 0 or stop <= 0:
-				logging.warning(
-					"Logarithmic sweep requires positive start/stop values. "
-					"Setting start to 1e-3 instead of 0."
-				)
-				start = max(start, 1e-3)
-			xvals = np.logspace(np.log10(start), np.log10(stop), nstep)
-		else:
-			step = float(step)
-			if step <= 0:
-				raise ValueError("Sweep step must be > 0.")
-			n_steps = int(np.round((stop - start) / step))
-			end = start + n_steps * step
-			xvals = np.linspace(start, end, n_steps + 1)
+			start = sweep_spec['start']
+			stop = sweep_spec['stop']
+			step = sweep_spec['step']
+			
+			# Use logarithmic spacing if nstep is provided, otherwise linear
+			if nstep is not None:
+				# Logarithmic spacing
+				if start <= 0 or stop <= 0:
+					raise ValueError(
+						f"Logarithmic sweep (--nstep) requires positive start and stop values. "
+						f"Got start={start}, stop={stop}"
+					)
+			
+				xvals = np.logspace(np.log10(start), np.log10(stop), nstep)
+				logging.info(f"Using logarithmic sweep: {nstep} points from {start} to {stop}")
+			else:
+				# Linear spacing (original behavior)
+				if step is None or step <= 0:
+					raise ValueError("Linear sweep requires step > 0. Use --nstep for logarithmic sweeps.")
+			
+				n_steps = int(np.round((stop - start) / step))
+				end = start + n_steps * step
+				xvals = np.linspace(start, end, n_steps + 1)
+				logging.info(f"Using linear sweep: {len(xvals)} points from {start} to {stop} (step={step})")
 
 			gdict_keys = list(gdict.keys())
 			xname = gdict_keys[col_idx]
@@ -535,14 +522,14 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			measures = {v: [] for v in xvals}
 			V_params = {
 				v: {key: [] for key in [
-					't0_i','A_i','width_ms_i','spec_idx_i','tau_ms_i','PA_i',
+					't0_i','A_i','width_i','spec_idx_i','tau_ms_i','PA_i',
 					'DM_i','RM_i','lfrac_i','vfrac_i','dPA_i','band_centre_mhz_i','band_width_mhz_i'
 				]} for v in xvals
 			}
 			snrs = {v: [] for v in xvals}
 			exp_vars = {
 				v: {key: [] for key in [
-					'exp_var_t0','exp_var_A','exp_var_width_ms','exp_var_spec_idx','exp_var_tau_ms','exp_var_PA',
+					'exp_var_t0','exp_var_A','exp_var_width','exp_var_spec_idx','exp_var_tau_ms','exp_var_PA',
 					'exp_var_DM','exp_var_RM','exp_var_lfrac','exp_var_vfrac','exp_var_dPA','exp_var_band_centre_mhz','exp_var_band_width_mhz'
 				]} for v in xvals
 			}

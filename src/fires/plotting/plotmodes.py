@@ -25,7 +25,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circstd, circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec)
+                                 process_dspec)
 from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -96,7 +96,7 @@ colour_map = {
 param_map = {
 	# Intrinsic parameters - format: (LaTeX_symbol, unit)
 	"tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
-	"width_ms"       : (r"W_0", r"\mathrm{ms}"),
+	"width"       : (r"W_0", r"\mathrm{ms}"),
 	"A"              : (r"A_0", r"\mathrm{Jy}"),
 	"spec_idx"       : (r"\alpha_0", ""),
 	"DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
@@ -112,7 +112,7 @@ param_map = {
 	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
 	# Std deviation sweep parameters
 	"t0_i"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
-	"width_ms_i"       : (r"\sigma_W", r"\mathrm{ms}"),
+	"width_i"       : (r"\sigma_W", r"\mathrm{ms}"),
 	"A_i"              : (r"\sigma_A", ""),
 	"spec_idx_i"       : (r"\sigma_\alpha", ""),
 	"DM_i"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
@@ -951,7 +951,7 @@ def _format_override_label(override_str):
 		'lfrac': 'L',
 		'vfrac': 'V',
 		'PA_i': 'σ_ψ',
-		'width_ms': 'W',
+		'width': 'W',
 		'DM': 'DM',
 		'RM': 'RM',
 	}
@@ -1798,7 +1798,7 @@ def plot_pa_var(
 			frb_dict=frb_dict,
 			yname_base=yname,
 			weight_y_by="PA_i",
-			weight_x_by="width_ms",
+			weight_x_by="width",
 			x_measured=x_measured,
 			figsize=figsize,
 			fit=fit,
@@ -2015,7 +2015,7 @@ def plot_lfrac(
 			frb_dict=frb_dict,
 			yname_base=r"\Pi_L",
 			weight_y_by="lfrac",
-			weight_x_by="width_ms",
+			weight_x_by="width",
 			x_measured=x_measured,
 			figsize=figsize,
 			fit=fit,
