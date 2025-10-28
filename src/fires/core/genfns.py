@@ -629,7 +629,7 @@ def psn_dspec(
 	exp_vars = {
 		'exp_var_t0'             : None,
 		'exp_var_A'       		 : None,
-		'exp_var_width'       : None,
+		'exp_var_width_ms'       : None,
 		'exp_var_spec_idx'       : None,
 		'exp_var_tau_ms'         : None,
 		'exp_var_PA'             : [exp_V_PA_deg2, exp_V_PA_deg2_basic],

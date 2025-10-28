@@ -25,7 +25,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circstd, circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-                                 process_dspec)
+								 process_dspec)
 from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -281,6 +281,22 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 	return med_vals, percentile_errs
 
 
+def _find_matching_key(key, candidates, atol=1e-10, rtol=1e-8, ndigits=6):
+	"""Find a key in candidates that matches key within tolerance or rounding."""
+	candidates_arr = np.array(list(candidates), dtype=float)
+	# Try isclose first
+	close = np.isclose(candidates_arr, key, atol=atol, rtol=rtol)
+	if np.any(close):
+		return list(candidates)[np.where(close)[0][0]]
+	# Fallback: try rounding
+	rounded = np.round(candidates_arr, ndigits)
+	key_rounded = round(key, ndigits)
+	idxs = np.where(rounded == key_rounded)[0]
+	if len(idxs) > 0:
+		return list(candidates)[idxs[0]]
+	return None
+
+
 def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=False):
 	"""
 	Normalise values in yvals by weights from weight_params for a specific variable or by any parameter.
@@ -326,10 +342,18 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 			return (normalised_vals, applied) if return_status else normalised_vals
 			
 		for var in xvals:
-			y_values = yvals.get(var, [])
-			var__weight_dict = weight_params.get(var, {})
+			y_key = _find_matching_key(var, yvals.keys())
+			w_key = _find_matching_key(var, weight_params.keys())
+			y_values = yvals.get(y_key, [])
+			var__weight_dict = weight_params.get(w_key, {})
 			weights = var__weight_dict.get(weight_by, [])
-
+		
+			# Add explicit check for missing data
+			if y_key is None or w_key is None:
+				logging.warning(f"Missing data for parameter {var}: y_key={y_key}, w_key={w_key}. Skipping normalisation.")
+				normalised_vals[var] = y_values
+				continue
+			
 			if y_values and weights and len(y_values) == len(weights):
 				out = []
 				for val, weight in zip(y_values, weights):
@@ -947,10 +971,10 @@ def _format_override_label(override_str):
 	
 	param_labels = {
 		'N': 'N',
-		'tau_ms': 'τ',
+		'tau_ms': r'\tau_0}',
 		'lfrac': 'L',
 		'vfrac': 'V',
-		'PA_i': 'σ_ψ',
+		'PA_i': r'\sigma_{\psi}',
 		'width': 'W',
 		'DM': 'DM',
 		'RM': 'RM',
