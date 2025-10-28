@@ -444,7 +444,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 						f"Got start={start}, stop={stop}"
 					)
 			
-				xvals = np.logspace(np.log10(start), np.log10(stop), nstep)
+				xvals = np.logspace(start, stop, nstep)
 				logging.info(f"Using logarithmic sweep: {nstep} points from {start} to {stop}")
 			else:
 				# Linear spacing (original behavior)
