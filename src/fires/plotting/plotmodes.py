@@ -96,7 +96,7 @@ colour_map = {
 param_map = {
 	# Intrinsic parameters - format: (LaTeX_symbol, unit)
 	"tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
-	"width"       : (r"W_0", r"\mathrm{ms}"),
+	"width"       	 : (r"W_0", r"\mathrm{ms}"),
 	"A"              : (r"A_0", r"\mathrm{Jy}"),
 	"spec_idx"       : (r"\alpha_0", ""),
 	"DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),

@@ -224,7 +224,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	# Means (main components)
 	gdict = {
 		't0'             : gauss_params[:stddev_row, 0],
-		'width'       : gauss_params[:stddev_row, 1],
+		'width'       	 : gauss_params[:stddev_row, 1],
 		'A'              : gauss_params[:stddev_row, 2],
 		'spec_idx'       : gauss_params[:stddev_row, 3],
 		'tau_ms'         : gauss_params[:stddev_row, 4],
@@ -444,7 +444,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 						f"Got start={start}, stop={stop}"
 					)
 			
-				xvals = np.logspace(start, stop, nstep)
+				xvals = np.logspace(np.log10(start), np.log10(stop), nstep)
 				logging.info(f"Using logarithmic sweep: {nstep} points from {start} to {stop}")
 			else:
 				# Linear spacing (original behavior)
