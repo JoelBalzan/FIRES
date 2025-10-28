@@ -25,8 +25,8 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
-                                 add_noise, process_dspec, scatter_dspec,
-                                 snr_onpulse)
+								 add_noise, process_dspec, scatter_dspec,
+								 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.io.loaders import load_data, load_multiple_data_grouped
 from fires.utils.config import load_params
@@ -72,13 +72,13 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_sn
 
  
 	if mode == 'psn':
-	    return psn_dspec(
-	        dspec_params=dspec_params,
-	        variation_parameter=var,
-	        xname=xname,
-	        plot_multiple_frb=plot_multiple_frb,
-	        target_snr=target_snr
-	    )
+		return psn_dspec(
+			dspec_params=dspec_params,
+			variation_parameter=var,
+			xname=xname,
+			plot_multiple_frb=plot_multiple_frb,
+			target_snr=target_snr
+		)
 
 
 def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None):
@@ -86,11 +86,10 @@ def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None):
 	Process a single task (combination of timescale and realisation).
 	"""
 	var, realisation = task
-	base_seed = dspec_params.get("seed", None)
+	base_seed = dspec_params.seed
 	current_seed = (base_seed + realisation) if base_seed is not None else None
 
-	local_params = dict(dspec_params)
-	local_params["seed"] = current_seed
+	local_params = dspec_params._replace(seed=current_seed)
 	
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
