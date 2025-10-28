@@ -32,7 +32,7 @@ fires -m psn --plot lvpa --save-plots
 
 Sweep scattering times (see configs):
 ```bash
-fires -m psn --plot pa_var l_frac --plot-scale loglog
+fires -m psn --plot pa_var l_frac --plot-scale log
 ```
 
 ## Configuration (TOML)

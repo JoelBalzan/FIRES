@@ -411,14 +411,14 @@ def _set_scale_and_labels(ax, scale, xname, yname, x=None, x_unit="", y_unit="")
 	ax.set_ylabel(ylabel)
 	
 	# Set scales
-	if scale == "logx" or scale == "loglog":
+	if scale == "logx" or scale == "log":
 		ax.set_xscale('log')
-	if scale == "logy" or scale == "loglog":
+	if scale == "logy" or scale == "log":
 		ax.set_yscale('log')
 		_apply_log_decade_ticks(ax, axis='y', base=10)  # enforce 10^k labels
 	# Set limits
 	if x is not None:
-		if scale in ["logx", "loglog"]:
+		if scale in ["logx", "log"]:
 			x_positive = x[x > 0]
 			if len(x_positive) > 0:
 				ax.set_xlim(x_positive[0], x_positive[-1])
@@ -1589,9 +1589,9 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	ax.set_ylabel(ylabel)
 	
 	# Set scales
-	if scale == "logx" or scale == "loglog":
+	if scale == "logx" or scale == "log":
 		ax.set_xscale('log')
-	if scale == "logy" or scale == "loglog":
+	if scale == "logy" or scale == "log":
 		ax.set_yscale('log')
 		_apply_log_decade_ticks(ax, axis='y', base=10)
 	
@@ -1715,7 +1715,7 @@ def plot_pa_var(
 	show_plots : bool
 		Whether to display the plot interactively.
 	scale : str
-		Axis scaling type. Options: 'linear', 'logx', 'logy', 'loglog'.
+		Axis scaling type. Options: 'linear', 'logx', 'logy', 'log'.
 	phase_window : str
 		Phase window for analysis. Options: 'total', 'leading', 'trailing'.
 	freq_window : str
@@ -1928,7 +1928,7 @@ def plot_lfrac(
 	show_plots : bool
 		Whether to display the plot interactively.
 	scale : str
-		Axis scaling type. Options: 'linear', 'logx', 'logy', 'loglog'.
+		Axis scaling type. Options: 'linear', 'logx', 'logy', 'log'.
 	phase_window : str
 		Phase window for integration. Options: 'total', 'leading', 'trailing'.
 		Determines which part of the pulse profile to include in L/I calculation.
