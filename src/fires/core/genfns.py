@@ -241,8 +241,8 @@ def _triple_convolution_with_width_pdf(
 		# Build h(t; w) as unit-peak after scattering
 		h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
 		# Convolve with arrival PDF (unit area), include dt for integral
-		hf_w  = np.convolve(h_w,           f_arrival, mode="same") * dt
-		h2f_w = np.convolve(h_w**2,     f_arrival, mode="same") * dt
+		hf_w  = np.convolve(h_w,    f_arrival, mode="same") * dt
+		h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
 		hf_list.append(hf_w)
 		h2f_list.append(h2f_w)
 
