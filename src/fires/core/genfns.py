@@ -19,7 +19,7 @@ import logging
 import numpy as np
 
 from fires.core.basicfns import (add_noise, compute_required_sefd,
-                                 compute_segments, scatter_dspec)
+								 compute_segments, scatter_dspec)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -147,115 +147,115 @@ def _make_scattering_kernel(t_ms: np.ndarray, tau_ms: float) -> np.ndarray:
 
 
 def _gaussian_on_grid(t_ms: np.ndarray, sigma_ms: float, normalize: str) -> np.ndarray:
-    """
-    Common Gaussian builder using utils.gaussian_model, with grid-safe normalisation.
-    normalize: 'area' -> unit area (sum*dt=1); 'peak' -> unit peak (max=1).
-    If sigma<=0, returns a discrete delta at 0 with value 1.0.
-    """
-    t = np.asarray(t_ms, dtype=float)
-    if sigma_ms is None or sigma_ms <= 0:
-        g = np.zeros_like(t, dtype=float)
-        g[np.argmin(np.abs(t))] = 1.0
-        return g
+	"""
+	Common Gaussian builder using utils.gaussian_model, with grid-safe normalisation.
+	normalize: 'area' -> unit area (sum*dt=1); 'peak' -> unit peak (max=1).
+	If sigma<=0, returns a discrete delta at 0 with value 1.0.
+	"""
+	t = np.asarray(t_ms, dtype=float)
+	if sigma_ms is None or sigma_ms <= 0:
+		g = np.zeros_like(t, dtype=float)
+		g[np.argmin(np.abs(t))] = 1.0
+		return g
 
-    # Raw Gaussian shape (amp=1 at mean)
-    g = gaussian_model(t, amp=1.0, mean=0.0, stddev=float(sigma_ms))
+	# Raw Gaussian shape (amp=1 at mean)
+	g = gaussian_model(t, amp=1.0, mean=0.0, stddev=float(sigma_ms))
 
-    if normalize == "area":
-        dt = float(t[1] - t[0])
-        norm = np.sum(g) * dt
-        return g / norm if norm > 0 else g
-    elif normalize == "peak":
-        mx = float(np.max(g))
-        return g / mx if mx > 0 and np.isfinite(mx) else g
-    else:
-        return g 
+	if normalize == "area":
+		dt = float(t[1] - t[0])
+		norm = np.sum(g) * dt
+		return g / norm if norm > 0 else g
+	elif normalize == "peak":
+		mx = float(np.max(g))
+		return g / mx if mx > 0 and np.isfinite(mx) else g
+	else:
+		return g 
 
 
 def _unit_peak_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> np.ndarray:
-    """
-    Build unit-peak temporal response h_tau(t; w):
-      1) s(t; w) = unit-peak Gaussian (shape), std = sigma_w_ms
-      2) k_tau(t) = unit-area exponential kernel (or delta if tau<=0)
-      3) h_raw = (s * k_tau) · dt
-      4) h = h_raw / max(h_raw)  (unit peak)
-    """
-    t = np.asarray(t_ms, dtype=float)
-    dt = float(t[1] - t[0])
+	"""
+	Build unit-peak temporal response h_tau(t; w):
+	  1) s(t; w) = unit-peak Gaussian (shape), std = sigma_w_ms
+	  2) k_tau(t) = unit-area exponential kernel (or delta if tau<=0)
+	  3) h_raw = (s * k_tau) · dt
+	  4) h = h_raw / max(h_raw)  (unit peak)
+	"""
+	t = np.asarray(t_ms, dtype=float)
+	dt = float(t[1] - t[0])
 
-    # s: unit-peak Gaussian
-    s = _gaussian_on_grid(t, float(sigma_w_ms), normalize="peak")
+	# s: unit-peak Gaussian
+	s = _gaussian_on_grid(t, float(sigma_w_ms), normalize="peak")
 
-    # k: unit-area scattering kernel (delta if tau<=0)
-    tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
-    k = _make_scattering_kernel(t, tau_eff)
+	# k: unit-area scattering kernel (delta if tau<=0)
+	tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
+	k = _make_scattering_kernel(t, tau_eff)
 
-    # Convolution (integral) and unit-peak normalisation
-    h_raw = np.convolve(s, k, mode="same") * dt
-    mx = float(np.nanmax(h_raw)) if np.any(np.isfinite(h_raw)) else 0.0
-    if mx <= 0 or not np.isfinite(mx):
-        h = np.zeros_like(t, dtype=float)
-        h[np.argmin(np.abs(t))] = 1.0
-    else:
-        h = h_raw / mx
-    return h
+	# Convolution (integral) and unit-peak normalisation
+	h_raw = np.convolve(s, k, mode="same") * dt
+	mx = float(np.nanmax(h_raw)) if np.any(np.isfinite(h_raw)) else 0.0
+	if mx <= 0 or not np.isfinite(mx):
+		h = np.zeros_like(t, dtype=float)
+		h[np.argmin(np.abs(t))] = 1.0
+	else:
+		h = h_raw / mx
+	return h
 
 
 def _triple_convolution_with_width_pdf(
-    t_ms: np.ndarray,
-    tau_ms: float,
-    f_arrival: np.ndarray,
-    width_mean_fwhm_ms: float,
-    width_pct_low: float | None,
-    width_pct_high: float | None,
-    n_width_samples: int = 31,
+	t_ms: np.ndarray,
+	tau_ms: float,
+	f_arrival: np.ndarray,
+	width_mean_fwhm_ms: float,
+	width_pct_low: float | None,
+	width_pct_high: float | None,
+	n_width_samples: int = 31,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Compute (h*f*g)(t) and (h^2*f*g)(t) where:
-      - h is unit-peak temporal response after scattering,
-      - f is the arrival-time Gaussian PDF (unit area),
-      - g is the width PDF (unit area), here approximated by a uniform PDF over [w_lo, w_hi].
+	"""
+	Compute (h*f*g)(t) and (h^2*f*g)(t) where:
+	  - h is unit-peak temporal response after scattering,
+	  - f is the arrival-time Gaussian PDF (unit area),
+	  - g is the width PDF (unit area), here approximated by a uniform PDF over [w_lo, w_hi].
 
-    Returns:
-        hfg (nt,), h2fg (nt,)
-    """
-    t = np.asarray(t_ms, dtype=float)
-    dt = float(t[1] - t[0])
+	Returns:
+		hfg (nt,), h2fg (nt,)
+	"""
+	t = np.asarray(t_ms, dtype=float)
+	dt = float(t[1] - t[0])
 
-    # Width sampling (uniform g(w) over [w_lo, w_hi])
-    w0 = float(width_mean_fwhm_ms)
-    if width_pct_low is None or width_pct_high is None:
-        w_samples = np.array([w0], dtype=float)
-    else:
-        w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
-        w_hi = max(w_lo,   w0 * float(width_pct_high) / 100.0)
-        if np.isclose(w_lo, w_hi):
-            w_samples = np.array([w0], dtype=float)
-        else:
-            nw = max(1, int(n_width_samples))
-            w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
+	# Width sampling (uniform g(w) over [w_lo, w_hi])
+	w0 = float(width_mean_fwhm_ms)
+	if width_pct_low is None or width_pct_high is None:
+		w_samples = np.array([w0], dtype=float)
+	else:
+		w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
+		w_hi = max(w_lo,   w0 * float(width_pct_high) / 100.0)
+		if np.isclose(w_lo, w_hi):
+			w_samples = np.array([w0], dtype=float)
+		else:
+			nw = max(1, int(n_width_samples))
+			w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
 
-    hf_list, h2f_list = [], []
-    for w in w_samples:
-        sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
-        # Build h(t; w) as unit-peak after scattering
-        h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
-        # Convolve with arrival PDF (unit area), include dt for integral
-        hf_w  = np.convolve(h_w,           f_arrival, mode="same") * dt
-        h2f_w = np.convolve(h_w**2,     f_arrival, mode="same") * dt
-        hf_list.append(hf_w)
-        h2f_list.append(h2f_w)
+	hf_list, h2f_list = [], []
+	for w in w_samples:
+		sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
+		# Build h(t; w) as unit-peak after scattering
+		h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
+		# Convolve with arrival PDF (unit area), include dt for integral
+		hf_w  = np.convolve(h_w,           f_arrival, mode="same") * dt
+		h2f_w = np.convolve(h_w**2,     f_arrival, mode="same") * dt
+		hf_list.append(hf_w)
+		h2f_list.append(h2f_w)
 
-    # Average over uniform g(w)
+	# Average over uniform g(w)
 	# final averaging over widths is effectively the integration over g(w)
-    hf  = np.mean(np.stack(hf_list,  axis=0), axis=0)
-    h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
-    return hf, h2f
+	hf  = np.mean(np.stack(hf_list,  axis=0), axis=0)
+	h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
+	return hf, h2f
 
 
 
 def _expected_pa_variance(
-	tau_ms, sigma_deg, N, width, A, A_sd,
+	tau_ms, sigma_deg, N, width_ms, A, A_sd,
 	time_ms=None, width_pct_low=None, width_pct_high=None, n_width_samples: int = 31,
 	onpulse_fraction: float = 0.1
 ):
@@ -275,13 +275,13 @@ def _expected_pa_variance(
 	t_rel = t - np.median(t)
 
 	# arrival PDF
-	sigma_arrival_ms = float(width) / GAUSSIAN_FWHM_FACTOR
+	sigma_arrival_ms = float(width_ms) / GAUSSIAN_FWHM_FACTOR
 	f = _gaussian_on_grid(t_rel, sigma_arrival_ms, normalize="area")
 
 	# compute (h*f*g) and (h^2*f*g)
 	hfg, h2fg = _triple_convolution_with_width_pdf(
 		t_rel, float(tau_ms) if tau_ms is not None else 0.0, f,
-		width_mean_fwhm_ms=float(width),
+		width_mean_fwhm_ms=float(width_ms),
 		width_pct_low=width_pct_low,
 		width_pct_high=width_pct_high,
 		n_width_samples=n_width_samples
@@ -313,52 +313,56 @@ def _expected_pa_variance(
 
 
 def _expected_pa_variance_basic(
-    width,
-    mg_width_low,
-    mg_width_high,
-    tau_ms,
-    sigma_deg,
-    N
+	width_ms,
+	mg_width_low,
+	mg_width_high,
+	tau_ms,
+	sigma_deg,
+	N
 ) -> tuple[float | None, float | None, dict]:
-    """
-    Basic PA-variance estimator using broadened widths and an effective shots-per-time argument.
+	"""
+	Basic PA-variance estimator using broadened widths and an effective shots-per-time argument.
 
-    Assumptions:
-      - Macro width W and micro width w are FWHM-like measures.
-      - Scattering broadens both: W_tot = sqrt(W^2 + tau^2), w_tot = sqrt(w^2 + tau^2).
-      - Effective number per time: N_eff_t = N * (w_tot / W_tot).
-      - PA_rms ~ sigma_deg / sqrt(N_eff_t), Var[PA] ~ PA_rms^2.
+	Assumptions:
+	  - Macro width W and micro width w are FWHM-like measures.
+	  - Scattering broadens both: W_tot = sqrt(W^2 + tau^2), w_tot = sqrt(w^2 + tau^2).
+	  - Effective number per time: N_eff_t = N * (w_tot / W_tot).
+	  - PA_rms ~ sigma_deg / sqrt(N_eff_t), Var[PA] ~ PA_rms^2.
 
-    Returns:
-      var_PA_deg2 (float|None), PA_rms_deg (float|None), aux (dict with components).
-    """
-    W = float(np.nanmean(np.asarray(width, dtype=float)))
+	Returns:
+	  var_PA_deg2 (float|None), PA_rms_deg (float|None), aux (dict with components).
+	"""
+	W = float(np.nanmean(np.asarray(width_ms, dtype=float)))
 
-    # Mean micro width fraction from [low, high] percent bounds
-    low = np.asarray(mg_width_low, dtype=float)
-    high = np.asarray(mg_width_high, dtype=float)
-    frac_micro = np.nanmean(0.5 * (low + high)) / 100.0
-    frac_micro = np.clip(frac_micro, 1e-6, None)
-    w = W * frac_micro
+	# Mean micro width fraction from [low, high] percent bounds
+	low = np.asarray(mg_width_low, dtype=float)
+	high = np.asarray(mg_width_high, dtype=float)
+	frac_micro = np.nanmean(0.5 * (low + high)) / 100.0
+	frac_micro = np.clip(frac_micro, 1e-6, None)
+	w = W * frac_micro
 
-    tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
-    W_tot = float(np.sqrt(W**2 + tau_mean**2))
-    w_tot = float(np.sqrt(w**2 + tau_mean**2))
+	tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
+	W_tot = float(np.sqrt(W**2 + tau_mean**2))
+	w_tot = float(np.sqrt(w**2 + tau_mean**2))
 
-    N_eff_t = float(N) * (w_tot / max(W_tot, 1e-12))
-    N_eff_t = max(N_eff_t, 1.0)
+	N_eff_t = float(N) * (w_tot / max(W_tot, 1e-12))
+	N_eff_t = max(N_eff_t, 1.0)
 
-    sigma = float(sigma_deg)
+	sigma = float(sigma_deg)
 
-    PA_rms_deg = sigma / np.sqrt(N_eff_t)
-    var_PA_deg2 = PA_rms_deg**2
+	PA_rms_deg = sigma / np.sqrt(N_eff_t)
+	var_PA_deg2 = PA_rms_deg**2
 
-    return var_PA_deg2
+	return var_PA_deg2
 
 
-def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
-					sefd, sc_idx, ref_freq_mhz, plot_multiple_frb, buffer_frac, sweep_mode,
-					variation_parameter=None, xname=None, target_snr=None):
+def psn_dspec(
+	dspec_params,
+	plot_multiple_frb,
+	variation_parameter=None,
+	xname=None,
+	target_snr=None
+):
 	"""
 	Generate dynamic spectrum from microshots (polarised shot noise) with optional parameter sweeping.
 
@@ -368,6 +372,20 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 				  and force its micro variance to zero.
 	  variance  : (Case 2) Keep mean fixed; set the micro variance (std dev) to the sweep value.
 	"""
+
+	gdict        = dspec_params.gdict
+	sd_dict      = dspec_params.sd_dict
+	scint_dict   = dspec_params.scint_dict
+	freq_mhz     = dspec_params.freq_mhz
+	time_ms      = dspec_params.time_ms
+	time_res_ms  = dspec_params.time_res_ms
+	seed         = dspec_params.seed
+	sefd         = dspec_params.sefd
+	sc_idx       = dspec_params.sc_idx
+	ref_freq_mhz = dspec_params.ref_freq_mhz
+	buffer_frac  = dspec_params.buffer_frac
+	sweep_mode   = dspec_params.sweep_mode
+
 	seed = _init_seed(seed, plot_multiple_frb)
 
 	gdict = {k: np.array(v, copy=True) for k, v in gdict.items()}
@@ -400,7 +418,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		sd_dict = _disable_micro_variance_for_swept_base(sd_dict, xname)
 	
 	t0              = gdict['t0']
-	width        = gdict['width']
+	width_ms       	= gdict['width_ms']
 	A               = gdict['A']
 	spec_idx        = gdict['spec_idx']
 	tau_ms 	   		= gdict['tau_ms']
@@ -437,7 +455,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	all_params = {
 		't0_i'             : [],
 		'A_i'              : [],
-		'width_i'       : [],
+		'width_ms_i'       : [],
 		'spec_idx_i'       : [],
 		'tau_ms_i'         : [],
 		'PA_i'             : [],
@@ -453,9 +471,9 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
-			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
+			t0_i              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
 			A_i        = np.random.normal(A[g], sd_A)
-			width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
+			width_ms_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_ms_i          = np.random.normal(tau_ms[g], sd_tau_ms)
 			tau_eff = tau_ms_i if tau_ms_i > 0 else float(tau_ms[g])
@@ -483,7 +501,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			# Record parameters
 			all_params['t0_i'].append(t0_i)
 			all_params['A_i'].append(A_i)
-			all_params['width_i'].append(width_i)
+			all_params['width_ms_i'].append(width_ms_i)
 			all_params['spec_idx_i'].append(spec_idx_i)
 			all_params['tau_ms_i'].append(tau_ms_i)
 			all_params['PA_i'].append(PA_i)
@@ -504,7 +522,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
 					norm_amp *= spectral_profile
 
-			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_i / GAUSSIAN_FWHM_FACTOR)
+			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_ms_i / GAUSSIAN_FWHM_FACTOR)
 			I_ft = norm_amp[:, None] * base_gauss[None, :]
 
 			if DM_i != 0:
@@ -583,7 +601,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
 			sigma_deg=float(sd_PA),
 			N=N_tot,
-			width=float(np.nanmean(width)),
+			width_ms=float(np.nanmean(width_ms)),
 			A=float(np.nanmean(A)),
 			A_sd=float(sd_A),
 			time_ms=time_ms,
@@ -592,17 +610,18 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			n_width_samples=31,
 			onpulse_fraction=0.10
 		)
-		logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff_avg={N_eff_avg_diag:.1f})")
 
 		exp_V_PA_deg2_basic = _expected_pa_variance_basic(
-			width=float(np.nanmean(width)),
+			width_ms=float(np.nanmean(width_ms)),
 			mg_width_low=float(np.nanmean(mg_width_low)),
 			mg_width_high=float(np.nanmean(mg_width_high)),
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
 			sigma_deg=float(sd_PA),
 			N=N_tot
 		)
-		logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
+		if not plot_multiple_frb:
+			logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff_avg={N_eff_avg_diag:.1f})")
+			logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
 	else:
 		exp_V_PA_deg2 = None
 		exp_V_PA_deg2_basic = None
@@ -623,5 +642,5 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		'exp_var_band_width_mhz' : None
 	}
 
-	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac)
+	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac)
 

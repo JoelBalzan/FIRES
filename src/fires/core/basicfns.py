@@ -389,11 +389,10 @@ def make_offpulse_mask(n_time, left, right, buffer_bins=0):
 
 
 def on_off_pulse_masks_from_profile(profile,
+									intrinsic_width_bins,
 									frac=0.95,
 									buffer_frac=None,
-									one_sided_offpulse=False,
-									tail_frac=None,
-									max_tail_mult=5):
+									):
 	"""
 	Construct on- and off-pulse masks from a 1-D profile.
 
@@ -411,12 +410,6 @@ def on_off_pulse_masks_from_profile(profile,
 		Fraction of total energy to enclose for initial compact window (boxcar_width).
 	buffer_frac : float or None
 		Fraction of initial on-pulse width excluded on EACH side from off-pulse.
-	one_sided_offpulse : bool
-		If True, use only samples strictly before the (buffered) on-pulse start.
-	tail_frac : float or None
-		If set (e.g. 0.003), extend right edge while profile > tail_frac * peak.
-	max_tail_mult : int
-		Cap on tail extension in units of the initial width.
 	return_details : bool
 		If True, also return a dict with window metadata.
 
@@ -432,32 +425,14 @@ def on_off_pulse_masks_from_profile(profile,
 	prof = np.asarray(profile, dtype=float)
 	n = prof.size
 	left, right = boxcar_width(prof, frac=frac)
-	peak_val = np.nanmax(prof) if n > 0 else 0.0
-	init_width = max(1, right - left + 1)
 
-	# Tail expansion
-	tail_used = False
-	if tail_frac is not None and peak_val > 0:
-		thr = tail_frac * peak_val
-		max_right = min(n - 1, right + int(max_tail_mult * init_width))
-		r = right
-		while r + 1 <= max_right and prof[r + 1] > thr:
-			r += 1
-		if r != right:
-			tail_used = True
-			right = r
-
-	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0
+	buffer_bins = int(float(buffer_frac) * intrinsic_width_bins) if buffer_frac is not None else 0
 
 	on_mask = make_onpulse_mask(n, left, right)
-
-	if one_sided_offpulse:
-		off_mask = np.zeros(n, dtype=bool)
-		end_off = max(0, left - buffer_bins - 1)
-		if end_off >= 0:
-			off_mask[0:end_off + 1] = True
-	else:
-		off_mask = make_offpulse_mask(n, left, right, buffer_bins=buffer_bins)
+	off_mask = np.zeros(n, dtype=bool)
+	end_off = max(0, left - buffer_bins - 1)
+	if end_off >= 0:
+		off_mask[0:end_off + 1] = True
 
 	return on_mask, off_mask, (left, right)
 
@@ -522,10 +497,11 @@ def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask, robust=False, dd
 	return noise_stokes, noisespec
 
 
-def process_dspec(dspec, freq_mhz, gdict, buffer_frac):
+def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac):
 	"""
 	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
 	"""
+	gdict = dspec_params.gdict
 	RM = gdict["RM"]
 
 	max_rm = RM[np.argmax(np.abs(RM))]
@@ -537,7 +513,7 @@ def process_dspec(dspec, freq_mhz, gdict, buffer_frac):
 	I = np.nansum(corrdspec[0], axis=0)
 	left, right = boxcar_width(I, frac=0.95)
 
-	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
+	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
 
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 
@@ -945,135 +921,136 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buf
 
 
 def _integrated_fractions_from_timeseries(I, Q, U, V, L, on_mask) -> tuple[float, float]:
-    """
-    Compute integrated L/I and V/I using on-pulse mask.
-    Inputs are 1-D time series arrays; L is debiased linear from est_profiles.
-    """
-    I_masked = np.where(on_mask, I, np.nan)
-    Q_masked = np.where(on_mask, Q, np.nan)
-    U_masked = np.where(on_mask, U, np.nan)
-    V_masked = np.where(on_mask, V, np.nan)
-    L_masked = np.where(on_mask, L, np.nan)
+	"""
+	Compute integrated L/I and V/I using on-pulse mask.
+	Inputs are 1-D time series arrays; L is debiased linear from est_profiles.
+	"""
+	I_masked = np.where(on_mask, I, np.nan)
+	Q_masked = np.where(on_mask, Q, np.nan)
+	U_masked = np.where(on_mask, U, np.nan)
+	V_masked = np.where(on_mask, V, np.nan)
+	L_masked = np.where(on_mask, L, np.nan)
 
-    integrated_I = np.nansum(I_masked)
-    integrated_V = np.nansum(V_masked)
-    integrated_L = np.nansum(L_masked)
+	integrated_I = np.nansum(I_masked)
+	integrated_V = np.nansum(V_masked)
+	integrated_L = np.nansum(L_masked)
 
-    if not np.isfinite(integrated_I) or integrated_I == 0:
-        return np.nan, np.nan
+	if not np.isfinite(integrated_I) or integrated_I == 0:
+		return np.nan, np.nan
 
-    return float(integrated_L / integrated_I), float(integrated_V / integrated_I)
+	return float(integrated_L / integrated_I), float(integrated_V / integrated_I)
 
 
 def _pa_variance_deg2(phits: np.ndarray) -> float:
-    """
-    Circular variance of PA in deg^2. phits in radians, uses circvar on 2*PA, divides by 4.
-    Returns deg^2.
-    """
-    valid = np.isfinite(phits)
-    if not np.any(valid):
-        return np.nan
-    pa_var_rad2 = circvar(2.0 * phits[valid]) / 4.0
-    # convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
-    return float(np.rad2deg(np.sqrt(pa_var_rad2))**2)
+	"""
+	Circular variance of PA in deg^2. phits in radians, uses circvar on 2*PA, divides by 4.
+	Returns deg^2.
+	"""
+	valid = np.isfinite(phits)
+	if not np.any(valid):
+		return np.nan
+	pa_var_rad2 = circvar(2.0 * phits[valid]) / 4.0
+	# convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
+	return float(np.rad2deg(np.sqrt(pa_var_rad2))**2)
 
 
 def _freq_quarter_slices(n_chan: int) -> dict[str, slice]:
-    """
-    Build frequency quarter slices over channel index.
-    Returns dict for '1q','2q','3q','4q','all'.
-    """
-    q = max(1, n_chan // 4)
-    return {
-        "1q": slice(0, q),
-        "2q": slice(q, 2*q),
-        "3q": slice(2*q, 3*q),
-        "4q": slice(3*q, None),
-        "all": slice(None)
-    }
+	"""
+	Build frequency quarter slices over channel index.
+	Returns dict for '1q','2q','3q','4q','all'.
+	"""
+	q = max(1, n_chan // 4)
+	return {
+		"1q": slice(0, q),
+		"2q": slice(q, 2*q),
+		"3q": slice(2*q, 3*q),
+		"4q": slice(3*q, None),
+		"all": slice(None)
+	}
 
 
 def _phase_slices_from_peak(n_time: int, peak_index: int) -> dict[str, slice]:
-    """
-    Build standard phase slices relative to peak index.
-    Returns dict with 'first' (leading), 'last' (trailing), and 'total'.
-    """
-    first = slice(0, max(0, int(peak_index)))
-    last = slice(max(0, int(peak_index)), int(n_time))
-    total = slice(None)
-    return {"first": first, "last": last, "total": total}
+	"""
+	Build standard phase slices relative to peak index.
+	Returns dict with 'first' (leading), 'last' (trailing), and 'total'.
+	"""
+	first = slice(0, max(0, int(peak_index)))
+	last = slice(max(0, int(peak_index)), int(n_time))
+	total = slice(None)
+	return {"first": first, "last": last, "total": total}
 
 
-def compute_segments(dspec, freq_mhz, time_ms, gdict, buffer_frac=0.1) -> dict:
-    """
-    Compute per-segment measurements from a single dynamic spectrum:
-      - phase segments: first (leading), last (trailing), total
-      - freq segments: 1q, 2q, 3q, 4q, all
+def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) -> dict:
+	"""
+	Compute per-segment measurements from a single dynamic spectrum:
+	  - phase segments: first (leading), last (trailing), total
+	  - freq segments: 1q, 2q, 3q, 4q, all
 
-    Each segment records:
-      - Vpsi: Var(psi) in deg^2, measured from PA time series (not micro params)
-      - Lfrac: integrated L/I over on-pulse (95% boxcar with buffer)
-      - Vfrac: integrated V/I over on-pulse
+	Each segment records:
+	  - Vpsi: Var(psi) in deg^2, measured from PA time series (not micro params)
+	  - Lfrac: integrated L/I over on-pulse (95% boxcar with buffer)
+	  - Vfrac: integrated V/I over on-pulse
 
-    Returns:
-      {
-        'phase': {
-          'first' : {'Vpsi':..., 'Lfrac':..., 'Vfrac':...},
-          'last'  : {...},
-          'total' : {...}
-        },
-        'freq' : {
-          '1q' : {...}, '2q': {...}, '3q': {...}, '4q': {...}, 'all': {...}
-        }
-      }
-    """
-    tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+	Returns:
+	  {
+		'phase': {
+		  'first' : {'Vpsi':..., 'Lfrac':..., 'Vfrac':...},
+		  'last'  : {...},
+		  'total' : {...}
+		},
+		'freq' : {
+		  '1q' : {...}, '2q': {...}, '3q': {...}, '4q': {...}, 'all': {...}
+		}
+	  }
+	"""
+	gdict = dspec_params.gdict
+	tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
 
-    Its = tsdata_full.iquvt[0]
-    Qts = tsdata_full.iquvt[1]
-    Uts = tsdata_full.iquvt[2]
-    Vts = tsdata_full.iquvt[3]
-    Lts = tsdata_full.Lts
-    phits = tsdata_full.phits  # radians
-    n_time = Its.size
+	Its = tsdata_full.iquvt[0]
+	Qts = tsdata_full.iquvt[1]
+	Uts = tsdata_full.iquvt[2]
+	Vts = tsdata_full.iquvt[3]
+	Lts = tsdata_full.Lts
+	phits = tsdata_full.phits  # radians
+	n_time = Its.size
 
-    on_mask, _, (left, right) = on_off_pulse_masks_from_profile(Its, frac=0.95, buffer_frac=buffer_frac)
-    peak_index = int(np.nanargmax(Its)) if n_time > 0 else 0
-    phase_slices = _phase_slices_from_peak(n_time, peak_index)
+	on_mask, _, (left, right) = on_off_pulse_masks_from_profile(Its, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+	peak_index = int(np.nanargmax(Its)) if n_time > 0 else 0
+	phase_slices = _phase_slices_from_peak(n_time, peak_index)
 
-    def _measure_phase_slice(slc: slice) -> dict:
-        slc_mask = np.zeros(n_time, dtype=bool)
-        start = 0 if slc.start is None else slc.start
-        stop = n_time if slc.stop is None else slc.stop
-        if stop > start:
-            slc_mask[start:stop] = True
-        on_mask_slice = on_mask & slc_mask
+	def _measure_phase_slice(slc: slice) -> dict:
+		slc_mask = np.zeros(n_time, dtype=bool)
+		start = 0 if slc.start is None else slc.start
+		stop = n_time if slc.stop is None else slc.stop
+		if stop > start:
+			slc_mask[start:stop] = True
+		on_mask_slice = on_mask & slc_mask
 
-        Vpsi = _pa_variance_deg2(phits[slc_mask])
-        Lfrac, Vfrac = _integrated_fractions_from_timeseries(Its, Qts, Uts, Vts, Lts, on_mask_slice)
-        return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
+		Vpsi = _pa_variance_deg2(phits[slc_mask])
+		Lfrac, Vfrac = _integrated_fractions_from_timeseries(Its, Qts, Uts, Vts, Lts, on_mask_slice)
+		return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
 
-    phase_measures = {name: _measure_phase_slice(slc) for name, slc in phase_slices.items()}
+	phase_measures = {name: _measure_phase_slice(slc) for name, slc in phase_slices.items()}
 
-    n_chan = corr_dspec.shape[1]
-    fq = _freq_quarter_slices(n_chan)
+	n_chan = corr_dspec.shape[1]
+	fq = _freq_quarter_slices(n_chan)
 
-    def _measure_freq_slice(slc: slice) -> dict:
-        dspec_f = corr_dspec[:, slc, :]
-        freq_f = freq_mhz[slc] if isinstance(slc, slice) else freq_mhz
-        tsdata_f, _, _, _ = process_dspec(dspec_f, freq_f, gdict, buffer_frac)
-        I = tsdata_f.iquvt[0]
-        Q = tsdata_f.iquvt[1]
-        U = tsdata_f.iquvt[2]
-        V = tsdata_f.iquvt[3]
-        L = tsdata_f.Lts
-        ph = tsdata_f.phits
+	def _measure_freq_slice(slc: slice) -> dict:
+		dspec_f = corr_dspec[:, slc, :]
+		freq_f = freq_mhz[slc] if isinstance(slc, slice) else freq_mhz
+		tsdata_f, _, _, _ = process_dspec(dspec_f, freq_f, dspec_params, buffer_frac)
+		I = tsdata_f.iquvt[0]
+		Q = tsdata_f.iquvt[1]
+		U = tsdata_f.iquvt[2]
+		V = tsdata_f.iquvt[3]
+		L = tsdata_f.Lts
+		ph = tsdata_f.phits
 
-        on_m, _, _ = on_off_pulse_masks_from_profile(I, frac=0.95, buffer_frac=buffer_frac)
-        Vpsi = _pa_variance_deg2(ph)
-        Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
-        return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
+		on_m, _, _ = on_off_pulse_masks_from_profile(I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+		Vpsi = _pa_variance_deg2(ph)
+		Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
+		return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
 
-    freq_measures = {name: _measure_freq_slice(slc) for name, slc in fq.items()}
+	freq_measures = {name: _measure_freq_slice(slc) for name, slc in fq.items()}
 
-    return {"phase": phase_measures, "freq": freq_measures}
+	return {"phase": phase_measures, "freq": freq_measures}

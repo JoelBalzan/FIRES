@@ -156,14 +156,14 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 	tau_ms = dspec_params.gdict['tau_ms']
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
-		frb_data.dynamic_spectrum, freq_mhz, gdict, buffer_frac
+		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac
 	)
 
 	iquvt = ts_data.iquvt
 	snr = frb_data.snr
 	
 	if mode == "all":
-		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, 
+		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, 
 		legend, info, buffer_frac, show_onpulse, show_offpulse)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
@@ -171,7 +171,7 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 	elif mode == "lvpa":
-		plot_ilv_pa_ds(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, 
+		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, 
 		legend, info, buffer_frac, show_onpulse, show_offpulse)
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
@@ -1617,7 +1617,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		ax.set_ylim(_ylim0)
 
 
-def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
+def _process_pa_var(dspec, freq_mhz, time_ms, dspec_params, phase_window, freq_window, buffer_frac):
 	freq_slc = slice(None)
 	phase_slc = slice(None)
 
@@ -1643,7 +1643,7 @@ def _process_pa_var(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, 
 		time_ms = time_ms[phase_slc]
 		#dspec = dspec_fslc[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
 
 	phits = ts_data.phits[phase_slc]
 	ephits = ts_data.ephits[phase_slc]
@@ -1834,7 +1834,7 @@ def plot_pa_var(
 		logging.info(f"Saved figure to {name}  \n")
 
 
-def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, buffer_frac):
+def _process_lfrac(dspec, freq_mhz, time_ms, dspec_params, phase_window, freq_window, buffer_frac):
 	freq_slc = slice(None)
 	phase_slc = slice(None)
 
@@ -1857,12 +1857,12 @@ def _process_lfrac(dspec, freq_mhz, time_ms, gdict, phase_window, freq_window, b
 		time_ms = time_ms[phase_slc]
 		dspec = dspec[:, :, phase_slc]
 
-	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
 
 	I, Q, U, V = ts_data.iquvt
-	buffer_frac = buffer_frac
+	gdict = dspec_params.gdict
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-		I, frac=0.95, buffer_frac=buffer_frac
+		I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
 
 	I_masked = np.where(on_mask, I, np.nan)
@@ -2080,7 +2080,8 @@ def _process_observational_data(obs_data_path, obs_params_path, phase_window, fr
 		Dictionary with measurement results and metadata
 	"""
 	if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
-		dspec, freq_mhz, time_ms, gdict = load_data(obs_data_path, obs_params_path)
+		dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data_path, obs_params_path)
+		gdict = dspec_params.gdict
 	else:
 		raise ValueError(f"Unsupported file format: {obs_data_path}")
 	
@@ -2099,7 +2100,7 @@ def _process_observational_data(obs_data_path, obs_params_path, phase_window, fr
 		dspec = dspec[:, freq_slc, :]
 		logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
 	
-	ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+	ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
 	
 	I_profile = ts_data.iquvt[0]
 	L_profile = ts_data.Lts
@@ -2119,7 +2120,7 @@ def _process_observational_data(obs_data_path, obs_params_path, phase_window, fr
 		phase_slc = slice(None)
 	
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-		I_profile, frac=0.95, buffer_frac=buffer_frac
+		I_profile, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
 	
 	x_value = None

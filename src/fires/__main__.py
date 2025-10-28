@@ -195,9 +195,9 @@ def main():
 	parser.add_argument(
 		"--buffer",
 		type=float,
-		default=0.1,
+		default=1,
 		metavar="",
-		help="Buffer time in between on- and off-pulse regions as a fraction of the pulse width for noise estimation. Default is 0.1."
+		help="Buffer time in between on- and off-pulse regions as a fraction of the intrinsic pulse width for noise estimation. Default is 1."
 	)
 
 	# =====================================================================
@@ -286,8 +286,8 @@ def main():
 	parser.add_argument(
     	"--nstep",
     	type=int,
-    	default=20,
-    	help="Number of steps for logarithmic parameter sweeps (default: 20)."
+    	default=None,
+    	help="Number of steps for logarithmic parameter sweeps --- overrides default linear step in gparams (default: None --- will use default linear step)."
 	)
 	parser.add_argument(
 		"--fit",

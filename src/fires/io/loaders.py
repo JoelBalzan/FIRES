@@ -324,6 +324,10 @@ def load_data(obs_data_path, obs_params_path=None):
 			#'band_centre_mhz': np.array([np.median(freq_mhz) if len(freq_mhz) > 0 else 1000.0]),
 			#'band_width_mhz': np.array([np.ptp(freq_mhz) if len(freq_mhz) > 0 else 336.0])
 		}
+
+		dspec_params = {
+			'gdict': gdict
+		}
 	
 	logging.info(
 		f"Final data shape: {dspec.shape}, "
@@ -331,7 +335,7 @@ def load_data(obs_data_path, obs_params_path=None):
 		f"time range: {time_ms.min():.3f}-{time_ms.max():.3f} ms\n"
 	)
 	
-	return dspec, freq_mhz, time_ms, gdict
+	return dspec, freq_mhz, time_ms, dspec_params
 
 
 def load_multiple_data_grouped(data):

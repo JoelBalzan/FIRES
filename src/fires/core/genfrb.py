@@ -58,7 +58,7 @@ def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz
 	return dspec_scattered
 
 
-def _generate_dspec(xname, mode, var, plot_multiple_frb, target_snr=None, **params):
+def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_snr=None,):
 	"""Generate dynamic spectrum based on mode."""
 	var = var if plot_multiple_frb else None
 
@@ -70,31 +70,31 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, target_snr=None, **para
 	sig = inspect.signature(dspec_func)
 	allowed_args = set(sig.parameters.keys())
 
-	# Always pass tau_ms as v
-	params_filtered = {
-		k: v for k, v in params.items()
-		if k in allowed_args and k not in ("xname")
-	}
  
 	if mode == 'psn':
-		return psn_dspec(**params_filtered, variation_parameter=var, xname=xname, plot_multiple_frb=plot_multiple_frb,
-								target_snr=target_snr)
+	    return psn_dspec(
+	        dspec_params=dspec_params,
+	        variation_parameter=var,
+	        xname=xname,
+	        plot_multiple_frb=plot_multiple_frb,
+	        target_snr=target_snr
+	    )
 
 
-def _process_task(task, xname, mode, plot_mode, **params):
+def _process_task(task, xname, mode, plot_mode, dspec_params):
 	"""
 	Process a single task (combination of timescale and realisation).
 	"""
 	var, realisation = task
-	base_seed = params.get("seed", None)
+	base_seed = dspec_params.get("seed", None)
 	current_seed = (base_seed + realisation) if base_seed is not None else None
 
-	local_params = dict(params)
+	local_params = dict(dspec_params)
 	local_params["seed"] = current_seed
 	
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
-	dspec, snr, V_params, exp_vars, measures = _generate_dspec(
+	_, snr, V_params, exp_vars, measures = _generate_dspec(
 		xname=xname,
 		mode=mode,
 		var=var,
@@ -191,7 +191,7 @@ def _window_dspec(dspec: np.ndarray,
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
-				nstep, target_snr=None, param_overrides=None):
+				nstep=None, target_snr=None, param_overrides=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -224,7 +224,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	# Means (main components)
 	gdict = {
 		't0'             : gauss_params[:stddev_row, 0],
-		'width'       	 : gauss_params[:stddev_row, 1],
+		'width_ms'     	 : gauss_params[:stddev_row, 1],
 		'A'              : gauss_params[:stddev_row, 2],
 		'spec_idx'       : gauss_params[:stddev_row, 3],
 		'tau_ms'         : gauss_params[:stddev_row, 4],
@@ -371,8 +371,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			mode=mode,
 			var=None,
 			plot_multiple_frb=False,
-			target_snr=target_snr,			
-			**dspec_params._asdict()
+			target_snr=target_snr,
+			dspec_params=dspec_params
 		)
 
 			if freq_window != "full-band" or phase_window != "total":
@@ -385,7 +385,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 							 f"time[{time_ms[0]:.2f},{time_ms[-1]:.2f}] ms")
 			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
 			
-		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, gdict, buffer_frac)
+		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
 		frb_data = simulated_frb(
 			frb_id, corrdspec, dspec_params, snr
 		)
@@ -511,7 +511,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					mode=mode,
 					plot_mode=plot_mode,
 					target_snr=target_snr,
-					**dspec_params._asdict()
+					dspec_params=dspec_params
 				)
 				results = list(tqdm(
 					executor.map(partial_func, tasks),
