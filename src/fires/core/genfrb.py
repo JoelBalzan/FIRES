@@ -455,10 +455,11 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		# --- LOGIC FOR LOGARITHMIC STEP ---
 		if isinstance(step, str) and step.strip().lower() == 'log':
 			if start <= 0 or stop <= 0:
-				raise ValueError(
+				logging.warning(
 					"Logarithmic sweep requires positive start/stop values. "
-					"Set start to a small positive value (e.g., 1e-3) instead of 0."
+					"Setting start to 1e-3 instead of 0."
 				)
+				start = max(start, 1e-3)
 			xvals = np.logspace(np.log10(start), np.log10(stop), nstep)
 		else:
 			step = float(step)
