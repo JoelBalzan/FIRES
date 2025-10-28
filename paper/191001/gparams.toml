@@ -36,8 +36,8 @@
 # band_centre     - Central frequency of the Gaussian in MHz
 # band_width      - Frequency bandwidth of the Gaussian in MHz
 # N          - Number of micro-gausssians used to generate the pulse
-# mg_width_low    - Lower FWHM range of the micro-gaussians as a percentage of width_ms  |
-# mg_width_high   - Higher FWHM range of the micro-gaussians as a percentage of width_ms | Uniform distribution, w_i ~ width * U(mg_width_low/100, mg_width_high/100)
+# mg_width_low    - Lower FWHM range of the micro-gaussians as a percentage of width  |
+# mg_width_high   - Higher FWHM range of the micro-gaussians as a percentage of width | Uniform distribution, w_i ~ width * U(mg_width_low/100, mg_width_high/100)
 #
 #-------------------------------------------------------------------------------------------------------------------------------------------------#
 #  t0    width  A         spec_idx   tau    DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width    N     mg_width_low  mg_width_high #

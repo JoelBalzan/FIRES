@@ -28,7 +28,7 @@ def get_parameters(filepath):
 	Returns:
 	--------
 	dict
-		Dictionary with parameter arrays (e.g., 'DM', 'RM', 'width_ms', 'tau_ms')
+		Dictionary with parameter arrays (e.g., 'DM', 'RM', 'width', 'tau_ms')
 	"""
 	params = {}
 	
@@ -67,7 +67,7 @@ def get_parameters(filepath):
 	gdict['RM'] = np.array([0.0])
 	
 	# Width (estimate from data or use default)
-	gdict['width_ms'] = np.array([1.0])  # Will be updated from data if available
+	gdict['width'] = np.array([1.0])  # Will be updated from data if available
 	
 	# Tau (scattering timescale, not in this format)
 	gdict['tau_ms'] = np.array([0.0])
@@ -318,7 +318,7 @@ def load_data(obs_data_path, obs_params_path=None):
 		# Create minimal gdict with defaults
 		gdict = {
 			#'tau_ms': np.array([0.0]),
-			#'width_ms': np.array([np.median(np.diff(time_ms)) * 10 if len(time_ms) > 1 else 1.0]),
+			#'width': np.array([np.median(np.diff(time_ms)) * 10 if len(time_ms) > 1 else 1.0]),
 			'DM': np.array([0.0]),
 			'RM': np.array([0.0]),
 			#'band_centre_mhz': np.array([np.median(freq_mhz) if len(freq_mhz) > 0 else 1000.0]),

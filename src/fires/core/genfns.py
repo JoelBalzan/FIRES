@@ -255,7 +255,7 @@ def _triple_convolution_with_width_pdf(
 
 
 def _expected_pa_variance(
-	tau_ms, sigma_deg, N, width_ms, A, A_sd,
+	tau_ms, sigma_deg, N, width, A, A_sd,
 	time_ms=None, width_pct_low=None, width_pct_high=None, n_width_samples: int = 31,
 	onpulse_fraction: float = 0.1
 ):
@@ -275,13 +275,13 @@ def _expected_pa_variance(
 	t_rel = t - np.median(t)
 
 	# arrival PDF
-	sigma_arrival_ms = float(width_ms) / GAUSSIAN_FWHM_FACTOR
+	sigma_arrival_ms = float(width) / GAUSSIAN_FWHM_FACTOR
 	f = _gaussian_on_grid(t_rel, sigma_arrival_ms, normalize="area")
 
 	# compute (h*f*g) and (h^2*f*g)
 	hfg, h2fg = _triple_convolution_with_width_pdf(
 		t_rel, float(tau_ms) if tau_ms is not None else 0.0, f,
-		width_mean_fwhm_ms=float(width_ms),
+		width_mean_fwhm_ms=float(width),
 		width_pct_low=width_pct_low,
 		width_pct_high=width_pct_high,
 		n_width_samples=n_width_samples
@@ -313,7 +313,7 @@ def _expected_pa_variance(
 
 
 def _expected_pa_variance_basic(
-    width_ms,
+    width,
     mg_width_low,
     mg_width_high,
     tau_ms,
@@ -332,7 +332,7 @@ def _expected_pa_variance_basic(
     Returns:
       var_PA_deg2 (float|None), PA_rms_deg (float|None), aux (dict with components).
     """
-    W = float(np.nanmean(np.asarray(width_ms, dtype=float)))
+    W = float(np.nanmean(np.asarray(width, dtype=float)))
 
     # Mean micro width fraction from [low, high] percent bounds
     low = np.asarray(mg_width_low, dtype=float)
@@ -400,7 +400,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		sd_dict = _disable_micro_variance_for_swept_base(sd_dict, xname)
 	
 	t0              = gdict['t0']
-	width_ms        = gdict['width_ms']
+	width        = gdict['width']
 	A               = gdict['A']
 	spec_idx        = gdict['spec_idx']
 	tau_ms 	   		= gdict['tau_ms']
@@ -412,7 +412,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	dPA             = gdict['dPA']
 	band_centre_mhz = gdict['band_centre_mhz']
 	band_width_mhz  = gdict['band_width_mhz']
-	N		    = gdict['N']
+	N		    	= gdict['N']
 	mg_width_low    = gdict['mg_width_low']
 	mg_width_high   = gdict['mg_width_high']
 
@@ -437,7 +437,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	all_params = {
 		't0_i'             : [],
 		'A_i'              : [],
-		'width_ms_i'       : [],
+		'width_i'       : [],
 		'spec_idx_i'       : [],
 		'tau_ms_i'         : [],
 		'PA_i'             : [],
@@ -453,9 +453,9 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
-			t0_i              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
+			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
 			A_i        = np.random.normal(A[g], sd_A)
-			width_ms_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
+			width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_ms_i          = np.random.normal(tau_ms[g], sd_tau_ms)
 			tau_eff = tau_ms_i if tau_ms_i > 0 else float(tau_ms[g])
@@ -483,7 +483,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			# Record parameters
 			all_params['t0_i'].append(t0_i)
 			all_params['A_i'].append(A_i)
-			all_params['width_ms_i'].append(width_ms_i)
+			all_params['width_i'].append(width_i)
 			all_params['spec_idx_i'].append(spec_idx_i)
 			all_params['tau_ms_i'].append(tau_ms_i)
 			all_params['PA_i'].append(PA_i)
@@ -504,7 +504,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
 					norm_amp *= spectral_profile
 
-			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_ms_i / GAUSSIAN_FWHM_FACTOR)
+			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_i / GAUSSIAN_FWHM_FACTOR)
 			I_ft = norm_amp[:, None] * base_gauss[None, :]
 
 			if DM_i != 0:
@@ -583,7 +583,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
 			sigma_deg=float(sd_PA),
 			N=N_tot,
-			width_ms=float(np.nanmean(width_ms)),
+			width=float(np.nanmean(width)),
 			A=float(np.nanmean(A)),
 			A_sd=float(sd_A),
 			time_ms=time_ms,
@@ -595,7 +595,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 		logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff_avg={N_eff_avg_diag:.1f})")
 
 		exp_V_PA_deg2_basic = _expected_pa_variance_basic(
-			width_ms=float(np.nanmean(width_ms)),
+			width=float(np.nanmean(width)),
 			mg_width_low=float(np.nanmean(mg_width_low)),
 			mg_width_high=float(np.nanmean(mg_width_high)),
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
@@ -610,7 +610,7 @@ def psn_dspec(freq_mhz, time_ms, time_res_ms, seed, gdict, sd_dict, scint_dict,
 	exp_vars = {
 		'exp_var_t0'             : None,
 		'exp_var_A'       		 : None,
-		'exp_var_width_ms'       : None,
+		'exp_var_width'       : None,
 		'exp_var_spec_idx'       : None,
 		'exp_var_tau_ms'         : None,
 		'exp_var_PA'             : [exp_V_PA_deg2, exp_V_PA_deg2_basic],

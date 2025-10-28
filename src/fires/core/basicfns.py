@@ -17,11 +17,11 @@ import logging
 import os
 
 import numpy as np
-from scipy.stats import circvar
 from RMtools_1D.do_RMclean_1D import run_rmclean
 from RMtools_1D.do_RMsynth_1D import run_rmsynth
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import fftconvolve
+from scipy.stats import circvar
 
 from fires.utils.utils import frb_spectrum, frb_time_series, speed_of_light_cgs
 
@@ -561,7 +561,7 @@ def boxcar_width(profile, frac=0.95):
 	--------
 	tuple
 		Three-element tuple containing:
-		- width_ms: Width of optimal window in milliseconds
+		- width: Width of optimal window in milliseconds
 		- best_start: Starting index of optimal window  
 		- best_end: Ending index of optimal window
 	"""

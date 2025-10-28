@@ -12,12 +12,12 @@
 # -----------------------------------------------------------------------------
 
 import argparse
-from email import parser
 import logging
 #	--------------------------	Import modules	---------------------------
 import os
 import sys
 import traceback
+from email import parser
 from inspect import signature
 
 import numpy as np
@@ -26,7 +26,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import configure_matplotlib, plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-							   normalise_freq_window, normalise_phase_window)
+                               normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -313,9 +313,9 @@ def main():
 	    "--weight-x-by",
 	    type=str,
 	    metavar="",
-	    help=("Parameter to normalise x-axis values by (e.g., 'width_ms' for τ/W).\n"
+	    help=("Parameter to normalise x-axis values by (e.g., 'width' for τ/W).\n"
 	          "Can be any intrinsic parameter from gparams.\n"
-	          "Default is mode-specific: 'width_ms' for pa_var, None for l_frac.")
+	          "Default is mode-specific: 'width' for pa_var, None for l_frac.")
 	)
 	parser.add_argument(
 	    "--x-measured",
