@@ -306,17 +306,17 @@ def _expected_pa_variance(
 		thr = 0.5 * np.nanmax(hfg)
 		mask_on = (hfg >= thr)
 
-	N_eff_avg = np.nanmedian(N_eff_t[mask_on])
-	# guard against very small N_eff_avg
-	if not np.isfinite(N_eff_avg) or N_eff_avg <= 0:
-		N_eff_avg = max(1.0, float(N))
+	N_eff = np.nanmedian(N_eff_t[mask_on])
+	# guard against very small N_eff
+	if not np.isfinite(N_eff) or N_eff <= 0:
+		N_eff = max(1.0, float(N))
 
 	# variance prefactor (peak amplitude convention)
-	pref = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff_avg) * np.sinh(4.0 * sigma_rad**2)
+	pref = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff) * np.sinh(4.0 * sigma_rad**2)
 
 	var_PA_rad2 = pref
 	var_PA_deg2 = var_PA_rad2 * (180.0 / np.pi)**2
-	return float(var_PA_deg2), hfg, h2fg, N_eff_t, N_eff_avg
+	return float(var_PA_deg2), hfg, h2fg, N_eff_t, N_eff
 
 
 def _expected_pa_variance_basic(
@@ -604,7 +604,7 @@ def psn_dspec(
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
 	if sd_PA > 0 and N_tot > 1:
-		exp_V_PA_deg2, hfg_diag, h2fg_diag, N_eff_t_diag, N_eff_avg_diag = _expected_pa_variance(
+		exp_V_PA_deg2, hfg_diag, h2fg_diag, N_eff_t_diag, N_eff_diag = _expected_pa_variance(
 			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
 			sigma_deg=float(sd_PA),
 			N=N_tot,
@@ -627,7 +627,7 @@ def psn_dspec(
 			N=N_tot
 		)
 		if not plot_multiple_frb:
-			logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff_avg={N_eff_avg_diag:.1f})")
+			logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff={N_eff_diag:.1f})")
 			logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
 	else:
 		exp_V_PA_deg2 = None
