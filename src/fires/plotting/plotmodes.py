@@ -127,18 +127,16 @@ param_map = {
 
 #	--------------------------	PlotMode class	---------------------------
 class PlotMode:
-	def __init__(self, name, process_func, plot_func, requires_multiple_frb=False):
+	def __init__(self, name, plot_func, requires_multiple_frb=False):
 		"""
 		Represents a plot mode with its associated processing and plotting functions.
 
 		Args:
 			name (str): Name of the plot mode.
-			process_func (callable): Function to process data for this plot mode.
 			plot_func (callable): Function to generate the plot.
 			requires_multiple_frb (bool): Whether this plot mode requires `plot_var=True`.
 		"""
 		self.name = name
-		self.process_func = process_func
 		self.plot_func = plot_func
 		self.requires_multiple_frb = requires_multiple_frb
 		
@@ -1641,58 +1639,6 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		ax.set_ylim(_ylim0)
 
 
-def _process_pa_var(dspec, freq_mhz, time_ms, dspec_params, phase_window, freq_window, buffer_frac):
-	freq_slc = slice(None)
-	phase_slc = slice(None)
-
-	if freq_window != "full-band":
-		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-		freq_mhz = freq_mhz[freq_slc]
-		dspec = dspec[:, freq_slc, :]
-
-	if phase_window != "total":
-		# Collapse to time profile and find peak robustly
-		Its = np.nansum(dspec, axis=(0, 1))
-		peak_index = int(np.nanargmax(Its))
-		phase_slc = _get_phase_window_indices(phase_window, peak_index)
-		# Avoid zero-length windows
-		if isinstance(phase_slc, slice):
-			start = 0 if phase_slc.start is None else phase_slc.start
-			stop = Its.size if phase_slc.stop is None else phase_slc.stop
-			if stop - start <= 0:
-				# Fallback to at least a single-sample window around the peak
-				start = max(0, peak_index - 1)
-				stop = min(Its.size, peak_index + 1)
-				phase_slc = slice(start, stop)
-		time_ms = time_ms[phase_slc]
-		#dspec = dspec_fslc[:, :, phase_slc]
-
-	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
-
-	phits = ts_data.phits[phase_slc]
-	ephits = ts_data.ephits[phase_slc]
-
-	if phits is None or len(phits) == 0:
-		return np.nan, np.nan
-
-	# Use circular variance for polarisation angles (in radians)
-	# PA has a pi-radian ambiguity, so we work with 2*PA
-	valid_phits = phits[np.isfinite(phits)]
-	if len(valid_phits) == 0:
-		return np.nan, np.nan
-	
-	pa_var = circvar(2 * valid_phits) / 4.0
-	pa_var_deg2 = np.rad2deg(np.sqrt(pa_var))**2
-
-	if not np.isfinite(pa_var) or pa_var == 0:
-		return pa_var, np.nan
-	with np.errstate(divide='ignore', invalid='ignore'):
-		pa_var_err_deg2 = np.sqrt(np.nansum((np.rad2deg(phits) * np.rad2deg(ephits))**2)) / (pa_var_deg2 * len(phits))
-	
-	logging.info(f"Var(psi) = {pa_var_deg2:.3f} +/- {pa_var_err_deg2:.3f}")
-	return pa_var_deg2, pa_var_err_deg2
-
-
 def plot_pa_var(
 	frb_dict, 
 	save, 
@@ -1821,8 +1767,8 @@ def plot_pa_var(
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
 			yname_base=yname,
-			weight_y_by="PA_i",
-			weight_x_by="width",
+			weight_y_by=weight_y_by,
+			weight_x_by=weight_x_by,
 			x_measured=x_measured,
 			figsize=figsize,
 			fit=fit,
@@ -1856,55 +1802,6 @@ def plot_pa_var(
 		name = os.path.join(out_dir, name + f".{extension}")
 		fig.savefig(name, dpi=600)
 		logging.info(f"Saved figure to {name}  \n")
-
-
-def _process_lfrac(dspec, freq_mhz, time_ms, dspec_params, phase_window, freq_window, buffer_frac):
-	freq_slc = slice(None)
-	phase_slc = slice(None)
-
-	if freq_window != "full-band":
-		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-		freq_mhz = freq_mhz[freq_slc]
-		dspec = dspec[:, freq_slc, :]
-
-	if phase_window != "total":
-		Its = np.nansum(dspec, axis=(0, 1))
-		peak_index = int(np.nanargmax(Its))
-		phase_slc = _get_phase_window_indices(phase_window, peak_index)
-		if isinstance(phase_slc, slice):
-			start = 0 if phase_slc.start is None else phase_slc.start
-			stop = Its.size if phase_slc.stop is None else phase_slc.stop
-			if stop - start <= 0:
-				start = max(0, peak_index - 1)
-				stop = min(Its.size, peak_index + 1)
-				phase_slc = slice(start, stop)
-		time_ms = time_ms[phase_slc]
-		dspec = dspec[:, :, phase_slc]
-
-	ts_data, _, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
-
-	I, Q, U, V = ts_data.iquvt
-	gdict = dspec_params.gdict
-	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-		I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
-	)
-
-	I_masked = np.where(on_mask, I, np.nan)
-	Q_masked = np.where(on_mask, Q, np.nan)
-	U_masked = np.where(on_mask, U, np.nan)
-
-	L = np.sqrt(Q_masked**2 + U_masked**2)
-
-	integrated_I = np.nansum(I_masked)
-	integrated_L = np.nansum(L)
-
-	with np.errstate(divide='ignore', invalid='ignore'):
-		lfrac = integrated_L / integrated_I
-		noise_I = np.nanstd(I[off_mask]) if np.any(off_mask) else np.nan
-		noise_L = np.nanstd(L[off_mask]) if np.any(off_mask) else np.nan
-		lfrac_err = np.sqrt((noise_L / integrated_I)**2 + (integrated_L * noise_I / integrated_I**2)**2)
-
-	return lfrac, lfrac_err
 
 
 def plot_lfrac(
@@ -2038,8 +1935,8 @@ def plot_lfrac(
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
 			yname_base=r"\Pi_L",
-			weight_y_by="lfrac",
-			weight_x_by="width",
+			weight_y_by=weight_y_by,
+			weight_x_by=weight_x_by,
 			x_measured=x_measured,
 			figsize=figsize,
 			fit=fit,
@@ -2388,42 +2285,36 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 # Define PlotMode instances for each plot type
 pa_var = PlotMode(
 	name="pa_var",
-	process_func=_process_pa_var,
 	plot_func=plot_pa_var,
 	requires_multiple_frb=True  
 )
 
 l_frac = PlotMode(
 	name="l_frac",
-	process_func=_process_lfrac,
 	plot_func=plot_lfrac,
 	requires_multiple_frb=True  
 )
 
 iquv = PlotMode(
 	name="iquv",
-	process_func=None, 
 	plot_func=basic_plots,
 	requires_multiple_frb=False  
 )
 
 lvpa = PlotMode(
 	name="lvpa",
-	process_func=None, 
 	plot_func=basic_plots,
 	requires_multiple_frb=False
 )
 
 dpa = PlotMode(
 	name="dpa",
-	process_func=None, 
 	plot_func=basic_plots,
 	requires_multiple_frb=False
 )
 
 RM = PlotMode(
 	name="RM",
-	process_func=None,  
 	plot_func=basic_plots,
 	requires_multiple_frb=False
 )
@@ -2431,8 +2322,8 @@ RM = PlotMode(
 plot_modes = {
 	"pa_var": pa_var,
 	"l_frac": l_frac,
-	"iquv": iquv,
-	"lvpa": lvpa,
-	"dpa": dpa,
-	"RM": RM,
+	"iquv"  : iquv,
+	"lvpa"  : lvpa,
+	"dpa"   : dpa,
+	"RM"    : RM,
 }
