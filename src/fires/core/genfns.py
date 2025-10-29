@@ -299,7 +299,7 @@ def _expected_pa_variance(
 		thr = 0.5 * np.nanmax(hfg)
 		mask_on = (hfg >= thr)
 
-	N_eff_avg = np.nanmean(N_eff_t[mask_on])
+	N_eff_avg = np.nanmedian(N_eff_t[mask_on])
 	# guard against very small N_eff_avg
 	if not np.isfinite(N_eff_avg) or N_eff_avg <= 0:
 		N_eff_avg = max(1.0, float(N))
