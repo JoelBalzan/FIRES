@@ -177,8 +177,7 @@ def _unit_peak_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> n
 	Build unit-peak temporal response h_tau(t; w):
 	  1) s(t; w) = unit-peak Gaussian (shape), std = sigma_w_ms
 	  2) k_tau(t) = unit-area exponential kernel (or delta if tau<=0)
-	  3) h_raw = (s * k_tau) · dt
-	  4) h = h_raw / max(h_raw)  (unit peak)
+	  3) h = (s * k_tau) · dt, then normalise to unit peak
 	"""
 	t = np.asarray(t_ms, dtype=float)
 	dt = float(t[1] - t[0])
@@ -190,81 +189,79 @@ def _unit_peak_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> n
 	tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
 	k = _make_scattering_kernel(t, tau_eff)
 
-	# Convolution (integral) and unit-peak normalisation
-	h_raw = np.convolve(s, k, mode="same") * dt
-	mx = float(np.nanmax(h_raw)) if np.any(np.isfinite(h_raw)) else 0.0
-	if mx <= 0 or not np.isfinite(mx):
-		h = np.zeros_like(t, dtype=float)
-		h[np.argmin(np.abs(t))] = 1.0
-	else:
-		h = h_raw / mx
-	return h
+	# Convolution (integral)
+	h = np.convolve(s, k, mode="same") * dt
+	mx = np.max(h)
+	return h / mx if mx > 0 else h
 
 
 def _triple_convolution_with_width_pdf(
-    t_ms: np.ndarray,
-    tau_ms: float,
-    f_arrival: np.ndarray,
-    width_mean_fwhm_ms: float,
-    width_pct_low: float | None,
-    width_pct_high: float | None,
-    n_width_samples: int = 31,
+	t_ms: np.ndarray,
+	tau_ms: float,
+	f_arrival: np.ndarray,
+	width_mean_fwhm_ms: float,
+	mg_width_low: float | None,
+	mg_width_high: float | None,
+	n_width_samples: int = 31,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Compute (h*f*g)(t) and (h^2*f*g)(t) where:
-      - h is the unit-peak temporal response after scattering,
-      - f is the arrival-time Gaussian PDF (unit area),
-      - g is the width PDF (unit area), approximated by a uniform PDF over [w_lo, w_hi].
+	"""
+	Compute (h*f*g)(t) and (h^2*f*g)(t) where:
+	  - h is unit-peak temporal response after scattering,
+	  - f is the arrival-time Gaussian PDF (unit area),
+	  - g is the width PDF (unit area), here approximated by a uniform PDF over [w_lo, w_hi].
 
-    The width average includes the fluence of each unit-peak response,
-    ensuring consistency with the theoretical derivation that uses A as peak amplitude.
-    """
-    t = np.asarray(t_ms, dtype=float)
-    dt = float(t[1] - t[0])
+	Returns:
+		hfg (nt,), h2fg (nt,)
+	"""
+	t = np.asarray(t_ms, dtype=float)
+	dt = float(t[1] - t[0])
 
-    # Width sampling (uniform g(w) over [w_lo, w_hi])
-    w0 = float(width_mean_fwhm_ms)
-    if width_pct_low is None or width_pct_high is None:
-        w_samples = np.array([w0], dtype=float)
-    else:
-        w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
-        w_hi = max(w_lo, w0 * float(width_pct_high) / 100.0)
-        if np.isclose(w_lo, w_hi):
-            w_samples = np.array([w0], dtype=float)
-        else:
-            nw = max(1, int(n_width_samples))
-            w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
+	# Width sampling (uniform g(w) over [w_lo, w_hi])
+	w0 = float(width_mean_fwhm_ms)
+	if mg_width_low is None or mg_width_high is None:
+		w_samples = np.array([w0], dtype=float)
+	else:
+		w_lo = max(1e-12, w0 * float(mg_width_low) / 100.0)
+		w_hi = max(w_lo,   w0 * float(mg_width_high) / 100.0)
+		if np.isclose(w_lo, w_hi):
+			w_samples = np.array([w0], dtype=float)
+		else:
+			nw = max(1, int(n_width_samples))
+			w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
 
-    hf_list, h2f_list = [], []
-    for w in w_samples:
-        sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
+	hf_list, h2f_list, area_list = [], [], []
+	for w in w_samples:
+		sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
+		h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
+		area = np.sum(h_w) * dt
+		hf_w  = np.convolve(h_w,    f_arrival, mode="same") * dt
+		h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
+		hf_list.append(hf_w)
+		h2f_list.append(h2f_w)
+		area_list.append(area)
 
-        # --- Build h(t; w) as unit-peak after scattering ---
-        h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
+	area_arr = np.array(area_list)
+	hf_arr = np.stack(hf_list, axis=0)
+	h2f_arr = np.stack(h2f_list, axis=0)
 
-        # --- Compute fluence (area) of this unit-peak response ---
-        a_w = np.sum(h_w) * dt  # area under unit-peak pulse
-
-        # --- Convolve with arrival-time PDF (unit area) ---
-        hf_w = np.convolve(h_w, f_arrival, mode="same") * dt
-        h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
-
-        # --- Apply area weighting consistent with A = peak amplitude ---
-        hf_list.append(a_w * hf_w)
-        h2f_list.append((a_w**2) * h2f_w)
-
-    # Average over uniform g(w)
-    hf = np.mean(np.stack(hf_list, axis=0), axis=0)
-    h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
-    return hf, h2f
+	# Fluence-weighted averages (see derivation)
+	hf  = np.average(area_arr[:, None] * hf_arr, axis=0)
+	h2f = np.average((area_arr[:, None]**2) * h2f_arr, axis=0)
+	return hf, h2f
 
 
+def robust_onpulse_median_Neff(Neff_t, threshold=1e-6):
+    """Return the median N_eff in the region between first and last above-threshold values."""
+    idx = np.where(Neff_t > threshold)[0]
+    if len(idx) == 0:
+        return 0.0
+    return np.median(Neff_t[idx[0]:idx[-1]+1])
 
 
 def _expected_pa_variance(
 	tau_ms, sigma_deg, N, width_ms, A, A_sd,
-	time_ms=None, width_pct_low=None, width_pct_high=None, n_width_samples: int = 31,
-	onpulse_fraction: float = 0.1
+	time_ms=None, mg_width_low=None, mg_width_high=None, n_width_samples: int = 31,
+	onpulse_fraction: float = 0.9
 ):
 	"""
 	Compute scalar expected PA variance using time-averaged N_eff over the on-pulse region.
@@ -289,24 +286,17 @@ def _expected_pa_variance(
 	hfg, h2fg = _triple_convolution_with_width_pdf(
 		t_rel, float(tau_ms) if tau_ms is not None else 0.0, f,
 		width_mean_fwhm_ms=float(width_ms),
-		width_pct_low=width_pct_low,
-		width_pct_high=width_pct_high,
+		mg_width_low=mg_width_low,
+		mg_width_high=mg_width_high,
 		n_width_samples=n_width_samples
 	)
 
 	# per-time N_eff
 	N_eff_t = float(N) * (hfg**2) / (h2fg + 1e-300)  # avoid zeros
 
-	# on-pulse mask: relative to peak of hfg
-	threshold = onpulse_fraction * np.nanmax(hfg)
-	mask_on = (hfg >= threshold) & np.isfinite(hfg)
+	# Robust on-pulse region: between first and last nonzero N_eff
+	N_eff = robust_onpulse_median_Neff(N_eff_t)
 
-	if not np.any(mask_on):
-		# fallback: top 50% by hfg
-		thr = 0.5 * np.nanmax(hfg)
-		mask_on = (hfg >= thr)
-
-	N_eff = np.nanmedian(N_eff_t[mask_on])
 	# guard against very small N_eff
 	if not np.isfinite(N_eff) or N_eff <= 0:
 		N_eff = max(1.0, float(N))
@@ -361,6 +351,27 @@ def _expected_pa_variance_basic(
 	var_PA_deg2 = PA_rms_deg**2
 
 	return var_PA_deg2
+
+import matplotlib.pyplot as plt
+
+def plot_Neff_vs_time(time_ms, Neff_t):
+	"""
+	Plot N_eff(t) vs time.
+	Args:
+		time_ms: array of time bins (ms)
+		Neff_t: array of N_eff(t) values (same length as time_ms)
+		onpulse_mask: optional boolean mask for on-pulse region
+		title: optional plot title
+	"""
+	plt.figure(figsize=(8, 4))
+	plt.plot(time_ms, Neff_t, label=r'$N_\mathrm{eff}(t)$', color='C0')
+
+	plt.xlabel('Time (ms)')
+	plt.ylabel(r'$N_\mathrm{eff}(t)$')
+
+	plt.legend()
+	plt.tight_layout()
+	plt.show()
 
 
 def psn_dspec(
@@ -612,11 +623,15 @@ def psn_dspec(
 			A=float(np.nanmean(A)),
 			A_sd=float(sd_A),
 			time_ms=time_ms,
-			width_pct_low=float(np.nanmean(mg_width_low)),
-			width_pct_high=float(np.nanmean(mg_width_high)),
+			mg_width_low=float(np.nanmean(mg_width_low)),
+			mg_width_high=float(np.nanmean(mg_width_high)),
 			n_width_samples=31,
-			onpulse_fraction=0.10
+			onpulse_fraction=0.6
 		)
+		exp_V_PA_deg2 /= len(freq_mhz)
+
+		# Compute on-pulse mask as in your code
+		#plot_Neff_vs_time(time_ms, N_eff_t_diag)
 
 		exp_V_PA_deg2_basic = _expected_pa_variance_basic(
 			width_ms=float(np.nanmean(width_ms)),
@@ -626,6 +641,8 @@ def psn_dspec(
 			sigma_deg=float(sd_PA),
 			N=N_tot
 		)
+		exp_V_PA_deg2_basic /= len(freq_mhz)
+
 		if not plot_multiple_frb:
 			logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff={N_eff_diag:.1f})")
 			logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
