@@ -638,8 +638,7 @@ def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
 	return dspec_scattered
 
 
-def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None, 
-					one_sided_offpulse=False, tail_frac=None, max_tail_mult=5):
+def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None):
 	"""
 	Compute SEFD needed for a desired S/N, using adaptive on/off selection
 	consistent with snr_onpulse (with tail inclusion).
@@ -676,26 +675,14 @@ def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.
 	peak_val = np.nanmax(prof)
 	init_width = max(1, right - left + 1)
 
-	# Tail expansion
-	if tail_frac is not None and peak_val > 0:
-		thr = tail_frac * peak_val
-		max_right = min(prof.size - 1, right + int(max_tail_mult * init_width))
-		r = right
-		while r + 1 <= max_right and prof[r + 1] > thr:
-			r += 1
-		right = r
-
 	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0
 
 	on_mask = make_onpulse_mask(prof.size, left, right)
 
-	if one_sided_offpulse:
-		off_mask = np.zeros(prof.size, dtype=bool)
-		end_off = max(0, left - buffer_bins - 1)
-		if end_off >= 0:
-			off_mask[0:end_off + 1] = True
-	else:
-		off_mask = make_offpulse_mask(prof.size, left, right, buffer_bins=buffer_bins)
+	off_mask = np.zeros(prof.size, dtype=bool)
+	end_off = max(0, left - buffer_bins - 1)
+	if end_off >= 0:
+		off_mask[0:end_off + 1] = True
 
 	pulse = prof[on_mask]
 	E_on = np.nansum(pulse)
@@ -949,9 +936,9 @@ def _pa_variance_deg2(phits: np.ndarray) -> float:
 	valid = np.isfinite(phits)
 	if not np.any(valid):
 		return np.nan
-	pa_var_rad2 = circvar(2.0 * phits[valid]) / 4.0
+	pa_var = circvar(2.0 * phits[valid]) / 4.0
 	# convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
-	return float(np.rad2deg(np.sqrt(pa_var_rad2))**2)
+	return (180/np.pi)**2 * pa_var
 
 
 def _freq_quarter_slices(n_chan: int) -> dict[str, slice]:
@@ -999,7 +986,11 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 		  'total' : {...}
 		},
 		'freq' : {
-		  '1q' : {...}, '2q': {...}, '3q': {...}, '4q': {...}, 'all': {...}
+		  '1q'  : {...}, 
+		  '2q'  : {...}, 
+		  '3q'  : {...}, 
+		  '4q'  : {...}, 
+		  'all' : {...}
 		}
 	  }
 	"""

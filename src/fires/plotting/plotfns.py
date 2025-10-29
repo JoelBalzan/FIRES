@@ -21,6 +21,8 @@ import numpy as np
 
 from ..core.basicfns import on_off_pulse_masks_from_profile
 
+from scipy.stats import circvar
+
 logging.basicConfig(level=logging.INFO)
 #	----------------------------------------------------------------------------------------------------------
 
@@ -202,20 +204,37 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 			- noise_stokes: Noise levels for each Stokes parameter
 	"""
 
-	pa_deg = np.rad2deg(tsdata.phits)
+	pa_rad = tsdata.phits
+	pa_deg = np.rad2deg(pa_rad)
+	finite_pa = pa_rad[np.isfinite(pa_rad)]
+	
+	if finite_pa.size == 0:
+		logging.warning("All PA values are NaN or non-finite. Cannot compute variance.")
+		pa_var_deg2 = np.nan
+	else:
+		pa_var = circvar(2 * finite_pa) / 4.0
+		pa_var_deg2 = (180/np.pi)**2 * pa_var
+	
+	pa_deg = np.rad2deg(pa_rad)
 
-	# Wrap to [-90, 90] while keeping +90 instead of flipping to -90
 	def wrap_pa_deg(pa):
 		w = (pa + 90.0) % 180.0 - 90.0
-		# Keep +90 when mathematically equivalent
 		w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
 		return w
 
 	phits = wrap_pa_deg(pa_deg)
-	ephits = np.rad2deg(tsdata.ephits)
-	logging.info("Var(psi) = %.3f +/- %.3f" % (np.nanvar(phits), np.nanvar(ephits)))
+	pa_err_rad = tsdata.ephits 
+	finite_pa_err = pa_err_rad[np.isfinite(pa_err_rad)]
+	if finite_pa_err.size == 0:
+		epa_rad = np.nan
+		epa_deg2 = np.nan
+	else:
+		epa_rad = circvar(2 * finite_pa_err) / 4.0
+		epa_deg2 = (180/np.pi)**2 * epa_rad
+	pa_err_deg = np.rad2deg(pa_err_rad)
 
-	# Linear polarisation
+	logging.info("Var(psi) = %.3f +/- %.3f deg^2" % (pa_var_deg2, epa_deg2))
+
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
 	L = tsdata.Lts / 1e3  # Convert from Jy to kJy
 	
@@ -227,7 +246,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 
 	# Plot polarisation angle
 	axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
-	axs[0].errorbar(time_ms, phits, yerr=ephits, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
+	axs[0].errorbar(time_ms, pa_deg, yerr=pa_err_deg, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
  
 	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
 	#axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')

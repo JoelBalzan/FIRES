@@ -170,7 +170,7 @@ def main():
 	parser.add_argument(
 		"--phase-window",
 		type=str,
-		default="all",
+		default="total",
 		choices=['first', 'last', 'all',
 	  			'leading', 'trailing', 'total'
 		],
@@ -182,7 +182,7 @@ def main():
 	parser.add_argument(
 		"--freq-window",
 		type=str,
-		default="full",
+		default="full-band",
 		choices=[
 			'1q', '2q', '3q', '4q', 'full',  
 			'lowest-quarter', 'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter', 'full-band' 
@@ -506,12 +506,11 @@ def main():
 			)
 			if args.chi2_fit:
 				logging.info("Performing chi-squared fitting on the final profiles... \n")
-				# Fit a Gaussian to the Stokes I profile
-				x_data = FRB.time_ms_array  # Replace with the appropriate x-axis data
-				y_data = FRB.dynamic_spectrum[0].mean(axis=0)  # Mean Stokes I profile
+				x_data = FRB.time_ms_array 
+				y_data = FRB.dynamic_spectrum[0].mean(axis=0)  
 				y_err = noisespec[0].mean(axis=0)  
 
-				initial_guess = [np.max(y_data), np.mean(x_data), np.std(x_data)]  # Initial guess for Gaussian parameters
+				initial_guess = [np.max(y_data), np.mean(x_data), np.std(x_data)]  
 				popt, chi2 = chi2_fit(x_data, y_data, y_err, gaussian_model, initial_guess)
 
 				if popt is not None:

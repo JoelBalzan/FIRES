@@ -250,18 +250,21 @@ def _triple_convolution_with_width_pdf(
 	return hf, h2f
 
 
-def robust_onpulse_median_Neff(Neff_t, threshold=1e-6):
-    """Return the median N_eff in the region between first and last above-threshold values."""
-    idx = np.where(Neff_t > threshold)[0]
-    if len(idx) == 0:
-        return 0.0
-    return np.median(Neff_t[idx[0]:idx[-1]+1])
+def robust_onpulse_median_Neff(Neff_t, threshold=0.1):
+	"""Return the median N_eff in the region between first and last above-threshold values,
+	but only considering bins where N_eff_t > threshold."""
+	idx = np.where(Neff_t >= threshold)[0]
+	if len(idx) == 0:
+		return threshold
+	vals = Neff_t[idx[0]:idx[-1]+1]
+	if len(vals) == 0:
+		return threshold
+	return np.median(vals)
 
 
 def _expected_pa_variance(
 	tau_ms, sigma_deg, N, width_ms, A, A_sd,
-	time_ms=None, mg_width_low=None, mg_width_high=None, n_width_samples: int = 31,
-	onpulse_fraction: float = 0.9
+	time_ms=None, mg_width_low=None, mg_width_high=None, n_width_samples: int = 31
 ):
 	"""
 	Compute scalar expected PA variance using time-averaged N_eff over the on-pulse region.
@@ -296,10 +299,6 @@ def _expected_pa_variance(
 
 	# Robust on-pulse region: between first and last nonzero N_eff
 	N_eff = robust_onpulse_median_Neff(N_eff_t)
-
-	# guard against very small N_eff
-	if not np.isfinite(N_eff) or N_eff <= 0:
-		N_eff = max(1.0, float(N))
 
 	# variance prefactor (peak amplitude convention)
 	pref = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff) * np.sinh(4.0 * sigma_rad**2)
@@ -452,7 +451,6 @@ def psn_dspec(
 	mg_width_low    = gdict['mg_width_low']
 	mg_width_high   = gdict['mg_width_high']
 
-	# Create width_range list with pairs of [mg_width_low, mg_width_high]
 	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
 
 	sd_A               = sd_dict['sd_A']
@@ -564,17 +562,14 @@ def psn_dspec(
 			dspec[2] += U_ft
 			dspec[3] += V_ft
 
-	# --- Apply scintillation if requested ---
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
 
-	# Calculate variance for each parameter in all_params
 	V_params = {key: np.nanvar(values) for key, values in all_params.items()}
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
 	t_res_s = time_res_ms / 1000.0
 
-	# --- Derive SEFD from target S/N if requested ---
 	if target_snr is not None:
 		sefd_est = compute_required_sefd(
 			dspec,
@@ -584,7 +579,6 @@ def psn_dspec(
 			n_pol=2,
 			frac=0.95,
 			buffer_frac=buffer_frac,
-			one_sided_offpulse=True,   # use only pre-pulse for noise
 		)
 		sefd_work = sefd_est
 		max_iter, tol = 5, 0.02
@@ -611,22 +605,20 @@ def psn_dspec(
 	else:
 		snr = None
 
-	# Expected PA variance (time-averaged N_eff)
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
 	if sd_PA > 0 and N_tot > 1:
 		exp_V_PA_deg2, hfg_diag, h2fg_diag, N_eff_t_diag, N_eff_diag = _expected_pa_variance(
-			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
+			tau_ms=float(tau_ms) if np.ndim(tau_ms) == 0 else float(tau_ms[0]),
 			sigma_deg=float(sd_PA),
 			N=N_tot,
-			width_ms=float(np.nanmean(width_ms)),
-			A=float(np.nanmean(A)),
+			width_ms=float(width_ms) if np.ndim(width_ms) == 0 else float(width_ms[0]),
+			A=float(A) if np.ndim(A) == 0 else float(A[0]),
 			A_sd=float(sd_A),
 			time_ms=time_ms,
-			mg_width_low=float(np.nanmean(mg_width_low)),
-			mg_width_high=float(np.nanmean(mg_width_high)),
+			mg_width_low=float(mg_width_low) if np.ndim(mg_width_low) == 0 else float(mg_width_low[0]),
+			mg_width_high=float(mg_width_high) if np.ndim(mg_width_high) == 0 else float(mg_width_high[0]),
 			n_width_samples=31,
-			onpulse_fraction=0.6
 		)
 		exp_V_PA_deg2 /= len(freq_mhz)
 
@@ -637,15 +629,16 @@ def psn_dspec(
 			width_ms=float(np.nanmean(width_ms)),
 			mg_width_low=float(np.nanmean(mg_width_low)),
 			mg_width_high=float(np.nanmean(mg_width_high)),
-			tau_ms=float(np.nanmean(tau_ms)) if np.ndim(tau_ms) == 0 else float(np.nanmean(tau_ms)),
+			tau_ms=float(tau_ms) if np.ndim(tau_ms) == 0 else float(tau_ms[0]),
 			sigma_deg=float(sd_PA),
 			N=N_tot
 		)
 		exp_V_PA_deg2_basic /= len(freq_mhz)
-
-		if not plot_multiple_frb:
-			logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff={N_eff_diag:.1f})")
-			logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
+	
+		#if not plot_multiple_frb:
+		print(tau_ms)
+		logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff={N_eff_diag:.1f})")
+		#logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
 	else:
 		exp_V_PA_deg2 = None
 		exp_V_PA_deg2_basic = None
