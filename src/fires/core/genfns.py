@@ -202,55 +202,62 @@ def _unit_peak_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> n
 
 
 def _triple_convolution_with_width_pdf(
-	t_ms: np.ndarray,
-	tau_ms: float,
-	f_arrival: np.ndarray,
-	width_mean_fwhm_ms: float,
-	width_pct_low: float | None,
-	width_pct_high: float | None,
-	n_width_samples: int = 31,
+    t_ms: np.ndarray,
+    tau_ms: float,
+    f_arrival: np.ndarray,
+    width_mean_fwhm_ms: float,
+    width_pct_low: float | None,
+    width_pct_high: float | None,
+    n_width_samples: int = 31,
 ) -> tuple[np.ndarray, np.ndarray]:
-	"""
-	Compute (h*f*g)(t) and (h^2*f*g)(t) where:
-	  - h is unit-peak temporal response after scattering,
-	  - f is the arrival-time Gaussian PDF (unit area),
-	  - g is the width PDF (unit area), here approximated by a uniform PDF over [w_lo, w_hi].
+    """
+    Compute (h*f*g)(t) and (h^2*f*g)(t) where:
+      - h is the unit-peak temporal response after scattering,
+      - f is the arrival-time Gaussian PDF (unit area),
+      - g is the width PDF (unit area), approximated by a uniform PDF over [w_lo, w_hi].
 
-	Returns:
-		hfg (nt,), h2fg (nt,)
-	"""
-	t = np.asarray(t_ms, dtype=float)
-	dt = float(t[1] - t[0])
+    The width average includes the fluence of each unit-peak response,
+    ensuring consistency with the theoretical derivation that uses A as peak amplitude.
+    """
+    t = np.asarray(t_ms, dtype=float)
+    dt = float(t[1] - t[0])
 
-	# Width sampling (uniform g(w) over [w_lo, w_hi])
-	w0 = float(width_mean_fwhm_ms)
-	if width_pct_low is None or width_pct_high is None:
-		w_samples = np.array([w0], dtype=float)
-	else:
-		w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
-		w_hi = max(w_lo,   w0 * float(width_pct_high) / 100.0)
-		if np.isclose(w_lo, w_hi):
-			w_samples = np.array([w0], dtype=float)
-		else:
-			nw = max(1, int(n_width_samples))
-			w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
+    # Width sampling (uniform g(w) over [w_lo, w_hi])
+    w0 = float(width_mean_fwhm_ms)
+    if width_pct_low is None or width_pct_high is None:
+        w_samples = np.array([w0], dtype=float)
+    else:
+        w_lo = max(1e-12, w0 * float(width_pct_low) / 100.0)
+        w_hi = max(w_lo, w0 * float(width_pct_high) / 100.0)
+        if np.isclose(w_lo, w_hi):
+            w_samples = np.array([w0], dtype=float)
+        else:
+            nw = max(1, int(n_width_samples))
+            w_samples = np.linspace(w_lo, w_hi, nw, dtype=float)
 
-	hf_list, h2f_list = [], []
-	for w in w_samples:
-		sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
-		# Build h(t; w) as unit-peak after scattering
-		h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
-		# Convolve with arrival PDF (unit area), include dt for integral
-		hf_w  = np.convolve(h_w,    f_arrival, mode="same") * dt
-		h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
-		hf_list.append(hf_w)
-		h2f_list.append(h2f_w)
+    hf_list, h2f_list = [], []
+    for w in w_samples:
+        sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
 
-	# Average over uniform g(w)
-	# final averaging over widths is effectively the integration over g(w)
-	hf  = np.mean(np.stack(hf_list,  axis=0), axis=0)
-	h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
-	return hf, h2f
+        # --- Build h(t; w) as unit-peak after scattering ---
+        h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
+
+        # --- Compute fluence (area) of this unit-peak response ---
+        a_w = np.sum(h_w) * dt  # area under unit-peak pulse
+
+        # --- Convolve with arrival-time PDF (unit area) ---
+        hf_w = np.convolve(h_w, f_arrival, mode="same") * dt
+        h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
+
+        # --- Apply area weighting consistent with A = peak amplitude ---
+        hf_list.append(a_w * hf_w)
+        h2f_list.append((a_w**2) * h2f_w)
+
+    # Average over uniform g(w)
+    hf = np.mean(np.stack(hf_list, axis=0), axis=0)
+    h2f = np.mean(np.stack(h2f_list, axis=0), axis=0)
+    return hf, h2f
+
 
 
 
