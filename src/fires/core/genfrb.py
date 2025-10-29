@@ -191,7 +191,7 @@ def _window_dspec(dspec: np.ndarray,
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
-				nstep=None, target_snr=None, param_overrides=None):
+				logstep=None, target_snr=None, param_overrides=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -435,21 +435,21 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			stop = sweep_spec['stop']
 			step = sweep_spec['step']
 			
-			# Use logarithmic spacing if nstep is provided, otherwise linear
-			if nstep is not None:
+			# Use logarithmic spacing if logstep is provided, otherwise linear
+			if logstep is not None:
 				# Logarithmic spacing
 				if start <= 0 or stop <= 0:
 					raise ValueError(
-						f"Logarithmic sweep (--nstep) requires positive start and stop values. "
+						f"Logarithmic sweep (--logstep) requires positive start and stop values. "
 						f"Got start={start}, stop={stop}"
 					)
 			
-				xvals = np.logspace(np.log10(start), np.log10(stop), nstep)
-				logging.info(f"Using logarithmic sweep: {nstep} points from {start} to {stop}")
+				xvals = np.logspace(np.log10(start), np.log10(stop), logstep)
+				logging.info(f"Using logarithmic sweep: {logstep} points from {start} to {stop}")
 			else:
 				# Linear spacing (original behavior)
 				if step is None or step <= 0:
-					raise ValueError("Linear sweep requires step > 0. Use --nstep for logarithmic sweeps.")
+					raise ValueError("Linear sweep requires step > 0. Use --logstep for logarithmic sweeps.")
 			
 				n_steps = int(np.round((stop - start) / step))
 				end = start + n_steps * step

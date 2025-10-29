@@ -284,7 +284,7 @@ def main():
 		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'log'. Default is 'linear'."
 	)
 	parser.add_argument(
-    	"--nstep",
+    	"--logstep",
     	type=int,
     	default=None,
     	help="Number of steps for logarithmic parameter sweeps --- overrides default linear step in gparams (default: None --- will use default linear step)."
@@ -478,7 +478,7 @@ def main():
 				obs_data        = None,
 				obs_params      = None,
 				param_overrides = param_overrides,
-				nstep           = args.nstep
+				logstep           = args.logstep
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
