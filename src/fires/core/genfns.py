@@ -19,7 +19,7 @@ import logging
 import numpy as np
 
 from fires.core.basicfns import (add_noise, compute_required_sefd,
-                                 compute_segments, scatter_dspec)
+								 compute_segments, scatter_dspec)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -243,7 +243,7 @@ def _triple_convolution_with_width_pdf(
 		area = np.sum(h_w) * dt
 		hf_w  = np.convolve(h_w,    f_arrival, mode="same") * dt
 		h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
-		
+
 		hf_list.append(hf_w)
 		h2f_list.append(h2f_w)
 		area_list.append(area)
@@ -291,20 +291,16 @@ def _expected_pa_variance(
 
 	N_eff_t = float(N) * (hf**2) / (h2f + 1e-300)  
 
-	threshold = 0.1 * np.nanmax(hf)
-	mask_on = (hf >= threshold) & np.isfinite(hf)
+	threshold = 0.5 * np.nanmax(hf)
+	mask_on = hf >= threshold
 
-	weights = hf.copy()
-	weights = weights[mask_on]
+	weights = hf[mask_on]
 	N_eff = N_eff_t[mask_on]
-
+	
 	if np.nansum(weights) > 0:
 		N_eff = float(np.nansum(N_eff * weights) / np.nansum(weights))
 	else:
 		N_eff = float(np.nanmedian(N_eff))
-
-	if not np.isfinite(N_eff) or N_eff <= 0:
-		N_eff = max(1.0, float(N))
 
 	var_PA_rad2 = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff) * np.sinh(4.0 * sigma_rad**2)
 	var_PA_deg2 = var_PA_rad2 * (180.0 / np.pi)**2
@@ -613,10 +609,10 @@ def psn_dspec(
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
 	if sd_PA > 0 and N_tot > 1:
-		actual_A_mean = np.mean(all_params['A_i'])
-		actual_A_std = np.std(all_params['A_i'])
+		actual_A_mean = np.mean(A)
+		actual_A_std = np.std(A)
 		actual_width_mean = np.mean(width_ms)
-		actual_tau_mean = np.mean(all_params['tau_ms_i'])
+		actual_tau_mean = np.mean(tau_ms)
 		exp_V_PA_deg2, _, _, _, N_eff_diag = _expected_pa_variance(
 			tau_ms=actual_tau_mean,  
 			sigma_deg=float(sd_PA),
@@ -629,7 +625,6 @@ def psn_dspec(
 			mg_width_high=float(mg_width_high) if np.ndim(mg_width_high) == 0 else float(mg_width_high[0]),
 			n_width_samples=100,
 		)
-		#exp_V_PA_deg2 /= len(freq_mhz)
 
 		# Compute on-pulse mask as in your code
 		#plot_Neff_vs_time(time_ms, N_eff_t_diag)
@@ -642,14 +637,7 @@ def psn_dspec(
 			sigma_deg=float(sd_PA),
 			N=N_tot
 		)
-		#exp_V_PA_deg2_basic /= len(freq_mhz)
 
-		print(f"tau={tau_ms[0]:.2f}: "
-      	f"N_eff={N_eff_diag:.1f}, "
-      	f"mean(A_i)={np.mean(all_params['A_i']):.2f}, "
-      	f"mean(width_i)={np.mean(all_params['mg_width_i']):.2f}, "
-      	f"std(PA_i)={np.std(all_params['PA_i']):.2f}")
-	
 		if not plot_multiple_frb:
 			print(f"tau={tau_ms:.1f}: Measured={V_params['PA_i']:.3f}, "
 				  f"Expected(detailed)={exp_V_PA_deg2:.3f}, "
