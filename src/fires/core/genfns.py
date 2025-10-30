@@ -639,7 +639,7 @@ def psn_dspec(
 		)
 
 		if not plot_multiple_frb:
-			print(f"tau={tau_ms:.1f}: Measured={V_params['PA_i']:.3f}, "
+			print(f"tau={tau_ms[0]:.1f}: Measured={V_params['PA_i']:.3f}, "
 				  f"Expected(detailed)={exp_V_PA_deg2:.3f}, "
 				  f"Expected(basic)={exp_V_PA_deg2_basic:.3f}")
 	else:

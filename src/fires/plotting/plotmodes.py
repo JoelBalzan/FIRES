@@ -944,11 +944,10 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 	# Only plot if there are finite expected values
 	has_exp1 = np.any(np.isfinite(exp1))
 	has_exp2 = exp2 is not None and np.any(np.isfinite(exp2))
-	if has_exp1:
-		ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
-		print(exp1)
+	#if has_exp1:
+		#ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
 	if has_exp2:
-		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected (basic)')
+		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected')
 
 
 def _format_override_label(override_str):
@@ -1427,7 +1426,6 @@ def _plot_single_job_common(
 		if not embed:
 			ax.grid(True, linestyle='--', alpha=0.6)
 
-	print(x, med_vals)
 	ax.plot(x, med_vals, color=series_colour, label=series_label, linewidth=2)
 	ax.fill_between(x, lower, upper, color=series_colour, alpha=0.2)
 
