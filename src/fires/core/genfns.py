@@ -19,7 +19,7 @@ import logging
 import numpy as np
 
 from fires.core.basicfns import (add_noise, compute_required_sefd,
-								 compute_segments, scatter_dspec)
+                                 compute_segments, scatter_dspec)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -146,10 +146,9 @@ def _make_scattering_kernel(t_ms: np.ndarray, tau_ms: float) -> np.ndarray:
 	return h
 
 
-def _gaussian_on_grid(t_ms: np.ndarray, sigma_ms: float, normalize: str) -> np.ndarray:
+def _gaussian_on_grid(t_ms: np.ndarray, sigma_ms: float, normalise: str) -> np.ndarray:
 	"""
-	Common Gaussian builder using utils.gaussian_model, with grid-safe normalisation.
-	normalize: 'area' -> unit area (sum*dt=1); 'peak' -> unit peak (max=1).
+	normalise: 'area' -> unit area (sum*dt=1); 'peak' -> unit peak (max=1).
 	If sigma<=0, returns a discrete delta at 0 with value 1.0.
 	"""
 	t = np.asarray(t_ms, dtype=float)
@@ -161,29 +160,29 @@ def _gaussian_on_grid(t_ms: np.ndarray, sigma_ms: float, normalize: str) -> np.n
 	# Raw Gaussian shape (amp=1 at mean)
 	g = gaussian_model(t, amp=1.0, mean=0.0, stddev=float(sigma_ms))
 
-	if normalize == "area":
+	if normalise == "area":
 		dt = float(t[1] - t[0])
 		norm = np.sum(g) * dt
 		return g / norm if norm > 0 else g
-	elif normalize == "peak":
+	elif normalise == "peak":
 		mx = float(np.max(g))
 		return g / mx if mx > 0 and np.isfinite(mx) else g
 	else:
 		return g 
 
 
-def _unit_peak_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> np.ndarray:
+def _unit_fluence_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> np.ndarray:
 	"""
-	Build unit-peak temporal response h_tau(t; w):
-	  1) s(t; w) = unit-peak Gaussian (shape), std = sigma_w_ms
-	  2) k_tau(t) = unit-area exponential kernel (or delta if tau<=0)
-	  3) h = (s * k_tau) · dt, then normalise to unit peak
+	Build unit-fluence (unit-area) temporal response h_tau(t; w):
+	  1) s(t; w) = unit-area Gaussian (fluence-normalised)
+	  2) k_tau(t) = unit-area exponential scattering kernel (or delta if tau<=0)
+	  3) h = (s * k_tau) · dt  (automatically unit area since both are)
 	"""
 	t = np.asarray(t_ms, dtype=float)
 	dt = float(t[1] - t[0])
 
-	# s: unit-peak Gaussian
-	s = _gaussian_on_grid(t, float(sigma_w_ms), normalize="peak")
+	# s: unit-area Gaussian
+	s = _gaussian_on_grid(t, float(sigma_w_ms), normalise="area")
 
 	# k: unit-area scattering kernel (delta if tau<=0)
 	tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
@@ -191,8 +190,16 @@ def _unit_peak_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> n
 
 	# Convolution (integral)
 	h = np.convolve(s, k, mode="same") * dt
-	mx = np.max(h)
-	return h / mx if mx > 0 else h
+
+	# Normalise area again (numerical drift)
+	area = np.sum(h) * dt
+	if area > 0 and np.isfinite(area):
+		h /= area
+	else:
+		h = np.zeros_like(t)
+		h[np.argmin(np.abs(t))] = 1.0
+	return h
+
 
 
 def _triple_convolution_with_width_pdf(
@@ -211,7 +218,7 @@ def _triple_convolution_with_width_pdf(
 	  - g is the width PDF (unit area), here approximated by a uniform PDF over [w_lo, w_hi].
 
 	Returns:
-		hfg (nt,), h2fg (nt,)
+		hf (nt,), h2f (nt,)
 	"""
 	t = np.asarray(t_ms, dtype=float)
 	dt = float(t[1] - t[0])
@@ -232,10 +239,11 @@ def _triple_convolution_with_width_pdf(
 	hf_list, h2f_list, area_list = [], [], []
 	for w in w_samples:
 		sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
-		h_w = _unit_peak_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
+		h_w = _unit_fluence_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
 		area = np.sum(h_w) * dt
 		hf_w  = np.convolve(h_w,    f_arrival, mode="same") * dt
 		h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
+		
 		hf_list.append(hf_w)
 		h2f_list.append(h2f_w)
 		area_list.append(area)
@@ -250,18 +258,6 @@ def _triple_convolution_with_width_pdf(
 	return hf, h2f
 
 
-def robust_onpulse_median_Neff(Neff_t, threshold=0.1):
-	"""Return the median N_eff in the region between first and last above-threshold values,
-	but only considering bins where N_eff_t > threshold."""
-	idx = np.where(Neff_t >= threshold)[0]
-	if len(idx) == 0:
-		return threshold
-	vals = Neff_t[idx[0]:idx[-1]+1]
-	if len(vals) == 0:
-		return threshold
-	return np.median(vals)
-
-
 def _expected_pa_variance(
 	tau_ms, sigma_deg, N, width_ms, A, A_sd,
 	time_ms=None, mg_width_low=None, mg_width_high=None, n_width_samples: int = 31
@@ -270,10 +266,10 @@ def _expected_pa_variance(
 	Compute scalar expected PA variance using time-averaged N_eff over the on-pulse region.
 	Returns var_PA_deg2 (float).
 	"""
-	# Basic checks
+
 	assert time_ms is not None and len(time_ms) >= 3
 
-	# amplitude moments (peak-flux moments)
+	# amplitude moments
 	a_mean = float(np.nanmean(A)) if np.ndim(A) > 0 else float(A)
 	a2_mean = a_mean**2 + float(A_sd)**2
 	sigma_rad = np.deg2rad(float(sigma_deg))
@@ -283,10 +279,9 @@ def _expected_pa_variance(
 
 	# arrival PDF
 	sigma_arrival_ms = float(width_ms) / GAUSSIAN_FWHM_FACTOR
-	f = _gaussian_on_grid(t_rel, sigma_arrival_ms, normalize="area")
+	f = _gaussian_on_grid(t_rel, sigma_arrival_ms, normalise="area")
 
-	# compute (h*f*g) and (h^2*f*g)
-	hfg, h2fg = _triple_convolution_with_width_pdf(
+	hf, h2f = _triple_convolution_with_width_pdf(
 		t_rel, float(tau_ms) if tau_ms is not None else 0.0, f,
 		width_mean_fwhm_ms=float(width_ms),
 		mg_width_low=mg_width_low,
@@ -294,18 +289,27 @@ def _expected_pa_variance(
 		n_width_samples=n_width_samples
 	)
 
-	# per-time N_eff
-	N_eff_t = float(N) * (hfg**2) / (h2fg + 1e-300)  # avoid zeros
+	N_eff_t = float(N) * (hf**2) / (h2f + 1e-300)  
 
-	# Robust on-pulse region: between first and last nonzero N_eff
-	N_eff = robust_onpulse_median_Neff(N_eff_t)
+	threshold = 0.1 * np.nanmax(hf)
+	mask_on = (hf >= threshold) & np.isfinite(hf)
 
-	# variance prefactor (peak amplitude convention)
-	pref = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff) * np.sinh(4.0 * sigma_rad**2)
+	weights = hf.copy()
+	weights = weights[mask_on]
+	N_eff = N_eff_t[mask_on]
 
-	var_PA_rad2 = pref
+	if np.nansum(weights) > 0:
+		N_eff = float(np.nansum(N_eff * weights) / np.nansum(weights))
+	else:
+		N_eff = float(np.nanmedian(N_eff))
+
+	if not np.isfinite(N_eff) or N_eff <= 0:
+		N_eff = max(1.0, float(N))
+
+	var_PA_rad2 = (a2_mean / (4.0 * a_mean**2)) * (1.0 / N_eff) * np.sinh(4.0 * sigma_rad**2)
 	var_PA_deg2 = var_PA_rad2 * (180.0 / np.pi)**2
-	return float(var_PA_deg2), hfg, h2fg, N_eff_t, N_eff
+
+	return float(var_PA_deg2), hf, h2f, N_eff_t, N_eff
 
 
 def _expected_pa_variance_basic(
@@ -352,6 +356,7 @@ def _expected_pa_variance_basic(
 	return var_PA_deg2
 
 import matplotlib.pyplot as plt
+
 
 def plot_Neff_vs_time(time_ms, Neff_t):
 	"""
@@ -471,7 +476,7 @@ def psn_dspec(
 	all_params = {
 		't0_i'             : [],
 		'A_i'              : [],
-		'width_ms_i'       : [],
+		'mg_width_i'       : [],
 		'spec_idx_i'       : [],
 		'tau_ms_i'         : [],
 		'PA_i'             : [],
@@ -488,8 +493,8 @@ def psn_dspec(
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
-			A_i        = np.random.normal(A[g], sd_A)
-			width_ms_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
+			A_i        		  = np.random.normal(A[g], sd_A)
+			mg_width_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_ms_i          = np.random.normal(tau_ms[g], sd_tau_ms)
 			tau_eff = tau_ms_i if tau_ms_i > 0 else float(tau_ms[g])
@@ -517,7 +522,7 @@ def psn_dspec(
 			# Record parameters
 			all_params['t0_i'].append(t0_i)
 			all_params['A_i'].append(A_i)
-			all_params['width_ms_i'].append(width_ms_i)
+			all_params['mg_width_i'].append(mg_width_i)
 			all_params['spec_idx_i'].append(spec_idx_i)
 			all_params['tau_ms_i'].append(tau_ms_i)
 			all_params['PA_i'].append(PA_i)
@@ -538,7 +543,7 @@ def psn_dspec(
 					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
 					norm_amp *= spectral_profile
 
-			base_gauss = gaussian_model(time_ms, 1.0, t0_i, width_ms_i / GAUSSIAN_FWHM_FACTOR)
+			base_gauss = gaussian_model(time_ms, 1.0, t0_i, mg_width_i / GAUSSIAN_FWHM_FACTOR)
 			I_ft = norm_amp[:, None] * base_gauss[None, :]
 
 			if DM_i != 0:
@@ -608,19 +613,23 @@ def psn_dspec(
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
 	if sd_PA > 0 and N_tot > 1:
-		exp_V_PA_deg2, hfg_diag, h2fg_diag, N_eff_t_diag, N_eff_diag = _expected_pa_variance(
-			tau_ms=float(tau_ms) if np.ndim(tau_ms) == 0 else float(tau_ms[0]),
+		actual_A_mean = np.mean(all_params['A_i'])
+		actual_A_std = np.std(all_params['A_i'])
+		actual_width_mean = np.mean(width_ms)
+		actual_tau_mean = np.mean(all_params['tau_ms_i'])
+		exp_V_PA_deg2, _, _, _, N_eff_diag = _expected_pa_variance(
+			tau_ms=actual_tau_mean,  
 			sigma_deg=float(sd_PA),
 			N=N_tot,
-			width_ms=float(width_ms) if np.ndim(width_ms) == 0 else float(width_ms[0]),
-			A=float(A) if np.ndim(A) == 0 else float(A[0]),
-			A_sd=float(sd_A),
+			width_ms=actual_width_mean,
+			A=actual_A_mean,
+			A_sd=actual_A_std,
 			time_ms=time_ms,
 			mg_width_low=float(mg_width_low) if np.ndim(mg_width_low) == 0 else float(mg_width_low[0]),
 			mg_width_high=float(mg_width_high) if np.ndim(mg_width_high) == 0 else float(mg_width_high[0]),
-			n_width_samples=31,
+			n_width_samples=100,
 		)
-		exp_V_PA_deg2 /= len(freq_mhz)
+		#exp_V_PA_deg2 /= len(freq_mhz)
 
 		# Compute on-pulse mask as in your code
 		#plot_Neff_vs_time(time_ms, N_eff_t_diag)
@@ -633,12 +642,18 @@ def psn_dspec(
 			sigma_deg=float(sd_PA),
 			N=N_tot
 		)
-		exp_V_PA_deg2_basic /= len(freq_mhz)
+		#exp_V_PA_deg2_basic /= len(freq_mhz)
+
+		print(f"tau={tau_ms[0]:.2f}: "
+      	f"N_eff={N_eff_diag:.1f}, "
+      	f"mean(A_i)={np.mean(all_params['A_i']):.2f}, "
+      	f"mean(width_i)={np.mean(all_params['mg_width_i']):.2f}, "
+      	f"std(PA_i)={np.std(all_params['PA_i']):.2f}")
 	
-		#if not plot_multiple_frb:
-		print(tau_ms)
-		logging.info(f"Expected V(PA) (time-avg N_eff) ~ {exp_V_PA_deg2:.3f} deg^2 (N_eff={N_eff_diag:.1f})")
-		#logging.info(f"Expected V(PA) basic estimate ~ {exp_V_PA_deg2_basic:.3f} deg^2")
+		if not plot_multiple_frb:
+			print(f"tau={tau_ms:.1f}: Measured={V_params['PA_i']:.3f}, "
+				  f"Expected(detailed)={exp_V_PA_deg2:.3f}, "
+				  f"Expected(basic)={exp_V_PA_deg2_basic:.3f}")
 	else:
 		exp_V_PA_deg2 = None
 		exp_V_PA_deg2_basic = None

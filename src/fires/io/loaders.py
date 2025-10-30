@@ -379,18 +379,18 @@ def load_multiple_data_grouped(data):
 	
 		override_parts = override_str.split('_')
 	
-		normalized_parts = []
+		normalised_parts = []
 		for part in override_parts:
 			match = re.match(r'^([a-zA-Z]+)([0-9.]+)$', part)
 			if match:
 				param = match.group(1)
 				value = match.group(2)
-				normalized_value = normalise_override_value(value)
-				normalized_parts.append(f"{param}{normalized_value}")
+				normalised_value = normalise_override_value(value)
+				normalised_parts.append(f"{param}{normalised_value}")
 			else:
 				logging.debug(f"Skipping unexpected override part: {part}")
 	
-		return "_".join(normalized_parts) if normalized_parts else ""
+		return "_".join(normalised_parts) if normalised_parts else ""
 	
 	def extract_override_params_for_sorting(override_key):
 		"""

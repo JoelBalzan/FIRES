@@ -25,8 +25,8 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
-								 add_noise, process_dspec, scatter_dspec,
-								 snr_onpulse)
+                                 add_noise, process_dspec, scatter_dspec,
+                                 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.io.loaders import load_data, load_multiple_data_grouped
 from fires.utils.config import load_params
@@ -105,7 +105,7 @@ def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None):
 	return var, measures, V_params, snr, exp_vars
 
 
-def _normalize_freq_key(key: str | None) -> str:
+def _normalise_freq_key(key: str | None) -> str:
 	if key is None:
 		return "all"
 	k = str(key).lower()
@@ -116,7 +116,7 @@ def _normalize_freq_key(key: str | None) -> str:
 	}
 	return alias.get(k, k)
 
-def _normalize_phase_key(key: str | None) -> str:
+def _normalise_phase_key(key: str | None) -> str:
 	if key is None:
 		return "total"
 	k = str(key).lower()
@@ -151,7 +151,7 @@ def _window_dspec(dspec: np.ndarray,
 			else:
 				logging.warning("freq_window produced empty selection; ignoring frequency window.")
 		elif isinstance(freq_window, str):
-			key = _normalize_freq_key(freq_window)
+			key = _normalise_freq_key(freq_window)
 			slc_dict = _freq_quarter_slices(dspec_w.shape[1])
 			slc = slc_dict.get(key, slc_dict["all"])
 			prev = dspec_w.shape[1]
@@ -173,7 +173,7 @@ def _window_dspec(dspec: np.ndarray,
 			else:
 				logging.warning("phase_window produced empty selection; ignoring phase window.")
 		elif isinstance(phase_window, str):
-			key = _normalize_phase_key(phase_window)
+			key = _normalise_phase_key(phase_window)
 			I_time = np.nansum(dspec_w[0], axis=0) if dspec_w.shape[1] > 0 else np.zeros_like(t_w)
 			peak_idx = int(np.nanargmax(I_time)) if I_time.size > 0 else 0
 			slc_dict = _phase_slices_from_peak(dspec_w.shape[2], peak_idx)
@@ -298,10 +298,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	if scint_file is not None:
 		scint = load_params("scparams", scint_file, "scintillation")
 		if scint.get("derive_from_tau", False):
-			# Derive decorrelation bandwidth at the REFERENCE frequency
-			tau_ms_ref = float(gdict["tau_ms"][0])          # τ_sc at ref_freq (from gparams)
-			tau_s_ref  = 1e-3 * tau_ms_ref                  # s
-			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)    # Hz
+			tau_ms_ref = float(gdict["tau_ms"][0])          
+			tau_s_ref  = 1e-3 * tau_ms_ref                  
+			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)    
 			scint["nu_s"] = float(nu_s_hz)
 			logging.info(
 				f"Derived nu_s at reference {ref_freq:.1f} MHz: "
@@ -522,7 +521,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			measures = {v: [] for v in xvals}
 			V_params = {
 				v: {key: [] for key in [
-					't0_i','A_i','width_ms_i','spec_idx_i','tau_ms_i','PA_i',
+					't0_i','A_i','mg_width_i','spec_idx_i','tau_ms_i','PA_i',
 					'DM_i','RM_i','lfrac_i','vfrac_i','dPA_i','band_centre_mhz_i','band_width_mhz_i'
 				]} for v in xvals
 			}

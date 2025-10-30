@@ -25,7 +25,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circstd, circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec)
+                                 process_dspec)
 from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -112,7 +112,7 @@ param_map = {
 	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
 	# Std deviation sweep parameters
 	"t0_i"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
-	"width_ms_i"       : (r"\sigma_W", r"\mathrm{ms}"),
+	#"mg_width_i"       : (r"\sigma_w", r"\mathrm{ms}"),
 	"A_i"              : (r"\sigma_A", ""),
 	"spec_idx_i"       : (r"\sigma_\alpha", ""),
 	"DM_i"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
