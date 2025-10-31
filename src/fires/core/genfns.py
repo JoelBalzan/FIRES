@@ -309,60 +309,48 @@ def _expected_pa_variance(
 
 
 def _expected_pa_variance_basic(
-    width_ms,
-    mg_width_low,
-    mg_width_high,
-    tau_ms,
-    sigma_deg,
-    N,
-    time_res_ms
-) -> float:
-    """
-    Basic PA-variance estimator with corrected scattering evolution.
-    
-    Key correction: Scattering affects micro-shots more severely than
-    the envelope because they start narrower. The overlap increases
-    faster than the naive sqrt(w² + tau²) formula suggests.
-    """
-    W = float(np.nanmean(np.asarray(width_ms, dtype=float)))
-    
-    low = np.asarray(mg_width_low, dtype=float)
-    high = np.asarray(mg_width_high, dtype=float)
-    frac_micro = np.nanmean(0.5 * (low + high)) / 100.0
-    frac_micro = np.clip(frac_micro, 1e-6, None)
-    w = W * frac_micro  # Intrinsic micro width (~0.0625 ms)
-    
-    tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
-    
-    W_tot = float(np.sqrt(W**2 + tau_mean**2))
-    
-    # Micro-shot effective width with ENHANCED scattering sensitivity
-    # relative broadening is tau/w for micro-shots vs tau/W for envelope
-    # Since w << W, micro-shots are affected much more severely
-    # Scale tau by the relative narrowness
-    tau_effective = tau_mean * (W / w) 
-    w_tot = float(np.sqrt(w**2 + tau_effective**2))
+	width_ms,
+	mg_width_low,
+	mg_width_high,
+	tau_ms,
+	sigma_deg,
+	N,
+	time_res_ms
+) -> tuple[float | None, float | None, dict]:
+	"""
+	Basic PA-variance estimator using broadened widths and an effective shots-per-time argument.
 
-    
-    dt = float(time_res_ms)
-    
-    # Number of micro-shots per bin
-    N_eff_per_bin = float(N) * (w_tot / max(W_tot, 1e-12))
-    
-    # Time resolution correction
-    if w_tot < dt:
-        logging.info("Microshots unresolved; applying time resolution correction")
-        N_eff_per_bin *= w_tot / dt
-    
-    N_eff_per_bin = max(N_eff_per_bin, 1.0)
-    
-    sigma = float(sigma_deg)
-    var_PA_deg2 = sigma**2 / N_eff_per_bin
-    
-    logging.debug(f"tau={tau_mean:.2f}, W_tot={W_tot:.3f}, w_tot={w_tot:.4f}, "
-                  f"N_eff_per_bin={N_eff_per_bin:.1f}, var={var_PA_deg2:.2f}")
-    
-    return var_PA_deg2
+	Assumptions:
+	  - Macro width W and micro width w are FWHM-like measures.
+	  - Scattering broadens both: W_tot = sqrt(W^2 + tau^2), w_tot = sqrt(w^2 + tau^2).
+	  - Effective number per time: N_eff_t = N * (w_tot / W_tot).
+	  - PA_rms ~ sigma_deg / sqrt(N_eff_t), Var[PA] ~ PA_rms^2.
+
+	Returns:
+	  var_PA_deg2 (float|None), PA_rms_deg (float|None), aux (dict with components).
+	"""
+	W = float(np.nanmean(np.asarray(width_ms, dtype=float)))
+
+	low = np.asarray(mg_width_low, dtype=float)
+	high = np.asarray(mg_width_high, dtype=float)
+	frac_micro = np.nanmean(0.5 * (low + high)) / 100.0
+	frac_micro = np.clip(frac_micro, 1e-6, None)
+	w = W * frac_micro
+
+	tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
+	W_tot = float(np.sqrt(W**2 + tau_mean**2))
+	w_tot = float(np.sqrt(w**2 + tau_mean**2))
+
+	N_eff_t = float(N) * (w_tot / max(W_tot, 1e-12))
+
+	if w_tot < time_res_ms:
+		logging.info("Microshots unresolved; applying time resolution correction to N_eff_t")
+		N_eff_t *= w_tot / time_res_ms 
+
+	sigma = float(sigma_deg)
+	var_PA_deg2 = sigma**2 / N_eff_t
+
+	return var_PA_deg2
 
 
 
