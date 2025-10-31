@@ -318,17 +318,11 @@ def _expected_pa_variance_basic(
     time_res_ms
 ) -> float:
     """
-    Basic PA-variance estimator accounting for micro-shot overlap.
+    Basic PA-variance estimator with corrected scattering evolution.
     
-    Key insight: As scattering increases, micro-shots overlap more in time.
-    Each time bin samples a superposition of many micro-shots, averaging
-    their individual PA values. This reduces the measured PA variance.
-    
-    At tau=0: Each bin sees ~N_eff_per_bin shots → variance ≈ σ²/N_eff_per_bin
-    At large tau: All shots overlap completely → variance → 0
-    
-    Returns:
-      var_PA_deg2 (float): Expected variance in deg²
+    Key correction: Scattering affects micro-shots more severely than
+    the envelope because they start narrower. The overlap increases
+    faster than the naive sqrt(w² + tau²) formula suggests.
     """
     W = float(np.nanmean(np.asarray(width_ms, dtype=float)))
     
@@ -336,16 +330,26 @@ def _expected_pa_variance_basic(
     high = np.asarray(mg_width_high, dtype=float)
     frac_micro = np.nanmean(0.5 * (low + high)) / 100.0
     frac_micro = np.clip(frac_micro, 1e-6, None)
-    w = W * frac_micro
+    w = W * frac_micro  # Intrinsic micro width (~0.0625 ms)
     
     tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
+    
     W_tot = float(np.sqrt(W**2 + tau_mean**2))
-    w_tot = float(np.sqrt(w**2 + tau_mean**2))
+    
+    # Micro-shot effective width with ENHANCED scattering sensitivity
+    # relative broadening is tau/w for micro-shots vs tau/W for envelope
+    # Since w << W, micro-shots are affected much more severely
+    # Scale tau by the relative narrowness
+    tau_effective = tau_mean * (W / w) 
+    w_tot = float(np.sqrt(w**2 + tau_effective**2))
+
     
     dt = float(time_res_ms)
     
+    # Number of micro-shots per bin
     N_eff_per_bin = float(N) * (w_tot / max(W_tot, 1e-12))
     
+    # Time resolution correction
     if w_tot < dt:
         logging.info("Microshots unresolved; applying time resolution correction")
         N_eff_per_bin *= w_tot / dt
@@ -353,7 +357,6 @@ def _expected_pa_variance_basic(
     N_eff_per_bin = max(N_eff_per_bin, 1.0)
     
     sigma = float(sigma_deg)
-    
     var_PA_deg2 = sigma**2 / N_eff_per_bin
     
     logging.debug(f"tau={tau_mean:.2f}, W_tot={W_tot:.3f}, w_tot={w_tot:.4f}, "
