@@ -11,6 +11,9 @@ from collections import defaultdict
 
 import numpy as np
 
+from fires.utils.utils import dspecParams
+from fires.utils.config import load_params
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -103,7 +106,7 @@ def get_parameters(filepath):
 	return gdict
 
 
-def load_data(obs_data_path, obs_params_path=None):
+def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None):
 	"""
 	Load real FRB data from individual Stokes I, Q, U, V files and parameter file.
 	
@@ -305,30 +308,73 @@ def load_data(obs_data_path, obs_params_path=None):
 		logging.info("Time array appears to be in seconds, converting to milliseconds")
 		time_ms = time_ms * 1000.0
 	
-	# Load parameters file
 	gdict = {}
 	if obs_params_path is None:
 		obs_params_path = os.path.join(data_dir, "parameters.txt")
-	
+
 	if os.path.exists(obs_params_path):
 		logging.info(f"Loading parameters from {os.path.basename(obs_params_path)}")
 		gdict = get_parameters(obs_params_path)
 	else:
 		logging.warning(f"Parameters file not found: {obs_params_path}")
-		# Create minimal gdict with defaults
 		gdict = {
-			#'tau_ms': np.array([0.0]),
-			#'width': np.array([np.median(np.diff(time_ms)) * 10 if len(time_ms) > 1 else 1.0]),
 			'DM': np.array([0.0]),
 			'RM': np.array([0.0]),
-			#'band_centre_mhz': np.array([np.median(freq_mhz) if len(freq_mhz) > 0 else 1000.0]),
-			#'band_width_mhz': np.array([np.ptp(freq_mhz) if len(freq_mhz) > 0 else 336.0])
 		}
 
-		dspec_params = {
-			'gdict': gdict
-		}
+	# --- Use gparams dict for defaults ---
+	if gauss_file is not None:
+		sim_file = load_params("simparams", sim_file, "simulation")
+		f_res   = float(sim_file['f_res'])
+		t_res   = float(sim_file['t_res'])
+		scatter_idx = float(sim_file['scattering_index'])
+		ref_freq 	= float(sim_file['reference_freq'])
 	
+		gauss_params = np.loadtxt(gauss_file)
+		stddev_row   = -4  
+		gparams = {
+			't0'             : gauss_params[:stddev_row, 0],
+			'width_ms'     	 : gauss_params[:stddev_row, 1],
+			'A'              : gauss_params[:stddev_row, 2],
+			'spec_idx'       : gauss_params[:stddev_row, 3],
+			'tau_ms'         : gauss_params[:stddev_row, 4],
+			'DM'             : gauss_params[:stddev_row, 5],
+			'RM'             : gauss_params[:stddev_row, 6],
+			'PA'             : gauss_params[:stddev_row, 7],
+			'lfrac'          : gauss_params[:stddev_row, 8],
+			'vfrac'          : gauss_params[:stddev_row, 9],
+			'dPA'            : gauss_params[:stddev_row, 10],
+			'band_centre_mhz': gauss_params[:stddev_row, 11],
+			'band_width_mhz' : gauss_params[:stddev_row, 12],
+			'N'              : gauss_params[:stddev_row, 13],
+			'mg_width_low'   : gauss_params[:stddev_row, 14],
+			'mg_width_high'  : gauss_params[:stddev_row, 15]
+		}
+		for k, v in gparams.items():
+			if k not in gdict or (isinstance(v, np.ndarray) and np.all(gdict.get(k, None) == 0)):
+				gdict[k] = v
+
+	print("gdict after applying gparams:", gdict)
+
+	dspec_params = dspecParams(
+		gdict           = gdict,
+		sd_dict         = None,
+		scint_dict      = None,
+		freq_mhz        = freq_mhz,
+		freq_res_mhz    = f_res,
+		time_ms         = time_ms,
+		time_res_ms     = t_res,
+		seed            = None,
+		nseed           = None,
+		sefd            = None,
+		sc_idx          = scatter_idx,
+		ref_freq_mhz    = ref_freq,
+		phase_window    = None,
+		freq_window     = None,
+		buffer_frac     = None,
+		sweep_mode      = None
+	)
+
 	logging.info(
 		f"Final data shape: {dspec.shape}, "
 		f"freq range: {freq_mhz.min():.1f}-{freq_mhz.max():.1f} MHz, "
