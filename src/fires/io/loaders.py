@@ -106,7 +106,7 @@ def get_parameters(filepath):
 	return gdict
 
 
-def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None):
+def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, scint_file=None):
 	"""
 	Load real FRB data from individual Stokes I, Q, U, V files and parameter file.
 	
@@ -323,13 +323,7 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None):
 		}
 
 	# --- Use gparams dict for defaults ---
-	if gauss_file is not None:
-		sim_file = load_params("simparams", sim_file, "simulation")
-		f_res   = float(sim_file['f_res'])
-		t_res   = float(sim_file['t_res'])
-		scatter_idx = float(sim_file['scattering_index'])
-		ref_freq 	= float(sim_file['reference_freq'])
-	
+	if gauss_file is not None:	
 		gauss_params = np.loadtxt(gauss_file)
 		stddev_row   = -4  
 		gparams = {
@@ -353,13 +347,56 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None):
 		for k, v in gparams.items():
 			if k not in gdict or (isinstance(v, np.ndarray) and np.all(gdict.get(k, None) == 0)):
 				gdict[k] = v
+		sd_dict = {
+			'sd_t0'             : gauss_params[stddev_row, 0],
+			'sd_width_ms'       : gauss_params[stddev_row, 1],
+			'sd_A'       		: gauss_params[stddev_row, 2],
+			'sd_spec_idx'       : gauss_params[stddev_row, 3],
+			'sd_tau_ms'         : gauss_params[stddev_row, 4],
+			'sd_DM'             : gauss_params[stddev_row, 5],
+			'sd_RM'             : gauss_params[stddev_row, 6],
+			'sd_PA'             : gauss_params[stddev_row, 7],
+			'sd_lfrac'          : gauss_params[stddev_row, 8],
+			'sd_vfrac'          : gauss_params[stddev_row, 9],
+			'sd_dPA'            : gauss_params[stddev_row,10],
+			'sd_band_centre_mhz': gauss_params[stddev_row,11],
+			'sd_band_width_mhz' : gauss_params[stddev_row,12]
+		}
+	else:
+		sd_dict = None
+		
+	if sim_file is not None:
+		sim_file = load_params("simparams", sim_file, "simulation")
+		f_res   = float(sim_file['f_res'])
+		t_res   = float(sim_file['t_res'])
+		scatter_idx = float(sim_file['scattering_index'])
+		ref_freq 	= float(sim_file['reference_freq'])
+	else:
+		f_res        = None
+		t_res        = None
+		scatter_idx  = None
+		ref_freq     = None
+
+	if scint_file is not None:
+		scint = load_params("scparams", scint_file, "scintillation")
+		if scint.get("derive_from_tau", False):
+			tau_ms_ref = float(gdict["tau_ms"][0])          
+			tau_s_ref  = 1e-3 * tau_ms_ref                  
+			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)    
+			scint["nu_s"] = float(nu_s_hz)
+			logging.info(
+				f"Derived nu_s at reference {ref_freq:.1f} MHz: "
+				f"tau={tau_ms_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz"
+			)
+	else:
+		scint = None
 
 	print("gdict after applying gparams:", gdict)
 
 	dspec_params = dspecParams(
 		gdict           = gdict,
-		sd_dict         = None,
-		scint_dict      = None,
+		sd_dict         = sd_dict,
+		scint_dict      = scint,
 		freq_mhz        = freq_mhz,
 		freq_res_mhz    = f_res,
 		time_ms         = time_ms,
