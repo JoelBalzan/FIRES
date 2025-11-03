@@ -25,10 +25,11 @@ from scipy.optimize import curve_fit
 from scipy.stats import circstd, circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-                                 process_dspec)
+								 process_dspec)
 from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
+from fires.utils.config import load_params
 
 logging.basicConfig(level=logging.INFO)
 for _name in ("fontTools", "fontTools.subset"):
@@ -1084,7 +1085,7 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='PA_i', weight_x_by=None,
 		# Use specified values
 		selected_values = [v for v in target_values if v in all_xvals]
 	
-	logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines")
+	logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines\n")
 	
 	# For each selected xval, collect (x, y) points ACROSS RUNS
 	for xval in selected_values:
@@ -1171,6 +1172,8 @@ def _plot_single_run_multi_window(
 	frb_dict,
 	ax,
 	plot_type,
+	gauss_file=None,
+	sim_file=None,
 	window_pairs=None,  
 	weight_y_by=None,
 	weight_x_by=None,
@@ -1335,7 +1338,7 @@ def _plot_single_run_multi_window(
 					phase_canonical = normalise_phase_window(phase_win, target='dspec')
 					
 					obs_result = _process_observational_data(
-						obs_data, obs_params, 
+						obs_data, obs_params, gauss_file, sim_file,
 						phase_canonical,
 						freq_canonical,
 						buffer_frac=buffer_frac, 
@@ -1579,9 +1582,21 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		xname = meta['xname']
 		x_unit = meta['x_unit']
 
-		# Get swept parameter name from xname (only need to do this once)
 		if swept_param is None:
-			swept_param = run_data.get("xname")
+			dspec_params = run_data.get("dspec_params", None)
+			sweep_mode = None
+			if dspec_params is not None:
+				sweep_mode = getattr(dspec_params, "sweep_mode", None)
+				if sweep_mode is None and isinstance(dspec_params, dict):
+					sweep_mode = dspec_params.get("sweep_mode")
+				if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+					first = dspec_params[0]
+					sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
+			base_param = run_data.get("xname")
+			if sweep_mode == "sd":
+				swept_param = f"{base_param}_i"
+			else:
+				swept_param = base_param
 
 	if weight_y_by is not None:
 		param_key = 'exp_var_' + weight_y_by.removesuffix('_i')
@@ -1652,6 +1667,8 @@ def plot_pa_var(
 	fit, 
 	extension, 
 	legend,
+	gauss_file=None,
+	sim_file=None,
 	weight_x_by=None,
 	weight_y_by=None,
 	x_measured=None,
@@ -1783,7 +1800,7 @@ def plot_pa_var(
 	if obs_data is not None:
 		try:
 			obs_result = _process_observational_data(
-				obs_data, obs_params, phase_window, freq_window, 
+				obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window, 
 				buffer_frac=0.1, plot_mode=pa_var, x_measured=x_measured
 			)
 			_plot_observational_overlay(ax, obs_result, 
@@ -1817,6 +1834,8 @@ def plot_lfrac(
 	fit, 
 	extension, 
 	legend,
+	gauss_file=None,
+	sim_file=None,
 	weight_x_by=None,
 	weight_y_by=None,
 	x_measured=None,
@@ -1951,7 +1970,7 @@ def plot_lfrac(
 	if obs_data is not None:
 		try:
 			obs_result = _process_observational_data(
-				obs_data, obs_params, phase_window, freq_window,
+				obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window,
 				buffer_frac=0.1, plot_mode=l_frac, x_measured=x_measured
 			)
 			_plot_observational_overlay(ax, obs_result,
@@ -1972,7 +1991,7 @@ def plot_lfrac(
 		logging.info(f"Saved figure to {name}  \n")
 
 
-def _process_observational_data(obs_data_path, obs_params_path, phase_window, freq_window, buffer_frac, plot_mode, x_measured=None):
+def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_file, phase_window, freq_window, buffer_frac, plot_mode, x_measured=None):
 	"""
 	Load and process observational FRB data to extract measurements for overlay plotting.
 	
@@ -2000,8 +2019,9 @@ def _process_observational_data(obs_data_path, obs_params_path, phase_window, fr
 	dict
 		Dictionary with measurement results and metadata
 	"""
+
 	if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
-		dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data_path, obs_params_path)
+		dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data_path, obs_params_path, gauss_file, sim_file)
 		gdict = dspec_params.gdict
 	else:
 		raise ValueError(f"Unsupported file format: {obs_data_path}")
@@ -2014,13 +2034,12 @@ def _process_observational_data(obs_data_path, obs_params_path, phase_window, fr
 		n_missing = 4 - dspec.shape[0]
 		zeros = np.zeros((n_missing, dspec.shape[1], dspec.shape[2]))
 		dspec = np.concatenate([dspec, zeros], axis=0)
-	
+
 	if freq_window != "full-band":
 		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
 		freq_mhz = freq_mhz[freq_slc]
 		dspec = dspec[:, freq_slc, :]
 		logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
-	
 	ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
 	
 	I_profile = ts_data.iquvt[0]

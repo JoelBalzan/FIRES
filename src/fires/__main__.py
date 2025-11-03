@@ -559,7 +559,9 @@ def main():
 						"obs_params"       : args.obs_params,
 						"compare_windows"  : window_pairs,
 						"x_measured"       : args.x_measured,
-						"equal_value_lines": args.equal_value_lines
+						"equal_value_lines": args.equal_value_lines,
+						"gauss_file"       : resolved_gauss,
+						"sim_file"         : resolved_sim,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
