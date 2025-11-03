@@ -340,11 +340,13 @@ def main():
 	)
 	parser.add_argument(
 	    "--equal-value-lines",
-	    action='store_true',
+		type=int,
+		default=None,
+	    metavar="",
 	    help=("Plot background lines showing constant swept parameter values.\n"
 	          "Only works when --x-measured is specified.\n"
 	          "Automatically uses the swept parameter (e.g., PA_i) from the simulation.\n"
-	          "Example: --x-measured Vpsi --equal-value-lines")
+	          "Example: --x-measured Vpsi --equal-value-lines 4 to plot 4 lines of constant PA_i.")
 	)
 	parser.add_argument(
 		"--compare-windows",

@@ -1460,9 +1460,9 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 	"""
-	if equal_value_lines and x_measured is None:
+	if equal_value_lines is not None and x_measured is None:
 		logging.warning("--equal-value-lines requires --x-measured. Ignoring equal_value_lines.")
-		equal_value_lines = False
+		equal_value_lines = None
 	
 	base_yname = yname
 
@@ -1634,7 +1634,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	
 	ax.autoscale(enable=True, axis='both', tight=False)
 
-	if equal_value_lines and x_measured is not None and swept_param is not None:
+	if equal_value_lines is not None and x_measured is not None and swept_param is not None:
 		_xlim0, _ylim0 = ax.get_xlim(), ax.get_ylim()
 		
 		y_measured = 'Vpsi' if plot_type == 'pa_var' else 'Lfrac'
@@ -1645,7 +1645,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			ax, frb_dict, target_param=swept_param,
 			weight_x_by=weight_x_by, weight_y_by=weight_y_by,
 			x_measured=x_measured, y_measured=y_measured,
-			target_values=None, n_lines=5,
+			target_values=None, n_lines=equal_value_lines,
 			linestyle=':', alpha=0.5, color='black', show_labels=True, zorder=0,
 			plot_type=plot_type, phase_window=phase_window, freq_window=freq_window  
 		)
