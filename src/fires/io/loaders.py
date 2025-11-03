@@ -322,7 +322,6 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 			'RM': np.array([0.0]),
 		}
 
-	# --- Use gparams dict for defaults ---
 	if gauss_file is not None:	
 		gauss_params = np.loadtxt(gauss_file)
 		stddev_row   = -4  
@@ -364,7 +363,7 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 		}
 	else:
 		sd_dict = None
-		
+
 	if sim_file is not None:
 		sim_file = load_params("simparams", sim_file, "simulation")
 		f_res   = float(sim_file['f_res'])
@@ -390,8 +389,6 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 			)
 	else:
 		scint = None
-
-	print("gdict after applying gparams:", gdict)
 
 	dspec_params = dspecParams(
 		gdict           = gdict,
