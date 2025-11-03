@@ -26,7 +26,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import configure_matplotlib, plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-                               normalise_freq_window, normalise_phase_window)
+							   normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -156,12 +156,17 @@ def main():
 		nargs="+",
 		default=None,
 		metavar="PARAM=VALUE",
-		help=("Override gparams parameters. Provide space-separated key=value pairs.\n"
-			  "Examples:\n"
-			  "  --override-param N=5 tau_ms=0.5\n"
-			  "  --override-param lfrac=0.8\n"
-			  "This is useful for comparing l_frac plots with different N values, etc.\n"
-			  "Note: Overrides apply to ALL micro-components uniformly.")
+		help=(
+			"Override gparams parameters. Provide space-separated key=value pairs.\n"
+			"Examples:\n"
+			"  --override-param N=5 tau=0.5\n"
+			"  --override-param lfrac=0.8\n"
+			"  --override-param tau_std=0.2\n"
+			"  --override-param tau=0.5 tau_std=0.2\n"
+			"This is useful for comparing l_frac plots with different N values, etc.\n"
+			"Note: Use PARAM=VALUE to override the mean (first row), and PARAM_std=VALUE or PARAM_sd=VALUE to override the standard deviation (second row).\n"
+			"Overrides apply to ALL micro-components uniformly."
+		)
 	)
 
 	# =====================================================================
@@ -284,10 +289,10 @@ def main():
 		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'log'. Default is 'linear'."
 	)
 	parser.add_argument(
-    	"--logstep",
-    	type=int,
-    	default=None,
-    	help="Number of steps for logarithmic parameter sweeps --- overrides default linear step in gparams (default: None --- will use default linear step)."
+		"--logstep",
+		type=int,
+		default=None,
+		help="Number of steps for logarithmic parameter sweeps --- overrides default linear step in gparams (default: None --- will use default linear step)."
 	)
 	parser.add_argument(
 		"--fit",
@@ -310,25 +315,25 @@ def main():
 			  "  sd		   : keep mean fixed, sweep the micro std dev\n")
 	)
 	parser.add_argument(
-	    "--weight-x-by",
-	    type=str,
-	    metavar="",
-	    help=("Parameter to normalise x-axis values by (e.g., 'width' for τ/W).\n"
-	          "Can be any intrinsic parameter from gparams.\n"
-	          "Default is mode-specific: 'width' for pa_var, None for l_frac.")
+		"--weight-x-by",
+		type=str,
+		metavar="",
+		help=("Parameter to normalise x-axis values by (e.g., 'width' for τ/W).\n"
+			  "Can be any intrinsic parameter from gparams.\n"
+			  "Default is mode-specific: 'width' for pa_var, None for l_frac.")
 	)
 	parser.add_argument(
-	    "--x-measured",
-	    type=str,
-	    metavar="",
-	    choices=['Vpsi', 'Lfrac', 'Vfrac'],
-	    help=("Use a measured quantity on the x-axis instead of input parameters.\n"
-	          "Options:\n"
-	          "  Vpsi  : Measured PA variance (deg²)\n"
-	          "  Lfrac : Measured integrated L/I\n"
-	          "  Vfrac : Measured integrated V/I\n"
-	          "Example: --x-measured Vpsi for PA variance on x-axis\n"
-	          "Cannot be used with --weight-x-by.")
+		"--x-measured",
+		type=str,
+		metavar="",
+		choices=['Vpsi', 'Lfrac', 'Vfrac'],
+		help=("Use a measured quantity on the x-axis instead of input parameters.\n"
+			  "Options:\n"
+			  "  Vpsi  : Measured PA variance (deg²)\n"
+			  "  Lfrac : Measured integrated L/I\n"
+			  "  Vfrac : Measured integrated V/I\n"
+			  "Example: --x-measured Vpsi for PA variance on x-axis\n"
+			  "Cannot be used with --weight-x-by.")
 	)
 	parser.add_argument(
 		"--weight-y-by",
@@ -339,14 +344,14 @@ def main():
 			  "Default is mode-specific: 'PA_i' for pa_var, 'lfrac' for l_frac.")
 	)
 	parser.add_argument(
-	    "--equal-value-lines",
+		"--equal-value-lines",
 		type=int,
 		default=None,
-	    metavar="",
-	    help=("Plot background lines showing constant swept parameter values.\n"
-	          "Only works when --x-measured is specified.\n"
-	          "Automatically uses the swept parameter (e.g., PA_i) from the simulation.\n"
-	          "Example: --x-measured Vpsi --equal-value-lines 4 to plot 4 lines of constant PA_i.")
+		metavar="",
+		help=("Plot background lines showing constant swept parameter values.\n"
+			  "Only works when --x-measured is specified.\n"
+			  "Automatically uses the swept parameter (e.g., PA_i) from the simulation.\n"
+			  "Example: --x-measured Vpsi --equal-value-lines 4 to plot 4 lines of constant PA_i.")
 	)
 	parser.add_argument(
 		"--compare-windows",
@@ -440,6 +445,7 @@ def main():
 
 
 	param_overrides = {}
+	param_std_overrides = {}
 	if args.override_param:
 		for override in args.override_param:
 			if "=" not in override:
@@ -447,10 +453,18 @@ def main():
 			key, value = override.split("=", 1)
 			key = key.strip()
 			try:
-				param_overrides[key] = float(value)
+				val = float(value)
 			except ValueError:
 				parser.error(f"Invalid value for override '{key}': '{value}' (must be numeric).")
-		logging.info(f"Parameter overrides: {param_overrides}")
+			if key.endswith("_std") or key.endswith("_sd"):
+				# Accept both _std and _sd as suffixes for standard deviation
+				base_key = key.rsplit("_", 1)[0]
+				param_std_overrides[base_key] = val
+			else:
+				param_overrides[key] = val
+		logging.info(f"Parameter mean overrides: {param_overrides}")
+		if param_std_overrides:
+			logging.info(f"Parameter std dev overrides: {param_std_overrides}")
 
 
 	try:
