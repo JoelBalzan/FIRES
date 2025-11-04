@@ -418,7 +418,7 @@ def psn_dspec(
 		if is_variance_sweep:
 			var_key = f"sd_{xname}"
 			if var_key not in sd_dict:
-				raise ValueError(f"Variance key '{var_key}' not found for standard deviation sweep.")
+				raise ValueError(f"Variance key '{var_key}' not found for standard deviation sweep. Ensure this parameter supports micro-variance.")
 			arr = np.array(sd_dict[var_key], copy=True)
 			if arr.ndim == 0:
 				arr = np.array([arr], dtype=float)
