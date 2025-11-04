@@ -48,7 +48,7 @@ for param in "${PARAMS[@]}"; do
   val="${!param:-}"
   if [[ -n "$val" ]]; then
     OVERRIDE_ARGS+=(--override-param "${param}=${val}")
-    OVERRIDE_SUFFIX+="_${param}_${val}"
+    OVERRIDE_SUFFIX+="${param}${val}"
   fi
 done
 
