@@ -1,0 +1,79 @@
+#!/bin/bash
+#SBATCH --job-name=FIRES
+#SBATCH --output=FIRES_simulation_%A_%a.out
+#SBATCH --error=FIRES_simulation_%A_%a.err
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16              # Number of CPUs per task
+#SBATCH --mem=2G                        # Memory allocation
+#SBATCH --time=00:15:00                 # Time limit
+#SBATCH --array=0-19                    # Array job index (20 chunks)
+
+source "/fred/oz313/processing/jbalzan/venv.sh"
+
+set -euo pipefail
+
+PLOT="l_frac" # or pa_var
+
+GPARAMS="/home/jbalzan/.config/fires/gparams.toml" # adjust if using ~/.config/fires/gparams.*
+
+# Auto-detect varied column (single non-zero in last row)
+read VAR START STOP STEP <<<"$(
+  python - "$GPARAMS" <<'PY'
+import sys, numpy as np
+path = sys.argv[1]
+arr = np.loadtxt(path)
+last = arr[-1]
+idx = np.where(last!=0)[0]
+cols = ["t0","width_ms","A","spec_idx","tau_ms","DM","RM","PA","lfrac","vfrac","dPA","band_centre","band_width","N","mg_width_low","mg_width_high"]
+if len(idx)!=1:
+    print("UNKNOWN 0 0 0"); sys.exit(0)
+i = idx[0]
+start, stop, step = arr[-3,i], arr[-2,i], arr[-1,i]
+print(cols[i], start, stop, step)
+PY
+)"
+
+if [[ "$VAR" == "UNKNOWN" ]]; then
+  echo "No unique sweep defined (last row)."
+  exit 1
+fi
+
+echo "Sweep var: $VAR  range: $START:$STOP:$STEP"
+echo "Array task: $SLURM_ARRAY_TASK_ID"
+
+PARAMS=("t0" "width_ms" "A" "spec_idx" "tau_ms" "DM" "RM" "PA" "lfrac" "vfrac" "dPA" "band_centre" "band_width" "N" "mg_width_low" "mg_width_high")
+OVERRIDE_ARGS=()
+OVERRIDE_SUFFIX=""
+for param in "${PARAMS[@]}"; do
+  val="${!param:-}"
+  if [[ -n "$val" ]]; then
+    OVERRIDE_ARGS+=(--override-param "${param}=${val}")
+    OVERRIDE_SUFFIX+="_${param}_${val}"
+  fi
+done
+
+CHUNK="$SLURM_ARRAY_TASK_ID"
+
+# Update BASE_OUTDIR to include override args
+BASE_OUTDIR="simfrbs/${PLOT}/${VAR}/start_${START}_stop_${STOP}_step_${STEP}/a0.2/${OVERRIDE_SUFFIX}"
+mkdir -p "$BASE_OUTDIR"
+
+OUTDIR="${BASE_OUTDIR}"
+mkdir -p "$OUTDIR"
+echo "Running chunk=${CHUNK} overrides: ${OVERRIDE_ARGS[*]} -> $OUTDIR"
+
+
+fires \
+  -f "sweep_${CHUNK}" \
+  -v \
+  --mode psn \
+  --seed 3 \
+  --nseed 100 \
+  --write \
+  --plot ${PLOT} \
+  --disable-plots \
+  --output-dir "$OUTDIR" \
+  --ncpu ${SLURM_CPUS_PER_TASK} \
+  --sweep-mode sd \
+  --sefd 1.5 \
+  "${OVERRIDE_ARGS[@]}"
