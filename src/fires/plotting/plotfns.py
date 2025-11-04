@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-from ..core.basicfns import on_off_pulse_masks_from_profile
+from ..core.basicfns import on_off_pulse_masks_from_profile, pa_variance_deg2
 
 from scipy.stats import circvar
 
@@ -213,7 +213,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 		pa_var_deg2 = np.nan
 	else:
 		pa_var = circvar(2 * finite_pa) / 4.0
-		pa_var_deg2 = (180/np.pi)**2 * pa_var
+		pa_var_deg2 = pa_variance_deg2(finite_pa)
 	
 	pa_deg = np.rad2deg(pa_rad)
 
