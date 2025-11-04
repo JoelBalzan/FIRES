@@ -345,13 +345,16 @@ def main():
 	)
 	parser.add_argument(
 		"--equal-value-lines",
-		type=int,
+		type=str,
 		default=None,
 		metavar="",
-		help=("Plot background lines showing constant swept parameter values.\n"
-			  "Only works when --x-measured is specified.\n"
-			  "Automatically uses the swept parameter (e.g., PA_i) from the simulation.\n"
-			  "Example: --x-measured Vpsi --equal-value-lines 4 to plot 4 lines of constant PA_i.")
+		help=(
+			"Plot background lines showing constant swept parameter values.\n"
+			"Can be an integer (number of lines) or a directory path containing sweep results.\n"
+			"Only works when --x-measured is specified.\n"
+			"Example: --x-measured Vpsi --equal-value-lines 4\n"
+			"         --x-measured Vpsi --equal-value-lines /path/to/sweep_dir"
+		)
 	)
 	parser.add_argument(
 		"--compare-windows",
@@ -465,6 +468,15 @@ def main():
 		logging.info(f"Parameter mean overrides: {param_overrides}")
 		if param_std_overrides:
 			logging.info(f"Parameter std dev overrides: {param_std_overrides}")
+
+	equal_value_lines = args.equal_value_lines
+	if equal_value_lines is not None:
+		try:
+			# Try to interpret as int
+			equal_value_lines = int(equal_value_lines)
+		except (ValueError, TypeError):
+			# Leave as string (likely a directory path)
+			pass
 
 
 	try:
