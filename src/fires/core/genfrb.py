@@ -25,8 +25,8 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
-                                 add_noise, process_dspec, scatter_dspec,
-                                 snr_onpulse)
+								 add_noise, process_dspec, scatter_dspec,
+								 snr_onpulse)
 from fires.core.genfns import psn_dspec
 from fires.io.loaders import load_data, load_multiple_data_grouped
 from fires.utils.config import load_params
@@ -241,26 +241,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'mg_width_high'  : gauss_params[:stddev_row, 15]
 	}
 
-	# Apply parameter overrides
-	if param_overrides:
-		for key, value in param_overrides.items():
-			if key in gdict:
-				# Override all components with the same value
-				original_shape = gdict[key].shape
-				gdict[key] = np.full(original_shape, value, dtype=float)
-				logging.info(f"Override applied: {key} = {value} (shape: {original_shape})")
-			elif key in sd_dict:
-				# Allow overriding standard deviations too
-				sd_dict[key] = float(value)
-				logging.info(f"Override applied: {key} = {value} (std dev)")
-			else:
-				logging.warning(f"Override key '{key}' not found in gdict or sd_dict. Ignoring.")
-
-
 	sd_dict = {
 		'sd_t0'             : gauss_params[stddev_row, 0],
 		'sd_width_ms'       : gauss_params[stddev_row, 1],
-		'sd_A'       		: gauss_params[stddev_row, 2],
+		'sd_A'              : gauss_params[stddev_row, 2],
 		'sd_spec_idx'       : gauss_params[stddev_row, 3],
 		'sd_tau_ms'         : gauss_params[stddev_row, 4],
 		'sd_DM'             : gauss_params[stddev_row, 5],
@@ -272,6 +256,18 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'sd_band_centre_mhz': gauss_params[stddev_row,11],
 		'sd_band_width_mhz' : gauss_params[stddev_row,12]
 	}
+
+	if param_overrides:
+		for key, value in param_overrides.items():
+			if key in gdict:
+				original_shape = gdict[key].shape
+				gdict[key] = np.full(original_shape, value, dtype=float)
+				logging.info(f"Override applied: {key} = {value} (shape: {original_shape})")
+			elif key in sd_dict:
+				sd_dict[key] = float(value)
+				logging.info(f"Override applied: {key} = {value} (std dev)")
+			else:
+				logging.warning(f"Override key '{key}' not found in gdict or sd_dict. Ignoring.")
 
 	# Sweep specification (used only for multi-FRB modes)
 	sweep_start = gauss_params[start_row]
@@ -541,10 +537,11 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				for key, value in exp_var_psi_deg2.items():
 					exp_vars[var][key].append(value)
 
+
 			frb_dict = {
 				"xname": xname,
 				"xvals": xvals,
-				"measures": measures,         # <- replaces 'yvals'
+				"measures": measures,       
 				"V_params": V_params,
 				"exp_vars": exp_vars,
 				"dspec_params": dspec_params,
@@ -552,38 +549,65 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				"snrs": snrs,
 			}
 
+			# Track which stddev overrides were applied
+			sd_overrides_applied = {}
+			if param_overrides:
+				for key, value in param_overrides.items():
+					# Check for stddev override keys (ending with _sd or _std)
+					if key.endswith("_sd") or key.endswith("_std"):
+						base_key = key.rsplit("_", 1)[0]
+						sd_overrides_applied[base_key] = value
+
 			if write:
 				sweep_idx = _array_id if _array_count > 1 else 0
-			
+
 				parts = [f"sweep_{sweep_idx}", f"n{nseed}", f"plot_{plot_mode.name}", f"xname_{xname}"]
-			
+
 				if len(xvals) > 0:
 					parts.append(f"xvals_{min(xvals):.2f}-{max(xvals):.2f}")
-			
+
 				parts.append(f"mode_{mode}")
-			
+
+				# Add mean overrides
 				if param_overrides:
 					override_parts = []
 					for key, val in sorted(param_overrides.items()):
-						if isinstance(val, (int, np.integer)):
-							override_parts.append(f"{key}{val}")
-						elif isinstance(val, (float, np.floating)):
-							if val.is_integer():
-								override_parts.append(f"{key}{int(val)}")
+						# Only add mean overrides (not stddev)
+						if not (key.endswith("_sd") or key.endswith("_std")):
+							if isinstance(val, (int, np.integer)):
+								override_parts.append(f"{key}{val}")
+							elif isinstance(val, (float, np.floating)):
+								if val.is_integer():
+									override_parts.append(f"{key}{int(val)}")
+								else:
+									override_parts.append(f"{key}{val:.2f}")
 							else:
-								override_parts.append(f"{key}{val:.2f}")
-						else:
-							override_parts.append(f"{key}{val}")
-			
+								override_parts.append(f"{key}{val}")
 					if override_parts:
 						parts.extend(override_parts)
-			
+
+				# Add stddev overrides
+				if sd_overrides_applied:
+					sd_parts = []
+					for key, val in sorted(sd_overrides_applied.items()):
+						if isinstance(val, (int, np.integer)):
+							sd_parts.append(f"{key}sd{val}")
+						elif isinstance(val, (float, np.floating)):
+							if val.is_integer():
+								sd_parts.append(f"{key}sd{int(val)}")
+							else:
+								sd_parts.append(f"{key}sd{val:.2f}")
+						else:
+							sd_parts.append(f"{key}sd{val}")
+					if sd_parts:
+						parts.extend(sd_parts)
+
 				fname = "_".join(parts) + ".pkl"
 				fpath = os.path.join(out_dir, fname)
-			
+
 				with open(fpath, "wb") as f:
-					pkl.dump(frb_dict, f) 
-			
+					pkl.dump(frb_dict, f)
+
 				logging.info(f"Saved results to {fpath}")
 
 			return frb_dict
