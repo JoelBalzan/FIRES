@@ -427,7 +427,7 @@ def load_multiple_data_grouped(data):
 	import re
 	from collections import defaultdict
 	
-	logging.info(f"Loading grouped data from {data}...")
+	logging.info(f"Loading grouped data from {data}/")
   
 	def normalise_override_value(value_str):
 		"""Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
