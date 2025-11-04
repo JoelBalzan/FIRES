@@ -418,7 +418,8 @@ def psn_dspec(
 		if is_variance_sweep:
 			var_key = f"sd_{xname}"
 			if var_key not in sd_dict:
-				raise ValueError(f"Variance key '{var_key}' not found for standard deviation sweep. Ensure this parameter supports micro-variance.")
+				raise ValueError(f"Variance key '{var_key}' not found for standard deviation sweep.\n",
+									f"Ensure {xname} exists in gparams.toml and can be varied.")
 			arr = np.array(sd_dict[var_key], copy=True)
 			if arr.ndim == 0:
 				arr = np.array([arr], dtype=float)
@@ -426,7 +427,8 @@ def psn_dspec(
 			sd_dict[var_key] = arr
 		elif is_mean_sweep:
 			if xname not in gdict:
-				raise ValueError(f"Base parameter '{xname}' not found in gdict for mean sweep.")
+				raise ValueError(f"Base parameter '{xname}' not found in gdict for mean sweep.\n",
+									f"Ensure {xname} exists in gparams.toml.")
 			base = np.array(gdict[xname], copy=True)
 			if base.ndim == 0:
 				gdict[xname] = float(variation_parameter)
