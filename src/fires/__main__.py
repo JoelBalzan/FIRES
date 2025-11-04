@@ -164,7 +164,7 @@ def main():
 			"  --override-param tau_std=0.2\n"
 			"  --override-param tau=0.5 tau_std=0.2\n"
 			"This is useful for comparing l_frac plots with different N values, etc.\n"
-			"Note: Use PARAM=VALUE to override the mean (first row), and PARAM_std=VALUE or PARAM_sd=VALUE to override the standard deviation (second row).\n"
+			"Note: Use PARAM=VALUE to override the mean (first row), and PARAM_sd=VALUE or sd_PARAM=VALUE to override the standard deviation (second row).\n"
 			"Overrides apply to ALL micro-components uniformly."
 		)
 	)
@@ -459,10 +459,12 @@ def main():
 				val = float(value)
 			except ValueError:
 				parser.error(f"Invalid value for override '{key}': '{value}' (must be numeric).")
-			if key.endswith("_std") or key.endswith("_sd"):
-				# Accept both _std and _sd as suffixes for standard deviation
+			if key.startswith("sd_"):
+				param_std_overrides[key] = val
+			elif key.endswith("_sd"):
 				base_key = key.rsplit("_", 1)[0]
-				param_std_overrides[base_key] = val
+				sd_key = f"sd_{base_key}"
+				param_std_overrides[sd_key] = val
 			else:
 				param_overrides[key] = val
 		logging.info(f"Parameter mean overrides: {param_overrides}")
