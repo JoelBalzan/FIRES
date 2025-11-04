@@ -46,7 +46,8 @@ OVERRIDE_ARGS=()
 OVERRIDE_SUFFIX=""
 for param in "${PARAMS[@]}"; do
   val="${!param:-}"
-  val_sd="${!param"_sd":-}"
+  val_sd_var="${param}_sd"
+  val_sd="${!val_sd_var:-}"
   if [[ -n "$val" ]]; then
     OVERRIDE_ARGS+=(--override-param "${param}=${val}")
     OVERRIDE_SUFFIX+="_${param}${val}"
@@ -77,6 +78,7 @@ fires \
   --disable-plots \
   --output-dir "$OUTDIR" \
   --ncpu ${SLURM_CPUS_PER_TASK} \
-  --sweep-mode sd \
-  --sefd 1.5 \
-  "${OVERRIDE_ARGS[@]}"
+  --sweep-mode mean \
+  --sefd 1.6 \
+  "${OVERRIDE_ARGS[@]}" \
+  --logstep 25
