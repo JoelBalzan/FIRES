@@ -272,28 +272,36 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			else:
 				raise ValueError(f"Override key '{key}' not found in gdict or sd_dict.")
 	
-			# Update filename logic for sd_ keys
 			if key.startswith("sd_"):
 				base_key = key[3:]
+				append_to = sd_override_parts
+			elif key.endswith("_sd") or key.endswith("_std"):
+				base_key = key.rsplit("_", 1)[0]
+				append_to = sd_override_parts
+			else:
+				base_key = key
+				append_to = mean_override_parts
+	
+			if append_to is sd_override_parts:
 				if isinstance(value, (int, np.integer)):
-					sd_override_parts.append(f"{base_key}sd{value}")
+					append_to.append(f"{base_key}sd{value}")
 				elif isinstance(value, (float, np.floating)):
 					if value.is_integer():
-						sd_override_parts.append(f"{base_key}sd{int(value)}")
+						append_to.append(f"{base_key}sd{int(value)}")
 					else:
-						sd_override_parts.append(f"{base_key}sd{value:.2f}")
+						append_to.append(f"{base_key}sd{value:.2f}")
 				else:
-					sd_override_parts.append(f"{base_key}sd{value}")
+					append_to.append(f"{base_key}sd{value}")
 			else:
 				if isinstance(value, (int, np.integer)):
-					mean_override_parts.append(f"{key}{value}")
+					append_to.append(f"{base_key}{value}")
 				elif isinstance(value, (float, np.floating)):
 					if value.is_integer():
-						mean_override_parts.append(f"{key}{int(value)}")
+						append_to.append(f"{base_key}{int(value)}")
 					else:
-						mean_override_parts.append(f"{key}{value:.2f}")
+						append_to.append(f"{base_key}{value:.2f}")
 				else:
-					mean_override_parts.append(f"{key}{value}")
+					append_to.append(f"{base_key}{value}")
 
 
 	# Sweep specification (used only for multi-FRB modes)
