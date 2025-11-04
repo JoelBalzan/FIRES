@@ -25,7 +25,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import circstd, circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec)
+								 process_dspec, pa_variance_deg2)
 from fires.io.loaders import load_data
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -1168,6 +1168,53 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='PA_i', weight_x_by=None,
 								 alpha=0.7, edgecolor='none'))
 
 
+def plot_constant_param_lines(
+	ax,
+	param_data,
+	x_key='vpsi',
+	y_key='lfrac',
+	color='gray',
+	alpha=0.5,
+	linestyle='--',
+	label_fmt=r"${param} = {val}$",
+	param_name=r"\sigma_\psi"
+):
+	"""
+	Overlay lines of constant parameter on a 2D plot.
+
+	param_data: dict
+		Keys are parameter values, values are dicts with keys for x and y arrays.
+		Example:
+			{
+				1.0: {'vpsi': [...], 'lfrac': [...]},
+				2.0: {'vpsi': [...], 'lfrac': [...]},
+				...
+			}
+	x_key: str
+		Key for x-axis data in each dict (default: 'vpsi')
+	y_key: str
+		Key for y-axis data in each dict (default: 'lfrac')
+	color: str
+		Line color
+	alpha: float
+		Line transparency
+	linestyle: str
+		Line style
+	label_fmt: str
+		Format string for legend label. Use {param} and {val} for substitution.
+	param_name: str
+		LaTeX or string for parameter symbol in label.
+	"""
+	for param_val, vals in param_data.items():
+		x = np.asarray(vals.get(x_key, []))
+		y = np.asarray(vals.get(y_key, []))
+		mask = np.isfinite(x) & np.isfinite(y)
+		if np.sum(mask) < 2:
+			continue
+		label = label_fmt.format(param=param_name, val=param_val)
+		ax.plot(x[mask], y[mask], color=color, alpha=alpha, linestyle=linestyle, label=label)
+
+
 def _plot_single_run_multi_window(
 	frb_dict,
 	ax,
@@ -1636,20 +1683,58 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 	if equal_value_lines is not None and x_measured is not None and swept_param is not None:
 		_xlim0, _ylim0 = ax.get_xlim(), ax.get_ylim()
-		
 		y_measured = 'Vpsi' if plot_type == 'pa_var' else 'Lfrac'
-		
-		logging.info(f"Using swept parameter '{swept_param}' for equal-value lines")
-		
-		_plot_equal_value_lines(
-			ax, frb_dict, target_param=swept_param,
-			weight_x_by=weight_x_by, weight_y_by=weight_y_by,
-			x_measured=x_measured, y_measured=y_measured,
-			target_values=None, n_lines=equal_value_lines,
-			linestyle=':', alpha=0.5, color='black', show_labels=True, zorder=0,
-			plot_type=plot_type, phase_window=phase_window, freq_window=freq_window  
-		)
-		
+	
+		if isinstance(equal_value_lines, int):
+			logging.info(f"Using swept parameter '{swept_param}' for equal-value lines")
+			_plot_equal_value_lines(
+				ax, frb_dict, target_param=swept_param,
+				weight_x_by=weight_x_by, weight_y_by=weight_y_by,
+				x_measured=x_measured, y_measured=y_measured,
+				target_values=None, n_lines=equal_value_lines,
+				linestyle=':', alpha=0.5, color='black', show_labels=True, zorder=0,
+				plot_type=plot_type, phase_window=phase_window, freq_window=freq_window
+			)
+
+		elif isinstance(equal_value_lines, str) and os.path.isdir(equal_value_lines):
+			from fires.io.loaders import load_multiple_data_grouped
+			param_dict = load_multiple_data_grouped(equal_value_lines)
+			param_data = {}
+			import re
+			for key, subdict in param_dict.items() if isinstance(param_dict, dict) else [(None, param_dict)]:
+				param_val = None
+				param_name = None
+				try:
+					if key is not None:
+						m = re.search(r'([A-Za-z0-9_]+?)(?:_sd)?([0-9.]+)', key)
+						if m:
+							param_name = m.group(1)
+							param_val = float(m.group(2))
+					if param_val is None and 'dspec_params' in subdict and param_name is not None:
+						param_val = float(subdict['dspec_params'].gdict.get(param_name, [np.nan])[0])
+				except Exception:
+					param_val = None
+				if param_val is None or not np.isfinite(param_val):
+					continue
+				xvals = subdict['xvals']
+				measures = subdict['measures']
+				vpsi_vals = []
+				lfrac_vals = []
+				for xv in xvals:
+					segs = measures.get(xv, [])
+					vpsi = [_extract_value_from_segments(seg, 'Vpsi', phase_window, freq_window) for seg in segs]
+					lfrac = [_extract_value_from_segments(seg, 'Lfrac', phase_window, freq_window) for seg in segs]
+					vpsi_vals.append(np.nanmedian(vpsi))
+					lfrac_vals.append(np.nanmedian(lfrac))
+				param_data[param_val] = {'vpsi': vpsi_vals, 'lfrac': lfrac_vals}
+			# Plot the lines
+			plot_constant_param_lines(
+				ax, param_data, x_key='vpsi', y_key='lfrac',
+				color='gray', alpha=0.5, param_name=rf"{param_name}"
+			)
+		else:
+			logging.warning(f"equal_value_lines must be int or directory path, got {equal_value_lines}")
+	
 		ax.set_xlim(_xlim0)
 		ax.set_ylim(_ylim0)
 
@@ -2083,33 +2168,20 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	n_samples = 0
 	
 	if len(valid_phits) > 0:
-		# PA standard deviation (handles 2*PA for π ambiguity)
-		pa_std_rad = circstd(2 * valid_phits, high=2*np.pi) / 2
-		pa_std_deg = np.rad2deg(pa_std_rad)
-		
-		# PA variance (deg²)
-		pa_var_deg2 = pa_std_deg**2
-		
-		# Errors
+		pa_var_deg2 = pa_variance_deg2(valid_phits)
+		if len(valid_ephits) > 0:
+			pa_var_err = pa_variance_deg2(valid_ephits)
+		else:
+			pa_var_err = 0.0
+		pa_std_deg = np.sqrt(pa_var_deg2) if pa_var_deg2 is not None else np.nan
 		n_samples = len(valid_phits)
-		mean_pa_err = np.sqrt(np.mean(valid_ephits**2))
-		
-		# Std dev error: σ_σ ≈ σ / √(2N)
-		pa_std_err = pa_std_deg / np.sqrt(2 * n_samples)
-		
-		# Variance error: σ_(σ²) ≈ 2σ * σ_σ
-		pa_var_err = 2 * pa_std_deg * np.rad2deg(mean_pa_err / np.sqrt(n_samples))
-		
 		gdict['PA_i'] = np.array([pa_std_deg])
 	
-	# Determine x-axis based on x_measured parameter
 	if x_measured == 'Vpsi':
-		# X-axis: measured PA variance (deg²)
 		x_value = pa_var_deg2
 		x_err = pa_var_err
 		logging.info(f"Using PA variance for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg² (N={n_samples})")
 	elif x_measured == 'Lfrac':
-		# X-axis: measured L/I
 		I_windowed = I_profile[phase_slc]
 		L_windowed = L_profile[phase_slc]
 		on_mask_windowed = on_mask[phase_slc]
@@ -2123,7 +2195,6 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		if integrated_I > 0:
 			x_value = integrated_L / integrated_I
 			
-			# Estimate error from off-pulse noise
 			I_offpulse = I_profile[off_mask]
 			L_offpulse = L_profile[off_mask]
 			
