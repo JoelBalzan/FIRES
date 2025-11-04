@@ -1045,3 +1045,16 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 	freq_measures = {name: _measure_freq_slice(slc) for name, slc in fq.items()}
 
 	return {"phase": phase_measures, "freq": freq_measures}
+
+
+def pa_variance_deg2(phits: np.ndarray) -> float:
+    """
+    Circular variance of PA in deg^2. phits in radians, uses circvar on 2*PA, divides by 4.
+    Returns deg^2.
+    """
+    valid = np.isfinite(phits)
+    if not np.any(valid):
+        return np.nan
+    pa_var = circvar(2.0 * phits[valid]) / 4.0
+    # convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
+    return (180/np.pi)**2 * pa_var
