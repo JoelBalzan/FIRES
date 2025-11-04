@@ -271,9 +271,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				logging.info(f"Override applied: {key} = {value} (std dev)")
 			else:
 				raise ValueError(f"Override key '{key}' not found in gdict or sd_dict.")
-
-			if key.endswith("_sd") or key.endswith("_std"):
-				base_key = key.rsplit("_", 1)[0]
+	
+			# Update filename logic for sd_ keys
+			if key.startswith("sd_"):
+				base_key = key[3:]
 				if isinstance(value, (int, np.integer)):
 					sd_override_parts.append(f"{base_key}sd{value}")
 				elif isinstance(value, (float, np.floating)):
