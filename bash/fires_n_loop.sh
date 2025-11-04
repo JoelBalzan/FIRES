@@ -46,22 +46,25 @@ OVERRIDE_ARGS=()
 OVERRIDE_SUFFIX=""
 for param in "${PARAMS[@]}"; do
   val="${!param:-}"
+  val_sd="${!param"_sd":-}"
   if [[ -n "$val" ]]; then
     OVERRIDE_ARGS+=(--override-param "${param}=${val}")
-    OVERRIDE_SUFFIX+="${param}${val}"
+    OVERRIDE_SUFFIX+="_${param}${val}"
+  fi
+  if [[ -n "$val_sd" ]]; then
+    OVERRIDE_ARGS+=(--override-param "${param}_sd=${val_sd}")
+    OVERRIDE_SUFFIX+="_${param}_sd${val_sd}"
   fi
 done
 
 CHUNK="$SLURM_ARRAY_TASK_ID"
 
-# Update BASE_OUTDIR to include override args
 BASE_OUTDIR="simfrbs/${PLOT}/${VAR}/start_${START}_stop_${STOP}_step_${STEP}/a0.2/${OVERRIDE_SUFFIX}"
 mkdir -p "$BASE_OUTDIR"
 
 OUTDIR="${BASE_OUTDIR}"
 mkdir -p "$OUTDIR"
 echo "Running chunk=${CHUNK} overrides: ${OVERRIDE_ARGS[*]} -> $OUTDIR"
-
 
 fires \
   -f "sweep_${CHUNK}" \
