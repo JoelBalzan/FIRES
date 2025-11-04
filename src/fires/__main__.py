@@ -471,6 +471,8 @@ def main():
 		if param_std_overrides:
 			logging.info(f"Parameter std dev overrides: {param_std_overrides}")
 
+	all_param_overrides = {**param_overrides, **param_std_overrides}
+
 	equal_value_lines = args.equal_value_lines
 	if equal_value_lines is not None:
 		try:
@@ -507,7 +509,7 @@ def main():
 				target_snr      = args.snr,
 				obs_data        = None,
 				obs_params      = None,
-				param_overrides = param_overrides,
+				param_overrides = all_param_overrides,
 				logstep           = args.logstep
 				)
 		else:
@@ -532,7 +534,7 @@ def main():
 				target_snr      = args.snr,
 				obs_data        = args.obs_data,
 				obs_params      = args.obs_params,
-				param_overrides = param_overrides
+				param_overrides = all_param_overrides
 			)
 			if args.chi2_fit:
 				logging.info("Performing chi-squared fitting on the final profiles... \n")
