@@ -257,6 +257,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'sd_band_width_mhz' : gauss_params[stddev_row,12]
 	}
 
+
+	mean_override_parts = []
+	sd_override_parts = []
 	if param_overrides:
 		for key, value in param_overrides.items():
 			if key in gdict:
@@ -267,7 +270,30 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				sd_dict[key] = float(value)
 				logging.info(f"Override applied: {key} = {value} (std dev)")
 			else:
-				logging.warning(f"Override key '{key}' not found in gdict or sd_dict. Ignoring.")
+				raise ValueError(f"Override key '{key}' not found in gdict or sd_dict.")
+
+			if key.endswith("_sd") or key.endswith("_std"):
+				base_key = key.rsplit("_", 1)[0]
+				if isinstance(value, (int, np.integer)):
+					sd_override_parts.append(f"{base_key}sd{value}")
+				elif isinstance(value, (float, np.floating)):
+					if value.is_integer():
+						sd_override_parts.append(f"{base_key}sd{int(value)}")
+					else:
+						sd_override_parts.append(f"{base_key}sd{value:.2f}")
+				else:
+					sd_override_parts.append(f"{base_key}sd{value}")
+			else:
+				if isinstance(value, (int, np.integer)):
+					mean_override_parts.append(f"{key}{value}")
+				elif isinstance(value, (float, np.floating)):
+					if value.is_integer():
+						mean_override_parts.append(f"{key}{int(value)}")
+					else:
+						mean_override_parts.append(f"{key}{value:.2f}")
+				else:
+					mean_override_parts.append(f"{key}{value}")
+
 
 	# Sweep specification (used only for multi-FRB modes)
 	sweep_start = gauss_params[start_row]
@@ -549,65 +575,28 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				"snrs": snrs,
 			}
 
-			# Track which stddev overrides were applied
-			sd_overrides_applied = {}
-			if param_overrides:
-				for key, value in param_overrides.items():
-					# Check for stddev override keys (ending with _sd or _std)
-					if key.endswith("_sd") or key.endswith("_std"):
-						base_key = key.rsplit("_", 1)[0]
-						sd_overrides_applied[base_key] = value
-
 			if write:
 				sweep_idx = _array_id if _array_count > 1 else 0
-
+			
 				parts = [f"sweep_{sweep_idx}", f"n{nseed}", f"plot_{plot_mode.name}", f"xname_{xname}"]
-
+			
 				if len(xvals) > 0:
 					parts.append(f"xvals_{min(xvals):.2f}-{max(xvals):.2f}")
-
+			
 				parts.append(f"mode_{mode}")
-
-				# Add mean overrides
-				if param_overrides:
-					override_parts = []
-					for key, val in sorted(param_overrides.items()):
-						# Only add mean overrides (not stddev)
-						if not (key.endswith("_sd") or key.endswith("_std")):
-							if isinstance(val, (int, np.integer)):
-								override_parts.append(f"{key}{val}")
-							elif isinstance(val, (float, np.floating)):
-								if val.is_integer():
-									override_parts.append(f"{key}{int(val)}")
-								else:
-									override_parts.append(f"{key}{val:.2f}")
-							else:
-								override_parts.append(f"{key}{val}")
-					if override_parts:
-						parts.extend(override_parts)
-
-				# Add stddev overrides
-				if sd_overrides_applied:
-					sd_parts = []
-					for key, val in sorted(sd_overrides_applied.items()):
-						if isinstance(val, (int, np.integer)):
-							sd_parts.append(f"{key}sd{val}")
-						elif isinstance(val, (float, np.floating)):
-							if val.is_integer():
-								sd_parts.append(f"{key}sd{int(val)}")
-							else:
-								sd_parts.append(f"{key}sd{val:.2f}")
-						else:
-							sd_parts.append(f"{key}sd{val}")
-					if sd_parts:
-						parts.extend(sd_parts)
-
+			
+				# Add mean and stddev overrides
+				if mean_override_parts:
+					parts.extend(mean_override_parts)
+				if sd_override_parts:
+					parts.extend(sd_override_parts)
+			
 				fname = "_".join(parts) + ".pkl"
 				fpath = os.path.join(out_dir, fname)
-
+			
 				with open(fpath, "wb") as f:
 					pkl.dump(frb_dict, f)
-
+			
 				logging.info(f"Saved results to {fpath}")
 
 			return frb_dict
