@@ -483,12 +483,21 @@ def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask, robust=False, dd
 		mad = np.nanmedian(np.abs(offcube - med), axis=2)
 		noisespec = 1.4826 * mad
 	else:
-		# Standard deviation over time axis (ddof)
-		if offcube.shape[2] - ddof <= 0:
-			# Fall back to population std
-			noisespec = np.nanstd(offcube, axis=2)
-		else:
-			noisespec = np.nanstd(offcube, axis=2, ddof=ddof)
+		# Closed-form variance, avoids nanvar/nanstd warnings on empty slices.
+		x = offcube
+		with np.errstate(invalid='ignore', divide='ignore'):
+			n_valid = np.sum(np.isfinite(x), axis=2).astype(float)          # (S, C)
+			sum_x   = np.nansum(x, axis=2)                                  # (S, C)
+			sum_x2  = np.nansum(x * x, axis=2)                              # (S, C)
+
+			# Population variance numerator
+			var_num = sum_x2 - (sum_x * sum_x) / np.maximum(n_valid, 1.0)   # safe when n_valid>0
+			# Denominator with ddof
+			denom = n_valid - (1.0 if ddof == 1 else 0.0)
+
+			var = np.where(denom > 0.0, var_num / denom, np.nan)
+			var = np.maximum(var, 0.0)  # clip tiny negatives from FP
+			noisespec = np.sqrt(var)
 
 	# Frequency-summed time-series RMS for each Stokes:
 	# Sum over channels -> variances add (assume independence)
@@ -514,7 +523,7 @@ def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac):
 	left, right = boxcar_width(I, frac=0.95)
 
 	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
-
+	
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 
 	tsdata = est_profiles(corrdspec, noise_stokes, left, right)
@@ -1048,13 +1057,13 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 
 
 def pa_variance_deg2(phits: np.ndarray) -> float:
-    """
-    Circular variance of PA in deg^2. phits in radians, uses circvar on 2*PA, divides by 4.
-    Returns deg^2.
-    """
-    valid = np.isfinite(phits)
-    if not np.any(valid):
-        return np.nan
-    pa_var = circvar(2.0 * phits[valid]) / 4.0
-    # convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
-    return (180/np.pi)**2 * pa_var
+	"""
+	Circular variance of PA in deg^2. phits in radians, uses circvar on 2*PA, divides by 4.
+	Returns deg^2.
+	"""
+	valid = np.isfinite(phits)
+	if not np.any(valid):
+		return np.nan
+	pa_var = circvar(2.0 * phits[valid]) / 4.0
+	# convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
+	return (180/np.pi)**2 * pa_var
