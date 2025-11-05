@@ -475,13 +475,25 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				logging.info(f"Using logarithmic sweep: {logstep} points from {start} to {stop}")
 			else:
 				# Linear spacing (original behavior)
-				if step is None or step <= 0:
-					raise ValueError("Linear sweep requires step > 0. Use --logstep for logarithmic sweeps.")
-			
-				n_steps = int(np.round((stop - start) / step))
-				end = start + n_steps * step
-				xvals = np.linspace(start, end, n_steps + 1)
-				logging.info(f"Using linear sweep: {len(xvals)} points from {start} to {stop} (step={step})")
+				if step is None or step == 0:
+					raise ValueError("Linear sweep requires a non-zero step. Use --logstep for logarithmic sweeps.")
+
+				# Make step follow the direction from start to stop
+				direction = 1.0 if stop >= start else -1.0
+				step = abs(step) * direction
+
+				# Compute number of steps without going negative
+				dist = abs(stop - start)
+				if dist == 0:
+					xvals = np.array([start], dtype=float)
+				else:
+					n_steps = int(np.floor(dist / abs(step)))
+					end = start + n_steps * step
+					xvals = np.linspace(start, end, n_steps + 1)
+
+				logging.info(
+					f"Using linear sweep: {len(xvals)} points from {xvals[0]} to {xvals[-1]} (step={step})"
+				)
 
 			gdict_keys = list(gdict.keys())
 			xname = gdict_keys[col_idx]
