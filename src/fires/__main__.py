@@ -357,6 +357,19 @@ def main():
 		)
 	)
 	parser.add_argument(
+		"--draw-style",
+		type=str,
+		default="line-param",
+		choices=["line-param", "line-x", "scatter", "binned"],
+		help=("Drawing style for analytical plots.\n"
+				"Options:\n"
+				"  line-param : Line connecting points in order of swept parameter (default).\n"
+				"  line-x     : Line connecting points in order of x-axis value.\n"
+				"  scatter    : Scatter plot of points.\n"
+				"  binned     : Binned plot of points (15 bins).\n"
+		)
+	)
+	parser.add_argument(
 		"--compare-windows",
 		type=str,
 		nargs="+",
@@ -594,6 +607,7 @@ def main():
 						"equal_value_lines": equal_value_lines,
 						"gauss_file"       : resolved_gauss,
 						"sim_file"         : resolved_sim,
+						"draw_style"       : args.draw_style
 					}
 		
 					plot_function = plot_mode_obj.plot_func

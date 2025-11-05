@@ -28,7 +28,7 @@ from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 from fires.utils.loaders import load_data
-from fires.utils.params import (param_info, canonicalise_key, base_param_name, 
+from fires.utils.params import (param_info, base_param_name, 
 								is_measured_key)
 
 logging.basicConfig(level=logging.INFO)
@@ -108,7 +108,7 @@ param_map = {
 	"dPA"            : (r"\Delta\psi_0", r"\mathrm{deg}"),
 	"band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
 	"band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
-	"N"              : (r"N_0", ""),
+	"N"              : (r"N", ""),
 	"mg_width_low"   : (r"W_{\mathrm{low},0}", r"\mathrm{ms}"),
 	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
 	# sd_<param> 
@@ -135,15 +135,6 @@ def _param_info_or_dynamic(name: str) -> tuple[str, str]:
 		val = param_map[name]
 		return val if isinstance(val, tuple) else (val, "")
 	return param_info(name)
-
-def _format_param_label(key: str) -> str:
-	sym, unit = _param_info_or_dynamic(key)
-	return rf"${sym}$" + (rf" $[{unit}]$" if unit else "")
-
-def _normalise_weight_key(weight_key: str | None) -> str | None:
-	if weight_key is None:
-		return None
-	return canonicalise_key(weight_key)
 
 def _base_of(key: str | None) -> str | None:
 	if key is None:
@@ -812,11 +803,10 @@ def _get_weighted_y_name(yname, weight_y_by):
 	if weight_y_by is None:
 		return yname, y_base_unit
 
-	weight_key = _normalise_weight_key(weight_y_by)
-	w_sym, w_unit = _param_info_or_dynamic(weight_key)
+	w_sym, w_unit = _param_info_or_dynamic(weight_y_by)
 
 	# Special case: PA variance ratio
-	if yname == r"\mathbb{V}(\psi)" and _base_of(weight_key) == "PA":
+	if yname == r"\mathbb{V}(\psi)" and _base_of(weight_y_by) == "PA":
 		return r"\mathcal{R}_{\mathrm{\psi}}", ""
 
 	# Build name and units
@@ -991,10 +981,8 @@ def _format_override_label(override_str):
 			continue
 		m = re.match(r'([a-zA-Z_]+)([\d.]+)', part)
 		if m:
-			raw_param = m.group(1)
+			param_key = m.group(1)
 			value = m.group(2)
-			# Canonicalise legacy names (e.g. 'PA_i' -> 'meas_var_PA') and get symbol
-			param_key = canonicalise_key(raw_param)
 			sym, _ = _param_info_or_dynamic(param_key)
 			# Format numeric value (trim .0)
 			if '.' in value and float(value).is_integer():
@@ -1010,11 +998,11 @@ def _format_override_label(override_str):
 	return formatted_label
 
 
-def _plot_equal_value_lines(ax, frb_dict, target_param='meas_var_PA', weight_x_by=None, weight_y_by=None,
+def _plot_equal_value_lines(ax, frb_dict, target_param='sd_PA', weight_x_by=None, weight_y_by=None,
 							target_values=None, n_lines=5, linestyle=':', alpha=0.5, color='black',
 							show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
 							freq_window='full-band', x_measured=None, y_measured=None, interpolate=True,
-							interp_kind='cubic', interp_points=100):
+							interp_kind='quadratic', interp_points=100):
 	"""
 	Plot background lines showing constant values of a swept parameter.
 	
@@ -1166,14 +1154,13 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='meas_var_PA', weight_x_b
 
 			# Label at leftmost point
 			if show_labels:
-				param_symbol, _ = _param_info_or_dynamic(canonicalise_key(target_param))
+				param_symbol, _ = _param_info_or_dynamic(target_param)
 				val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
 				label_text = rf"${param_symbol} = {val_str}$"
 				ax.text(x_sorted[0], y_sorted[0], label_text,
-						fontsize=15, alpha=alpha+0.2, color=color, zorder=0,
+						fontsize=18, alpha=alpha+0.2, color=color, zorder=10,
 						verticalalignment='bottom', horizontalalignment='left',
-						bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-								 alpha=0.7, edgecolor='none'))
+						)
 
 
 def plot_constant_param_lines(
@@ -1234,6 +1221,38 @@ def plot_constant_param_lines(
 						   alpha=0.7, edgecolor='none'))
 
 
+def _bin_xy(x, y, nbins=15, strategy='equal-count'):
+	"""
+	Bin (x, y) and compute median and 16–84 percentiles per bin.
+	- strategy='equal-count' uses quantile edges to keep similar counts per bin.
+	"""
+	x = np.asarray(x, dtype=float)
+	y = np.asarray(y, dtype=float)
+	m = np.isfinite(x) & np.isfinite(y)
+	x = x[m]; y = y[m]
+	if x.size == 0:
+		return x, y, y, y
+
+	if strategy == 'equal-count':
+		q = np.linspace(0, 1, nbins + 1)
+		edges = np.quantile(x, q)
+		edges[0]  = np.min(x) - 1e-12
+		edges[-1] = np.max(x) + 1e-12
+	else:
+		edges = np.linspace(np.min(x), np.max(x), nbins + 1)
+
+	xb, ymed, ylo, yhi = [], [], [], []
+	for i in range(nbins):
+		mask = (x >= edges[i]) & (x < edges[i+1])
+		if not np.any(mask):
+			continue
+		xb.append(np.nanmedian(x[mask]))
+		ymed.append(np.nanmedian(y[mask]))
+		ylo.append(np.nanpercentile(y[mask], 16))
+		yhi.append(np.nanpercentile(y[mask], 84))
+	return np.asarray(xb), np.asarray(ymed), np.asarray(ylo), np.asarray(yhi)
+
+
 def _plot_single_run_multi_window(
 	frb_dict,
 	ax,
@@ -1249,7 +1268,10 @@ def _plot_single_run_multi_window(
 	legend=True,
 	obs_data=None,
 	obs_params=None,
-	buffer_frac=0.1
+	buffer_frac=1,
+	draw_style='line-param',
+	nbins=15,
+	colour_by_sweep=False
 ):
 	"""
 	Plot multiple freq/phase window combinations from a SINGLE run on the same axes.
@@ -1356,6 +1378,62 @@ def _plot_single_run_multi_window(
 		if x_last is None:
 			x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by)
 			x_last = x
+		else:
+			x = x_last
+
+		plot_x = x
+		plot_med = np.asarray(med_vals, dtype=float)
+		plot_lo  = lower
+		plot_hi  = upper
+
+		if draw_style == 'line-x':
+			order = np.argsort(plot_x)
+			plot_x   = plot_x[order]
+			plot_med = plot_med[order]
+			plot_lo  = plot_lo[order]
+			plot_hi  = plot_hi[order]
+
+		elif draw_style == 'binned':
+			bx, by, blo, bhi = _bin_xy(plot_x, plot_med, nbins=nbins, strategy='equal-count')
+			plot_x, plot_med, plot_lo, plot_hi = bx, by, blo, bhi
+
+		# labels/colours as before
+		freq_label = normalise_freq_window(freq_win, target='dspec')
+		phase_label = normalise_phase_window(phase_win, target='dspec')
+		if varying_freq and varying_phase:
+			series_label = f"{freq_label}, {phase_label}"
+		elif varying_freq:
+			series_label = freq_label
+		elif varying_phase:
+			series_label = phase_label
+		else:
+			series_label = f"{freq_label}, {phase_label}"
+		colour = get_colour(freq_win, phase_win)
+
+		if draw_style == 'scatter':
+			# asymmetric errors from 16–84% band
+			yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
+			if colour_by_sweep:
+				cvals = np.arange(len(plot_x))
+				ax.errorbar(
+					plot_x, plot_med, yerr=yerr, fmt='none',
+					ecolor='gray', alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
+				)
+				ax.scatter(plot_x, plot_med, c=cvals, cmap='viridis', s=25, alpha=0.8, label=series_label, zorder=2)
+			else:
+				ax.errorbar(
+					plot_x, plot_med, yerr=yerr, fmt='none',
+					ecolor=colour, alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
+				)
+				ax.scatter(plot_x, plot_med, color=colour, s=25, alpha=0.8, label=series_label, zorder=2)
+		else:
+			ax.plot(plot_x, plot_med, color=colour, label=series_label, linewidth=2)
+			ax.fill_between(plot_x, plot_lo, plot_hi, color=colour, alpha=0.2)
+		
+		if fit is not None and draw_style != 'binned' and draw_style != 'scatter':
+			fit_type, fit_degree = _parse_fit_arg(fit)
+			_fit_and_plot(ax, plot_x, plot_med, fit_type, fit_degree, label=None, colour=colour)
+
 		
 		freq_label = normalise_freq_window(freq_win, target='dspec')
 		phase_label = normalise_phase_window(phase_win, target='dspec')
@@ -1462,7 +1540,10 @@ def _plot_single_job_common(
 	ax=None,
 	embed=False,
 	plot_expected=True,
-	yvals_override=None
+	yvals_override=None,
+	draw_style='line-param',
+	nbins=15,
+	colour_by_sweep=False
 ):
 	"""
 	Common single-job plotting helper used by plot_pa_var and plot_lfrac_var.
@@ -1472,7 +1553,7 @@ def _plot_single_job_common(
 	V_params = frb_dict.get("V_params", {})
 	dspec_params = frb_dict.get("dspec_params", {})
 
-	if isinstance(weight_y_by, str) and is_measured_key(weight_y_by):  # was endswith("_i")
+	if isinstance(weight_y_by, str) and is_measured_key(weight_y_by):  
 		weight_source = V_params
 	else:
 		weight_source = dspec_params
@@ -1480,7 +1561,6 @@ def _plot_single_job_common(
 	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
 	med_vals, percentile_errs = _median_percentiles(y, xvals)
 
-	# X weighting/measured (now returns units too)
 	x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by, x_measured=x_measured)
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
@@ -1495,8 +1575,52 @@ def _plot_single_job_common(
 		if not embed:
 			ax.grid(True, linestyle='--', alpha=0.6)
 
-	ax.plot(x, med_vals, color=series_colour, label=series_label, linewidth=2)
-	ax.fill_between(x, lower, upper, color=series_colour, alpha=0.2)
+	plot_x = x
+	plot_med = np.asarray(med_vals, dtype=float)
+	plot_lo  = lower
+	plot_hi  = upper
+
+	if draw_style == 'line-x':
+		order = np.argsort(plot_x)
+		plot_x   = plot_x[order]
+		plot_med = plot_med[order]
+		plot_lo  = plot_lo[order]
+		plot_hi  = plot_hi[order]
+
+	elif draw_style == 'binned':
+		bx, by, blo, bhi = _bin_xy(plot_x, plot_med, nbins=nbins, strategy='equal-count')
+		plot_x, plot_med, plot_lo, plot_hi = bx, by, blo, bhi
+
+	if draw_style == 'scatter':
+		# asymmetric errors from 16–84% band
+		yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
+		if colour_by_sweep:
+			cvals = np.arange(len(plot_x))
+			ax.errorbar(
+				plot_x, plot_med, yerr=yerr, fmt='none',
+				ecolor='gray', alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
+			)
+			ax.scatter(plot_x, plot_med, c=cvals, cmap='viridis', s=25, alpha=0.8, label=series_label, zorder=2)
+		else:
+			ax.errorbar(
+				plot_x, plot_med, yerr=yerr, fmt='none',
+				ecolor=series_colour, alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
+			)
+			ax.scatter(plot_x, plot_med, color=series_colour, s=25, alpha=0.8, label=series_label, zorder=2)
+	else:
+		ax.plot(plot_x, plot_med, color=series_colour, label=series_label, linewidth=2)
+		ax.fill_between(plot_x, plot_lo, plot_hi, color=series_colour, alpha=0.2)
+
+	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict) and draw_style != 'binned':
+		exp_weight = weight_y_by if applied else None
+		_plot_expected(plot_x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
+
+	if fit is not None and draw_style not in ('binned', 'scatter'):
+		logging.info(f"Applying fit: {fit}")
+		fit_type, fit_degree = _parse_fit_arg(fit)
+		_fit_and_plot(ax, plot_x, plot_med, fit_type, fit_degree, label=None)
+		if not embed:
+			ax.legend(loc='best')
 
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
 		exp_weight = weight_y_by if applied else None
@@ -1507,14 +1631,14 @@ def _plot_single_job_common(
 		fit_type, fit_degree = _parse_fit_arg(fit)
 		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 		if not embed:
-			ax.legend()
+			ax.legend(loc='best')
 
 	if not embed:
 		final_yname, y_unit = _get_weighted_y_name(yname_base, weight_y_by) if (weight_y_by is not None and applied) else (yname_base, param_map.get(yname_base, ""))
-		_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x, x_unit=x_unit, y_unit=y_unit)
+		_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=plot_x, x_unit=x_unit, y_unit=y_unit)
 
 	if embed:
-		meta = {'applied': bool(applied), 'x': x, 'xname': xname, 'x_unit': x_unit}
+		meta = {'applied': bool(applied), 'x': plot_x, 'xname': xname, 'x_unit': x_unit}
 		return None, ax, meta
 
 	return fig, ax
@@ -1522,7 +1646,8 @@ def _plot_single_job_common(
 
 def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, x_measured=None,
 				   legend=True, equal_value_lines=None, plot_type='pa_var',  
-				   phase_window='total', freq_window='full-band'):          
+				   phase_window='total', freq_window='full-band',
+				   draw_style='line-param', nbins=15, colour_by_sweep=False):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 	"""
@@ -1603,10 +1728,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		
 		override_label = _format_override_label(override_key) if override_key else ""
 		
-		if override_label:
-			series_label = f"{base_label_for_all}, {override_label}"
-		else:
-			series_label = base_label_for_all
+		series_label = override_label if override_label else base_label_for_all
 		
 		colour = colour_shades[idx]
 
@@ -1636,7 +1758,10 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			ax=ax,
 			embed=True,
 			plot_expected=False,
-			yvals_override=yvals_run
+			yvals_override=yvals_run,
+			draw_style=draw_style,
+			nbins=nbins,
+			colour_by_sweep=colour_by_sweep
 		)
 		if weight_y_by is not None and not meta['applied']:
 			logging.warning(f"Requested weighting by '{weight_y_by}' for run '{override_key}' but it could not be applied. Using unweighted values.")
@@ -1660,13 +1785,12 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 					sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
 			base_param = run_data.get("xname")
 			if sweep_mode == "sd":
-				swept_param = f"{base_param}_i"
+				swept_param = f"sd_{base_param}"
 			else:
 				swept_param = base_param
 
 	if weight_y_by is not None:
-		clean = _normalise_weight_key(weight_y_by)
-		base = _base_of(clean)
+		base = _base_of(weight_y_by)
 		param_key = 'exp_var_' + (base if base else 'PA')
 	elif base_yname == r"\mathbb{V}(\psi)":
 		param_key = 'exp_var_PA'
@@ -1681,7 +1805,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				   param_key=param_key, weight_y_by=weight_for_expected)
 
 	if legend:
-		ax.legend(fontsize=20, loc='best')
+		ax.legend(loc='best')
 
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
 	
@@ -1785,7 +1909,10 @@ def plot_pa_var(
 	obs_params=None,
 	compare_windows=None,
 	equal_value_lines=False,
-	buffer_frac=0.1
+	buffer_frac=1,
+	draw_style='line-param',
+	nbins=15,
+	colour_by_sweep=False
 	):
 	"""
 	Plot the variance of the polarisation angle (PA) as a function of scattering parameters.
@@ -1828,6 +1955,19 @@ def plot_pa_var(
 		Format: {'freq': ['1q', '4q', 'all'], 'phase': ['first', 'last', 'total']}
 		Plots all combinations of freq x phase windows on same axes.
 		Overrides phase_window/freq_window parameters.
+		equal_value_lines : int or str
+		If int, number of equal-value lines to plot for reference.
+		If str, path to directory containing parameter data for custom lines.
+	draw_style : str
+		Style of data representation. Options: 'line-param', 'line-x', 'scatter', 'binned'.
+		- 'line-param': Line plot ordered by simulation parameter (default).
+		- 'line-x': Line plot ordered by x-values.
+		- 'scatter': Scatter plot of individual points.
+		- 'binned': Binned averages with error bands.
+	nbins : int
+		Number of bins to use if draw_style is 'binned'.
+	colour_by_sweep : bool
+		If True and draw_style is 'scatter', colours points by sweep order.
 		
 	Notes:
 	------
@@ -1860,7 +2000,10 @@ def plot_pa_var(
 				legend=legend,
 				obs_data=obs_data,
 				obs_params=obs_params,
-				buffer_frac=buffer_frac
+				buffer_frac=buffer_frac,
+				draw_style=draw_style,
+				nbins=nbins,
+				colour_by_sweep=colour_by_sweep
 			)
 			# Save/show
 			if show_plots:
@@ -1880,7 +2023,8 @@ def plot_pa_var(
 			frb_dict, ax, fit=fit, scale=scale, yname=yname,
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by, x_measured=x_measured,
 			legend=legend, equal_value_lines=equal_value_lines,
-			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window  
+			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window,
+			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'pa_var', phase_window, freq_window)
@@ -1902,7 +2046,10 @@ def plot_pa_var(
 			series_label=r'\psi$_{var}$',
 			series_colour=series_colour,
 			expected_param_key='exp_var_PA',
-			yvals_override=yvals  
+			yvals_override=yvals,
+			draw_style=draw_style,
+			nbins=nbins,
+			colour_by_sweep=colour_by_sweep
 		)
 		
 	# Overlay observational data if provided
@@ -1910,14 +2057,14 @@ def plot_pa_var(
 		try:
 			obs_result = _process_observational_data(
 				obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window, 
-				buffer_frac=0.1, plot_mode=pa_var, x_measured=x_measured
+				buffer_frac=buffer_frac, plot_mode=pa_var, x_measured=x_measured
 			)
 			_plot_observational_overlay(ax, obs_result, 
 										weight_x_by=weight_x_by, 
 										weight_y_by=weight_y_by,
 										colour='red', marker='*', size=200)
 			if legend:
-				ax.legend()
+				ax.legend(loc='best')
 		except Exception as e:
 			logging.error(f"Failed to overlay observational data: {e}")
 	
@@ -1951,7 +2098,11 @@ def plot_lfrac(
 	obs_data=None,
 	obs_params=None,
 	compare_windows=None,
-	equal_value_lines=False
+	equal_value_lines=False,
+	buffer_frac=1,
+	draw_style='line-param',
+	nbins=15,
+	colour_by_sweep=False
 	):
 	"""
 	Plot the linear polarisation fraction (L/I) as a function of scattering parameters.
@@ -1995,6 +2146,19 @@ def plot_lfrac(
 		Format: {'freq': ['1q', '4q', 'all'], 'phase': ['first', 'last', 'total']}
 		Plots all combinations of freq x phase windows on same axes.
 		Overrides phase_window/freq_window parameters.
+	equal_value_lines : int or str
+		If int, number of equal-value lines to plot for reference.
+		If str, path to directory containing parameter data for custom lines.
+	draw_style : str
+		Style of data representation. Options: 'line-param', 'line-x', 'scatter', 'binned'.
+		- 'line-param': Line plot ordered by simulation parameter (default).
+		- 'line-x': Line plot ordered by x-values.
+		- 'scatter': Scatter plot of individual points.
+		- 'binned': Binned averages with error bands.
+	nbins : int
+		Number of bins to use if draw_style is 'binned'.
+	colour_by_sweep : bool
+		If True and draw_style is 'scatter', colours points by sweep order.
 		
 	Notes:
 	------
@@ -2031,7 +2195,10 @@ def plot_lfrac(
 				legend=legend,
 				obs_data=obs_data,
 				obs_params=obs_params,
-				buffer_frac=0.1
+				buffer_frac=buffer_frac,
+				draw_style=draw_style,
+				nbins=nbins,
+				colour_by_sweep=colour_by_sweep
 			)
 			if show_plots:
 				plt.show()
@@ -2049,7 +2216,8 @@ def plot_lfrac(
 			frb_dict, ax, fit=fit, scale=scale, yname=yname,
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by, x_measured=x_measured,
 			legend=legend, equal_value_lines=equal_value_lines,
-			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window  
+			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window,
+			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
@@ -2072,7 +2240,10 @@ def plot_lfrac(
 			series_label='L/I',
 			series_colour=series_colour,
 			expected_param_key=None,
-			yvals_override=yvals
+			yvals_override=yvals,
+			draw_style=draw_style,
+			nbins=nbins,
+			colour_by_sweep=colour_by_sweep
 		)
 
 	# Overlay observational data if provided
@@ -2080,14 +2251,14 @@ def plot_lfrac(
 		try:
 			obs_result = _process_observational_data(
 				obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window,
-				buffer_frac=0.1, plot_mode=l_frac, x_measured=x_measured
+				buffer_frac=buffer_frac, plot_mode=l_frac, x_measured=x_measured
 			)
 			_plot_observational_overlay(ax, obs_result,
 										weight_x_by=weight_x_by,
 										weight_y_by=weight_y_by,
 										colour='pink', marker='*', size=200)
 			if legend:
-				ax.legend()
+				ax.legend(loc='best')
 		except Exception as e:
 			logging.error(f"Failed to overlay observational data: {e}")
 	
