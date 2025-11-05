@@ -117,7 +117,7 @@ def main():
 		type=int,
 		default=1,
 		metavar="",
-		help="How many realisations to generate for pa_var and l_frac plots."
+		help="How many realisations to generate for analytical plots."
 	)
 	parser.add_argument(
 		"--ncpu",
@@ -148,7 +148,7 @@ def main():
 	parser.add_argument(
 		"--chi2-fit",
 		action="store_true",
-		help="Enable chi-squared fitting on the final profiles (plot != pa_var and l_frac)."
+		help="Enable chi-squared fitting on the final profiles (plot != analytical)."
 	)
 	parser.add_argument(
 		"--override-param",
@@ -215,11 +215,13 @@ def main():
 		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac'],
 		metavar="",
 		help=(
-			"Generate plots. Pass 'all' to generate all (non-pa_var and l_frac) plots, or specify one or more plot names separated by spaces:\n"
+			"Generate plots. Pass 'all' to generate all (non-analytical) plots, or specify one or more plot names separated by spaces:\n"
+			"Basic Plots:\n"
 			"  'iquv': Plot the Stokes parameters (I, Q, U, V) vs. time or frequency.\n"
 			"  'lvpa': Plot linear polarisation (L) and polarisation angle (PA) vs. time.\n"
 			"  'dpa': Plot the derivative of the polarisation angle (dPA/dt) vs. time.\n"
 			"  'RM': Plot the rotation measure (RM) vs. frequency from RM-Tools.\n"
+			"Analytical Plots:\n"
 			"  'pa_var': Plot the variance of the polarisation angle (PA) vs. swept parameter in gparams.\n"
 			"  'l_frac': Plot the fraction of linear polarisation (L/I)/(L/I)_0 vs. swept parameter in gparams.\n"
 			"Pass 'None' to disable all plots."
@@ -286,7 +288,7 @@ def main():
 		default="linear",
 		choices=['linear', 'logx', 'logy', 'log'],
 		metavar="",
-		help="Scale for pa_var and l_frac plots. Choose 'linear', 'logx', 'logy' or 'log'. Default is 'linear'."
+		help="Scale for analytical plots. Choose 'linear', 'logx', 'logy' or 'log'. Default is 'linear'."
 	)
 	parser.add_argument(
 		"--logstep",
@@ -299,7 +301,7 @@ def main():
 		nargs="+",
 		default=None,
 		metavar="",
-		help=("Fit function for pa_var and l_frac plots.\n"
+		help=("Fit function for analytical plots.\n"
 			   "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
 	  		)
 	)
@@ -309,7 +311,7 @@ def main():
 		default="none",
 		choices=["none", "mean", "sd"],
 		metavar="",
-		help=("Parameter sweep mode for pa_var and l_frac plots:\n"
+		help=("Parameter sweep mode for analytical plots:\n"
 			  "  none      : disable sweeping (use means + micro std dev only)\n"
 			  "  mean      : sweep the mean value (std dev forced to 0 for that param)\n"
 			  "  sd		   : keep mean fixed, sweep the micro std dev\n")
