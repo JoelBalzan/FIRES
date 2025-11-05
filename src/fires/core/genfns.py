@@ -574,7 +574,7 @@ def psn_dspec(
 	for key, values in all_params.items():
 		arr = np.asarray(values, dtype=float)
 		var = float(np.nanvar(arr)) if arr.size else np.nan
-		base = key[:-2]
+		base = key
 		V_params[f"meas_var_{base}"] = var
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
