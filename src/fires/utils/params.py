@@ -28,10 +28,7 @@ def base_param_name(key: str) -> str:
       'sd_PA' -> 'PA'
       'meas_var_PA' -> 'PA'
       'meas_std_width_ms' -> 'width_ms'
-      'PA_i' (legacy) -> 'PA'
     """
-    if key.endswith("_i"):
-        return key[:-2]
     if key.startswith("sd_"):
         return key[3:]
     if key.startswith("meas_var_"):
@@ -42,25 +39,19 @@ def base_param_name(key: str) -> str:
         return key[len("meas_mean_"):]
     return key
 
+
 def is_measured_key(key: str) -> bool:
-    return key.startswith("meas_") or key.endswith("_i")
+    return key.startswith("meas_")
+
 
 def is_sd_key(key: str) -> bool:
     return key.startswith("sd_")
 
-def canonicalise_key(key: str) -> str:
-    """
-    Map legacy aliases to canonical names.
-    - '<param>_i' (legacy) -> 'meas_var_<param>'
-    Leave 'sd_' and 'meas_*' keys as they are.
-    """
-    if key.endswith("_i"):
-        return f"meas_var_{key[:-2]}"
-    return key
 
 def base_symbol_unit(base: str) -> tuple[str, str]:
     # Fallback to raw name if unknown
     return _BASE_INFO.get(base, (base, ""))
+
 
 def param_info(name: str) -> tuple[str, str]:
     """
@@ -70,17 +61,16 @@ def param_info(name: str) -> tuple[str, str]:
       - 'meas_std_<base>'
       - 'meas_var_<base>'
     """
-    cname = canonicalise_key(name)
-    base = base_param_name(cname)
+    base = base_param_name(name)
     sym, unit = base_symbol_unit(base)
 
-    if cname.startswith("sd_") or cname.startswith("meas_std_"):
+    if name.startswith("sd_") or name.startswith("meas_std_"):
         # σ_{symbol core}, unit unchanged
         # remove trailing _0 if present in symbol for sd label
         sym_core = sym.replace(",0", "").replace("_0", "")
         return rf"\sigma_{{{sym_core}}}", unit
 
-    if cname.startswith("meas_var_"):
+    if name.startswith("meas_var_"):
         # mathbb{V}(symbol), unit squared (if any)
         u = f"{unit}^2" if unit not in ("",) else ""
         # Pretty special-case: PA variance uses mathbb{V}(\psi)
