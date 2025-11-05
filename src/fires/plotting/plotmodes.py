@@ -22,14 +22,14 @@ import matplotlib.ticker as mticker
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
-from scipy.stats import circstd, circvar
 
 from fires.core.basicfns import (estimate_rm, on_off_pulse_masks_from_profile,
-								 process_dspec, pa_variance_deg2)
-from fires.io.loaders import load_data
+								 process_dspec, pa_variance_deg2, compute_segments)
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
-from fires.utils.config import load_params
+from fires.utils.loaders import load_data
+from fires.utils.params import (param_info, canonicalise_key, base_param_name, 
+								is_measured_key)
 
 logging.basicConfig(level=logging.INFO)
 for _name in ("fontTools", "fontTools.subset"):
@@ -97,7 +97,7 @@ colour_map = {
 param_map = {
 	# Intrinsic parameters - format: (LaTeX_symbol, unit)
 	"tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
-	"width_ms"     	 : (r"W_0", r"\mathrm{ms}"),
+	"width_ms"       : (r"W_0", r"\mathrm{ms}"),
 	"A"              : (r"A_0", r"\mathrm{Jy}"),
 	"spec_idx"       : (r"\alpha_0", ""),
 	"DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
@@ -108,23 +108,47 @@ param_map = {
 	"dPA"            : (r"\Delta\psi_0", r"\mathrm{deg}"),
 	"band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
 	"band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
-	"N"         : (r"N_{\mathrm{gauss},0}", ""),
+	"N"              : (r"N_0", ""),
 	"mg_width_low"   : (r"W_{\mathrm{low},0}", r"\mathrm{ms}"),
 	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
-	# Std deviation sweep parameters
-	"t0_i"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
-	#"mg_width_i"       : (r"\sigma_w", r"\mathrm{ms}"),
-	"A_i"              : (r"\sigma_A", ""),
-	"spec_idx_i"       : (r"\sigma_\alpha", ""),
-	"DM_i"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
-	"RM_i"             : (r"\sigma_{\mathrm{RM}}", r"\mathrm{rad\,m^{-2}}"),
-	"PA_i"             : (r"\sigma_{\psi}", r"\mathrm{deg}"),
-	"lfrac_i"          : (r"\sigma_{\Pi_L}", ""),
-	"vfrac_i"          : (r"\sigma_{\Pi_V}", ""),
-	"dPA_i"            : (r"\sigma_{\Delta\psi}", r"\mathrm{deg}"),
-	"band_centre_mhz_i": (r"\sigma_{\nu_c}", r"\mathrm{MHz}"),
-	"band_width_mhz_i" : (r"\sigma_{\Delta \nu}", r"\mathrm{MHz}"),
+	# sd_<param> 
+	"sd_t0"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
+	"sd_A"              : (r"\sigma_A", ""),
+	"sd_spec_idx"       : (r"\sigma_\alpha", ""),
+	"sd_DM"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
+	"sd_RM"             : (r"\sigma_{\mathrm{RM}}", r"\mathrm{rad\,m^{-2}}"),
+	"sd_PA"             : (r"\sigma_{\psi}", r"\mathrm{deg}"),
+	"sd_lfrac"          : (r"\sigma_{\Pi_L}", ""),
+	"sd_vfrac"          : (r"\sigma_{\Pi_V}", ""),
+	"sd_dPA"            : (r"\sigma_{\Delta\psi}", r"\mathrm{deg}"),
+	"sd_band_centre_mhz": (r"\sigma_{\nu_c}", r"\mathrm{MHz}"),
+	"sd_band_width_mhz" : (r"\sigma_{\Delta \nu}", r"\mathrm{MHz}"),
 }
+
+def _param_info_or_dynamic(name: str) -> tuple[str, str]:
+	"""
+	Get (symbol, unit) for a parameter key.
+	- First, try param_map (explicit overrides).
+	- Otherwise, build from canonical rules in fires.utils.params.
+	"""
+	if name in param_map:
+		val = param_map[name]
+		return val if isinstance(val, tuple) else (val, "")
+	return param_info(name)
+
+def _format_param_label(key: str) -> str:
+	sym, unit = _param_info_or_dynamic(key)
+	return rf"${sym}$" + (rf" $[{unit}]$" if unit else "")
+
+def _normalise_weight_key(weight_key: str | None) -> str | None:
+	if weight_key is None:
+		return None
+	return canonicalise_key(weight_key)
+
+def _base_of(key: str | None) -> str | None:
+	if key is None:
+		return None
+	return base_param_name(key)
 
 #	--------------------------	PlotMode class	---------------------------
 class PlotMode:
@@ -181,6 +205,15 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 
 
 def _get_freq_window_indices(freq_window, freq_mhz):
+	"""
+	Map a user-provided frequency window (alias-friendly) to a channel slice.
+
+	Accepts both 'dspec' aliases ('full-band', 'lowest-quarter', ...) and
+	'segments' aliases ('all', '1q'..'4q').
+	"""
+	# Canonicalise to dspec labels first (so '1q' -> 'lowest-quarter', 'all' -> 'full-band')
+	fw = normalise_freq_window(freq_window, target='dspec')
+
 	q = int(len(freq_mhz) / 4)
 	windows = {
 		"lowest-quarter": slice(0, q),
@@ -189,26 +222,69 @@ def _get_freq_window_indices(freq_window, freq_mhz):
 		"highest-quarter": slice(3*q, None),
 		"full-band": slice(None)
 	}
-	sl = windows.get(freq_window)
+	sl = windows.get(fw)
 	if sl is None:
-		raise ValueError(f"Unknown freq_window '{freq_window}'. Valid: {list(windows.keys())}")
+		raise ValueError(f"Unknown freq_window '{freq_window}' (canonical='{fw}'). "
+						 f"Valid: {list(windows.keys())} or '1q'..'4q'/'all'")
 	return sl
+
 
 def _get_phase_window_indices(phase_window, peak_index):
 	"""
-	Returns a slice object for the desired phase window.
+	Map a user-provided phase window (alias-friendly) to a time slice.
+
+	Accepts both 'dspec' aliases ('leading', 'trailing', 'total') and
+	'segments' aliases ('first', 'last', 'total').
 	"""
+	# Canonicalise to dspec labels first (so 'first' -> 'leading', 'last' -> 'trailing')
+	pw = normalise_phase_window(phase_window, target='dspec')
+
 	phase_slices = {
 		"leading": slice(0, peak_index),
 		"trailing": slice(peak_index, None),
 		"total": slice(None)
 	}
-	sl = phase_slices.get(phase_window)
+	sl = phase_slices.get(pw)
 	if sl is None:
-		raise ValueError(f"Unknown phase_window '{phase_window}'. Valid: {list(phase_slices.keys())}")
+		raise ValueError(f"Unknown phase_window '{phase_window}' (canonical='{pw}'). "
+						 f"Valid: {list(phase_slices.keys())} or 'first'/'last'/'total'")
 	return sl
 
 
+def _canonical_window_keys(phase_window: str, freq_window: str) -> tuple[str, str]:
+	"""
+	Return ('segments' phase key, 'segments' freq key) from flexible inputs.
+	- phase: 'leading'/'trailing'/'total' or 'first'/'last'/'total' -> 'first'/'last'/'total'
+	- freq : 'full-band' or 'lowest-quarter'..'highest-quarter' or 'all'/'1q'..'4q' -> 'all'/'1q'..'4q'
+	"""
+	phase_key = normalise_phase_window(phase_window, target='segments')
+	freq_key = normalise_freq_window(freq_window, target='segments')
+	return phase_key, freq_key
+
+
+def _extract_value_from_segments(seg_dict, quantity: str, phase_window: str, freq_window: str):
+	"""
+	Extract a measured quantity from compute_segments output using canonical keys.
+
+	quantity: 'Vpsi', 'Lfrac', or 'Vfrac'
+	phase_window: flexible alias ('leading'/'trailing'/'total' or 'first'/'last'/'total')
+	freq_window : flexible alias ('full-band' or quarter names, or 'all'/'1q'..'4q')
+	"""
+	if not isinstance(seg_dict, dict):
+		return np.nan
+
+	phase_key, freq_key = _canonical_window_keys(phase_window, freq_window)
+
+	# Simple rule:
+	# - If a sub-phase is requested ('first' or 'last'), use the phase split.
+	# - Otherwise ('total'), use the frequency split.
+	try:
+		if phase_key != 'total':
+			return seg_dict['phase'][phase_key].get(quantity, np.nan)
+		return seg_dict['freq'][freq_key].get(quantity, np.nan)
+	except Exception:
+		return np.nan
+		
 
 def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 	"""
@@ -477,51 +553,6 @@ def _is_multi_run_dict(frb_dict):
 	return isinstance(frb_dict, dict) and all(isinstance(v, dict) and "xvals" in v for v in frb_dict.values())
 
 
-def _select_phase_key(phase_window: str) -> str:
-	return normalise_phase_window(phase_window, target='segments')
-
-
-def _select_freq_key(freq_window: str) -> str:
-	return normalise_freq_window(freq_window, target='segments')
-
-
-def _extract_value_from_segments(seg_dict, quantity: str, phase_window: str, freq_window: str):
-	"""
-	Extract a measured quantity from segment dictionary.
-	
-	Parameters:
-	-----------
-	seg_dict : dict
-		Segment dictionary from compute_segments
-	quantity : str
-		Quantity to extract: 'Vpsi' (PA variance), 'Lfrac' (L/I), 'Vfrac' (V/I)
-	phase_window : str
-		Phase window key: 'first', 'last', 'total'
-	freq_window : str
-		Frequency window key: '1q', '2q', '3q', '4q', 'all'
-	
-	Returns:
-	--------
-	float
-		Measured value or np.nan if not found
-	"""
-	if not isinstance(seg_dict, dict):
-		return np.nan
-	
-	phase_key = _select_phase_key(phase_window)  # 'leading' -> 'first'
-	freq_key = _select_freq_key(freq_window)     # 'full-band' -> 'all'
-	
-	if phase_key != 'total':
-		result = seg_dict.get('phase', {}).get(phase_key, {}).get(quantity, np.nan)
-		if np.isnan(result):
-			logging.debug(f"No {quantity} in phase[{phase_key}], trying freq fallback")
-			result = seg_dict.get('freq', {}).get(freq_key, {}).get(quantity, np.nan)
-		return result
-	
-	# Total phase: always use freq dict
-	return seg_dict.get('freq', {}).get(freq_key, {}).get(quantity, np.nan)
-
-
 def _yvals_from_measures_dict(xvals, measures, plot_type: str, phase_window: str, freq_window: str) -> dict:
 	"""
 	Build yvals dict {xv: [values...]} from a measures dict produced by compute_segments.
@@ -720,17 +751,15 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
 			first = dspec_params[0]
 			sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
 
-	param_info = param_map.get(xname_raw, (xname_raw, ""))
-	base_name = param_info[0] if isinstance(param_info, tuple) else param_info
-	base_unit = param_info[1] if isinstance(param_info, tuple) else ""
+	param_info_entry = param_map.get(xname_raw, (xname_raw, ""))
+	base_name = param_info_entry[0] if isinstance(param_info_entry, tuple) else param_info_entry
+	base_unit = param_info_entry[1] if isinstance(param_info_entry, tuple) else ""
 
 	if sweep_mode == "sd":
 		x = xvals_raw
-		base_core = base_name.replace(",0", "").replace("_0", "")
-		sd_info = param_map.get(f"{xname_raw}_i", (rf"\sigma_{{{base_core}}}", base_unit))
-		xname = sd_info[0] if isinstance(sd_info, tuple) else sd_info
-		x_unit = sd_info[1] if isinstance(sd_info, tuple) else base_unit
-		return x, xname, x_unit
+		# Label with sd_<param>, not *_i
+		sym, unit = _param_info_or_dynamic(f"sd_{xname_raw}")
+		return x, sym, unit
 
 	weight = None
 	weight_unit = ""
@@ -749,8 +778,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
 		if weight is None:
 			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
 		else:
-			weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
-			weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
+			weight_symbol, weight_unit = _param_info_or_dynamic(weight_x_by)
 
 	if weight is None:
 		x = xvals_raw
@@ -762,8 +790,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
 		weight_symbol = weight_info[0] if isinstance(weight_info, tuple) else weight_x_by
 		xname = base_name + r" / " + weight_symbol
 		x_unit = "" if base_unit == weight_unit else f"{base_unit}/{weight_unit}"
-
-	return x, xname, x_unit
+	return x, base_name, base_unit
 
 
 def _get_weighted_y_name(yname, weight_y_by):
@@ -780,29 +807,21 @@ def _get_weighted_y_name(yname, weight_y_by):
 	if yname == r"\mathbb{V}(\psi)":
 		y_base_unit = r"\mathrm{deg}^2"
 	elif yname == r"\Pi_L":
-		y_base_unit = ""  # dimensionless
+		y_base_unit = ""
 
-	# No weighting: keep the original label
 	if weight_y_by is None:
 		return yname, y_base_unit
 
-	# Get weight info
-	weight_info = param_map.get(weight_y_by, (weight_y_by, ""))
-	weight_unit = weight_info[1] if isinstance(weight_info, tuple) else ""
+	weight_key = _normalise_weight_key(weight_y_by)
+	w_sym, w_unit = _param_info_or_dynamic(weight_key)
 
-	# Special case for PA variance ratio
-	if yname == r"\mathbb{V}(\psi)" and weight_y_by == "PA_i":
-		return r"\mathcal{R}_{\mathrm{\psi}}", ""  # dimensionless ratio
+	# Special case: PA variance ratio
+	if yname == r"\mathbb{V}(\psi)" and _base_of(weight_key) == "PA":
+		return r"\mathcal{R}_{\mathrm{\psi}}", ""
 
-	w_name_raw = weight_y_by.removesuffix("_i")
-	w_info = param_map.get(w_name_raw, (w_name_raw, ""))
-	w_name = w_info[0] if isinstance(w_info, tuple) else w_name_raw
-	
-	formatted_name = yname + '/' + w_name if "/" not in w_name else "(" + yname + ")/" + w_name
-	
-	# Units cancel if they match
-	result_unit = "" if y_base_unit == weight_unit else f"{y_base_unit}/{weight_unit}"
-	
+	# Build name and units
+	formatted_name = f"{yname}/{w_sym}" if "/" not in w_sym else f"({yname})/{w_sym}"
+	result_unit = "" if y_base_unit == w_unit else (f"{y_base_unit}/{w_unit}" if w_unit else y_base_unit)
 	return formatted_name, result_unit
 
 
@@ -884,7 +903,7 @@ def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', 
 	Extract expected series for each x in xvals from exp_vars.
 	Handles:
 	 - exp_vars[x][param_key] as list over realisations of either scalar or [regular, basic]
-	 - optional normalisation by a variance parameter (e.g., 'PA_i') from V_params
+	 - optional normalisation by a variance parameter (e.g., 'meas_var_PA') from V_params
 
 	Returns:
 	 (exp_primary, exp_secondary) as np.ndarray (second can be None if not present)
@@ -914,7 +933,7 @@ def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', 
 		exp1.append(np.nan if e1 is None else float(e1))
 		exp2.append(np.nan if e2 is None else (float(e2) if e2 is not None else np.nan))
 
-		# Optional weighting by variance parameter (e.g., 'PA_i')
+		# Optional weighting by variance parameter (e.g., 'meas_var_PA')
 		if weight_y_by is not None:
 			wdict = V_params.get(xv, {})
 			wlist = wdict.get(weight_y_by, None)
@@ -963,46 +982,35 @@ def _format_override_label(override_str):
 	if not override_str:
 		return ""
 	
-	# Pattern to match parameter names followed by numbers
 	import re
 	parts = re.split(r'[_,]', override_str)
 	formatted = []
-	
-	param_labels = {
-		'N': 'N',
-		'tau_ms': r'\tau_0}',
-		'lfrac': 'L',
-		'vfrac': 'V',
-		'PA_i': r'\sigma_{\psi}',
-		'width': 'W',
-		'DM': 'DM',
-		'RM': 'RM',
-	}
-	
+
 	for part in parts:
 		if not part:
 			continue
-		# Try to extract param name and value
-		match = re.match(r'([a-zA-Z_]+)([\d.]+)', part)
-		if match:
-			param = match.group(1)
-			value = match.group(2)
-			
-			# Convert to readable label
-			label = param_labels.get(param, param)
-			
-			# Format value (remove .0 for integers)
+		m = re.match(r'([a-zA-Z_]+)([\d.]+)', part)
+		if m:
+			raw_param = m.group(1)
+			value = m.group(2)
+			# Canonicalise legacy names (e.g. 'PA_i' -> 'meas_var_PA') and get symbol
+			param_key = canonicalise_key(raw_param)
+			sym, _ = _param_info_or_dynamic(param_key)
+			# Format numeric value (trim .0)
 			if '.' in value and float(value).is_integer():
 				value = str(int(float(value)))
-			
-			formatted.append(f"{label}={value}")
+			formatted.append(rf"{sym}={value}")
 		else:
 			formatted.append(part)
 	
-	return ", ".join(formatted)
+	formatted_label = ", ".join(formatted)
+	# Wrap in $...$ if it contains LaTeX math
+	if "{" in formatted_label or "\\" in formatted_label:
+		return f"${formatted_label}$"
+	return formatted_label
 
 
-def _plot_equal_value_lines(ax, frb_dict, target_param='PA_i', weight_x_by=None, weight_y_by=None,
+def _plot_equal_value_lines(ax, frb_dict, target_param='meas_var_PA', weight_x_by=None, weight_y_by=None,
 							target_values=None, n_lines=5, linestyle=':', alpha=0.5, color='black',
 							show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
 							freq_window='full-band', x_measured=None, y_measured=None, interpolate=True,
@@ -1117,7 +1125,8 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='PA_i', weight_x_by=None,
 
 			# Apply y-weighting if specified
 			if weight_y_by is not None:
-				weight_source = V_params if weight_y_by.endswith("_i") else dspec_params
+				# Use measured vs intrinsic decision via helper
+				weight_source = V_params if is_measured_key(weight_y_by) else dspec_params
 				yvals_weighted, _ = _weight_dict(xvals, yvals_dict, weight_source, weight_by=weight_y_by, return_status=True)
 			else:
 				yvals_weighted = yvals_dict
@@ -1157,8 +1166,7 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='PA_i', weight_x_by=None,
 
 			# Label at leftmost point
 			if show_labels:
-				param_info = param_map.get(target_param, (target_param, ""))
-				param_symbol = param_info[0] if isinstance(param_info, tuple) else target_param
+				param_symbol, _ = _param_info_or_dynamic(canonicalise_key(target_param))
 				val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
 				label_text = rf"${param_symbol} = {val_str}$"
 				ax.text(x_sorted[0], y_sorted[0], label_text,
@@ -1211,8 +1219,19 @@ def plot_constant_param_lines(
 		mask = np.isfinite(x) & np.isfinite(y)
 		if np.sum(mask) < 2:
 			continue
-		label = label_fmt.format(param=param_name, val=param_val)
-		ax.plot(x[mask], y[mask], color=color, alpha=alpha, linestyle=linestyle, label=label)
+		# Plot the line without legend label
+		ax.plot(x[mask], y[mask], color=color, alpha=alpha, linestyle=linestyle, label=None)
+		# Add text label at the leftmost point
+		x_sorted = x[mask]
+		y_sorted = y[mask]
+		if len(x_sorted) > 0:
+			val_str = f"{int(param_val)}" if param_val == int(param_val) else f"{param_val:.2g}"
+		label_text = label_fmt.format(param=param_name, val=val_str)
+		ax.text(x_sorted[-1], y_sorted[-1], label_text,
+				fontsize=15, alpha=alpha+0.2, color=color, zorder=0,
+				verticalalignment='bottom', horizontalalignment='left',
+				bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+						   alpha=0.7, edgecolor='none'))
 
 
 def _plot_single_run_multi_window(
@@ -1264,7 +1283,7 @@ def _plot_single_run_multi_window(
 	V_params = frb_dict.get("V_params", {})
 	dspec_params = frb_dict.get("dspec_params", {})
 	
-	if isinstance(weight_y_by, str) and weight_y_by.endswith("_i"):
+	if isinstance(weight_y_by, str) and is_measured_key(weight_y_by):
 		weight_source = V_params
 	else:
 		weight_source = dspec_params
@@ -1453,7 +1472,7 @@ def _plot_single_job_common(
 	V_params = frb_dict.get("V_params", {})
 	dspec_params = frb_dict.get("dspec_params", {})
 
-	if isinstance(weight_y_by, str) and weight_y_by.endswith("_i"):
+	if isinstance(weight_y_by, str) and is_measured_key(weight_y_by):  # was endswith("_i")
 		weight_source = V_params
 	else:
 		weight_source = dspec_params
@@ -1646,7 +1665,9 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				swept_param = base_param
 
 	if weight_y_by is not None:
-		param_key = 'exp_var_' + weight_y_by.removesuffix('_i')
+		clean = _normalise_weight_key(weight_y_by)
+		base = _base_of(clean)
+		param_key = 'exp_var_' + (base if base else 'PA')
 	elif base_yname == r"\mathbb{V}(\psi)":
 		param_key = 'exp_var_PA'
 	elif base_yname == r"\Pi_L":
@@ -1697,7 +1718,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			)
 
 		elif isinstance(equal_value_lines, str) and os.path.isdir(equal_value_lines):
-			from fires.io.loaders import load_multiple_data_grouped
+			from fires.utils.loaders import load_multiple_data_grouped
 			param_dict = load_multiple_data_grouped(equal_value_lines)
 			param_data = {}
 			import re
@@ -1727,10 +1748,13 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 					vpsi_vals.append(np.nanmedian(vpsi))
 					lfrac_vals.append(np.nanmedian(lfrac))
 				param_data[param_val] = {'vpsi': vpsi_vals, 'lfrac': lfrac_vals}
-			# Plot the lines
+			if param_name in param_map:
+				param_symbol = param_map[param_name][0]
+			else:
+				param_symbol = param_name
 			plot_constant_param_lines(
 				ax, param_data, x_key='vpsi', y_key='lfrac',
-				color='gray', alpha=0.5, param_name=rf"{param_name}"
+				color='gray', alpha=0.5, param_name=rf"{param_symbol}"
 			)
 		else:
 			logging.warning(f"equal_value_lines must be int or directory path, got {equal_value_lines}")
@@ -2110,7 +2134,8 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		gdict = dspec_params.gdict
 	else:
 		raise ValueError(f"Unsupported file format: {obs_data_path}")
-	
+
+	# Ensure 4-stokes shape
 	if dspec.ndim == 2:
 		dspec = dspec[np.newaxis, :, :]
 		zeros = np.zeros_like(dspec[0:1])
@@ -2120,165 +2145,133 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		zeros = np.zeros((n_missing, dspec.shape[1], dspec.shape[2]))
 		dspec = np.concatenate([dspec, zeros], axis=0)
 
-	if freq_window != "full-band":
-		freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-		freq_mhz = freq_mhz[freq_slc]
-		dspec = dspec[:, freq_slc, :]
-		logging.info(f"Applied freq window '{freq_window}': {len(freq_mhz)} channels")
-	ts_data, corr_dspec, noisespec, noise_stokes = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
-	
-	I_profile = ts_data.iquvt[0]
-	L_profile = ts_data.Lts
-	peak_index = int(np.nanargmax(I_profile))
-	
-	if phase_window != "total":
-		phase_slc = _get_phase_window_indices(phase_window, peak_index)
-		if isinstance(phase_slc, slice):
-			start = 0 if phase_slc.start is None else phase_slc.start
-			stop = I_profile.size if phase_slc.stop is None else phase_slc.stop
-			if stop - start <= 0:
-				start = max(0, peak_index - 1)
-				stop = min(I_profile.size, peak_index + 1)
-				phase_slc = slice(start, stop)
-		logging.info(f"Applied phase window '{phase_window}': bins {phase_slc.start}-{phase_slc.stop}")
+	# Process full-band once (used for metadata and some fallbacks)
+	ts_data_full, corr_dspec, noisespec_full, noise_stokes_full = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
+
+	I_profile_full = ts_data_full.iquvt[0]
+	L_profile_full = ts_data_full.Lts
+	peak_index_full = int(np.nanargmax(I_profile_full)) if I_profile_full.size > 0 else 0
+
+	# Compute per-window measures once
+	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac)
+	# X-axis value
+	x_value = None
+	x_err = None
+
+	if x_measured == 'Vpsi':
+		x_value = _extract_value_from_segments(segments, 'Vpsi', phase_window, freq_window)
+	elif x_measured == 'Lfrac':
+		x_value = _extract_value_from_segments(segments, 'Lfrac', phase_window, freq_window)
 	else:
-		phase_slc = slice(None)
-	
+		phits = ts_data_full.phits
+		ephits = ts_data_full.ephits
+		valid_mask = np.isfinite(phits) & np.isfinite(ephits)
+		valid_phits = phits[valid_mask]
+		valid_ephits = ephits[valid_mask]
+		pa_var_deg2 = pa_variance_deg2(valid_phits) if valid_phits.size > 0 else np.nan
+		pa_std_deg = np.sqrt(pa_var_deg2) if np.isfinite(pa_var_deg2) else np.nan
+		pa_var_err = pa_variance_deg2(valid_ephits) if valid_ephits.size > 0 else 0.0
+		x_value = pa_std_deg
+		x_err = pa_var_err
+
+	# Y-axis value from segments
+	if plot_mode.name == 'pa_var':
+		y_value = _extract_value_from_segments(segments, 'Vpsi', phase_window, freq_window)
+		y_err = None
+	elif plot_mode.name == 'l_frac':
+		y_value = _extract_value_from_segments(segments, 'Lfrac', phase_window, freq_window)
+		y_err = None
+	else:
+		raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
+
+	# Error estimates in the requested dspec window
+	freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
+	dspec_win = dspec[:, freq_slc, :]
+	freq_win = freq_mhz[freq_slc] if isinstance(freq_slc, slice) else freq_mhz
+
+	ts_data_win, corr_dspec_win, noisespec_win, noise_stokes_win = process_dspec(dspec_win, freq_win, dspec_params, buffer_frac)
+
+	I_profile = ts_data_win.iquvt[0]
+	L_profile = ts_data_win.Lts
+
+	peak_index = int(np.nanargmax(I_profile)) if I_profile.size > 0 else 0
+	phase_slc = _get_phase_window_indices(phase_window, peak_index)
+
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
 		I_profile, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
-	
-	x_value = None
-	x_err = None
-	y_value = None
-	y_err = None
-	
-	# Compute PA measurements (needed for both plot types)
-	phits = ts_data.phits[phase_slc]
-	ephits = ts_data.ephits[phase_slc]
-	
-	valid_mask = np.isfinite(phits) & np.isfinite(ephits)
-	valid_phits = phits[valid_mask]
-	valid_ephits = ephits[valid_mask]
-	
-	pa_std_deg = None
-	pa_var_deg2 = None
-	pa_std_err = None
-	pa_var_err = None
-	n_samples = 0
-	
-	if len(valid_phits) > 0:
-		pa_var_deg2 = pa_variance_deg2(valid_phits)
-		if len(valid_ephits) > 0:
-			pa_var_err = pa_variance_deg2(valid_ephits)
-		else:
-			pa_var_err = 0.0
-		pa_std_deg = np.sqrt(pa_var_deg2) if pa_var_deg2 is not None else np.nan
-		n_samples = len(valid_phits)
-		gdict['PA_i'] = np.array([pa_std_deg])
-	
-	if x_measured == 'Vpsi':
-		x_value = pa_var_deg2
-		x_err = pa_var_err
-		logging.info(f"Using PA variance for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg² (N={n_samples})")
-	elif x_measured == 'Lfrac':
-		I_windowed = I_profile[phase_slc]
-		L_windowed = L_profile[phase_slc]
-		on_mask_windowed = on_mask[phase_slc]
-		
-		I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
-		L_masked = np.where(on_mask_windowed, L_windowed, np.nan)
-		
-		integrated_I = np.nansum(I_masked)
-		integrated_L = np.nansum(L_masked)
-		
-		if integrated_I > 0:
-			x_value = integrated_L / integrated_I
-			
-			I_offpulse = I_profile[off_mask]
-			L_offpulse = L_profile[off_mask]
-			
-			if len(I_offpulse) > 1 and len(L_offpulse) > 1:
-				noise_I = np.nanstd(I_offpulse, ddof=1)
-				noise_L = np.nanstd(L_offpulse, ddof=1)
-				
-				n_on = np.sum(on_mask_windowed)
-				if n_on > 0:
-					sigma_I_integrated = noise_I * np.sqrt(n_on)
-					sigma_L_integrated = noise_L * np.sqrt(n_on)
-					
-					x_err = x_value * np.sqrt(
-						(sigma_L_integrated / integrated_L)**2 + 
-						(sigma_I_integrated / integrated_I)**2
-					)
-				else:
-					x_err = 0.1 * x_value
-			else:
-				x_err = 0.1 * x_value
-			
-			logging.info(f"Using L/I for x-axis (measured): {x_value:.3f} ± {x_err:.3f}")
-		else:
-			logging.warning("Cannot use L/I for x-axis: integrated I is zero")
-	else:
-		# Default: X-axis is PA std dev (intrinsic parameter)
-		x_value = pa_std_deg
-		x_err = pa_std_err
-		if x_value is not None:
-			logging.info(f"Using PA std dev for x-axis (measured): {x_value:.3f} ± {x_err:.3f} deg (N={n_samples})")
-	
-	# Determine y-axis based on plot mode
+
+	# Restrict to phase window
+	on_mask_windowed = on_mask.copy()
+	if isinstance(phase_slc, slice):
+		tmp = np.zeros_like(on_mask, dtype=bool)
+		start = 0 if phase_slc.start is None else phase_slc.start
+		stop = I_profile.size if phase_slc.stop is None else phase_slc.stop
+		if stop > start:
+			tmp[start:stop] = True
+		on_mask_windowed &= tmp
+
+	# Errors
 	if plot_mode.name == 'pa_var':
-		y_value = pa_var_deg2
-		y_err = pa_var_err
-		if y_value is not None:
-			logging.info(f"PA variance: {y_value:.3f} ± {y_err:.3f} deg² (N={n_samples})")
-	
-	elif plot_mode.name == 'l_frac':
-		# Apply phase window and on-pulse mask
-		I_windowed = I_profile[phase_slc]
-		L_windowed = L_profile[phase_slc]
-		on_mask_windowed = on_mask[phase_slc]
-		
-		I_masked = np.where(on_mask_windowed, I_windowed, np.nan)
-		L_masked = np.where(on_mask_windowed, L_windowed, np.nan)
-		
+		phits = ts_data_win.phits[phase_slc]
+		ephits = ts_data_win.ephits[phase_slc]
+		valid_e = np.isfinite(ephits)
+		y_err = pa_variance_deg2(ephits[valid_e]) if np.any(valid_e) else 0.0
+
+	def _li_with_error(Its, Lts, on_mask_local):
+		I_masked = np.where(on_mask_local, Its, np.nan)
+		L_masked = np.where(on_mask_local, Lts, np.nan)
 		integrated_I = np.nansum(I_masked)
 		integrated_L = np.nansum(L_masked)
-		
-		if integrated_I > 0:
-			y_value = integrated_L / integrated_I
-			
-			# Estimate errors from off-pulse noise
-			I_offpulse = I_profile[off_mask]
-			L_offpulse = L_profile[off_mask]
-			
-			if len(I_offpulse) > 1 and len(L_offpulse) > 1:
-				noise_I = np.nanstd(I_offpulse, ddof=1)
-				noise_L = np.nanstd(L_offpulse, ddof=1)
-				
-				n_on = np.sum(on_mask_windowed)
-				if n_on > 0:
-					sigma_I_integrated = noise_I * np.sqrt(n_on)
-					sigma_L_integrated = noise_L * np.sqrt(n_on)
-					
-					y_err = y_value * np.sqrt(
-						(sigma_L_integrated / integrated_L)**2 + 
-						(sigma_I_integrated / integrated_I)**2
-					)
-				else:
-					y_err = 0.1 * y_value
+		if not np.isfinite(integrated_I) or integrated_I <= 0:
+			return np.nan, np.nan
+		val = integrated_L / integrated_I
+
+		I_off = Its[off_mask]
+		L_off = Lts[off_mask]
+		# Count valid (non-NaN) samples
+		nI = int(np.sum(np.isfinite(I_off)))
+		nL = int(np.sum(np.isfinite(L_off)))
+
+		if nI >= 1 and nL >= 1:
+			# Use ddof=1 only if at least 2 valid samples
+			ddof_I = 1 if nI > 1 else 0
+			ddof_L = 1 if nL > 1 else 0
+			with np.errstate(invalid='ignore'):
+				noise_I = np.nanstd(I_off, ddof=ddof_I)
+				noise_L = np.nanstd(L_off, ddof=ddof_L)
+
+			n_on = int(np.sum(on_mask_local))
+			if n_on > 0 and np.isfinite(noise_I) and np.isfinite(noise_L):
+				sigma_I_int = noise_I * np.sqrt(n_on)
+				sigma_L_int = noise_L * np.sqrt(n_on)
+				err = val * np.sqrt(
+					(sigma_L_int / max(integrated_L, 1e-12))**2 +
+					(sigma_I_int / max(integrated_I, 1e-12))**2
+				)
 			else:
-				y_err = 0.1 * y_value
-			
-			logging.info(f"L/I (measured): {y_value:.3f} ± {y_err:.3f}")
+				err = 0.1 * val
 		else:
-			logging.warning("Integrated Stokes I is zero or negative")
-	
-	else:
-		raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
-	
+			err = 0.1 * val
+
+		return val, err
+
+	if plot_mode.name == 'l_frac':
+		_, li_err = _li_with_error(I_profile, L_profile, on_mask_windowed)
+		y_err = li_err
+
+	if x_measured == 'Lfrac':
+		_, x_err_est = _li_with_error(I_profile, L_profile, on_mask_windowed)
+		x_err = x_err_est
+
+	if x_measured == 'Vpsi':
+		phits = ts_data_win.phits[phase_slc]
+		ephits = ts_data_win.ephits[phase_slc]
+		valid_e = np.isfinite(ephits)
+		x_err = pa_variance_deg2(ephits[valid_e]) if np.any(valid_e) else 0.0
+
 	label = gdict.get('label', os.path.splitext(os.path.basename(obs_data_path))[0])
-	
+
 	result = {
 		'x_value': x_value,
 		'x_err': x_err,
@@ -2289,15 +2282,15 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		'freq_mhz': freq_mhz,
 		'time_ms': time_ms,
 		'gdict': gdict,
-		'ts_data': ts_data, 
-		'noisespec': noisespec
+		'ts_data': ts_data_full,
+		'noisespec': noisespec_full
 	}
-	
-	if x_value is not None and y_value is not None:
-		logging.info(f"Observational measurements: x={x_value:.3f}±{x_err if x_err else 0:.3f}, y={y_value:.3f}±{y_err if y_err else 0:.3f}")
+
+	if (x_value is not None and np.isfinite(x_value)) and (y_value is not None and np.isfinite(y_value)):
+		logging.info(f"Observational measurements: x={x_value:.3f}{'' if x_err is None else f'±{x_err:.3f}'}, y={y_value:.3f}{'' if y_err is None else f'±{y_err:.3f}'}")
 	else:
 		logging.warning("Failed to extract valid measurements from observational data")
-	
+
 	return result
 
 
