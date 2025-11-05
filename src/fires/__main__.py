@@ -339,9 +339,9 @@ def main():
 		"--weight-y-by",
 		type=str,
 		metavar="",
-		help=("Parameter to normalise y-axis values by (e.g., 'PA_i' for PA variance ratio, 'lfrac' for L/I ratio).\n"
+		help=("Parameter to normalise y-axis values by (e.g., 'meas_var_PA' for PA variance ratio, 'lfrac' for L/I ratio).\n"
 			  "Can be any intrinsic parameter or variation parameter from gparams.\n"
-			  "Default is mode-specific: 'PA_i' for pa_var, 'lfrac' for l_frac.")
+			  "Default is mode-specific: 'meas_var_PA' for pa_var, 'lfrac' for l_frac.")
 	)
 	parser.add_argument(
 		"--equal-value-lines",
