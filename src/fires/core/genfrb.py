@@ -273,10 +273,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				raise ValueError(f"Override key '{key}' not found in gdict or sd_dict.")
 	
 			if key.startswith("sd_"):
-				base_key = key[3:]
-				append_to = sd_override_parts
-			elif key.endswith("_sd") or key.endswith("_std"):
-				base_key = key.rsplit("_", 1)[0]
+				base_key = key[3:].replace("_", "")
 				append_to = sd_override_parts
 			else:
 				base_key = key
@@ -284,14 +281,14 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	
 			if append_to is sd_override_parts:
 				if isinstance(value, (int, np.integer)):
-					append_to.append(f"{base_key}sd{value}")
+					append_to.append(f"sd{base_key}{value}")
 				elif isinstance(value, (float, np.floating)):
 					if value.is_integer():
-						append_to.append(f"{base_key}sd{int(value)}")
+						append_to.append(f"sd{base_key}{int(value)}")
 					else:
-						append_to.append(f"{base_key}sd{value:.2f}")
+						append_to.append(f"sd{base_key}{value:.2f}")
 				else:
-					append_to.append(f"{base_key}sd{value}")
+					append_to.append(f"sd{base_key}{value}")
 			else:
 				if isinstance(value, (int, np.integer)):
 					append_to.append(f"{base_key}{value}")

@@ -427,7 +427,7 @@ def load_multiple_data_grouped(data):
 	import re
 	from collections import defaultdict
 	
-	logging.info(f"Loading grouped data from {data}/")
+	logging.info(f"Loading grouped data from {data}")
   
 	def normalise_override_value(value_str):
 		"""Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
@@ -448,25 +448,32 @@ def load_multiple_data_grouped(data):
 		Examples:
 		- sweep_0_n100_plot_l_frac_xname_PA_xvals_0.00-4.00_mode_psn_N100.pkl -> "N100"
 		- sweep_5_n100_plot_l_frac_xname_PA_xvals_25.00-29.00_mode_psn_N1000.pkl -> "N1000"
+		- sweep_0_n100_plot_l_frac_xname_PA_xvals_0.00-4.00_mode_psn_sdPA30.pkl -> "sd_PA30"
 	
-		Returns: string like "N100" or "N100_tau5.5" or "" if no overrides
+		Returns: string like "N100" or "sd_PA30" or "" if no overrides
 		"""
 		m = re.search(r'_mode_psn_(.+?)\.pkl$', fname)
 		if not m:
 			return ""
 	
 		override_str = m.group(1)
-	
 		override_parts = override_str.split('_')
 	
 		normalised_parts = []
 		for part in override_parts:
+			# Match sdPA30, sdBandCentreMhz100, etc.
+			match_sd = re.match(r'^sd([A-Za-z0-9]+)([0-9.]+)$', part)
+			if match_sd:
+				param = match_sd.group(1)
+				value = match_sd.group(2)
+				normalised_parts.append(f"sd_{param}{normalise_override_value(value)}")
+				continue
+			# Match N100, tau5.5, etc.
 			match = re.match(r'^([a-zA-Z]+)([0-9.]+)$', part)
 			if match:
 				param = match.group(1)
 				value = match.group(2)
-				normalised_value = normalise_override_value(value)
-				normalised_parts.append(f"{param}{normalised_value}")
+				normalised_parts.append(f"{param}{normalise_override_value(value)}")
 			else:
 				logging.debug(f"Skipping unexpected override part: {part}")
 	
