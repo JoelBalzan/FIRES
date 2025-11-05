@@ -570,7 +570,12 @@ def psn_dspec(
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
 
-	V_params = {key: np.nanvar(values) for key, values in all_params.items()}
+	V_params = {}
+	for key, values in all_params.items():
+		arr = np.asarray(values, dtype=float)
+		var = float(np.nanvar(arr)) if arr.size else np.nan
+		base = key[:-2]
+		V_params[f"meas_var_{base}"] = var
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
 	t_res_s = time_res_ms / 1000.0
@@ -644,7 +649,7 @@ def psn_dspec(
 		)
 
 		if not plot_multiple_frb:
-			print(f"tau={tau_ms[0]:.1f}: Measured={V_params['PA_i']:.3f}, "
+			print(f"tau={tau_ms[0]:.1f}: Measured={V_params['meas_var_PA']:.3f}, "
 				  f"Expected(detailed)={exp_V_PA_deg2:.3f}, "
 				  f"Expected(basic)={exp_V_PA_deg2_basic:.3f}")
 	else:

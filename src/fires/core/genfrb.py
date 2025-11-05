@@ -28,7 +28,7 @@ from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
 								 add_noise, process_dspec, scatter_dspec,
 								 snr_onpulse)
 from fires.core.genfns import psn_dspec
-from fires.io.loaders import load_data, load_multiple_data_grouped
+from fires.utils.loaders import load_data, load_multiple_data_grouped
 from fires.utils.config import load_params
 from fires.utils.utils import dspecParams, simulated_frb
 
@@ -547,26 +547,20 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				))
 
 			measures = {v: [] for v in xvals}
-			V_params = {
-				v: {key: [] for key in [
-					't0_i','A_i','mg_width_i','spec_idx_i','tau_ms_i','PA_i',
-					'DM_i','RM_i','lfrac_i','vfrac_i','dPA_i','band_centre_mhz_i','band_width_mhz_i'
-				]} for v in xvals
-			}
-			snrs = {v: [] for v in xvals}
-			exp_vars = {
-				v: {key: [] for key in [
-					'exp_var_t0','exp_var_A','exp_var_width_ms','exp_var_spec_idx','exp_var_tau_ms','exp_var_PA',
-					'exp_var_DM','exp_var_RM','exp_var_lfrac','exp_var_vfrac','exp_var_dPA','exp_var_band_centre_mhz','exp_var_band_width_mhz'
-				]} for v in xvals
-			}
+			V_params = {v: {} for v in xvals}
+			snrs 	 = {v: [] for v in xvals}
+			exp_vars = {v: {} for v in xvals}
 
 			for var, seg_measures, params_dict, snr, exp_var_psi_deg2 in results:
 				measures[var].append(seg_measures)
 				snrs[var].append(snr)
 				for key, value in params_dict.items():
+					if key not in V_params[var]:
+						V_params[var][key] = []
 					V_params[var][key].append(value)
 				for key, value in exp_var_psi_deg2.items():
+					if key not in exp_vars[var]:
+						exp_vars[var][key] = []
 					exp_vars[var][key].append(value)
 
 
