@@ -50,11 +50,11 @@ for param in "${PARAMS[@]}"; do
   val_sd="${!val_sd_var:-}"
   if [[ -n "$val" ]]; then
     OVERRIDE_ARGS+=(--override-param "${param}=${val}")
-    OVERRIDE_SUFFIX+="${param}${val}"
+    OVERRIDE_SUFFIX+="_${param}${val}"
   fi
   if [[ -n "$val_sd" ]]; then
     OVERRIDE_ARGS+=(--override-param "sd_${param}=${val_sd}")
-    OVERRIDE_SUFFIX+="sd${param}${val_sd}"
+    OVERRIDE_SUFFIX+="_sd${param}${val_sd}"
   fi
 done
 

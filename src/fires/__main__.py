@@ -154,7 +154,7 @@ def main():
 		"--override-param",
 		type=str,
 		nargs="+",
-		action="extend",  # allow multiple --override-param to accumulate
+		action="extend", 
 		default=None,
 		metavar="PARAM=VALUE",
 		help=(
@@ -385,6 +385,25 @@ def main():
 			  "Valid PHASE: leading, trailing, total, first, last, all\n"
 			  "Only works with single-run data (not multi-run sweeps).")
 	)
+	parser.add_argument(
+	    "--legend-params",
+	    nargs="+",
+	    default=None,
+	    metavar="PARAM",
+	    help="List of gparams to show in the legend for multi-run plots (e.g. --legend-params N mg_width_low)."
+	)
+	parser.add_argument(
+	    "--plot-text",
+	    type=str,
+	    nargs="+",
+	    default=None,
+	    help=(
+	        "Parameter names and/or text to display on the plot. "
+	        "If one or more parameter names are given (e.g. 'mg_width_low mg_width_high'), "
+	        "their values from the loaded gparams will be shown, formatted as symbols. "
+	        "If a string is given that is not a parameter name, it will be displayed as-is."
+	    )
+	)
 
 	# =====================================================================
 	# Observational Data Overlay
@@ -608,7 +627,9 @@ def main():
 						"equal_value_lines": equal_value_lines,
 						"gauss_file"       : resolved_gauss,
 						"sim_file"         : resolved_sim,
-						"draw_style"       : args.draw_style
+						"draw_style"       : args.draw_style,
+						"legend_params"    : args.legend_params,
+						"plot_text"        : args.plot_text
 					}
 		
 					plot_function = plot_mode_obj.plot_func

@@ -424,96 +424,89 @@ def load_multiple_data_grouped(data):
 	Loads ALL files per group and merges their xvals/measures together.
 	Returns unwrapped dict if single series, dict-of-dicts if multiple series.
 	"""
-	import re
 	from collections import defaultdict
+	import os, re, numpy as np, pickle, logging
 	
 	logging.info(f"Loading grouped data from {data}")
   
 	def normalise_override_value(value_str):
-		"""Convert '10.0', '10', '100.0' to normalised form like '10', '100'"""
+		"""Normalise numeric string for filenames/labels (keep ints as ints)."""
 		try:
 			val = float(value_str)
-			if val.is_integer():
-				return str(int(val))
-			else:
-				return f"{val:.2f}"
-		except ValueError:
+			return str(int(val)) if float(val).is_integer() else f"{val:g}"
+		except Exception:
 			return value_str
 	
 	def extract_override_key(fname):
 		"""
 		Extract override parameters from filename for grouping.
-		Pattern: sweep_{idx}_n{nseed}_plot_{mode}_xname_{xname}_xvals_{range}_mode_psn_{overrides}.pkl
-	
-		Examples:
-		- sweep_0_n100_plot_l_frac_xname_PA_xvals_0.00-4.00_mode_psn_N100.pkl -> "N100"
-		- sweep_5_n100_plot_l_frac_xname_PA_xvals_25.00-29.00_mode_psn_N1000.pkl -> "N1000"
-		- sweep_0_n100_plot_l_frac_xname_PA_xvals_0.00-4.00_mode_psn_sdPA30.pkl -> "sd_PA30"
-	
-		Returns: string like "N100" or "sd_PA30" or "" if no overrides
+
+		Outputs a label with no underscores:
+		  tokens "param=value" joined by '+', with '_' in param names replaced by '.'
+		Compatible with old compact suffixes like 'N100_sd_mg_width_low0.2'.
 		"""
 		m = re.search(r'_mode_psn_(.+?)\.pkl$', fname)
 		if not m:
 			return ""
-	
 		override_str = m.group(1)
-		override_parts = override_str.split('_')
-	
-		normalised_parts = []
-		for part in override_parts:
-			# Match sdPA30, sdBandCentreMhz100, etc.
-			match_sd = re.match(r'^sd([A-Za-z0-9]+)([0-9.]+)$', part)
-			if match_sd:
-				param = match_sd.group(1)
-				value = match_sd.group(2)
-				normalised_parts.append(f"sd_{param}{normalise_override_value(value)}")
-				continue
-			# Match N100, tau5.5, etc.
-			match = re.match(r'^([a-zA-Z]+)([0-9.]+)$', part)
-			if match:
-				param = match.group(1)
-				value = match.group(2)
-				normalised_parts.append(f"{param}{normalise_override_value(value)}")
-			else:
-				logging.debug(f"Skipping unexpected override part: {part}")
-	
-		return "_".join(normalised_parts) if normalised_parts else ""
-	
+
+		# Scan tokens: optional sd prefix + param + number (support scientific notation)
+		pattern = r'(sd_?)?([A-Za-z][A-Za-z0-9_]*?)(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)'
+		tokens = []
+		for mm in re.finditer(pattern, override_str):
+			sd_prefix, param, value = mm.groups()
+			param_safe = param.replace('_', '.')
+			val_norm = normalise_override_value(value)
+			prefix = "sd." if sd_prefix else ""
+			tokens.append(f"{prefix}{param_safe}={val_norm}")
+
+		# If nothing matched, fall back to a safe echo of the suffix
+		if not tokens:
+			return override_str.replace('_', '.')
+
+		return "+".join(tokens)
+
 	def extract_override_params_for_sorting(override_key):
 		"""
-		Convert override_key string to dict for sorting.
-		Example: "N100_tau5.5" -> {'N': 100, 'tau': 5.5}
+		Convert override_key to dict for sorting.
+		Supports both new 'p=v+p=v' and old 'paramvalue_paramvalue' formats.
 		"""
 		if not override_key:
 			return {}
-		
 		override_dict = {}
-		param_pattern = r'([a-zA-Z_]+)([0-9.]+)'
-		matches = re.findall(param_pattern, override_key)
-		
-		for param, value in matches:
+
+		# New safe format
+		if ('=' in override_key) or ('+' in override_key):
+			for tok in override_key.split('+'):
+				if not tok or '=' not in tok:
+					continue
+				k, v = tok.split('=', 1)
+				k = k.strip().replace('.', '_')
+				try:
+					override_dict[k] = float(v)
+				except Exception:
+					pass
+			return override_dict
+
+		# Fallback: compact tokens like 'N100_sd_mg_width_low0.2'
+		for param, value in re.findall(r'([A-Za-z_]+)(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)', override_key):
 			try:
 				override_dict[param] = float(value)
-			except ValueError:
+			except Exception:
 				pass
-		
 		return override_dict
 	
 	def sort_key_for_overrides(override_key):
 		"""
 		Generate sort key for override parameters.
-		Sorts by: N, tau, lfrac, vfrac, PA, DM, RM, width in that order.
 		"""
 		override_params = extract_override_params_for_sorting(override_key)
-		
-		# Sort order for common parameters
-		param_order = ['N', 'tau', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width']
-		
-		sort_tuple = []
-		for param in param_order:
-			sort_tuple.append(override_params.get(param, 0))  # 0 if param not present
-		
-		return tuple(sort_tuple)
+		# Normalise keys for sorting
+		override_params = {k.replace('.', '_'): v for k, v in override_params.items()}
+
+		param_order = ['N', 'tau', 'tau_ms', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width', 'width_ms']
+		sort_tuple = tuple(override_params.get(p, 0) for p in param_order)
+		return sort_tuple
 	
 	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
 	logging.info(f"Found {len(file_names)} .pkl files")
