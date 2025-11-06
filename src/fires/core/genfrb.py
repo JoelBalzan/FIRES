@@ -442,59 +442,75 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				sys.exit(1)
 			return frb_dict
 		else:
-			# Validate sweep definition
+			# Validate sweep definition - allow single point sweeps
 			if sweep_mode == "none":
 				raise ValueError(
 					f"Plot mode '{plot_mode.name}' requires a parameter sweep. "
 					"Use --sweep-mode mean or --sweep-mode sd and set exactly one non-zero step in gparams."
 				)
 
-			if np.all(gauss_params[step_row, :] == 0.0):
-				logging.error("No sweep defined (all step sizes zero) but a multi-FRB plot was requested.")
+			# Check if we have a sweep defined (non-zero step) or single point (zero step but specified start)
+			has_sweep = not np.all(gauss_params[step_row, :] == 0.0)
+			has_single_point = np.all(gauss_params[step_row, :] == 0.0) and not np.all(gauss_params[start_row, :] == 0.0)
+
+			if not has_sweep and not has_single_point:
+				logging.error("No sweep or single point defined. For sweep: set non-zero step. For single point: set start value with zero step.")
 				logging.info("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
 				sys.exit(1)
 
-			col_idx = sweep_spec['col_index']
-			if col_idx is None:
-				raise ValueError("Could not determine sweep column (no non-zero step).")
+			# Find the active column (either non-zero step or non-zero start with zero step)
+			if has_sweep:
+				active_cols = np.where(gauss_params[step_row, :] != 0.0)[0]
+			else:
+				active_cols = np.where(gauss_params[start_row, :] != 0.0)[0]
 
+			if active_cols.size == 0:
+				logging.error("No parameter column identified for sweep/single point.")
+				sys.exit(1)
+			if active_cols.size > 1:
+				logging.error("ERROR: More than one active column (multiple non-zero steps or starts).")
+				sys.exit(1)
+
+			col_idx = active_cols[0]
 			start = sweep_spec['start']
 			stop = sweep_spec['stop']
 			step = sweep_spec['step']
 			
-			# Use logarithmic spacing if logstep is provided, otherwise linear
-			if logstep is not None:
-				# Logarithmic spacing
-				if start <= 0 or stop <= 0:
-					raise ValueError(
-						f"Logarithmic sweep (--logstep) requires positive start and stop values. "
-						f"Got start={start}, stop={stop}"
-					)
-			
-				xvals = np.logspace(np.log10(start), np.log10(stop), logstep)
-				logging.info(f"Using logarithmic sweep: {logstep} points from {start} to {stop}")
+			# Handle single point case (zero step)
+			if step == 0:
+				xvals = np.array([start], dtype=float)
+				logging.info(f"Using single point: {start} for {nseed} realizations")
 			else:
-				# Linear spacing (original behavior)
-				if step is None or step == 0:
-					raise ValueError("Linear sweep requires a non-zero step. Use --logstep for logarithmic sweeps.")
-
-				# Make step follow the direction from start to stop
-				direction = 1.0 if stop >= start else -1.0
-				step = abs(step) * direction
-
-				# Compute number of steps without going negative
-				dist = abs(stop - start)
-				if dist == 0:
-					xvals = np.array([start], dtype=float)
+				# Use logarithmic spacing if logstep is provided, otherwise linear
+				if logstep is not None:
+					# Logarithmic spacing
+					if start <= 0 or stop <= 0:
+						raise ValueError(
+							f"Logarithmic sweep (--logstep) requires positive start and stop values. "
+							f"Got start={start}, stop={stop}"
+						)
+				
+					xvals = np.logspace(np.log10(start), np.log10(stop), logstep)
+					logging.info(f"Using logarithmic sweep: {logstep} points from {start} to {stop}")
 				else:
-					n_steps = int(np.floor(dist / abs(step)))
-					end = start + n_steps * step
-					xvals = np.linspace(start, end, n_steps + 1)
+					if step is None or step == 0:
+						raise ValueError("Linear sweep requires a non-zero step. Use --logstep for logarithmic sweeps.")
 
-				logging.info(
-					f"Using linear sweep: {len(xvals)} points from {xvals[0]} to {xvals[-1]} (step={step})"
-				)
+					direction = 1.0 if stop >= start else -1.0
+					step = abs(step) * direction
 
+					dist = abs(stop - start)
+					if dist == 0:
+						xvals = np.array([start], dtype=float)
+					else:
+						n_steps = int(np.floor(dist / abs(step)))
+						end = start + n_steps * step
+						xvals = np.linspace(start, end, n_steps + 1)
+
+					logging.info(
+						f"Using linear sweep: {len(xvals)} points from {xvals[0]} to {xvals[-1]} (step={step})"
+					)
+					
 			gdict_keys = list(gdict.keys())
 			xname = gdict_keys[col_idx]
 
