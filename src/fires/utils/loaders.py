@@ -455,16 +455,15 @@ def load_multiple_data_grouped(data):
 		tokens = []
 		for mm in re.finditer(pattern, override_str):
 			sd_prefix, param, value = mm.groups()
-			param_safe = param.replace('_', '.')
 			val_norm = normalise_override_value(value)
 			prefix = "sd." if sd_prefix else ""
-			tokens.append(f"{prefix}{param_safe}={val_norm}")
+			tokens.append(f"{prefix}{param}={val_norm}")
 
 		# If nothing matched, fall back to a safe echo of the suffix
 		if not tokens:
-			return override_str.replace('_', '.')
+			return override_str
 
-		return "+".join(tokens)
+		return ",".join(tokens)
 
 	def extract_override_params_for_sorting(override_key):
 		"""
