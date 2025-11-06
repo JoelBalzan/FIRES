@@ -370,14 +370,14 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	plot_multiple_frb = plot_mode.requires_multiple_frb
 	if not plot_multiple_frb:
 		# Single FRB generation branch
-		if data != None:
-			dspec, freq_mhz, time_ms = load_data(obs_data, obs_params)
-			snr, (left, right) = snr_onpulse(np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
+		if obs_data != None:
+			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params)
+			snr, (left, right) = snr_onpulse(dspec_params, np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
 			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
 			if tau_ms[0] > 0:
 				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
 			if sefd > 0:
-				dspec, sigma_ch, snr = add_noise(dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res, 
+				dspec, sigma_ch, snr = add_noise(dspec_params, dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res, 
 													plot_multiple_frb=plot_multiple_frb)
 
 			if freq_window != "full-band" or phase_window != "total":

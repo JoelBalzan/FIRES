@@ -849,41 +849,42 @@ def _parse_fit_arg(fit_item):
 		return None, None
 
 
-def _print_avg_snrs(subdict):
-	snrs = subdict.get("snrs", [])
-	# Handle dict or list
-	if isinstance(snrs, dict):
-		snr_values = list(snrs.values())
-	else:
-		snr_values = snrs
-	# Skip noiseless cases
-	if not snr_values or all(s is None or (isinstance(s, list) and all(v is None for v in s)) for s in snr_values):
-		return
-	# Get S/N at lowest and highest xvals
-	if isinstance(snrs, dict):
-		keys_sorted = sorted(snrs.keys())
-		lowest = snrs[keys_sorted[0]]
-		highest = snrs[keys_sorted[-1]]
-	else:
-		lowest = snrs[0]
-		highest = snrs[-1]
-	def avg(val):
-		if isinstance(val, list):
-			vals = [v for v in val if v is not None]
-			if not vals:
-				return None
-			return np.nanmean(vals)
-		return val if val is not None else None
-	#avg_low = np.round(avg(lowest), 2)
-	#avg_high = np.round(avg(highest), 2)
-	## Only print if at least one is not None
-	#if avg_low is not None or avg_high is not None:
-	#	logging.info(f"Avg S/N at:\n lowest x: S/N = {avg_low if avg_low is not None else 'nan'}, \nhighest x: S/N = {avg_high if avg_high is not None else 'nan'}\n")
-	
-	med_low = np.round(np.nanmedian(lowest), 2)
-	med_high = np.round(np.nanmedian(highest), 2)
-	if med_low is not None or med_high is not None:
-		logging.info(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
+def _print_med_snrs(subdict):
+    snrs = subdict.get("snrs", [])
+    # Handle dict or list
+    if isinstance(snrs, dict):
+        snr_values = list(snrs.values())
+    else:
+        snr_values = snrs
+    # Flatten if nested
+    if isinstance(snr_values, list) and snr_values and isinstance(snr_values[0], list):
+        snr_values = [item for sublist in snr_values for item in (sublist if isinstance(sublist, list) else [sublist])]
+    # Remove None and non-finite
+    snr_values = [s for s in snr_values if s is not None and np.isfinite(s)]
+    if not snr_values:
+        logging.info("No valid S/N values found for this run.")
+        return
+    # Get S/N at lowest and highest xvals
+    if isinstance(snrs, dict):
+        keys_sorted = sorted(snrs.keys())
+        lowest = snrs[keys_sorted[0]]
+        highest = snrs[keys_sorted[-1]]
+    else:
+        lowest = snrs[0]
+        highest = snrs[-1]
+    def med(val):
+        if isinstance(val, list):
+            vals = [v for v in val if v is not None and np.isfinite(v)]
+            if not vals:
+                return None
+            return np.nanmedian(vals)
+        return val if val is not None and np.isfinite(val) else None
+    med_low = np.max(lowest) #med(lowest)
+    med_high = np.max(highest) #med(highest)
+    if med_low is not None or med_high is not None:
+        logging.info(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
+    else:
+        logging.info("No valid S/N values found for this run.")
 		
 
 def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', weight_y_by=None):
@@ -1786,7 +1787,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			logging.warning(f"Requested weighting by '{weight_y_by}' for run '{override_key}' but it could not be applied. Using unweighted values.")
 		weight_applied_all &= meta['applied']
 
-		_print_avg_snrs(run_data)
+		_print_med_snrs(run_data)
 
 		x_last = meta['x']
 		xname = meta['xname']

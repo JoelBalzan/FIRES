@@ -22,87 +22,42 @@ def get_parameters(filepath):
 	Parse a parameters.txt file with key = value format.
 	
 	Extracts relevant parameters for FRB analysis and converts to FIRES format.
-	
-	Parameters:
-	-----------
-	filepath : str
-		Path to parameters.txt file
-		
-	Returns:
-	--------
-	dict
-		Dictionary with parameter arrays (e.g., 'DM', 'RM', 'width', 'tau_ms')
 	"""
+	valid_keys = {
+		't0','width','A','spec_idx','tau','DM','RM','PA',
+		'lfrac','vfrac','dPA','band_centre','band_width',
+		'N','mg_width_low','mg_width_high'
+	}
 	params = {}
-	
-	with open(filepath, 'r') as f:
+	with open(filepath,'r') as f:
 		for line in f:
 			line = line.strip()
-			# Skip empty lines and section headers
-			if not line or line.startswith('****') or line.startswith('#'):
+			if not line or line.startswith('#') or line.startswith('****'):
 				continue
-			
-			# Parse key = value
 			if '=' in line:
-				parts = line.split('=', 1)
-				key = parts[0].strip()
-				value = parts[1].strip()
-				
-				# Remove trailing comments
-				if '#' in value:
-					value = value.split('#')[0].strip()
-				
-				params[key] = value
-	
-	# Convert to FIRES format
+				k,v = line.split('=',1)
+				k = k.strip()
+				v = v.split('#')[0].strip()
+				if k in valid_keys:
+					params[k] = v
+
 	gdict = {}
-	
-	# DM
-	if 'dm_frb' in params:
-		try:
-			gdict['DM'] = np.array([float(params['dm_frb'])])
-		except ValueError:
-			gdict['DM'] = np.array([0.0])
-	else:
-		gdict['DM'] = np.array([0.0])
-	
-	# RM (not in this format, default to 0)
-	gdict['RM'] = np.array([0.0])
-	
-	# Width (estimate from data or use default)
-	gdict['width'] = np.array([1.0])  # Will be updated from data if available
-	
-	# Tau (scattering timescale, not in this format)
-	gdict['tau_ms'] = np.array([0.0])
-	
-	# Center frequency
-	if 'centre_freq_frb' in params:
-		try:
-			gdict['band_centre_mhz'] = np.array([float(params['centre_freq_frb'])])
-		except ValueError:
-			pass
-	
-	# Bandwidth
-	if 'bw' in params:
-		try:
-			gdict['band_width_mhz'] = np.array([float(params['bw'])])
-		except ValueError:
-			pass
-	
-	# RA/Dec for label
-	if 'label' in params:
-		gdict['label'] = params['label']
-	elif 'ra_frb' in params and 'dec_frb' in params:
-		gdict['label'] = f"RA={params['ra_frb']}, Dec={params['dec_frb']}"
-	else:
-		gdict['label'] = "FRB"
-	
-	logging.info(
-		f"Parsed parameters: DM={gdict.get('DM', [0])[0]:.2f} pc/cm³, "
-		f"center_freq={gdict.get('band_centre_mhz', ['N/A'])[0]} MHz, "
-		f"bandwidth={gdict.get('band_width_mhz', ['N/A'])[0]} MHz"
-	)
-	
+	def parse_list(val):
+		return np.array([float(x) for x in re.split(r'[,\s]+', val) if x], dtype=float)
+
+	# Parse each provided key exactly; do not fabricate missing ones here.
+	for k,v in params.items():
+		if k in ('width','tau','lfrac','vfrac','dPA','mg_width_low','mg_width_high'):
+			gdict[k] = parse_list(v)
+		else:
+			try:
+				gdict[k] = np.array([float(v)], dtype=float)
+			except ValueError:
+				# Skip invalid numeric
+				continue
+
+	# Simple label fallback
+	gdict['label'] = params.get('label','FRB')
 	return gdict
 
 
@@ -317,104 +272,107 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 		gdict = get_parameters(obs_params_path)
 	else:
 		logging.warning(f"Parameters file not found: {obs_params_path}")
-		gdict = {
-			'DM': np.array([0.0]),
-			'RM': np.array([0.0]),
-		}
 
-	if gauss_file is not None:	
+	# Merge gauss_file only for truly missing keys (not for present zeros)
+	sd_dict = None
+	if gauss_file is not None:
 		gauss_params = np.loadtxt(gauss_file)
-		stddev_row   = -4  
-		gparams = {
-			't0'             : gauss_params[:stddev_row, 0],
-			'width_ms'     	 : gauss_params[:stddev_row, 1],
-			'A'              : gauss_params[:stddev_row, 2],
-			'spec_idx'       : gauss_params[:stddev_row, 3],
-			'tau_ms'         : gauss_params[:stddev_row, 4],
-			'DM'             : gauss_params[:stddev_row, 5],
-			'RM'             : gauss_params[:stddev_row, 6],
-			'PA'             : gauss_params[:stddev_row, 7],
-			'lfrac'          : gauss_params[:stddev_row, 8],
-			'vfrac'          : gauss_params[:stddev_row, 9],
-			'dPA'            : gauss_params[:stddev_row, 10],
-			'band_centre_mhz': gauss_params[:stddev_row, 11],
-			'band_width_mhz' : gauss_params[:stddev_row, 12],
-			'N'              : gauss_params[:stddev_row, 13],
-			'mg_width_low'   : gauss_params[:stddev_row, 14],
-			'mg_width_high'  : gauss_params[:stddev_row, 15]
+		stddev_row = -4  # fourth last row = std dev
+		mean_slice = gauss_params[:stddev_row, :]  # all mean rows (allow multi-component)
+		col_map = {
+			't0'            : 0,
+			'width'         : 1,
+			'A'             : 2,
+			'spec_idx'      : 3,
+			'tau'           : 4,
+			'DM'            : 5,
+			'RM'            : 6,
+			'PA'            : 7,
+			'lfrac'         : 8,
+			'vfrac'         : 9,
+			'dPA'           : 10,
+			'band_centre'   : 11,
+			'band_width'    : 12,
+			'N'             : 13,
+			'mg_width_low'  : 14,
+			'mg_width_high' : 15
 		}
-		for k, v in gparams.items():
-			if k not in gdict or (isinstance(v, np.ndarray) and np.all(gdict.get(k, None) == 0)):
-				gdict[k] = v
-		sd_dict = {
-			'sd_t0'             : gauss_params[stddev_row, 0],
-			'sd_width_ms'       : gauss_params[stddev_row, 1],
-			'sd_A'       		: gauss_params[stddev_row, 2],
-			'sd_spec_idx'       : gauss_params[stddev_row, 3],
-			'sd_tau_ms'         : gauss_params[stddev_row, 4],
-			'sd_DM'             : gauss_params[stddev_row, 5],
-			'sd_RM'             : gauss_params[stddev_row, 6],
-			'sd_PA'             : gauss_params[stddev_row, 7],
-			'sd_lfrac'          : gauss_params[stddev_row, 8],
-			'sd_vfrac'          : gauss_params[stddev_row, 9],
-			'sd_dPA'            : gauss_params[stddev_row,10],
-			'sd_band_centre_mhz': gauss_params[stddev_row,11],
-			'sd_band_width_mhz' : gauss_params[stddev_row,12]
-		}
-	else:
-		sd_dict = None
+		for k,c in col_map.items():
+			if k not in gdict:
+				gdict[k] = mean_slice[:, c]
 
-	if sim_file is not None:
-		sim_file = load_params("simparams", sim_file, "simulation")
-		f_res   = float(sim_file['f_res'])
-		t_res   = float(sim_file['t_res'])
-		scatter_idx = float(sim_file['scattering_index'])
-		ref_freq 	= float(sim_file['reference_freq'])
+		sd_dict = {
+			'sd_t0'            : gauss_params[stddev_row, 0],
+			'sd_width'         : gauss_params[stddev_row, 1],
+			'sd_A'             : gauss_params[stddev_row, 2],
+			'sd_spec_idx'      : gauss_params[stddev_row, 3],
+			'sd_tau'           : gauss_params[stddev_row, 4],
+			'sd_DM'            : gauss_params[stddev_row, 5],
+			'sd_RM'            : gauss_params[stddev_row, 6],
+			'sd_PA'            : gauss_params[stddev_row, 7],
+			'sd_lfrac'         : gauss_params[stddev_row, 8],
+			'sd_vfrac'         : gauss_params[stddev_row, 9],
+			'sd_dPA'           : gauss_params[stddev_row,10],
+			'sd_band_centre'   : gauss_params[stddev_row,11],
+			'sd_band_width'    : gauss_params[stddev_row,12]
+		}
+
+	# Mandatory keys (exact gparams names)
+	mandatory = [
+		't0','width_ms','A','spec_idx','tau_ms','DM','RM','PA',
+		'lfrac','vfrac','dPA','band_centre_mhz','band_width_mhz',
+		'N','mg_width_low','mg_width_high'
+	]
+	for key in mandatory:
+		if key not in gdict:
+			gdict[key] = np.array([0.0], dtype=float)
+
+	if sim_file is None:
+		sim_file = load_params("simparams", None, "simulation")
 	else:
-		f_res        = None
-		t_res        = None
-		scatter_idx  = None
-		ref_freq     = None
+		sim_file = load_params("simparams", sim_file, "simulation")
+
+	f_res       = float(sim_file['f_res'])
+	t_res       = float(sim_file['t_res'])
+	scatter_idx = float(sim_file['scattering_index'])
+	ref_freq    = float(sim_file['reference_freq'])
 
 	if scint_file is not None:
 		scint = load_params("scparams", scint_file, "scintillation")
 		if scint.get("derive_from_tau", False):
-			tau_ms_ref = float(gdict["tau_ms"][0])          
-			tau_s_ref  = 1e-3 * tau_ms_ref                  
-			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)    
+			tau_ms_ref = float(gdict["tau"][0])  # tau already in ms
+			tau_s_ref  = 1e-3 * tau_ms_ref
+			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)
 			scint["nu_s"] = float(nu_s_hz)
-			logging.info(
-				f"Derived nu_s at reference {ref_freq:.1f} MHz: "
-				f"tau={tau_ms_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz"
-			)
+			logging.info(f"Derived nu_s at reference {ref_freq:.1f} MHz: tau={tau_ms_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz")
 	else:
 		scint = None
 
 	dspec_params = dspecParams(
-		gdict           = gdict,
-		sd_dict         = sd_dict,
-		scint_dict      = scint,
-		freq_mhz        = freq_mhz,
-		freq_res_mhz    = f_res,
-		time_ms         = time_ms,
-		time_res_ms     = t_res,
-		seed            = None,
-		nseed           = None,
-		sefd            = None,
-		sc_idx          = scatter_idx,
-		ref_freq_mhz    = ref_freq,
-		phase_window    = None,
-		freq_window     = None,
-		buffer_frac     = None,
-		sweep_mode      = None
+		gdict        = gdict,
+		sd_dict      = sd_dict,
+		scint_dict   = scint,
+		freq_mhz     = freq_mhz,
+		freq_res_mhz = f_res,
+		time_ms      = time_ms,
+		time_res_ms  = t_res,
+		seed         = None,
+		nseed        = None,
+		sefd         = None,
+		sc_idx       = scatter_idx,
+		ref_freq_mhz = ref_freq,
+		phase_window = None,
+		freq_window  = None,
+		buffer_frac  = None,
+		sweep_mode   = None
 	)
 
 	logging.info(
 		f"Final data shape: {dspec.shape}, "
 		f"freq range: {freq_mhz.min():.1f}-{freq_mhz.max():.1f} MHz, "
-		f"time range: {time_ms.min():.3f}-{time_ms.max():.3f} ms\n"
+		f"time range: {time_ms.min():.3f}-{time_ms.max():.3f} ms"
 	)
-	
+
 	return dspec, freq_mhz, time_ms, dspec_params
 
 
@@ -463,7 +421,7 @@ def load_multiple_data_grouped(data):
 		if not tokens:
 			return override_str
 
-		return ",".join(tokens)
+		return ", ".join(tokens)
 
 	def extract_override_params_for_sorting(override_key):
 		"""
