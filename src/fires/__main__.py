@@ -154,6 +154,7 @@ def main():
 		"--override-param",
 		type=str,
 		nargs="+",
+		action="extend",  # allow multiple --override-param to accumulate
 		default=None,
 		metavar="PARAM=VALUE",
 		help=(
@@ -161,11 +162,9 @@ def main():
 			"Examples:\n"
 			"  --override-param N=5 tau=0.5\n"
 			"  --override-param lfrac=0.8\n"
-			"  --override-param tau_std=0.2\n"
 			"  --override-param tau=0.5 tau_std=0.2\n"
-			"This is useful for comparing l_frac plots with different N values, etc.\n"
-			"Note: Use PARAM=VALUE to override the mean (first row), and PARAM_sd=VALUE or sd_PARAM=VALUE to override the standard deviation (second row).\n"
-			"Overrides apply to ALL micro-components uniformly."
+			"  --override-param N=5 --override-param mg_width_low=20 mg_width_high=40\n"
+			"Note: Use PARAM=VALUE to override the mean, and PARAM_sd=VALUE or sd_PARAM=VALUE to override the std dev."
 		)
 	)
 
