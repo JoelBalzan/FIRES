@@ -46,7 +46,7 @@ def configure_matplotlib(use_latex=False):
 		'pdf.fonttype'    : 42,
 		'ps.fonttype'     : 42,
 		'savefig.dpi'     : 600,
-		'font.size'       : 22,
+		'font.size'       : 16,
 		'axes.labelsize'  : 22,
 		'axes.titlesize'  : 22,
 		'legend.fontsize' : 20,
@@ -107,8 +107,8 @@ param_map = {
 	"band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
 	"band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
 	"N"              : (r"N", ""),
-	"mg_width_low"   : (r"W_{\mathrm{low},0}", r"\mathrm{ms}"),
-	"mg_width_high"  : (r"W_{\mathrm{high},0}", r"\mathrm{ms}"),
+	"mg_width_low"   : (r"w_{\mathrm{low},0}", ""),
+	"mg_width_high"  : (r"w_{\mathrm{high},0}", ""),
 	# sd_<param> 
 	"sd_t0"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
 	"sd_A"              : (r"\sigma_A", ""),
@@ -958,42 +958,59 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected')
 
 
-def _format_override_label(override_str):
+def _parse_override_dict(override_str) -> dict:
 	"""
-	Format override string for use in plot labels.
-	Converts strings like 'N100.0' or 'N10_lfrac0.8' to readable format.
-	
-	Examples:
-		'N100.0' -> 'N=100'
-		'N10_lfrac0.8' -> 'N=10, L=0.8'
+	Parse an override string into a dict of param -> value.
 	"""
+	od = {}
 	if not override_str:
-		return ""
-	
+		return od
+	if ('=' in override_str) or ('+' in override_str):
+		for tok in override_str.split('+'):
+			if not tok or '=' not in tok:
+				continue
+			k, v = tok.split('=', 1)
+			k = k.strip().replace('.', '_')
+			try:
+				od[k] = float(v)
+			except Exception:
+				continue
+		return od
 	import re
-	parts = re.split(r'[_,]', override_str)
-	formatted = []
-
-	for part in parts:
-		if not part:
+	pattern = r'(sd_?)?([A-Za-z][A-Za-z0-9_]*?)(-?(?:\d+(?:\.\d*)?|\.\d+))'
+	for m in re.finditer(pattern, override_str):
+		sd_prefix, key, value = m.groups()
+		key = key.strip()
+		if sd_prefix:
+			key = f"sd_{key}"
+		try:
+			od[key] = float(value)
+		except Exception:
 			continue
-		m = re.match(r'([a-zA-Z_]+)([\d.]+)', part)
-		if m:
-			param_key = m.group(1)
-			value = m.group(2)
-			sym, _ = _param_info_or_dynamic(param_key)
-			# Format numeric value (trim .0)
-			if '.' in value and float(value).is_integer():
-				value = str(int(float(value)))
-			formatted.append(rf"{sym}={value}")
-		else:
-			formatted.append(part)
-	
-	formatted_label = ", ".join(formatted)
-	# Wrap in $...$ if it contains LaTeX math
-	if "{" in formatted_label or "\\" in formatted_label:
-		return f"${formatted_label}$"
-	return formatted_label
+	return od
+
+def _format_legend_label(od: dict, legend_params=None, gdict=None) -> str:
+	"""
+	Build a label 'sym=value, sym=value' from a dict, only for keys in legend_params.
+	If not found in od, look in gdict.
+	"""
+	if not legend_params:
+		return ""
+	parts = []
+	for k in legend_params:
+		val = None
+		if k in od:
+			val = od[k]
+		elif gdict is not None and k in gdict and len(gdict[k]) > 0:
+			val = gdict[k][0]
+		if val is not None:
+			sym, _ = _param_info_or_dynamic(k)
+			try:
+				s = str(int(val)) if float(val).is_integer() else f"{float(val):g}"
+			except Exception:
+				s = str(val)
+			parts.append(rf"{sym}={s}")
+	return ", ".join(parts)
 
 
 def _plot_equal_value_lines(ax, frb_dict, target_param='sd_PA', weight_x_by=None, weight_y_by=None,
@@ -1645,7 +1662,8 @@ def _plot_single_job_common(
 def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, x_measured=None,
 				   legend=True, equal_value_lines=None, plot_type='pa_var',  
 				   phase_window='total', freq_window='full-band',
-				   draw_style='line-param', nbins=15, colour_by_sweep=False):
+				   draw_style='line-param', nbins=15, colour_by_sweep=False,
+				   legend_params=None, plot_text=None):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 	"""
@@ -1723,10 +1741,13 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 	for idx, (override_key, run_data) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {override_key}:")
-		
-		override_label = _format_override_label(override_key) if override_key else ""
-		
-		series_label = override_label if override_label else base_label_for_all
+		od = _parse_override_dict(override_key)
+		gdict = None
+		if "dspec_params" in run_data and hasattr(run_data["dspec_params"], "gdict"):
+			gdict = run_data["dspec_params"].gdict
+		elif "gdict" in run_data:
+			gdict = run_data["gdict"]
+		series_label = _format_legend_label(od, legend_params, gdict)
 		
 		colour = colour_shades[idx]
 
@@ -1750,7 +1771,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			figsize=None,
 			fit=run_fit,
 			scale=scale,
-			series_label=series_label,
+			series_label=rf"${series_label}$",
 			series_colour=colour,
 			expected_param_key=None,
 			ax=ax,
@@ -1804,6 +1825,34 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 	if legend:
 		ax.legend(loc='best')
+
+	if plot_text:
+		# If plot_text is a list of param names, look up and format their values
+		first_run = next(iter(frb_dict.values()))
+		gdict = None
+		if "dspec_params" in first_run and hasattr(first_run["dspec_params"], "gdict"):
+			gdict = first_run["dspec_params"].gdict
+		elif "gdict" in first_run:
+			gdict = first_run["gdict"]
+		# Build label
+		label_parts = []
+		for item in plot_text:
+			if gdict and item in gdict and len(gdict[item]) > 0:
+				val = gdict[item][0]
+				sym, unit = _param_info_or_dynamic(item)
+				val_str = str(int(val)) if float(val).is_integer() else f"{float(val):g}"
+				label = rf"{sym} = {val_str}" + (rf"~[{unit}]" if unit else "")
+				label_parts.append(label)
+			else:
+				# Not a param, treat as literal text
+				label_parts.append(str(item))
+		display_text = r",\; ".join(label_parts)
+		ax.text(
+			0.01, 0.98, f"${display_text}$",
+			transform=ax.transAxes, color='gray',
+			va='top', ha='left', zorder=5,
+			bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.5, edgecolor='none')
+		)
 
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
 	
@@ -1910,7 +1959,9 @@ def plot_pa_var(
 	buffer_frac=1,
 	draw_style='line-param',
 	nbins=15,
-	colour_by_sweep=False
+	colour_by_sweep=False,
+	legend_params=None,
+	plot_text=None
 	):
 	"""
 	Plot the variance of the polarisation angle (PA) as a function of scattering parameters.
@@ -2022,7 +2073,8 @@ def plot_pa_var(
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by, x_measured=x_measured,
 			legend=legend, equal_value_lines=equal_value_lines,
 			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window,
-			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep
+			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
+			legend_params=legend_params, plot_text=plot_text
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'pa_var', phase_window, freq_window)
@@ -2100,7 +2152,9 @@ def plot_lfrac(
 	buffer_frac=1,
 	draw_style='line-param',
 	nbins=15,
-	colour_by_sweep=False
+	colour_by_sweep=False,
+	legend_params=None,
+	plot_text=None
 	):
 	"""
 	Plot the linear polarisation fraction (L/I) as a function of scattering parameters.
@@ -2215,7 +2269,8 @@ def plot_lfrac(
 			weight_y_by=weight_y_by, weight_x_by=weight_x_by, x_measured=x_measured,
 			legend=legend, equal_value_lines=equal_value_lines,
 			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window,
-			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep
+			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
+			legend_params=legend_params, plot_text=plot_text
 		)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
@@ -2532,6 +2587,66 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 	
 	if y_err is not None and y_err > 0:
 		ax.axhspan(y - y_err, y + y_err, alpha=0.3, color=colour, zorder=1)
+
+	# Ensure visibility (use full extent with errors if present)
+	x_low = x - (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
+	x_high = x + (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
+	y_low = y - (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
+	y_high = y + (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
+	_expand_limits_for_point(ax, x_low, x_high, y_low, y_high, pad_frac=0.01)
+
+
+def _expand_limits_for_point(ax, x_low, x_high, y_low, y_high, pad_frac=0.01):
+	"""
+	Expand axis limits so a point (and its error extents) are guaranteed visible.
+
+	Handles linear and log axes. For log axes, expands multiplicatively.
+	Ignores non-finite bounds.
+	"""
+	def _expand_linear(low, high, vlow, vhigh):
+		changed = False
+		if np.isfinite(vlow) and vlow < low:
+			range_ = high - vlow
+			low = vlow - pad_frac * range_
+			changed = True
+		if np.isfinite(vhigh) and vhigh > high:
+			range_ = vhigh - low
+			high = vhigh + pad_frac * range_
+			changed = True
+		return low, high, changed
+
+	def _expand_log(low, high, vlow, vhigh):
+		# All must be > 0
+		changed = False
+		if not (low > 0 and high > 0):
+			return low, high, changed
+		if np.isfinite(vlow) and vlow > 0 and vlow < low:
+			factor = (high / vlow)
+			low = vlow / (1 + pad_frac * factor)
+			changed = True
+		if np.isfinite(vhigh) and vhigh > 0 and vhigh > high:
+			factor = (vhigh / low)
+			high = vhigh * (1 + pad_frac * factor)
+			changed = True
+		return low, high, changed
+
+	# X
+	xl, xh = ax.get_xlim()
+	if ax.get_xscale() == 'log':
+		xl_new, xh_new, cx = _expand_log(xl, xh, x_low, x_high)
+	else:
+		xl_new, xh_new, cx = _expand_linear(xl, xh, x_low, x_high)
+	if cx:
+		ax.set_xlim(xl_new, xh_new)
+
+	# Y
+	yl, yh = ax.get_ylim()
+	if ax.get_yscale() == 'log':
+		yl_new, yh_new, cy = _expand_log(yl, yh, y_low, y_high)
+	else:
+		yl_new, yh_new, cy = _expand_linear(yl, yh, y_low, y_high)
+	if cy:
+		ax.set_ylim(yl_new, yh_new)
 
 
 # Define PlotMode instances for each plot type
