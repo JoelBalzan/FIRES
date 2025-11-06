@@ -38,8 +38,6 @@ for _name in ("fontTools", "fontTools.subset"):
 	_lg.propagate = False
 
 #	--------------------------	Set plot parameters	---------------------------
-
-
 def configure_matplotlib(use_latex=False):
 	"""
 	Configure global Matplotlib style once (call after parsing CLI flags).
@@ -2073,7 +2071,7 @@ def plot_pa_var(
 	if save:
 		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		fig.savefig(name, dpi=600)
+		fig.savefig(name, dpi=600, bbox_inches='tight')
 		logging.info(f"Saved figure to {name}  \n")
 
 
@@ -2267,7 +2265,7 @@ def plot_lfrac(
 	if save:
 		name = _make_plot_fname("l_frac", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		fig.savefig(name, dpi=600)
+		fig.savefig(name, dpi=600, bbox_inches='tight')
 		logging.info(f"Saved figure to {name}  \n")
 
 
