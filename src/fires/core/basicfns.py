@@ -707,7 +707,7 @@ def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.
 	return sefd_req
 
 
-def add_noise(dspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
+def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
 			   stokes_scale=(1.0, 1.0, 1.0, 1.0), add_slow_baseline=False,
 			   baseline_frac=0.05, baseline_kernel_ms=5.0, time_res_ms=None):
 	"""
@@ -779,7 +779,8 @@ def add_noise(dspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2
 	noisy_dspec = dspec + noise
 
 	I_time = np.nansum(noisy_dspec[0], axis=0)
-	snr, (left, right) = snr_onpulse(I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
+
+	snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
 
 	if not plot_multiple_frb:
 		logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
@@ -826,7 +827,7 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None, one_sided_offpulse=False,
+def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None, one_sided_offpulse=False,
 				tail_frac=None, max_tail_mult=5):
 	"""
 	Estimate S/N using an on-pulse window and an (adaptive) off-pulse RMS.
@@ -862,7 +863,8 @@ def snr_onpulse(profile, frac=0.95, subtract_baseline=True, robust_rms=True, buf
 	n = prof.size
 	left, right = boxcar_width(prof, frac=frac)
 	peak_val = np.nanmax(prof)
-	init_width = max(1, right - left + 1)
+	gdict = dspec_params.gdict
+	init_width = gdict["width_ms"][0]/dspec_params.time_res_ms
 
 	# Tail expansion (right side) if requested
 	if tail_frac is not None and peak_val > 0:

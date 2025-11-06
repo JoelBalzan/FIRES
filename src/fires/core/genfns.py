@@ -574,8 +574,7 @@ def psn_dspec(
 	for key, values in all_params.items():
 		arr = np.asarray(values, dtype=float)
 		var = float(np.nanvar(arr)) if arr.size else np.nan
-		base = key
-		V_params[f"meas_var_{base}"] = var
+		V_params[f"meas_var_{key}"] = var
 
 	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
 	t_res_s = time_res_ms / 1000.0
@@ -593,7 +592,7 @@ def psn_dspec(
 		sefd_work = sefd_est
 		max_iter, tol = 5, 0.02
 		for _ in range(max_iter):
-			_, _, snr_meas = add_noise(
+			_, _, snr_meas = add_noise(dspec_params,
 				dspec, sefd_work, f_res_hz, t_res_s,
 				plot_multiple_frb=True, buffer_frac=buffer_frac,
 				n_pol=2
@@ -608,7 +607,7 @@ def psn_dspec(
 			print(f"SEFD set to {sefd:.3g} Jy for target S/N {target_snr}")
 
 	if sefd > 0:
-		dspec, sigma_ch, snr = add_noise(
+		dspec, sigma_ch, snr = add_noise(dspec_params,
 			dspec, sefd, f_res_hz, t_res_s,
 			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
 		)
@@ -649,9 +648,10 @@ def psn_dspec(
 		)
 
 		if not plot_multiple_frb:
-			print(f"tau={tau_ms[0]:.1f}: Measured={V_params['meas_var_PA']:.3f}, "
-				  f"Expected(detailed)={exp_V_PA_deg2:.3f}, "
-				  f"Expected(basic)={exp_V_PA_deg2_basic:.3f}")
+			print(f"tau={tau_ms[0]:.2f}:"
+				  f"Expected(detailed)={exp_V_PA_deg2:.2f}, "
+				  f"Expected(basic)={exp_V_PA_deg2_basic:.2f}")
+
 	else:
 		exp_V_PA_deg2 = None
 		exp_V_PA_deg2_basic = None

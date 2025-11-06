@@ -68,11 +68,11 @@ def main():
 		help="Identifier for the simulated FRB."
 	)
 	parser.add_argument(
-		"-d", "--data",
+		"-d", "--sim-data",
 		type=str,
 		default=None,
 		metavar="",
-		help="Path to the data file. If provided, the simulation will use this data instead of generating new data."
+		help="Path to simulation data files. If provided, the simulation will use this data instead of generating new data."
 	)
 	parser.add_argument(
 		"-o", "--output-dir",
@@ -518,11 +518,11 @@ def main():
 
 	try:
 		if selected_plot_mode.requires_multiple_frb:
-			if args.data is None:
+			if args.sim_data is None:
 				logging.info(f"Processing with {args.ncpu} threads. \n")
    
 			frb_dict = generate_frb(
-				data            = args.data,
+				data            = args.sim_data,
 				frb_id          = args.frb_identifier,
 				sim_file        = resolved_sim,
 				gauss_file      = resolved_gauss,
@@ -547,7 +547,7 @@ def main():
 				)
 		else:
 			FRB, noisespec, gdict = generate_frb(
-				data            = args.data,
+				data            = args.sim_data,
 				frb_id          = args.frb_identifier,
 				sim_file        = resolved_sim,
 				gauss_file      = resolved_gauss,
@@ -585,7 +585,7 @@ def main():
 					print("Chi-squared fitting failed. \n")
 
 		# Print simulation status
-		if args.data is None:
+		if args.sim_data is None:
 			print(f"Simulation completed. \n")
 
 		# Call the plotting function if required
