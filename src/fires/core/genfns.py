@@ -329,28 +329,42 @@ def _expected_pa_variance_basic(
 	Returns:
 	  var_PA_deg2 (float|None), PA_rms_deg (float|None), aux (dict with components).
 	"""
-	W = float(np.nanmean(np.asarray(width_ms, dtype=float)))
+	W_fwhm = float(np.nanmean(np.asarray(width_ms, dtype=float)))
+	frac_micro = np.clip(0.5 * (float(mg_width_low) + float(mg_width_high)) / 100.0, 1e-6, None)
+	w_fwhm = W_fwhm * frac_micro
 
-	low = np.asarray(mg_width_low, dtype=float)
-	high = np.asarray(mg_width_high, dtype=float)
-	frac_micro = np.nanmean(0.5 * (low + high)) / 100.0
-	frac_micro = np.clip(frac_micro, 1e-6, None)
-	w = W * frac_micro
+	tau = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
+	# Convert FWHM → σ
+	sigma_W = W_fwhm / GAUSSIAN_FWHM_FACTOR
+	sigma_w = w_fwhm / GAUSSIAN_FWHM_FACTOR
 
-	tau_mean = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
-	W_tot = float(np.sqrt(W**2 + tau_mean**2))
-	w_tot = float(np.sqrt(w**2 + tau_mean**2))
+	# Variance addition (ex-Gaussian variance = σ_g^2 + τ^2)
+	sigma_W_tot = np.sqrt(sigma_W**2 + tau**2)
+	sigma_w_tot = np.sqrt(sigma_w**2 + tau**2)
 
-	N_eff_t = float(N) * (w_tot / max(W_tot, 1e-12))
+	# Back to FWHM if needed (not strictly necessary for ratio)
+	# W_tot = C * sigma_W_tot
+	# w_tot = C * sigma_w_tot
 
-	if w_tot < time_res_ms:
-		logging.info("Microshots unresolved; applying time resolution correction to N_eff_t")
-		N_eff_t *= w_tot / time_res_ms 
+	# Effective number scaling ~ fraction of independent shots per macro duration
+	N_eff_t = float(N) * (sigma_w_tot / max(sigma_W_tot, 1e-12))
 
-	sigma = float(sigma_deg)
-	var_PA_deg2 = sigma**2 / N_eff_t
+	# Effective number scaling ~ fraction of independent shots per macro duration
+	ratio = sigma_w_tot / max(sigma_W_tot, 1e-12)
+	N_eff_t = float(N) * ratio
 
-	return var_PA_deg2*(1-w_tot/W_tot)
+	# Resolution correction in σ space
+	sigma_res = time_res_ms / GAUSSIAN_FWHM_FACTOR
+	if sigma_w_tot < sigma_res:
+		N_eff_t *= sigma_w_tot / sigma_res
+
+	# DOF correction for mean-subtracted variance: (M-1)/M = 1 - w_tot/W_tot
+	dof_factor = max(0.0, 1.0 - ratio)
+
+	sigma_pa = float(sigma_deg)
+	var_PA_deg2 = (sigma_pa**2 / max(N_eff_t, 1e-12)) * dof_factor
+
+	return var_PA_deg2
 
 
 
@@ -377,12 +391,12 @@ def plot_Neff_vs_time(time_ms, Neff_t):
 	
 
 def _roll_rows(arr: np.ndarray, shifts: np.ndarray) -> np.ndarray:
-    """Vectorised np.roll for a (n_rows, n_cols) array with per-row integer shifts."""
-    arr = np.asarray(arr)
-    nr, nc = arr.shape
-    sh = np.asarray(shifts, dtype=int).reshape(nr, 1)
-    idx = (np.arange(nc)[None, :] - sh) % nc  # positive shift -> right roll
-    return np.take_along_axis(arr, idx, axis=1)
+	"""Vectorised np.roll for a (n_rows, n_cols) array with per-row integer shifts."""
+	arr = np.asarray(arr)
+	nr, nc = arr.shape
+	sh = np.asarray(shifts, dtype=int).reshape(nr, 1)
+	idx = (np.arange(nc)[None, :] - sh) % nc  # positive shift -> right roll
+	return np.take_along_axis(arr, idx, axis=1)
 
 
 def psn_dspec(
