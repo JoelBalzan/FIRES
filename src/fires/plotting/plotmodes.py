@@ -675,8 +675,7 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
 		xvals_sweep = np.array(frb_dict["xvals"])
 		measures = frb_dict.get("measures", {})
 		
-		# Determine which segment to use (default to 'all', 'total' for full-burst measurement)
-		# This could be made configurable via additional args if needed
+		# Use full-burst by default on x
 		freq_key = 'all'
 		phase_key = 'total'
 		
@@ -686,20 +685,16 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
 			if not seg_list:
 				measured_x.append(np.nan)
 				continue
-			
-			# Extract measured quantity from each realisation and take median
 			vals = []
 			for seg in seg_list:
 				if not isinstance(seg, dict):
 					continue
 				val = _extract_value_from_segments(seg, x_measured, phase_key, freq_key)
 				vals.append(val)
-			
 			measured_x.append(np.nanmedian(vals) if vals else np.nan)
 		
 		x = np.array(measured_x)
 		
-		# Set appropriate labels
 		if x_measured == 'Vpsi':
 			xname = r"\mathbb{V}(\psi)"
 			x_unit = r"\mathrm{deg}^2"
@@ -736,40 +731,73 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
 
 	if sweep_mode == "sd":
 		x = xvals_raw
-		# Label with sd_<param>, not *_i
 		sym, unit = _param_info_or_dynamic(f"sd_{xname_raw}")
 		return x, sym, unit
 
-	weight = None
+	# Try to find weights
+	weight = None  # scalar or per-x array
 	weight_unit = ""
 	if weight_x_by is not None:
-		if isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-			if isinstance(dspec_params[0], dict) and weight_x_by in dspec_params[0]:
-				weight = np.array(dspec_params[0][weight_x_by])[0]
-		elif isinstance(dspec_params, dict) and weight_x_by in dspec_params:
-			weight = np.array(dspec_params[weight_x_by])[0]
-		if weight is None and V_params is not None:
-			if isinstance(V_params, (list, tuple)) and len(V_params) > 0:
-				if isinstance(V_params[0], dict) and weight_x_by in V_params[0]:
-					weight = np.array(V_params[0][weight_x_by])[0]
-			elif isinstance(V_params, dict) and weight_x_by in V_params:
-				weight = np.array(V_params[weight_x_by])[0]
-		if weight is None:
-			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
-		else:
-			weight_symbol, weight_unit = _param_info_or_dynamic(weight_x_by)
+		# 1) dspec_params.gdict
+		if hasattr(dspec_params, "gdict") and isinstance(dspec_params.gdict, dict) and weight_x_by in dspec_params.gdict:
+			weight = np.asarray(dspec_params.gdict[weight_x_by], dtype=float)
+		elif isinstance(dspec_params, dict):
+			# dict-like with embedded gdict
+			if "gdict" in dspec_params and isinstance(dspec_params["gdict"], dict) and weight_x_by in dspec_params["gdict"]:
+				weight = np.asarray(dspec_params["gdict"][weight_x_by], dtype=float)
+			elif weight_x_by in dspec_params:
+				weight = np.asarray(dspec_params[weight_x_by], dtype=float)
+		# 2) Fall back to V_params per-x
+		if weight is None and isinstance(V_params, dict) and len(V_params) > 0:
+			ws = []
+			for xv in xvals_raw:
+				key = _find_matching_key(float(xv), V_params.keys())
+				wd = V_params.get(key, {}) if key in V_params else {}
+				wv = wd.get(weight_x_by, None)
+				if isinstance(wv, (list, np.ndarray)):
+					# take first non-None
+					wv = next((vv for vv in wv if vv is not None and np.isfinite(vv)), None)
+				ws.append(float(wv) if (wv is not None and np.isfinite(wv)) else np.nan)
+			if np.any(np.isfinite(ws)):
+				weight = np.asarray(ws, dtype=float)
 
-	if weight is None:
+	# If we found a weight, normalise x by it (scalar or per-x)
+	if weight is None or (np.size(weight) == 0) or not np.any(np.isfinite(np.atleast_1d(weight))):
+		# No usable weights
+		if weight_x_by is not None:
+			logging.warning(f"'{weight_x_by}' not found in parameters. Using raw values.")
 		x = xvals_raw
 		xname = base_name
 		x_unit = base_unit
+		return x, xname, x_unit
+
+	# Make element-wise or scalar division robustly
+	w_arr = np.atleast_1d(weight).astype(float)
+	if w_arr.size == 1:
+		w = float(w_arr[0])
+		if not (np.isfinite(w) and w != 0):
+			logging.warning(f"Weight '{weight_x_by}' is non-finite or zero. Using raw values.")
+			x = xvals_raw
+		else:
+			x = xvals_raw / w
+	elif w_arr.size == xvals_raw.size:
+		# element-wise
+		x = np.full_like(xvals_raw, np.nan, dtype=float)
+		m = np.isfinite(xvals_raw) & np.isfinite(w_arr) & (w_arr != 0)
+		x[m] = xvals_raw[m] / w_arr[m]
 	else:
-		x = xvals_raw / weight
-		weight_info = param_map.get(weight_x_by, (weight_x_by, ""))
-		weight_symbol = weight_info[0] if isinstance(weight_info, tuple) else weight_x_by
-		xname = base_name + r" / " + weight_symbol
-		x_unit = "" if base_unit == weight_unit else f"{base_unit}/{weight_unit}"
-	return x, base_name, base_unit
+		# length mismatch: fall back to first value
+		w = float(w_arr[0])
+		if not (np.isfinite(w) and w != 0):
+			x = xvals_raw
+		else:
+			x = xvals_raw / w
+
+	# Build labels/units for weighted x
+	weight_symbol, weight_unit = _param_info_or_dynamic(weight_x_by)
+	xname = base_name + r" / " + weight_symbol
+	x_unit = "" if base_unit == weight_unit else (f"{base_unit}/{weight_unit}" if weight_unit else base_unit)
+	return x, xname, x_unit
 
 
 def _get_weighted_y_name(yname, weight_y_by):
