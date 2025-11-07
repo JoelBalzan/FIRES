@@ -850,41 +850,41 @@ def _parse_fit_arg(fit_item):
 
 
 def _print_med_snrs(subdict):
-    snrs = subdict.get("snrs", [])
-    # Handle dict or list
-    if isinstance(snrs, dict):
-        snr_values = list(snrs.values())
-    else:
-        snr_values = snrs
-    # Flatten if nested
-    if isinstance(snr_values, list) and snr_values and isinstance(snr_values[0], list):
-        snr_values = [item for sublist in snr_values for item in (sublist if isinstance(sublist, list) else [sublist])]
-    # Remove None and non-finite
-    snr_values = [s for s in snr_values if s is not None and np.isfinite(s)]
-    if not snr_values:
-        logging.info("No valid S/N values found for this run.")
-        return
-    # Get S/N at lowest and highest xvals
-    if isinstance(snrs, dict):
-        keys_sorted = sorted(snrs.keys())
-        lowest = snrs[keys_sorted[0]]
-        highest = snrs[keys_sorted[-1]]
-    else:
-        lowest = snrs[0]
-        highest = snrs[-1]
-    def med(val):
-        if isinstance(val, list):
-            vals = [v for v in val if v is not None and np.isfinite(v)]
-            if not vals:
-                return None
-            return np.nanmedian(vals)
-        return val if val is not None and np.isfinite(val) else None
-    med_low = np.max(lowest) #med(lowest)
-    med_high = np.max(highest) #med(highest)
-    if med_low is not None or med_high is not None:
-        logging.info(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
-    else:
-        logging.info("No valid S/N values found for this run.")
+	snrs = subdict.get("snrs", [])
+	# Handle dict or list
+	if isinstance(snrs, dict):
+		snr_values = list(snrs.values())
+	else:
+		snr_values = snrs
+	# Flatten if nested
+	if isinstance(snr_values, list) and snr_values and isinstance(snr_values[0], list):
+		snr_values = [item for sublist in snr_values for item in (sublist if isinstance(sublist, list) else [sublist])]
+	# Remove None and non-finite
+	snr_values = [s for s in snr_values if s is not None and np.isfinite(s)]
+	if not snr_values:
+		logging.info("No valid S/N values found for this run.")
+		return
+	# Get S/N at lowest and highest xvals
+	if isinstance(snrs, dict):
+		keys_sorted = sorted(snrs.keys())
+		lowest = snrs[keys_sorted[0]]
+		highest = snrs[keys_sorted[-1]]
+	else:
+		lowest = snrs[0]
+		highest = snrs[-1]
+	def med(val):
+		if isinstance(val, list):
+			vals = [v for v in val if v is not None and np.isfinite(v)]
+			if not vals:
+				return None
+			return np.nanmedian(vals)
+		return val if val is not None and np.isfinite(val) else None
+	med_low = np.max(lowest) #med(lowest)
+	med_high = np.max(highest) #med(highest)
+	if med_low is not None or med_high is not None:
+		logging.info(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
+	else:
+		logging.info("No valid S/N values found for this run.")
 		
 
 def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', weight_y_by=None):
@@ -1014,63 +1014,48 @@ def _format_legend_label(od: dict, legend_params=None, gdict=None) -> str:
 	return ", ".join(parts)
 
 
-def _plot_equal_value_lines(ax, frb_dict, target_param='sd_PA', weight_x_by=None, weight_y_by=None,
+def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight_y_by=None,
 							target_values=None, n_lines=5, linestyle=':', alpha=0.5, color='black',
 							show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
 							freq_window='full-band', x_measured=None, y_measured=None, interpolate=True,
-							interp_kind='quadratic', interp_points=100):
+							interp_kind='quadratic', interp_points=100,
+							fit='exp', fit_points=200):
 	"""
 	Plot background lines showing constant values of a swept parameter.
-	
+
 	When plotting measured quantities (e.g., measured PA variance vs measured L/I),
 	this draws lines connecting points that share the same swept parameter value
 	(the xvals parameter).
-	
+
 	Parameters:
 	-----------
 	ax : matplotlib.axes.Axes
-		Axes to plot on
 	frb_dict : dict
-		Multi-run dict containing simulation results
 	target_param : str
-		Parameter name to plot equal-value lines for (typically xname from data)
 	weight_x_by : str or None
-		X-axis weighting parameter
 	weight_y_by : str or None
-		Y-axis weighting parameter
 	x_measured : str or None
-		If set, x-axis uses measured quantity (e.g., 'Vpsi')
 	y_measured : str or None
-		If set, y-axis uses measured quantity (e.g., 'Lfrac')
 	target_values : list or None
-		Specific parameter values to plot lines for. If None, auto-select n_lines evenly spaced values.
 	n_lines : int
-		Number of lines to plot if target_values is None
 	linestyle : str
-		Line style for contours
 	alpha : float
-		Transparency
 	color : str
-		Line color
 	show_labels : bool
-		Whether to show value labels on lines
 	zorder : int
-		Z-order for line plotting
 	plot_type : str
-		Type of plot ('pa_var' or 'l_frac')
 	phase_window : str
-		Phase window for extraction
 	freq_window : str
-		Frequency window for extraction
 	interpolate : bool
-		If True, use interpolation to create smooth curves between points
 	interp_kind : str
-		Interpolation method: 'linear', 'quadratic', 'cubic', 'slinear', etc.
-		See scipy.interpolate.interp1d for options
 	interp_points : int
-		Number of points to use in interpolated curve
+	fit : str or None
+		Best-fit curve to draw instead of interpolation. Uses same syntax as other
+		fits, e.g.: 'linear', 'poly,2', 'power', 'power,1', 'exp', 'log', 'broken-power'.
+		When provided, takes precedence over interpolation.
+	fit_points : int
+		Number of points used to render the fitted curve.
 	"""
-	
 	# Collect all xvals across runs (these are the swept parameter values)
 	all_xvals = set()
 	
@@ -1082,6 +1067,22 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='sd_PA', weight_x_by=None
 	if not all_xvals:
 		logging.warning(f"No valid xvals found. Cannot plot equal-value lines.")
 		return
+
+	# Determine current axis x-bounds to span full plot width
+	xlim = ax.get_xlim()
+	x_plot_min, x_plot_max = (min(xlim), max(xlim))
+	x_is_log = (ax.get_xscale() == 'log')
+	if x_is_log:
+		# Ensure strictly positive bounds for log scale
+		# If axes not yet final, caller saves/restores limits around us.
+		eps = 1e-300
+		x_plot_min = max(x_plot_min, eps)
+		x_plot_max = max(x_plot_max, x_plot_min * (1 + 1e-6))  # keep > min
+	def _x_grid(n):
+		n = int(max(10, n))
+		if x_is_log:
+			return np.geomspace(x_plot_min, x_plot_max, n)
+		return np.linspace(x_plot_min, x_plot_max, n)
 	
 	# Select which values to plot
 	sorted_values = sorted(all_xvals)
@@ -1099,6 +1100,18 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='sd_PA', weight_x_by=None
 	
 	logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines\n")
 	
+	def _safe_exp(z):
+		# Avoid overflow in exp; double-precision overflows ~709
+		return np.exp(np.clip(z, -700.0, 700.0))
+	def _model_power(x, a, n):
+		return a * np.power(x, n)
+	def _model_power_fixed(x, a, n_fixed):
+		return a * np.power(x, n_fixed)
+	def _model_exp(x, a, b):
+		return a * _safe_exp(b * x)
+	def _model_broken_power(x, a, n1, n2, x_break):
+		return np.where(x < x_break, a * x**n1, a * x_break**(n1-n2) * x**n2)
+
 	# For each selected xval, collect (x, y) points ACROSS RUNS
 	for xval in selected_values:
 		x_points = []
@@ -1145,28 +1158,145 @@ def _plot_equal_value_lines(ax, frb_dict, target_param='sd_PA', weight_x_by=None
 					x_points.append(x_coord)
 					y_points.append(y_coord)
 
-		# Now plot/interpolate the curve for this xval
+		# Now plot/interpolate or fit the curve for this xval
 		if len(x_points) >= 2:
 			sorted_indices = np.argsort(x_points)
 			x_sorted = np.array(x_points)[sorted_indices]
 			y_sorted = np.array(y_points)[sorted_indices]
 
-			if interpolate and len(x_points) >= 3:
+			# If a fit is requested, it takes precedence over interpolation
+			if fit is not None:
+				fit_type, fit_degree = _parse_fit_arg(fit)
+				x_fit = _x_grid(fit_points)
+
+				# Build mask suitable for each fit
+				mask = np.isfinite(x_sorted) & np.isfinite(y_sorted)
+				x_fit_data = x_sorted[mask]
+				y_fit_data = y_sorted[mask]
+
+				if x_fit_data.size < 2:
+					continue
+
+				y_fit_curve = None
+
 				try:
-					actual_kind = interp_kind
-					if interp_kind == 'cubic' and len(x_points) < 4:
-						actual_kind = 'quadratic'
-					if interp_kind == 'quadratic' and len(x_points) < 3:
-						actual_kind = 'linear'
-					f = interp1d(x_sorted, y_sorted, kind=actual_kind, bounds_error=False, fill_value='extrapolate')
-					x_smooth = np.linspace(x_sorted.min(), x_sorted.max(), interp_points)
-					y_smooth = f(x_smooth)
-					ax.plot(x_smooth, y_smooth, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+					if fit_type == 'linear':
+						p = np.polyfit(x_fit_data, y_fit_data, 1)
+						y_fit_curve = np.polyval(p, x_fit)
+					elif fit_type == 'poly':
+						deg = fit_degree if (fit_degree is not None and fit_degree >= 1) else 2
+						deg = min(deg, max(1, x_fit_data.size - 1))
+						p = np.polyfit(x_fit_data, y_fit_data, deg)
+						y_fit_curve = np.polyval(p, x_fit)
+					elif fit_type == 'exp':
+						# Prefer log-space fit: ln y = ln a + b x (only valid for y>0)
+						m = y_fit_data > 0
+						xf = x_fit_data[m]
+						yf = y_fit_data[m]
+						if xf.size >= 2:
+							p = np.polyfit(xf, np.log(yf), 1)  # slope=b, intercept=ln a
+							b_hat = float(p[0]); ln_a_hat = float(p[1])
+							y_fit_curve = _safe_exp(b_hat * x_fit + ln_a_hat)
+						else:
+							# Fallback to bounded nonlinear fit with safe exp
+							p0 = [max(np.nanmax(y_fit_data), 1e-12), -1.0]
+							bounds = ([0.0, -np.inf], [np.inf, np.inf])
+							popt, _ = curve_fit(_model_exp, x_fit_data, y_fit_data, p0=p0, bounds=bounds, maxfev=20000)
+							y_fit_curve = _model_exp(x_fit, *popt)
+					elif fit_type in ('power', 'power_fixed_n'):
+						# Require positive x for power-law fits
+						mpos = (x_fit_data > 0)
+						xf = x_fit_data[mpos]
+						yf = y_fit_data[mpos]
+						if xf.size >= 2:
+							if fit_degree is not None and fit_type in ('power', 'power_fixed_n'):
+								n_fixed = float(fit_degree)
+								# Solve a in log-space if y>0; else nonlinear fallback
+								if np.all(yf > 0):
+									ln_a = np.nanmean(np.log(yf) - n_fixed * np.log(xf))
+									a_hat = float(np.exp(ln_a))
+									y_fit_curve = _model_power_fixed(x_fit, a_hat, n_fixed)
+								else:
+									popt, _ = curve_fit(lambda xx, a: _model_power_fixed(xx, a, n_fixed),
+														xf, yf, p0=[max(np.nanmax(yf), 1e-12)], maxfev=20000)
+									y_fit_curve = _model_power_fixed(x_fit, popt[0], n_fixed)
+							else:
+								# Fit a and n via log-log if y>0
+								if np.all(yf > 0):
+									p = np.polyfit(np.log(xf), np.log(yf), 1)  # slope=n, intercept=ln a
+									n_hat = float(p[0]); ln_a_hat = float(p[1])
+									a_hat = float(np.exp(ln_a_hat))
+									y_fit_curve = _model_power(x_fit, a_hat, n_hat)
+								else:
+									popt, _ = curve_fit(_model_power, xf, yf,
+														p0=[max(np.nanmax(yf), 1e-12), 1.0],
+														maxfev=20000)
+									y_fit_curve = _model_power(x_fit, *popt)
+					elif fit_type == 'log':
+						# y = m log10(x) + c
+						m = (x_fit_data > 0)
+						xf = x_fit_data[m]
+						yf = y_fit_data[m]
+						if xf.size >= 2:
+							p = np.polyfit(np.log10(xf), yf, 1)
+							y_fit_curve = np.polyval(p, np.log10(np.clip(x_fit, 1e-300, None)))
+					elif fit_type == 'broken-power':
+						# Reasonable initial guesses and bounds
+						m = (x_fit_data > 0)
+						xf = x_fit_data[m]
+						yf = y_fit_data[m]
+						if xf.size >= 4:
+							p0 = [np.nanmax(yf), 1.0, 0.0, np.median(xf)]
+							bounds = ([0, -np.inf, -np.inf, np.min(xf)], [np.inf, np.inf, np.inf, np.max(xf)])
+							popt, _ = curve_fit(_model_broken_power, xf, yf, p0=p0, bounds=bounds, maxfev=20000)
+							y_fit_curve = _model_broken_power(x_fit, *popt)
+
 				except Exception as e:
-					logging.warning(f"Interpolation failed: {e}. Falling back to direct line plot.")
-					ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+					logging.warning(f"Fit '{fit}' failed for equal-value line at {target_param}={xval}: {e}")
+					y_fit_curve = None
+
+				if y_fit_curve is not None and np.all(np.isfinite(y_fit_curve)):
+					ax.plot(x_fit, y_fit_curve, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.8, zorder=zorder)
+				else:
+					try:
+						f_line = interp1d(x_sorted, y_sorted, kind='linear', bounds_error=False, fill_value='extrapolate')
+						x_line = _x_grid(max(50, fit_points // 2))
+						y_line = f_line(x_line)
+						ax.plot(x_line, y_line, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+					except Exception:
+						ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
 			else:
-				ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+				# Original behavior: optionally smooth via interpolation, else connect dots
+				if interpolate and len(x_sorted) >= 3:
+					try:
+						actual_kind = interp_kind
+						if interp_kind == 'cubic' and len(x_sorted) < 4:
+							actual_kind = 'quadratic'
+						if interp_kind == 'quadratic' and len(x_sorted) < 3:
+							actual_kind = 'linear'
+						f = interp1d(x_sorted, y_sorted, kind=actual_kind, bounds_error=False, fill_value='extrapolate')
+						# Interpolate/extrapolate across full axis bounds
+						x_smooth = _x_grid(interp_points)
+						y_smooth = f(x_smooth)
+						ax.plot(x_smooth, y_smooth, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+					except Exception as e:
+						logging.warning(f"Interpolation failed: {e}. Falling back to direct line plot.")
+						try:
+							f_lin = interp1d(x_sorted, y_sorted, kind='linear', bounds_error=False, fill_value='extrapolate')
+							x_line = _x_grid(max(50, interp_points // 2))
+							y_line = f_lin(x_line)
+							ax.plot(x_line, y_line, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+						except Exception:
+							ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+				else:
+					# Simple linear extrapolation across bounds
+					try:
+						f_lin = interp1d(x_sorted, y_sorted, kind='linear', bounds_error=False, fill_value='extrapolate')
+						x_line = _x_grid(max(50, interp_points // 2))
+						y_line = f_lin(x_line)
+						ax.plot(x_line, y_line, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
+					except Exception:
+						ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=color, linewidth=1.5, zorder=zorder)
 
 			# Label at leftmost point
 			if show_labels:
