@@ -1750,6 +1750,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			gdict = run_data["gdict"]
 		series_label = _format_legend_label(od, legend_params, gdict)
 		
+		
 		colour = colour_shades[idx]
 
 		run_fit = None
@@ -1772,7 +1773,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			figsize=None,
 			fit=run_fit,
 			scale=scale,
-			series_label=rf"${series_label}$",
+			series_label=series_label,
 			series_colour=colour,
 			expected_param_key=None,
 			ax=ax,
