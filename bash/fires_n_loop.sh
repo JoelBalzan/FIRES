@@ -9,8 +9,17 @@
 #SBATCH --array=0-19                    # Array job index (20 chunks)
 
 source "/fred/oz313/processing/jbalzan/venv.sh"
-
 set -euo pipefail
+
+# Pin threads for each worker proc
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export MKL_DYNAMIC=FALSE
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+export MPLBACKEND=Agg
 
 PLOT="l_frac" # or pa_var
 
