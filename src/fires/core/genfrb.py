@@ -62,6 +62,15 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_sn
 	"""Generate dynamic spectrum based on mode."""
 	var = var if plot_multiple_frb else None
 
+	# Choose the correct function
+	if mode == 'psn':
+		dspec_func = psn_dspec
+
+	# Get the argument names for the selected function
+	sig = inspect.signature(dspec_func)
+	allowed_args = set(sig.parameters.keys())
+
+ 
 	if mode == 'psn':
 		return psn_dspec(
 			dspec_params=dspec_params,
@@ -72,37 +81,27 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_sn
 		)
 
 
-def _init_worker_pool(dspec_params, xname, mode, plot_mode, target_snr):
-	# Pin BLAS to one thread per process to avoid oversubscription
-	os.environ.setdefault("OMP_NUM_THREADS", "1")
-	os.environ.setdefault("MKL_NUM_THREADS", "1")
-	os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-	os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
-	global _WP
-	_WP = {
-		"dspec_params": dspec_params,
-		"xname": xname,
-		"mode": mode,
-		"plot_mode": plot_mode,
-		"target_snr": target_snr,
-	}
-
-def _process_task_worker(task):
-	# task = (var, realisation)
+def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None):
+	"""
+	Process a single task (combination of timescale and realisation).
+	"""
 	var, realisation = task
-	global _WP
-	base_seed = _WP["dspec_params"].seed
+	base_seed = dspec_params.seed
 	current_seed = (base_seed + realisation) if base_seed is not None else None
-	local_params = _WP["dspec_params"]._replace(seed=current_seed)
-	requires_multiple_frb = _WP["plot_mode"].requires_multiple_frb
+
+	local_params = dspec_params._replace(seed=current_seed)
+	
+	requires_multiple_frb = plot_mode.requires_multiple_frb
+
 	_, snr, V_params, exp_vars, measures = _generate_dspec(
-		xname=_WP["xname"],
-		mode=_WP["mode"],
+		xname=xname,
+		mode=mode,
 		var=var,
 		plot_multiple_frb=requires_multiple_frb,
 		dspec_params=local_params,
-		target_snr=_WP["target_snr"]
+		target_snr=target_snr
 	)
+
 	return var, measures, V_params, snr, exp_vars
 
 
@@ -560,14 +559,17 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 			tasks = list(product(xvals, range(nseed)))
 
-			with ProcessPoolExecutor(
-					max_workers=n_cpus,
-					initializer=_init_worker_pool,
-					initargs=(dspec_params, xname, mode, plot_mode, target_snr),
-				) as executor:
-				chunksize = max(1, len(tasks) // (n_cpus * 4))
+			with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+				partial_func = functools.partial(
+					_process_task,
+					xname=xname,
+					mode=mode,
+					plot_mode=plot_mode,
+					target_snr=target_snr,
+					dspec_params=dspec_params
+				)
 				results = list(tqdm(
-					executor.map(_process_task_worker, tasks, chunksize=chunksize),
+					executor.map(partial_func, tasks),
 					total=len(tasks),
 					desc=f"Processing sweep of {xname} ({sweep_mode} mode)"
 				))
