@@ -581,70 +581,50 @@ def boxcar_width(profile, frac=0.95):
 
  
 def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
-	"""
-	Apply one-sided exponential scattering independently to each frequency channel
-	of a Stokes I dynamic spectrum.
+    """
+    Vectorised one-sided exponential scattering for all channels via FFT.
+    """
+    X = np.asarray(dspec, dtype=float)
+    if X.ndim != 2:
+        raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
+    nc, nt = X.shape
 
-	Replaces (renamed from) scatter_stokes_chan which operated on a single 1-D channel.
+    # Prepare per-channel tau array
+    if np.isscalar(tau_cms):
+        tau_arr = np.full(nc, float(tau_cms), dtype=float)
+    else:
+        tau_arr = np.asarray(tau_cms, dtype=float)
+        if tau_arr.shape[0] != nc:
+            raise ValueError("tau_cms length must match number of channels")
 
-	Parameters
-	----------
-	I_dspec : array_like, shape (n_chan, n_time)
-		Stokes I dynamic spectrum (no polarisation axis).
-	time_res_ms : float
-		Time resolution in milliseconds.
-	tau_cms : float or array_like, shape (n_chan,)
-		Scattering timescale(s) in milliseconds. Scalar applies to all channels.
-	pad_factor : float, default 5
-		Multiple of tau used to determine zero-padding length (covers tail).
+    out = X.copy()
+    pos = np.isfinite(tau_arr) & (tau_arr > 0)
+    if not np.any(pos):
+        return out
 
-	Returns
-	-------
-	scattered_dspec : ndarray, shape (n_chan, n_time)
-		Dynamic spectrum after convolution with normalised exponential tail.
+    tau_pos = tau_arr[pos]
+    n_pad_arr = np.ceil(pad_factor * tau_pos / float(time_res_ms)).astype(int)
+    max_pad = int(np.max(n_pad_arr))
+    L = nt + max_pad
 
-	Notes
-	-----
-	- Channels with non-positive or NaN tau are returned unchanged.
-	- Uses fftconvolve per channel (OK for typical FRB channel counts).
-	"""
-	dspec = np.asarray(dspec, dtype=float)
-	if dspec.ndim != 2:
-		raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
+    t_idx = np.arange(max_pad + 1, dtype=float)  # 0..max_pad
+    t_ms = t_idx * float(time_res_ms)
 
-	n_chan, n_time = dspec.shape
+    # Build IRFs for all pos channels in one go, with zero past channel-specific pad
+    irf = np.exp(-t_ms[None, :] / tau_pos[:, None])
+    mask = (t_idx[None, :] <= n_pad_arr[:, None])
+    irf *= mask
+    # Row-normalise (preserve total flux)
+    row_sum = irf.sum(axis=1, keepdims=True)
+    irf = np.divide(irf, np.maximum(row_sum, 1e-300), out=irf)
 
-	# Prepare per-channel tau array
-	if np.isscalar(tau_cms):
-		tau_arr = np.full(n_chan, float(tau_cms), dtype=float)
-	else:
-		tau_arr = np.asarray(tau_cms, dtype=float)
-		if tau_arr.shape[0] != n_chan:
-			raise ValueError("tau_cms length must match number of channels")
-
-	dspec_scattered = np.empty_like(dspec)
-
-	for ci in range(n_chan):
-		tau = tau_arr[ci]
-		chan = dspec[ci]
-
-		n_pad = int(np.ceil(pad_factor * tau / time_res_ms))
-
-		# Causal IRF support: t >= 0 (implements Heaviside step)
-		t_irf = np.arange(0, n_pad + 1) * time_res_ms
-
-		# Discrete causal exponential kernel: samples of H(t) * exp(-t/τ).
-		# We normalise by sum so that the discrete convolution preserves total flux
-		# (this absorbs the continuous 1/τ and Δt factors on the sampled grid).
-		irf = np.exp(-t_irf / tau)
-		irf /= irf.sum()
-
-		# Right-pad only to keep the tail causal within the window
-		padded = np.pad(chan, (0, n_pad), mode='constant')
-		conv = fftconvolve(padded, irf, mode='full')
-		dspec_scattered[ci] = conv[:n_time]
-
-	return dspec_scattered
+    # Pad signals to L and FFT along time
+    Xp = np.pad(X[pos], ((0, 0), (0, max_pad)), mode='constant')  # (n_pos, L)
+    FX = np.fft.rfft(Xp, n=L, axis=1)
+    FH = np.fft.rfft(irf, n=L, axis=1)
+    Y = np.fft.irfft(FX * FH, n=L, axis=1)
+    out[pos] = Y[:, :nt]
+    return out
 
 
 def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None):
@@ -978,6 +958,17 @@ def _phase_slices_from_peak(n_time: int, peak_index: int) -> dict[str, slice]:
 	return {"first": first, "last": last, "total": total}
 
 
+def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac):
+	I = np.nansum(corrdspec[0], axis=0)
+	gdict = dspec_params.gdict
+	left, right = boxcar_width(I, frac=0.95)
+	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
+		I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
+	)
+	noise_stokes, _ = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
+	return est_profiles(corrdspec, noise_stokes, left, right)
+
+
 def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) -> dict:
 	"""
 	Compute per-segment measurements from a single dynamic spectrum:
@@ -1039,16 +1030,11 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 
 	def _measure_freq_slice(slc: slice) -> dict:
 		dspec_f = corr_dspec[:, slc, :]
-		freq_f = freq_mhz[slc] if isinstance(slc, slice) else freq_mhz
-		tsdata_f, _, _, _ = process_dspec(dspec_f, freq_f, dspec_params, buffer_frac)
-		I = tsdata_f.iquvt[0]
-		Q = tsdata_f.iquvt[1]
-		U = tsdata_f.iquvt[2]
-		V = tsdata_f.iquvt[3]
-		L = tsdata_f.Lts
-		ph = tsdata_f.phits
-
-		on_m, _, _ = on_off_pulse_masks_from_profile(I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+		tsdata_f = _timeseries_from_corr(dspec_f, dspec_params, buffer_frac)
+		I = tsdata_f.iquvt[0]; Q = tsdata_f.iquvt[1]; U = tsdata_f.iquvt[2]; V = tsdata_f.iquvt[3]; L = tsdata_f.Lts; ph = tsdata_f.phits
+		on_m, _, _ = on_off_pulse_masks_from_profile(
+			I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
+		)
 		Vpsi = _pa_variance_deg2(ph)
 		Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
 		return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}

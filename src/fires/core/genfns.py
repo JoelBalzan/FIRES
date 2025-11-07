@@ -374,6 +374,15 @@ def plot_Neff_vs_time(time_ms, Neff_t):
 	plt.legend()
 	plt.tight_layout()
 	plt.show()
+	
+
+def _roll_rows(arr: np.ndarray, shifts: np.ndarray) -> np.ndarray:
+    """Vectorised np.roll for a (n_rows, n_cols) array with per-row integer shifts."""
+    arr = np.asarray(arr)
+    nr, nc = arr.shape
+    sh = np.asarray(shifts, dtype=int).reshape(nr, 1)
+    idx = (np.arange(nc)[None, :] - sh) % nc  # positive shift -> right roll
+    return np.take_along_axis(arr, idx, axis=1)
 
 
 def psn_dspec(
@@ -548,9 +557,7 @@ def psn_dspec(
 
 			if DM_i != 0:
 				shifts = np.round(_calculate_dispersion_delay(DM_i, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
-				for c, s in enumerate(shifts):
-					if s != 0:
-						I_ft[c] = np.roll(I_ft[c], s)
+				I_ft = _roll_rows(I_ft, shifts)
 
 			if tau_eff > 0:
 				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
