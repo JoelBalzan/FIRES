@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16              # Number of CPUs per task
 #SBATCH --mem=16G                        # Memory allocation
-#SBATCH --time=00:40:00                 # Time limit
+#SBATCH --time=00:15:00                 # Time limit
 #SBATCH --array=0-19                    # Array job index (20 chunks)
 
 source "/fred/oz313/processing/jbalzan/venv.sh"
@@ -50,11 +50,11 @@ for param in "${PARAMS[@]}"; do
   val_sd="${!val_sd_var:-}"
   if [[ -n "$val" ]]; then
     OVERRIDE_ARGS+=(--override-param "${param}=${val}")
-    OVERRIDE_SUFFIX+="_${param}${val}"
+    OVERRIDE_SUFFIX+="${param}${val}"
   fi
   if [[ -n "$val_sd" ]]; then
     OVERRIDE_ARGS+=(--override-param "sd_${param}=${val_sd}")
-    OVERRIDE_SUFFIX+="_sd${param}${val_sd}"
+    OVERRIDE_SUFFIX+="sd${param}${val_sd}"
   fi
 done
 
@@ -78,7 +78,7 @@ fires \
   --disable-plots \
   --output-dir "$OUTDIR" \
   --ncpu ${SLURM_CPUS_PER_TASK} \
-  --sweep-mode mean \
+  --sweep-mode sd \
   --sefd 1.6 \
-  "${OVERRIDE_ARGS[@]}" \
-  --logstep 20
+  "${OVERRIDE_ARGS[@]}"
+#--logstep 20
