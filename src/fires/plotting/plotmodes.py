@@ -2212,19 +2212,8 @@ def plot_lfrac(
 		Number of bins to use if draw_style is 'binned'.
 	colour_by_sweep : bool
 		If True and draw_style is 'scatter', colours points by sweep order.
-		
-	Notes:
-	------
-	- Linear fraction is calculated as L/I = √(Q² + U²)/I integrated over the 
-	  specified windows and on-pulse region (95% width)
-	- For multi-run plots, median values with 16th-84th percentile error bands are shown
-	- X-axis shows τ/W (scattering time normalised by pulse width)
-	- Error bars include both statistical noise and systematic uncertainties
-	- Useful for studying depolarisation effects due to scattering
 	"""
-	# Use defaults if not specified
 
-	# If frb_dict contains multiple job IDs, plot each on the same axes
 	yname = r"\Pi_L"
 
 	if figsize is None:
