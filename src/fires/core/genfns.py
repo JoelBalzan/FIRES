@@ -350,7 +350,7 @@ def _expected_pa_variance_basic(
 	sigma = float(sigma_deg)
 	var_PA_deg2 = sigma**2 / N_eff_t
 
-	return var_PA_deg2
+	return var_PA_deg2*(1-w/W)
 
 
 

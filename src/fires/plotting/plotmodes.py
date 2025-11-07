@@ -390,14 +390,11 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 	applied = False
 	
 	if weight_by is None:
-		# No weighting requested - return original values
 		for var in xvals:
 			normalised_vals[var] = yvals.get(var, [])
 		return (normalised_vals, applied) if return_status else normalised_vals
 	
-	# Handle both dict of dicts (multi-parameter case) and list of dicts (single parameter case)
 	if isinstance(weight_params, dict) and any(isinstance(v, dict) for v in weight_params.values()):
-		# Multi-parameter case: weight_params is like {param_value: {param_name: [values], ...}, ...}
 		weighting_param_exists = any(weight_by in weight_params.get(var, {}) for var in xvals)
 		if not weighting_param_exists:
 			logging.warning(f"Weighting parameter '{weight_by}' not found in weight dictionaries. Returning unweighted values.")
@@ -412,38 +409,31 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 			var__weight_dict = weight_params.get(w_key, {})
 			weights = var__weight_dict.get(weight_by, [])
 		
-			# Add explicit check for missing data
-			if y_key is None or w_key is None:
-				logging.warning(f"Missing data for parameter {var}: y_key={y_key}, w_key={w_key}. Skipping normalisation.")
-				normalised_vals[var] = y_values
-				continue
-			
-			if y_values and weights and len(y_values) == len(weights):
-				out = []
-				for val, weight in zip(y_values, weights):
-					if weight != 0 and np.isfinite(weight):
-						out.append(val / weight)
+			# Pairwise robust normalisation: align by index, drop non-finite or zero weights
+			out = []
+			if y_values and weights:
+				n = min(len(y_values), len(weights))
+				for val, wt in zip(y_values[:n], weights[:n]):
+					if np.isfinite(val) and np.isfinite(wt) and wt != 0:
+						out.append(val / wt)
 						applied = True
-					else:
-						out.append(0)
-				normalised_vals[var] = out
+				# if nothing usable, fall back to unweighted values
+				normalised_vals[var] = out if out else list(y_values)
 			else:
-				logging.warning(f"Mismatched lengths or missing data for parameter {var}. Skipping normalisation.")
-				normalised_vals[var] = y_values
+				normalised_vals[var] = list(y_values) if y_values else []
 				
 	elif isinstance(weight_params, (list, tuple)) and len(weight_params) > 0:
-		# Single parameter case: weight_params is like [{param_name: value, ...}, ...]
-		# Extract the weighting parameter value
 		if isinstance(weight_params[0], dict) and (weight_by in weight_params[0]):
 			weight_value = weight_params[0][weight_by]
 			if isinstance(weight_value, (list, np.ndarray)) and len(weight_value) > 0:
-				weight_value = weight_value[0]  # Take first value if it's an array
+				weight_value = weight_value[0]
 			
 			for var in xvals:
 				y_values = yvals.get(var, [])
 				if y_values and weight_value is not None and weight_value != 0 and np.isfinite(weight_value):
-					normalised_vals[var] = [val / weight_value for val in y_values]
-					applied = True
+					out = [val / weight_value for val in y_values if np.isfinite(val)]
+					applied = applied or bool(out)
+					normalised_vals[var] = out if out else list(y_values)
 				else:
 					normalised_vals[var] = list(y_values) if y_values else []
 		else:
@@ -804,7 +794,7 @@ def _get_weighted_y_name(yname, weight_y_by):
 	w_sym, w_unit = _param_info_or_dynamic(weight_y_by)
 
 	# Special case: PA variance ratio
-	if yname == r"\mathbb{V}(\psi)" and _base_of(weight_y_by) == "PA":
+	if yname == r"\mathbb{V}(\psi)" and _base_of(weight_y_by) == "PA_i":
 		return r"\mathcal{R}_{\mathrm{\psi}}", ""
 
 	# Build name and units
@@ -1580,23 +1570,6 @@ def _plot_single_run_multi_window(
 			fit_type, fit_degree = _parse_fit_arg(fit)
 			_fit_and_plot(ax, plot_x, plot_med, fit_type, fit_degree, label=None, colour=colour)
 
-		
-		freq_label = normalise_freq_window(freq_win, target='dspec')
-		phase_label = normalise_phase_window(phase_win, target='dspec')
-		
-		# Build series label based on what's varying
-		if varying_freq and varying_phase:
-			series_label = f"{freq_label}, {phase_label}"
-		elif varying_freq:
-			series_label = freq_label
-		elif varying_phase:
-			series_label = phase_label
-		else:
-			series_label = f"{freq_label}, {phase_label}"
-		
-		colour = get_colour(freq_win, phase_win)
-		ax.plot(x, med_vals, color=colour, label=series_label, linewidth=2)
-		ax.fill_between(x, lower, upper, color=colour, alpha=0.2)
 		
 		if fit is not None:
 			fit_type, fit_degree = _parse_fit_arg(fit)
