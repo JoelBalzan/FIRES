@@ -84,7 +84,7 @@ def main():
 	parser.add_argument(
 		"--write",
 		action="store_true",
-		help="If set, the simulation will be saved to disk. Default is False."
+		help="If set, the simulation data will be pickled."
 	)
 	parser.add_argument(
 		"-v", "--verbose",

@@ -515,6 +515,35 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 	return (normalised_vals, applied) if return_status else normalised_vals
 
 
+def _apply_axis_limits(ax, xlim=None, ylim=None):
+	"""Safely apply axis limits; respects log scales and ignores invalid bounds."""
+	def _clean(lim, scale):
+		if lim is None:
+			return None
+		if not (isinstance(lim, (list, tuple)) and len(lim) == 2):
+			return None
+		try:
+			lo = float(lim[0]); hi = float(lim[1])
+		except Exception:
+			return None
+		if not (np.isfinite(lo) and np.isfinite(hi)):
+			return None
+		if lo == hi:
+			return None
+		if scale == 'log' and (lo <= 0 or hi <= 0):
+			return None
+		return (lo, hi)
+
+	xs = 'log' if ax.get_xscale() == 'log' else 'linear'
+	ys = 'log' if ax.get_yscale() == 'log' else 'linear'
+	xok = _clean(xlim, xs)
+	yok = _clean(ylim, ys)
+	if xok:
+		ax.set_xlim(*xok)
+	if yok:
+		ax.set_ylim(*yok)
+
+
 def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
 	"""
 	Show only decade ticks (10^k) as labels on a log axis and keep unlabeled minor ticks.
@@ -2230,7 +2259,9 @@ def plot_pa_var(
 	plot_text = get_plot_param(plot_config, 'analytical', 'plot_text', [])
 	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
-	
+	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
+	ylim_cfg = get_plot_param(plot_config, 'analytical', 'ylim', None)
+
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
 	show = get_plot_param(plot_config, 'general', 'show_plots', True)
@@ -2267,6 +2298,7 @@ def plot_pa_var(
 				colour_by_sweep=colour_by_sweep
 			)
 			# Save/show
+			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 			if show:
 				plt.show()
 			if save:
@@ -2288,6 +2320,7 @@ def plot_pa_var(
 			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
 			legend_params=legend_params, plot_text=plot_text
 		)
+		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'pa_var', phase_window, freq_window)
 
@@ -2313,6 +2346,7 @@ def plot_pa_var(
 			nbins=nbins,
 			colour_by_sweep=colour_by_sweep
 		)
+		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 		
 	# Overlay observational data if provided
 	if obs_data is not None:
@@ -2428,6 +2462,8 @@ def plot_lfrac(
 	plot_text = get_plot_param(plot_config, 'analytical', 'plot_text', [])
 	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
+	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
+	ylim_cfg = get_plot_param(plot_config, 'analytical', 'ylim', None)
 	
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
@@ -2464,6 +2500,7 @@ def plot_lfrac(
 				nbins=nbins,
 				colour_by_sweep=colour_by_sweep
 			)
+			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 			if show:
 				plt.show()
 			if save:
@@ -2484,6 +2521,7 @@ def plot_lfrac(
 			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
 			legend_params=legend_params, plot_text=plot_text
 		)
+		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
 
@@ -2510,6 +2548,7 @@ def plot_lfrac(
 			nbins=nbins,
 			colour_by_sweep=colour_by_sweep
 		)
+		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 
 	# Overlay observational data if provided
 	if obs_data is not None:
