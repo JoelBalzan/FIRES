@@ -10,11 +10,11 @@
 [general]
 # General plotting options
 figsize = [7,9]                # Default figure size [width, height] in inches, null for default
-extension = "pdf"             # File extension for saved plots
-use_latex = true             # Use LaTeX for plot text rendering
-show_plots = true             # Display plots on screen
-save_plots = false            # Save plots to disk
-legend = true                 # Show legends in plots
+extension = "pdf"              # File extension for saved plots
+use_latex = true               # Use LaTeX for plot text rendering
+show_plots = true              # Display plots on screen
+save_plots = false             # Save plots to disk
+legend = true                  # Show legends in plots
 
 [windows]
 # Window visualization options
@@ -25,13 +25,13 @@ show_offpulse = false         # Highlight off-pulse region
 # Options specific to analytical plots (pa_var, l_frac)
 plot_scale = "linear"         # Scale: "linear", "logx", "logy", "log"
 draw_style = "line-param"     # Style: "line-param", "line-x", "scatter", "binned"
-fit_functions = []            # Fit functions to apply: ['exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N]
-#weight_x_by = meas_var_PA_i  # Parameter to normalize x-axis by
-#weight_y_by = width_ms       # Parameter to normalize y-axis by
-#x_measured =  Vpsi           # Use measured quantity on x-axis
-#equal_value_lines = 3        # Show constant parameter lines
-legend_params = []            # Parameters to show in legend
-plot_text = []                # Additional text to display
+fit_functions = None          # Fit functions to apply: ['exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N]
+weight_x_by = meas_var_PA_i   # Parameter to normalize x-axis by
+weight_y_by = width_ms        # Parameter to normalize y-axis by
+x_measured =  Vpsi            # Use measured quantity on x-axis
+equal_value_lines = 3         # Show constant parameter lines
+legend_params = None          # Parameters to show in legend
+plot_text = None              # Additional text to display
 nbins = 15                    # Number of bins for binned plots
 colour_by_sweep = false       # Color points by sweep order
 
