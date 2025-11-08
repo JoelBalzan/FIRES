@@ -23,7 +23,7 @@ from inspect import signature
 import numpy as np
 
 from fires.core.genfrb import generate_frb
-from fires.plotting.plotmodes import configure_matplotlib, plot_modes
+from fires.plotting.plotmodes import plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
 							   normalise_freq_window, normalise_phase_window)
@@ -53,7 +53,7 @@ def main():
 	)
 	parser.add_argument(
 		"--edit-config", 
-		choices=["gparams", "simparams", "scparams"], 
+		choices=["gparams", "simparams", "scparams", "plotparams"], 
 		help="Open config in $EDITOR"
 	)
 
@@ -203,7 +203,6 @@ def main():
 		metavar="",
 		help="Buffer time in between on- and off-pulse regions as a fraction of the intrinsic pulse width for noise estimation. Default is 1."
 	)
-
 	# =====================================================================
 	# Plotting Options - General
 	# =====================================================================
@@ -227,82 +226,35 @@ def main():
 		)
 	)
 	parser.add_argument(
-		"-s", "--save-plots",
-		action="store_true",
-		help="Save plots to disk."
-	)
-	parser.add_argument(
-		"--disable-plots",
-		action="store_false",
-		dest="show_plots",
-		help="Disable plot display. "
-	)
-	parser.add_argument(
-		"--use-latex",
-		action="store_true",
-		help="Use LaTeX for plot text."
-	)
-	parser.add_argument(
-		"--figsize",
-		type=float,
-		nargs=2,
-		default=None,
-		metavar=("WIDTH", "HEIGHT"),
-		help="Figure size for plots. Provide two values: width and height (in inches)."
-	)
-	parser.add_argument(
-		"-e", "--extension",
+		"--plot-config",
 		type=str,
-		default="pdf",
+		default=None,
 		metavar="",
-		help="File extension for saved plots. Default is 'pdf'."
+		help="Path to custom plotting configuration file (overrides default plotparams.toml)"
 	)
 	parser.add_argument(
-		"--no-legend",
-		action="store_false",
-		help="Disable legends in plots."
+		"--override-plot",
+		type=str,
+		nargs="+",
+		action="extend",
+		default=None,
+		metavar="PARAM=VALUE",
+		help=(
+			"Override plotting parameters. Provide space-separated key=value pairs.\n"
+			"Examples:\n"
+			"  --override-plot figsize=[10,8] use_latex=true\n"
+			"  --override-plot save_plots=true extension=png\n"
+			"  --override-plot styling.font_size=20 general.show_plots=false\n"
+		)
 	)
-	parser.add_argument(
-		"--no-info",
-		action="store_false",
-		help="Disable info text in plots."
-	)
-	parser.add_argument(
-		"--show-onpulse",
-		action="store_true",
-		help="Show on-pulse region in plots."
-	)
-	parser.add_argument(
-		"--show-offpulse",
-		action="store_true",
-		help="Show off-pulse region in plots."
-	)
-
 	# =====================================================================
 	# Plotting Options - Analytic Plots (pa_var, l_frac)
 	# =====================================================================
-	parser.add_argument(
-		"--plot-scale",
-		type=str,
-		default="linear",
-		choices=['linear', 'logx', 'logy', 'log'],
-		metavar="",
-		help="Scale for analytical plots. Choose 'linear', 'logx', 'logy' or 'log'. Default is 'linear'."
-	)
 	parser.add_argument(
 		"--logstep",
 		type=int,
 		default=None,
 		help="Number of steps for logarithmic parameter sweeps --- overrides default linear step in gparams (default: None --- will use default linear step)."
-	)
-	parser.add_argument(
-		"--fit",
-		nargs="+",
-		default=None,
-		metavar="",
-		help=("Fit function for analytical plots.\n"
-			   "Options: 'exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N."
-	  		)
 	)
 	parser.add_argument(
 		"--sweep-mode",
@@ -314,61 +266,6 @@ def main():
 			  "  none      : disable sweeping (use means + micro std dev only)\n"
 			  "  mean      : sweep the mean value (std dev forced to 0 for that param)\n"
 			  "  sd		   : keep mean fixed, sweep the micro std dev\n")
-	)
-	parser.add_argument(
-		"--weight-x-by",
-		type=str,
-		metavar="",
-		help=("Parameter to normalise x-axis values by (e.g., 'width' for τ/W).\n"
-			  "Can be any intrinsic parameter from gparams.\n"
-			  "Default is mode-specific: 'width' for pa_var, None for l_frac.")
-	)
-	parser.add_argument(
-		"--x-measured",
-		type=str,
-		metavar="",
-		choices=['Vpsi', 'Lfrac', 'Vfrac'],
-		help=("Use a measured quantity on the x-axis instead of input parameters.\n"
-			  "Options:\n"
-			  "  Vpsi  : Measured PA variance (deg²)\n"
-			  "  Lfrac : Measured integrated L/I\n"
-			  "  Vfrac : Measured integrated V/I\n"
-			  "Example: --x-measured Vpsi for PA variance on x-axis\n"
-			  "Cannot be used with --weight-x-by.")
-	)
-	parser.add_argument(
-		"--weight-y-by",
-		type=str,
-		metavar="",
-		help=("Parameter to normalise y-axis values by (e.g., 'meas_var_PA' for PA variance ratio, 'lfrac' for L/I ratio).\n"
-			  "Can be any intrinsic parameter or variation parameter from gparams.\n"
-			  "Default is mode-specific: 'meas_var_PA' for pa_var, 'lfrac' for l_frac.")
-	)
-	parser.add_argument(
-		"--equal-value-lines",
-		type=str,
-		default=None,
-		metavar="",
-		help=(
-			"Plot background lines showing constant swept parameter values.\n"
-			"Can be an integer (number of lines) or a directory path containing sweep results.\n"
-			"Only works when --x-measured is specified.\n"
-			"Example: --x-measured Vpsi --equal-value-lines 4\n"
-			"         --x-measured Vpsi --equal-value-lines /path/to/sweep_dir"
-		)
-	)
-	parser.add_argument(
-		"--draw-style",
-		type=str,
-		default="line-param",
-		choices=["line-param", "line-x", "scatter", "binned"],
-		help=("Drawing style for analytical plots.\n"
-				"Options:\n"
-				"  line-param : Line connecting points in order of swept parameter (default).\n"
-				"  line-x     : Line connecting points in order of x-axis value.\n"
-				"  scatter    : Scatter plot of points.\n"
-				"  binned     : Binned plot of points (15 bins).\n"
-		)
 	)
 	parser.add_argument(
 		"--compare-windows",
@@ -385,26 +282,6 @@ def main():
 			  "Valid PHASE: leading, trailing, total, first, last, all\n"
 			  "Only works with single-run data (not multi-run sweeps).")
 	)
-	parser.add_argument(
-	    "--legend-params",
-	    nargs="+",
-	    default=None,
-	    metavar="PARAM",
-	    help="List of gparams to show in the legend for multi-run plots (e.g. --legend-params N mg_width_low)."
-	)
-	parser.add_argument(
-	    "--plot-text",
-	    type=str,
-	    nargs="+",
-	    default=None,
-	    help=(
-	        "Parameter names and/or text to display on the plot. "
-	        "If one or more parameter names are given (e.g. 'mg_width_low mg_width_high'), "
-	        "their values from the loaded gparams will be shown, formatted as symbols. "
-	        "If a string is given that is not a parameter name, it will be displayed as-is."
-	    )
-	)
-
 	# =====================================================================
 	# Observational Data Overlay
 	# =====================================================================
@@ -449,6 +326,18 @@ def main():
 	else:
 		resolved_scint = None
 
+	plot_config = {}
+	try:
+		if args.plot_config:
+			resolved_plot = cfg.find_config_file("plotparams", config_file=args.plot_config)
+			plot_config = cfg.load_params("plotparams",str(resolved_plot))
+		else:
+			resolved_plot = cfg.find_config_file("plotparams", config_dir=args.config_dir)
+			plot_config = cfg.load_params("plotparams",str(resolved_plot))
+	except Exception as e:
+		logging.warning(f"Could not load plot config: {e}. Using defaults.")
+		plot_config = {}
+
 
 	args.freq_window = normalise_freq_window(args.freq_window, target='dspec')
 	args.phase_window = normalise_phase_window(args.phase_window, target='dspec')
@@ -472,13 +361,12 @@ def main():
 	global data_directory
 	data_directory = args.output_dir
 
-	if args.write or args.save_plots:
+	save_plots = plot_config.get('general', {}).get('save_plots', False)
+
+	if args.write or save_plots:
 		os.makedirs(args.output_dir, exist_ok=True)
-		print(f"Output directory: '{data_directory}' \n")
+		logging.info(f"Output directory: '{data_directory}' \n")
   
-
-	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
-
 
 	param_overrides = {}
 	param_std_overrides = {}
@@ -503,19 +391,57 @@ def main():
 		logging.info(f"Parameter mean overrides: {param_overrides}")
 		if param_std_overrides:
 			logging.info(f"Parameter std dev overrides: {param_std_overrides}")
-
 	all_param_overrides = {**param_overrides, **param_std_overrides}
 
-	equal_value_lines = args.equal_value_lines
-	if equal_value_lines is not None:
-		try:
-			# Try to interpret as int
-			equal_value_lines = int(equal_value_lines)
-		except (ValueError, TypeError):
-			# Leave as string (likely a directory path)
-			pass
+
+	if args.override_plot:
+		for override in args.override_plot:
+			if "=" not in override:
+				parser.error(f"Invalid plot override format: '{override}'. Expected 'param=value'.")
+			key, value = override.split("=", 1)
+			key = key.strip()
+			
+			try:
+				# Handle lists like [10,8]
+				if value.startswith('[') and value.endswith(']'):
+					import ast
+					val = ast.literal_eval(value)  # Safer than eval
+				elif value.lower() in ('true', 'false'):
+					val = value.lower() == 'true'
+				elif value.lower() in ('null', 'none'):
+					val = None
+				else:
+					try:
+						val = float(value)
+						# Convert to int if it's a whole number
+						if val.is_integer():
+							val = int(val)
+					except ValueError:
+						val = value  # Keep as string
+			except Exception:
+				parser.error(f"Invalid value for plot override '{key}': '{value}'")
+			
+			# Set the override in the config
+			if '.' in key:
+				# Handle nested keys like "styling.font_size"
+				sections = key.split('.')
+				current = plot_config
+				for section in sections[:-1]:
+					if section not in current:
+						current[section] = {}
+					current = current[section]
+				current[sections[-1]] = val
+			else:
+				# Handle top-level or assume 'general' section
+				if 'general' not in plot_config:
+					plot_config['general'] = {}
+				plot_config['general'][key] = val
+
+	from fires.plotting.plotmodes import configure_matplotlib_from_config
+	configure_matplotlib_from_config(plot_config)
 
 
+	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
 	try:
 		if selected_plot_mode.requires_multiple_frb:
 			if args.sim_data is None:
@@ -588,10 +514,9 @@ def main():
 		if args.sim_data is None:
 			print(f"Simulation completed. \n")
 
-		# Call the plotting function if required
-		if args.plot != 'None' and (args.save_plots == True or args.show_plots == True):
+		show_plots = plot_config.get('general', {}).get('show_plots', True)
+		if args.plot != 'None' and (save_plots or show_plots):
 			for plot_mode in args.plot:
-				configure_matplotlib(use_latex=args.use_latex)
 				try:
 					plot_mode_obj = plot_modes.get(plot_mode)
 					if plot_mode_obj is None:
@@ -604,39 +529,20 @@ def main():
 						"gdict"            : gdict if 'gdict' in locals() else None,
 						"frb_dict"         : frb_dict if 'frb_dict' in locals() else None,
 						"out_dir"          : data_directory,
-						"save"             : args.save_plots,
-						"figsize"          : args.figsize,
-						"show_plots"       : args.show_plots,
-						"scale"            : args.plot_scale,
 						"phase_window"     : args.phase_window,
 						"freq_window"      : args.freq_window,
-						"fit"              : args.fit,
-						"extension"        : args.extension,
-						"legend"           : args.no_legend,
-						"info"             : args.no_info,
-						"buffer_frac"      : args.buffer,
-						"show_onpulse"     : args.show_onpulse,
-						"show_offpulse"    : args.show_offpulse,
-						"use_latex"        : args.use_latex,
-						"weight_x_by"      : args.weight_x_by,
-						"weight_y_by"      : args.weight_y_by,
+						"compare_windows"  : window_pairs,
 						"obs_data"         : args.obs_data,
 						"obs_params"       : args.obs_params,
-						"compare_windows"  : window_pairs,
-						"x_measured"       : args.x_measured,
-						"equal_value_lines": equal_value_lines,
 						"gauss_file"       : resolved_gauss,
 						"sim_file"         : resolved_sim,
-						"draw_style"       : args.draw_style,
-						"legend_params"    : args.legend_params,
-						"plot_text"        : args.plot_text
+						"plot_config"      : plot_config,
 					}
 		
 					plot_function = plot_mode_obj.plot_func
 					plot_func_params = signature(plot_function).parameters
 					filtered_args = {key: value for key, value in plotting_args.items() if key in plot_func_params}
 		
-					# Call the plotting function with the filtered arguments
 					plot_function(**filtered_args)
 						
 				except Exception as e:

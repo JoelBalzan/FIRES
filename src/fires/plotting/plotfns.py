@@ -189,8 +189,8 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, snr, extension, 
-					legend, info, buffer_frac, show_onpulse, show_offpulse):
+def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, extension, 
+					legend, buffer_frac, show_onpulse, show_offpulse):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
 		Inputs:
@@ -287,11 +287,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	
 	axs[1].tick_params(axis='x', direction='in', length=3)  
 	axs[1].set_xticklabels([])  
-	if snr is not None:
-		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}\\\mathrm{S/N} = %.2f$" % (tau_ms[0], snr)
-	else:
-		axs_1_text = r"$\,\tau_0 = %.2f\,\mathrm{ms}$" % (tau_ms[0])
-
 
 	#mn = np.mean(dspec[0])
 	#std = np.std(dspec[0])
@@ -309,16 +304,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 
 	if legend:
 		axs[1].legend(loc='upper right')
-
-	if info:
-		axs[1].text(
-		0.82, 0.90,  # x, y in axes fraction coordinates 
-		axs_1_text,
-		ha='right', va='top',
-		transform=axs[1].transAxes,
-		color='black',
-		bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.2')
-		)
 
 	if show_plots:
 		plt.show()

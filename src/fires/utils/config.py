@@ -25,7 +25,8 @@ DIRS = AppDirs(APP_NAME, APP_NAME)
 DEFAULT_FILES = {
     "gparams"  : ("gparams.toml", "gparams.txt"),
     "simparams": ("simparams.toml", "simparams.txt"),
-    "scparams" : ("scparams.toml", "scparams.txt"),  # scintillation params
+    "scparams" : ("scparams.toml", "scparams.txt"),  
+    "plotparams": ("plotparams.toml", "plotparams.txt"),
 }
 
 # ---------------- Core helpers ----------------
