@@ -9,7 +9,7 @@
 
 [general]
 # General plotting options
-figsize = [7,9]                # Default figure size [width, height] in inches, null for default
+figsize = [7,9]                # Default figure size [width, height] in inches, None for default
 extension = "pdf"              # File extension for saved plots
 use_latex = true               # Use LaTeX for plot text rendering
 show_plots = true              # Display plots on screen
