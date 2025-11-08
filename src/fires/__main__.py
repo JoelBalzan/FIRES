@@ -338,18 +338,6 @@ def main():
 		logging.warning(f"Could not load plot config: {e}. Using defaults.")
 		plot_config = {}
 
-	def _normalize_none_to_list(d):
-		"""Recursively replace None values with empty lists in a dict."""
-		if not isinstance(d, dict):
-			return
-		for k, v in list(d.items()):
-			if isinstance(v, dict):
-				_normalize_none_to_list(v)
-			elif v is None:
-				# treat explicit None in config as empty list
-				d[k] = []
-	_normalize_none_to_list(plot_config)
-
 	args.freq_window = normalise_freq_window(args.freq_window, target='dspec')
 	args.phase_window = normalise_phase_window(args.phase_window, target='dspec')
 
