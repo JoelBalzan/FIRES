@@ -2138,7 +2138,6 @@ def plot_pa_var(
 	frb_dict, 
 	fname, 
 	out_dir, 
-	show_plots, 
 	phase_window, 
 	freq_window, 
 	gauss_file=None,
@@ -2234,6 +2233,7 @@ def plot_pa_var(
 	
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	show = get_plot_param(plot_config, 'general', 'show_plots', True)
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
@@ -2267,7 +2267,7 @@ def plot_pa_var(
 				colour_by_sweep=colour_by_sweep
 			)
 			# Save/show
-			if show_plots:
+			if show:
 				plt.show()
 			if save:
 				name = f"{fname}_{scale}_pa_var_window_comparison.{extension}"
@@ -2330,7 +2330,7 @@ def plot_pa_var(
 		except Exception as e:
 			logging.error(f"Failed to overlay observational data: {e}")
 	
-	if show_plots:
+	if show:
 		plt.show()
 	if save:
 		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
@@ -2343,7 +2343,6 @@ def plot_lfrac(
 	frb_dict, 
 	fname, 
 	out_dir, 
-	show_plots, 
 	phase_window, 
 	freq_window, 
 	gauss_file=None,
@@ -2432,6 +2431,7 @@ def plot_lfrac(
 	
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	show = get_plot_param(plot_config, 'general', 'show_plots', True)
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
@@ -2464,7 +2464,7 @@ def plot_lfrac(
 				nbins=nbins,
 				colour_by_sweep=colour_by_sweep
 			)
-			if show_plots:
+			if show:
 				plt.show()
 			if save:
 				name = f"{fname}_{scale}_l_frac_window_comparison.{extension}"
@@ -2527,7 +2527,7 @@ def plot_lfrac(
 		except Exception as e:
 			logging.error(f"Failed to overlay observational data: {e}")
 	
-	if show_plots:
+	if show:
 		plt.show()
 	if save:
 		name = _make_plot_fname("l_frac", scale, fname, freq_window, phase_window)
