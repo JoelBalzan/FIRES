@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 import os
+import re
 import shutil
 from datetime import datetime
 from importlib import resources
@@ -100,6 +101,32 @@ def _read_toml(p: Path) -> Dict[str, Any]:
     with p.open("rb") as f:
         return tomllib.load(f)
 
+def _read_toml_lenient_none(p: Path) -> Dict[str, Any]:
+    """
+    Allow unquoted None (case-insensitive) as a Python None.
+    Converts lines like:
+      key = None
+    into a sentinel then back to None after parsing.
+    """
+    txt = p.read_text(encoding="utf-8")
+    pat = re.compile(r'^(\s*[\w.\-]+\s*=\s*)(None)(\s*(#.*)?)$', re.IGNORECASE | re.MULTILINE)
+
+    def _repl(m):
+        prefix, comment = m.group(1), m.group(3) or ""
+        return f'{prefix}"__FIRES_SENTINEL_NONE__"{comment}'
+
+    txt = pat.sub(_repl, txt)
+    data = tomllib.loads(txt)
+
+    def _restore(d):
+        for k, v in d.items():
+            if isinstance(v, dict):
+                _restore(v)
+            elif v == "__FIRES_SENTINEL_NONE__":
+                d[k] = None
+    _restore(data)
+    return data
+
 # --------------- File resolution ---------------
 def find_config_file(kind: str,
                      config_dir: Optional[Path] = None,
@@ -163,8 +190,10 @@ def load_params(kind: str,
     if not p.exists():
         raise FileNotFoundError(f"No config file found for kind '{kind}' at {p}")
     if p.suffix.lower() == ".toml":
-        data = _read_toml(p)
-        # If a table name is requested, return that sub-table when present
+        if kind == "plotparams":
+            data = _read_toml_lenient_none(p)
+        else:
+            data = _read_toml(p)
         if name and isinstance(data, dict) and name in data and isinstance(data[name], dict):
             out = data[name].copy()
             out["_table"] = name
