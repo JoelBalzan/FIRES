@@ -38,34 +38,92 @@ for _name in ("fontTools", "fontTools.subset"):
 	_lg.propagate = False
 
 #	--------------------------	Set plot parameters	---------------------------
-def configure_matplotlib(use_latex=False):
+def configure_matplotlib_from_config(plot_config=None, use_latex=None):
 	"""
-	Configure global Matplotlib style once (call after parsing CLI flags).
+	Configure global Matplotlib style from plot configuration.
+	
+	Parameters:
+	-----------
+	plot_config : dict or None
+		Plot configuration dictionary loaded from plotparams.toml
+	use_latex : bool or None
+		Override for LaTeX usage. If None, uses config value.
 	"""
-	rc = {
-		'pdf.fonttype'    : 42,
-		'ps.fonttype'     : 42,
-		'savefig.dpi'     : 600,
-		'font.size'       : 16,
-		'axes.labelsize'  : 22,
-		'axes.titlesize'  : 22,
-		'legend.fontsize' : 20,
-		'xtick.labelsize' : 22,
-		'ytick.labelsize' : 22,
-		'text.usetex'     : bool(use_latex),
-		'font.family'     : 'sans-serif'
-	}
+	if plot_config is None:
+		plot_config = {}
+	
+	styling = plot_config.get('styling', {})
+	general = plot_config.get('general', {})
+	latex_config = plot_config.get('latex', {})
+	
+	# Build rcParams dict from config
+	rc = {}
+	
+	# Map config keys to matplotlib rcParams
+	if 'pdf_fonttype' in styling:
+		rc['pdf.fonttype'] = styling['pdf_fonttype']
+	if 'ps_fonttype' in styling:
+		rc['ps.fonttype'] = styling['ps_fonttype']
+	if 'savefig_dpi' in styling:
+		rc['savefig.dpi'] = styling['savefig_dpi']
+	if 'font_size' in styling:
+		rc['font.size'] = styling['font_size']
+	if 'axes_labelsize' in styling:
+		rc['axes.labelsize'] = styling['axes_labelsize']
+	if 'axes_titlesize' in styling:
+		rc['axes.titlesize'] = styling['axes_titlesize']
+	if 'legend_fontsize' in styling:
+		rc['legend.fontsize'] = styling['legend_fontsize']
+	if 'xtick_labelsize' in styling:
+		rc['xtick.labelsize'] = styling['xtick_labelsize']
+	if 'ytick_labelsize' in styling:
+		rc['ytick.labelsize'] = styling['ytick_labelsize']
+	if 'font_family' in styling:
+		rc['font.family'] = styling['font_family']
+	if 'color_cycle' in styling:
+		rc['axes.prop_cycle'] = plt.cycler(color=styling['color_cycle'])
+	if 'line_width' in styling:
+		rc['lines.linewidth'] = styling['line_width']
+	if 'marker_size' in styling:
+		rc['lines.markersize'] = styling['marker_size']
+	
+	# Determine LaTeX usage
+	latex_enabled = False
+	if use_latex is not None:
+		latex_enabled = bool(use_latex)
+	elif 'use_latex' in general:
+		latex_enabled = bool(general['use_latex'])
+	else:
+		# Fallback to environment variable
+		latex_enabled = bool(int(os.environ.get("FIRES_USE_LATEX", "0")))
+	
+	rc['text.usetex'] = latex_enabled
+	
+	# Apply all rcParams
 	for k, v in rc.items():
 		plt.rcParams[k] = v
-
-	if use_latex:
+	
+	# Handle LaTeX preamble
+	if latex_enabled:
 		try:
-			plt.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}\usepackage{amssymb}\usepackage{siunitx}'
+			preamble = latex_config.get('preamble', 
+				r'\usepackage{amsmath}\usepackage{amssymb}\usepackage{siunitx}')
+			plt.rcParams['text.latex.preamble'] = preamble
 		except Exception as e:
-			warnings.warn(f"LaTeX setup failed ({e}); falling back to non-LaTeX text rendering.")
-			plt.rcParams['text.usetex'] = False
+			fallback = latex_config.get('fallback_on_error', True)
+			if fallback:
+				warnings.warn(f"LaTeX setup failed ({e}); falling back to non-LaTeX text rendering.")
+				plt.rcParams['text.usetex'] = False
+			else:
+				raise
 
-configure_matplotlib(use_latex=bool(int(os.environ.get("FIRES_USE_LATEX", "0"))))
+
+def get_plot_param(plot_config, section, key, default=None):
+	"""Helper to safely get plotting parameters"""
+	if plot_config is None:
+		return default
+	return plot_config.get(section, {}).get(key, default)
+
 
 #	--------------------------	Colour maps	---------------------------
 #colour blind friendly: https://gist.github.com/thriveth/8560036
@@ -156,11 +214,19 @@ Z			plot_func (callable): Function to generate the plot.
 		
 
 # --------------------------	Plot modes definitions	---------------------------
-def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots, extension, 
-				legend, info, buffer_frac, show_onpulse, show_offpulse):
+def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, **kwargs):
 	"""
-	Call basic plot functions
+	Generate basic plots using configuration from plot_config.
 	"""
+	# Extract what we need from plot_config
+	save = get_plot_param(plot_config, 'general', 'save_plots', False)
+	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	show_plots = get_plot_param(plot_config, 'general', 'show_plots', True)
+	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
+	legend = get_plot_param(plot_config, 'general', 'legend', True)
+	buffer_frac = get_plot_param(plot_config, 'windows', 'buffer_frac', 1.0)
+	show_onpulse = get_plot_param(plot_config, 'windows', 'show_onpulse', False)
+	show_offpulse = get_plot_param(plot_config, 'windows', 'show_offpulse', False)
 	dspec_params = frb_data.dspec_params
 	freq_mhz = dspec_params.freq_mhz
 	time_ms = dspec_params.time_ms
@@ -172,19 +238,20 @@ def basic_plots(fname, frb_data, mode, gdict, out_dir, save, figsize, show_plots
 	)
 
 	iquvt = ts_data.iquvt
-	snr = frb_data.snr
 	
 	if mode == "all":
-		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, 
-		legend, info, buffer_frac, show_onpulse, show_offpulse)
+		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
+				ts_data, figsize, tau_ms, show_plots, extension, 
+				legend, buffer_frac, show_onpulse, show_offpulse)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 	elif mode == "lvpa":
-		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, ts_data, figsize, tau_ms, show_plots, snr, extension, 
-		legend, info, buffer_frac, show_onpulse, show_offpulse)
+		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
+				ts_data, figsize, tau_ms, show_plots, extension, 
+				legend, buffer_frac, show_onpulse, show_offpulse)
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 	elif mode == "RM":
@@ -2069,32 +2136,19 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 
 def plot_pa_var(
 	frb_dict, 
-	save, 
 	fname, 
 	out_dir, 
-	figsize, 
 	show_plots, 
-	scale, 
 	phase_window, 
 	freq_window, 
-	fit, 
-	extension, 
-	legend,
 	gauss_file=None,
 	sim_file=None,
-	weight_x_by=None,
-	weight_y_by=None,
-	x_measured=None,
 	obs_data=None,
 	obs_params=None,
 	compare_windows=None,
-	equal_value_lines=False,
 	buffer_frac=1,
-	draw_style='line-param',
-	nbins=15,
-	colour_by_sweep=False,
-	legend_params=None,
-	plot_text=None
+	plot_config=None,
+	**kwargs
 	):
 	"""
 	Plot the variance of the polarisation angle (PA) as a function of scattering parameters.
@@ -2159,6 +2213,31 @@ def plot_pa_var(
 	- Y-axis shows R_ψ, the variance ratio of polarisation angles
 	- Automatic colour mapping is applied for predefined run types
 	"""
+
+	# Extract analytical config
+	scale = get_plot_param(plot_config, 'analytical', 'plot_scale', 'linear')
+	draw_style = get_plot_param(plot_config, 'analytical', 'draw_style', 'line-param')
+	fit = get_plot_param(plot_config, 'analytical', 'fit_functions', None)
+	weight_x_by = get_plot_param(plot_config, 'analytical', 'weight_x_by', None)
+	weight_y_by = get_plot_param(plot_config, 'analytical', 'weight_y_by', None)
+	x_measured = get_plot_param(plot_config, 'analytical', 'x_measured', None)
+	equal_value_lines = get_plot_param(plot_config, 'analytical', 'equal_value_lines', None)
+	if equal_value_lines is not None:
+		try:
+			equal_value_lines = int(equal_value_lines)
+		except (ValueError, TypeError):
+			pass
+	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
+	plot_text = get_plot_param(plot_config, 'analytical', 'plot_text', [])
+	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
+	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
+	
+	# Extract general config
+	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	save = get_plot_param(plot_config, 'general', 'save_plots', False)
+	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
+	legend = get_plot_param(plot_config, 'general', 'legend', True)
+	
 
 	yname = r"\mathbb{V}(\psi)"
 	if figsize is None:
@@ -2262,32 +2341,19 @@ def plot_pa_var(
 
 def plot_lfrac(
 	frb_dict, 
-	save, 
 	fname, 
 	out_dir, 
-	figsize, 
 	show_plots, 
-	scale, 
 	phase_window, 
 	freq_window, 
-	fit, 
-	extension, 
-	legend,
 	gauss_file=None,
 	sim_file=None,
-	weight_x_by=None,
-	weight_y_by=None,
-	x_measured=None,
 	obs_data=None,
 	obs_params=None,
 	compare_windows=None,
-	equal_value_lines=False,
 	buffer_frac=1,
-	draw_style='line-param',
-	nbins=15,
-	colour_by_sweep=False,
-	legend_params=None,
-	plot_text=None
+	plot_config=None,
+	**kwargs
 	):
 	"""
 	Plot the linear polarisation fraction (L/I) as a function of scattering parameters.
@@ -2345,6 +2411,30 @@ def plot_lfrac(
 	colour_by_sweep : bool
 		If True and draw_style is 'scatter', colours points by sweep order.
 	"""
+
+	# Extract analytical config
+	scale = get_plot_param(plot_config, 'analytical', 'plot_scale', 'linear')
+	draw_style = get_plot_param(plot_config, 'analytical', 'draw_style', 'line-param')
+	fit = get_plot_param(plot_config, 'analytical', 'fit_functions', None)
+	weight_x_by = get_plot_param(plot_config, 'analytical', 'weight_x_by', None)
+	weight_y_by = get_plot_param(plot_config, 'analytical', 'weight_y_by', None)
+	x_measured = get_plot_param(plot_config, 'analytical', 'x_measured', None)
+	equal_value_lines = get_plot_param(plot_config, 'analytical', 'equal_value_lines', None)
+	if equal_value_lines is not None:
+		try:
+			equal_value_lines = int(equal_value_lines)
+		except (ValueError, TypeError):
+			pass
+	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
+	plot_text = get_plot_param(plot_config, 'analytical', 'plot_text', [])
+	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
+	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
+	
+	# Extract general config
+	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	save = get_plot_param(plot_config, 'general', 'save_plots', False)
+	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
+	legend = get_plot_param(plot_config, 'general', 'legend', True)
 
 	yname = r"\Pi_L"
 
