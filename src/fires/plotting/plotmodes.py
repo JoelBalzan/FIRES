@@ -221,7 +221,6 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, **kwargs):
 	# Extract what we need from plot_config
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
-	figsize = _coerce_figsize(figsize, default=(10, 9))
 	show_plots = get_plot_param(plot_config, 'general', 'show_plots', True)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
@@ -543,27 +542,6 @@ def _apply_axis_limits(ax, xlim=None, ylim=None):
 		ax.set_xlim(*xok)
 	if yok:
 		ax.set_ylim(*yok)
-
-
-def _coerce_figsize(val, default=(10, 9)):
-    """
-    Return a (w,h) tuple of floats.
-    Accepts list/tuple of length 2, or a string "[w,h]".
-    Fallback to default if invalid.
-    """
-    if isinstance(val, (list, tuple)) and len(val) == 2:
-        try:
-            return (float(val[0]), float(val[1]))
-        except Exception:
-            return default
-    if isinstance(val, str):
-        import ast
-        try:
-            obj = ast.literal_eval(val)
-            return _coerce_figsize(obj, default)
-        except Exception:
-            return default
-    return default
 
 
 def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
@@ -2286,7 +2264,6 @@ def plot_pa_var(
 
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
-	figsize = _coerce_figsize(figsize, default=(10, 9))
 	show = get_plot_param(plot_config, 'general', 'show_plots', True)
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
@@ -2294,6 +2271,8 @@ def plot_pa_var(
 	
 
 	yname = r"\mathbb{V}(\psi)"
+	if figsize is None:
+		figsize = (10, 9)
 
 	if compare_windows is not None:
 		if _is_multi_run_dict(frb_dict):
@@ -2488,7 +2467,6 @@ def plot_lfrac(
 	
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
-	figsize = _coerce_figsize(figsize, default=(10, 9))
 	show = get_plot_param(plot_config, 'general', 'show_plots', True)
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
