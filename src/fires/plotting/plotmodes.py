@@ -2271,8 +2271,6 @@ def plot_pa_var(
 	
 
 	yname = r"\mathbb{V}(\psi)"
-	if figsize is None:
-		figsize = (10, 9)
 
 	if compare_windows is not None:
 		if _is_multi_run_dict(frb_dict):
@@ -2473,9 +2471,6 @@ def plot_lfrac(
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
 
 	yname = r"\Pi_L"
-
-	if figsize is None:
-		figsize = (10, 9)
 
 	if compare_windows is not None:
 		if _is_multi_run_dict(frb_dict):
