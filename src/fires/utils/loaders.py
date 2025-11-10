@@ -272,6 +272,25 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 		gdict = get_parameters(obs_params_path)
 	else:
 		logging.warning(f"Parameters file not found: {obs_params_path}")
+		gdict = {}
+	# Derive a better label if missing or default
+	try:
+		current_label = gdict.get('label', 'FRB')
+		if current_label == 'FRB' or not current_label.strip():
+			# Prefer base_pattern if it exists, else directory name
+			base_candidate = base_pattern if base_pattern else os.path.basename(os.path.normpath(data_dir))
+			# Strip common suffixes
+			base_candidate = re.sub(r'_htr.*$', '', base_candidate)
+			# If numeric ID present (>=5 digits), format as FRB <ID>
+			m = re.search(r'(\d{5,})', base_candidate)
+			if m:
+				new_label = f"FRB {m.group(1)}"
+			else:
+				new_label = base_candidate
+			gdict['label'] = new_label
+			logging.info(f"Derived observational label: {new_label}")
+	except Exception as e:
+		logging.debug(f"Failed to derive label automatically: {e}")
 
 	# Merge gauss_file only for truly missing keys (not for present zeros)
 	sd_dict = None
@@ -380,110 +399,101 @@ def load_multiple_data_grouped(data):
 	"""
 	Group simulation outputs by override parameters (e.g., N, tau, lfrac).
 	Loads ALL files per group and merges their xvals/measures together.
-	Returns unwrapped dict if single series, dict-of-dicts if multiple series.
+	Returns unwrapped dict if single series, OrderedDict (sorted) if multiple.
 	"""
-	from collections import defaultdict
+	from collections import defaultdict, OrderedDict
 	import os, re, numpy as np, pickle, logging
 	
 	logging.info(f"Loading grouped data from {data}")
   
 	def normalise_override_value(value_str):
-		"""Normalise numeric string for filenames/labels (keep ints as ints)."""
 		try:
 			val = float(value_str)
 			return str(int(val)) if float(val).is_integer() else f"{val:g}"
 		except Exception:
 			return value_str
 	
+	_param_token_re = re.compile(r'(sd_?)?([A-Za-z][A-Za-z0-9_]*?)(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)')
+	
 	def extract_override_key(fname):
 		"""
-		Extract override parameters from filename for grouping.
-
-		Outputs a label with no underscores:
-		  tokens "param=value" joined by '+', with '_' in param names replaced by '.'
-		Compatible with old compact suffixes like 'N100_sd_mg_width_low0.2'.
+		Return canonical override key "param=val+param=val" (sorted by param name).
+		Empty string for baseline (no overrides).
 		"""
 		m = re.search(r'_mode_psn_(.+?)\.pkl$', fname)
 		if not m:
 			return ""
-		override_str = m.group(1)
-
-		# Scan tokens: optional sd prefix + param + number (support scientific notation)
-		pattern = r'(sd_?)?([A-Za-z][A-Za-z0-9_]*?)(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)'
-		tokens = []
-		for mm in re.finditer(pattern, override_str):
-			sd_prefix, param, value = mm.groups()
-			val_norm = normalise_override_value(value)
-			prefix = "sd." if sd_prefix else ""
-			tokens.append(f"{prefix}{param}={val_norm}")
-
-		# If nothing matched, fall back to a safe echo of the suffix
-		if not tokens:
-			return override_str
-
-		return ", ".join(tokens)
-
-	def extract_override_params_for_sorting(override_key):
-		"""
-		Convert override_key to dict for sorting.
-		Supports both new 'p=v+p=v' and old 'paramvalue_paramvalue' formats.
-		"""
-		if not override_key:
-			return {}
-		override_dict = {}
-
-		# New safe format
-		if ('=' in override_key) or ('+' in override_key):
-			for tok in override_key.split('+'):
-				if not tok or '=' not in tok:
-					continue
-				k, v = tok.split('=', 1)
-				k = k.strip().replace('.', '_')
-				try:
-					override_dict[k] = float(v)
-				except Exception:
-					pass
-			return override_dict
-
-		# Fallback: compact tokens like 'N100_sd_mg_width_low0.2'
-		for param, value in re.findall(r'([A-Za-z_]+)(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)', override_key):
-			try:
-				override_dict[param] = float(value)
-			except Exception:
-				pass
-		return override_dict
+		suffix = m.group(1)
+		toks = []
+		for mm in _param_token_re.finditer(suffix):
+			sd_prefix, p, v = mm.groups()
+			val_norm = normalise_override_value(v)
+			p_out = f"sd.{p}" if sd_prefix else p
+			toks.append((p_out, val_norm))
+		if not toks:
+			return ""
+		# Sort params for deterministic label
+		toks.sort(key=lambda x: x[0])
+		return "+".join(f"{p}={v}" for p, v in toks)
 	
-	def sort_key_for_overrides(override_key):
+	def parse_override_key(override_key):
 		"""
-		Generate sort key for override parameters.
+		Parse canonical key back into dict {param: float(val)} ignoring non-numeric failures.
 		"""
-		override_params = extract_override_params_for_sorting(override_key)
-		# Normalise keys for sorting
-		override_params = {k.replace('.', '_'): v for k, v in override_params.items()}
-
-		param_order = ['N', 'tau', 'tau_ms', 'lfrac', 'vfrac', 'PA', 'DM', 'RM', 'width', 'width_ms']
-		sort_tuple = tuple(override_params.get(p, 0) for p in param_order)
-		return sort_tuple
+		out = {}
+		if not override_key:
+			return out
+		for tok in override_key.split('+'):
+			if '=' not in tok:
+				continue
+			k, v = tok.split('=', 1)
+			k = k.strip().replace('.', '_')
+			try:
+				out[k] = float(v)
+			except Exception:
+				continue
+		return out
+	
+	def sort_tuple_for_key(key_dict):
+		"""
+		Build tuple used for ordering multi-run series.
+		Priority: N -> tau/tau_ms -> width/width_ms -> remaining numeric params alphabetically.
+		Absent values get +inf to push to end.
+		"""
+		import math
+		inf = math.inf
+		N_val = key_dict.get('N', inf)
+		tau_val = key_dict.get('tau_ms', key_dict.get('tau', inf))
+		width_val = key_dict.get('width_ms', key_dict.get('width', inf))
+		# Remaining (exclude already used)
+		used = {'N','tau','tau_ms','width','width_ms'}
+		rest = [(k, v) for k, v in key_dict.items() if k not in used]
+		rest.sort(key=lambda x: x[0])
+		rest_vals = tuple(v for _, v in rest)
+		return (N_val, tau_val, width_val) + rest_vals
 	
 	file_names = [f for f in os.listdir(data) if f.endswith(".pkl")]
 	logging.info(f"Found {len(file_names)} .pkl files")
 	
 	groups = defaultdict(list)
-	
-	# Group files by override parameters
 	for fname in file_names:
-		override_key = extract_override_key(fname)
-		groups[override_key].append(fname)
+		okey = extract_override_key(fname)
+		groups[okey].append(fname)
 	
-	# Sort groups by override parameters
-	sorted_keys = sorted(groups.keys(), key=sort_key_for_overrides)
+	# Sort group labels with numeric logic
+	sort_meta = []
+	for k in groups.keys():
+		kdict = parse_override_key(k)
+		sort_meta.append((k, sort_tuple_for_key(kdict), kdict))
+	sort_meta.sort(key=lambda x: x[1])
+	sorted_keys = [k for k, _, _ in sort_meta]
 	
-	logging.info(f"Grouped files into {len(groups)} unique series (sorted by override params):")
-	for override_key in sorted_keys:
-		label = override_key if override_key else "baseline"
-		logging.info(f"  '{label}': {len(groups[override_key])} files")
-
-	all_results = {}
+	logging.info(f"Grouped into {len(sorted_keys)} series (loader-side sorted).")
+	for k in sorted_keys:
+		label = k if k else "baseline"
+		logging.info(f"  {label}: {len(groups[k])} files")
+	
+	all_results = OrderedDict()
 	
 	for override_key in sorted_keys:
 		file_list = groups[override_key]
@@ -496,41 +506,34 @@ def load_multiple_data_grouped(data):
 		all_V_params = {}
 		all_exp_vars = {}
 		all_snrs = {}
-
 		seen_xvals = set()
-		label = override_key if override_key else "baseline"
-		logging.info(f"Merging {len(file_list)} files for series '{label}'")
 		
 		for fname in file_list:
 			with open(os.path.join(data, fname), "rb") as f:
 				obj = pkl.load(f)
 			if not isinstance(obj, dict):
-				logging.warning(f"File {fname} does not contain expected dict structure")
+				logging.warning(f"Skipping {fname}: unexpected structure")
 				continue
-			
 			if xname is None:
 				xname = obj.get("xname")
 				plot_mode = obj.get("plot_mode")
 				dspec_params = obj.get("dspec_params")
-
+			
 			xvals = obj.get("xvals", [])
-			snrs = obj.get("snrs", {})
+			measures = obj.get("measures", {})
 			V_params = obj.get("V_params", {})
 			exp_vars = obj.get("exp_vars", {})
-			measures = obj.get("measures", {})
-
-			# Merge xvals and associated data
+			snrs = obj.get("snrs", {})
+			
 			for v in xvals:
 				if v not in seen_xvals:
 					seen_xvals.add(v)
 					all_xvals.append(v)
-				# init per-xval
 				if v not in all_measures:
 					all_measures[v] = []
 					all_snrs[v] = []
 					all_V_params[v] = {key: [] for key in V_params.get(v, {}).keys()}
 					all_exp_vars[v] = {key: [] for key in exp_vars.get(v, {}).keys()}
-				# extend
 				all_measures[v].extend(measures.get(v, []))
 				all_snrs[v].extend(snrs.get(v, []))
 				for key, arr in V_params.get(v, {}).items():
@@ -539,29 +542,20 @@ def load_multiple_data_grouped(data):
 					all_exp_vars[v][key].extend(arr)
 		
 		all_xvals = sorted(all_xvals)
-		series_key = label  # Use override params as key
-		all_results[series_key] = {
+		all_results[override_key if override_key else "baseline"] = {
 			'xname': xname,
 			'xvals': all_xvals,
-			'measures': all_measures,     
+			'measures': all_measures,
 			'V_params': all_V_params,
 			'exp_vars': all_exp_vars,
 			'dspec_params': dspec_params,
 			'plot_mode': plot_mode,
 			'snrs': all_snrs
 		}
-		
-		logging.info(
-			f"Merged '{label}': {len(all_xvals)} unique xvals, "
-			f"range {min(all_xvals):.1f}-{max(all_xvals):.1f}"
-		)
-
-	logging.info(f"Returning {len(all_results)} unique series (sorted)\n")
 	
-	# If only one series, return unwrapped dict instead of nested structure
 	if len(all_results) == 1:
-		single_key = list(all_results.keys())[0]
-		logging.info(f"Single series detected ('{single_key}'), returning unwrapped dict for window comparison")
-		return all_results[single_key]
+		k = next(iter(all_results))
+		logging.info(f"Single series '{k}' -> returning unwrapped dict.")
+		return all_results[k]
 	
 	return all_results

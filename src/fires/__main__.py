@@ -329,7 +329,7 @@ def main():
 	plot_config = {}
 	try:
 		if args.plot_config:
-			resolved_plot = cfg.find_config_file("plotparams", config_file=args.plot_config)
+			resolved_plot = cfg.find_config_file("plotparams", config_dir=args.plot_config)
 			plot_config = cfg.load_params("plotparams",str(resolved_plot))
 		else:
 			resolved_plot = cfg.find_config_file("plotparams", config_dir=args.config_dir)
