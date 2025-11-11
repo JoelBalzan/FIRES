@@ -20,12 +20,12 @@ import warnings
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
-from scipy.interpolate import interp1d
+import matplotlib.transforms as mtransforms
 from scipy.optimize import curve_fit
 
 from fires.core.basicfns import (compute_segments, estimate_rm,
-                                 on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, process_dspec)
+								 on_off_pulse_masks_from_profile,
+								 pa_variance_deg2, process_dspec)
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key, param_info
@@ -573,7 +573,21 @@ def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
 			ax.xaxis.set_minor_formatter(minor_fmt)
 		else:
 			ax.xaxis.set_minor_locator(mticker.NullLocator())
-	
+
+
+def _text_with_offset(ax, x, y, s, dx_pts=0, dy_pts=0, ha='left', va='bottom',
+					  transform='data', color=None, fontsize=None, alpha=None,
+					  bbox=None, zorder=None, rotation=None):
+	"""
+	Draw text at (x, y) with an offset in points (dx_pts, dy_pts).
+	- transform='data' or 'axes' selects the base transform.
+	"""
+	base = ax.transData if transform == 'data' else ax.transAxes
+	offset = mtransforms.ScaledTranslation(dx_pts/72.0, dy_pts/72.0, ax.figure.dpi_scale_trans)
+	tr = base + offset
+	return ax.text(x, y, s, transform=tr, ha=ha, va=va, color=color, fontsize=fontsize,
+				   alpha=alpha, bbox=bbox, zorder=zorder, rotation=rotation)
+
 
 def _set_scale_and_labels(ax, scale, xname, yname, x=None, x_unit="", y_unit=""):
 	# Format labels with units in square brackets if non-empty
@@ -1134,7 +1148,8 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 							freq_window='full-band', x_measured=None, y_measured=None, 
 							interpolate=False, interp_kind='quadratic', interp_points=100, fit=None, fit_points=200,
 							colour_mode='shades', base_colour='#005bff', cmap_name='viridis',
-							extend_outside=False, extend_mode='linear'):
+							extend_outside=False, extend_mode='linear',
+							label_position='start', label_offset_pts=(0, 0), label_ha='left', label_va='top'):
 	"""
 	Plot background lines showing constant values of a swept parameter.
 	Added dynamic colouring:
@@ -1144,6 +1159,8 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 		colour_mode : 'shades' | 'cmap'
 		base_colour : hex (used if colour_mode='shades')
 		cmap_name   : matplotlib colormap name (used if colour_mode='cmap')
+		label_position: 'start' | 'end' | 'max-y' | 'mid'
+		label_offset_pts: (dx, dy) points
 	"""
 	# Collect all xvals across runs
 	all_xvals = set()
@@ -1421,9 +1438,25 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 		if show_labels:
 			param_symbol, _ = _param_info_or_dynamic(target_param)
 			val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
-			ax.text(x_sorted[0], 0.95*y_sorted[0], rf"${param_symbol} = {val_str}$",
-					fontsize=18, alpha=min(alpha + 0.2, 1.0), color=line_colour,
-					zorder=10, va='top', ha='left')
+			# choose label anchor on the polyline
+			lbl_pos = (label_position or 'start').lower()
+			if lbl_pos == 'end':
+				ix = -1
+			elif lbl_pos == 'max-y':
+				ix = int(np.nanargmax(y_sorted))
+			elif lbl_pos == 'mid':
+				ix = int(len(x_sorted) // 2)
+			else:  # 'start'
+				ix = 0
+			_text_with_offset(
+				ax, float(x_sorted[ix]), float(y_sorted[ix]),
+				rf"${param_symbol} = {val_str}$",
+				dx_pts=float(label_offset_pts[0]) if label_offset_pts else 0.0,
+				dy_pts=float(label_offset_pts[1]) if label_offset_pts else 0.0,
+				ha=label_ha, va=label_va,
+				color=line_colour, fontsize=18, alpha=min(alpha + 0.2, 1.0),
+				zorder=10
+			)
 
 
 def plot_constant_param_lines(
@@ -1486,13 +1519,20 @@ def plot_constant_param_lines(
 
 def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=None,
 				  plot_type='pa_var', phase_window='total', freq_window='full-band',
-				  x_measured=None, position='max-y', fontsize=16, alpha=0.95):
+				  x_measured=None, position='max-y', fontsize=16, alpha=0.95,
+				  offset_pts=(0, 0), ha='left', va='bottom', collect_texts=None):
 	"""
 	Place labels for each run with the values of params_to_label.
 	Position options:
 	 - 'max-y': at point of maximum y in the series
 	 - 'end'  : at maximum x
 	 - 'start': at minimum x
+	 - 'max-x': at maximum x
+	 - 'min-x': at minimum x
+	 - 'min-y': at minimum y
+	 - 'mid'  : at the middle index of valid points
+	offset_pts: (dx, dy) in points to nudge label from anchor
+	ha/va: horizontal/vertical alignment
 	"""
 	if not params_to_label:
 		return
@@ -1529,11 +1569,16 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 			xf, yf = x_vals[m], y_med[m]
 
 			# choose anchor index
-			if position == 'start':
+			pos = (position or 'max-y').lower()
+			if pos == 'start' or pos == 'min-x':
 				idx = int(np.nanargmin(xf))
-			elif position == 'end':
+			elif pos == 'end' or pos == 'max-x':
 				idx = int(np.nanargmax(xf))
-			else:  # 'max-y'
+			elif pos == 'min-y':
+				idx = int(np.nanargmin(yf))
+			elif pos == 'mid':
+				idx = int(len(xf) // 2)
+			else:  # 'max-y' (default)
 				idx = int(np.nanargmax(yf))
 
 			x_anchor, y_anchor = float(xf[idx]), float(yf[idx])
@@ -1573,9 +1618,14 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 				continue
 
 			label_text = r"$" + ",\; ".join(label_parts) + r"$"
-			ax.text(x_anchor, y_anchor*1.1, label_text,
-					fontsize=fontsize, alpha=alpha, color='black',
-					zorder=15, va='bottom', ha='left')
+			txt = _text_with_offset(
+				ax, x_anchor, y_anchor, label_text,
+				dx_pts=float(offset_pts[0]) if offset_pts else 0.0,
+				dy_pts=float(offset_pts[1]) if offset_pts else 0.0,
+				ha=ha, va=va, color='black', fontsize=fontsize, alpha=alpha, zorder=15
+			)
+			if isinstance(collect_texts, list):
+				collect_texts.append(txt)
 		except Exception as e:
 			logging.debug(f"Series labeling failed for run '{run_key}': {e}")
 
@@ -2215,9 +2265,14 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			show_labels  = bool(equal_lines_cfg.get('show_labels', True))
 			extend_out   = bool(equal_lines_cfg.get('extend_outside', False))
 			extend_mode  = equal_lines_cfg.get('extend_mode', 'linear')
+			lbl_pos      = equal_lines_cfg.get('label_position', 'start')
+			lbl_off      = equal_lines_cfg.get('label_offset_pts', [0, 0]) or [0, 0]
+			lbl_ha       = equal_lines_cfg.get('label_ha', 'left')
+			lbl_va       = equal_lines_cfg.get('label_va', 'top')
 		else:
 			linestyle, alpha, colour_mode, base_colour, cmap_name, show_labels = '--', 0.85, 'shades', 'black', 'viridis', True
 			extend_out, extend_mode = False, 'linear'
+			lbl_pos, lbl_off, lbl_ha, lbl_va = 'start', [0, 0], 'left', 'top'
 
 		if isinstance(equal_value_lines, int):
 			logging.info(f"Using swept parameter '{swept_param}' for equal-value lines")
@@ -2229,7 +2284,8 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				linestyle=linestyle, alpha=alpha, show_labels=show_labels, zorder=0,
 				plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
 				colour_mode=colour_mode, base_colour=base_colour, cmap_name=cmap_name,
-				extend_outside=extend_out, extend_mode=extend_mode
+				extend_outside=extend_out, extend_mode=extend_mode,
+				label_position=lbl_pos, label_offset_pts=lbl_off, label_ha=lbl_ha, label_va=lbl_va
 			)
 		elif isinstance(equal_value_lines, (list, tuple, np.ndarray)):
 			vals = [float(v) for v in equal_value_lines]
@@ -2242,7 +2298,8 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				linestyle=linestyle, alpha=alpha, show_labels=show_labels, zorder=0,
 				plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
 				colour_mode=colour_mode, base_colour=base_colour, cmap_name=cmap_name,
-				extend_outside=extend_out, extend_mode=extend_mode
+				extend_outside=extend_out, extend_mode=extend_mode,
+				label_position=lbl_pos, label_offset_pts=lbl_off, label_ha=lbl_ha, label_va=lbl_va
 			)
 		elif isinstance(equal_value_lines, str) and os.path.isdir(equal_value_lines):
 			from fires.utils.loaders import load_multiple_data_grouped
@@ -2295,11 +2352,28 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		position       = series_labels_cfg.get('position', 'max-y')
 		fs             = int(series_labels_cfg.get('fontsize', 16))
 		a              = float(series_labels_cfg.get('alpha', 0.95))
+		dxdy          = series_labels_cfg.get('offset_pts', [0, 0]) or [0, 0]
+		ha            = series_labels_cfg.get('ha', 'left')
+		va            = series_labels_cfg.get('va', 'bottom')
+		avoid_overlap = bool(series_labels_cfg.get('avoid_overlap', False))
+		_texts = []
 		try:
-			_label_series(ax, frb_dict, params_to_label=params_to_label,
-						  weight_x_by=weight_x_by, weight_y_by=weight_y_by,
-						  plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
-						  x_measured=x_measured, position=position, fontsize=fs, alpha=a)
+			_label_series(
+				ax, frb_dict, params_to_label=params_to_label,
+				weight_x_by=weight_x_by, weight_y_by=weight_y_by,
+				plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
+				x_measured=x_measured, position=position, fontsize=fs, alpha=a,
+				offset_pts=dxdy, ha=ha, va=va, collect_texts=_texts
+			)
+			if avoid_overlap and _texts:
+				try:
+					from adjustText import adjust_text
+					adjust_text(_texts, ax=ax, only_move={'points':'y', 'texts':'y'},
+								autoalign='y', expand_text=(1.05, 1.15),
+								arrowprops=dict(arrowstyle='-', color='0.3', lw=0.8, alpha=0.6))
+				except Exception:
+					# adjustText not available or failed; continue without adjustment
+					pass
 		except Exception as e:
 			logging.debug(f"series_labels failed: {e}")
 
