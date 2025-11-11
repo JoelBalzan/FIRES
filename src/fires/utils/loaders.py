@@ -219,6 +219,20 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 		)
 		freq_mhz = np.arange(dspec.shape[1], dtype=float)
 	
+	# Ensure ascending frequency axis; if descending, reverse freq and dspec
+	try:
+		diffs = np.diff(freq_mhz.astype(float))
+		if np.nanmedian(diffs) < 0 and np.all(np.isfinite(diffs)):
+			logging.info("Frequency axis is descending; reversing frequency axis and data.")
+			freq_mhz = freq_mhz[::-1]
+			dspec = dspec[:, ::-1, :]
+		elif np.any(diffs == 0):
+			logging.warning("Frequency array contains duplicate channels; leaving order unchanged.")
+		elif np.any(diffs < 0) and np.any(diffs > 0):
+			logging.warning("Frequency array is non-monotonic; not reversing. Consider sorting externally.")
+	except Exception as e:
+		logging.warning(f"Could not evaluate frequency ordering: {e}")
+	
 	# Load time array
 	time_ms = None
 	time_candidates = []
