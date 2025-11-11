@@ -5,21 +5,11 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16              # Number of CPUs per task
 #SBATCH --mem=16G                        # Memory allocation
-#SBATCH --time=00:15:00                 # Time limit
+#SBATCH --time=00:10:00                 # Time limit
 #SBATCH --array=0-19                    # Array job index (20 chunks)
 
 source "/fred/oz313/processing/jbalzan/venv.sh"
 set -euo pipefail
-
-# Pin threads for each worker proc
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export NUMEXPR_NUM_THREADS=1
-export MKL_DYNAMIC=FALSE
-export OMP_PROC_BIND=true
-export OMP_PLACES=cores
-export MPLBACKEND=Agg
 
 PLOT="l_frac" # or pa_var
 
@@ -84,10 +74,9 @@ fires \
   --nseed 100 \
   --write \
   --plot ${PLOT} \
-  --disable-plots \
   --output-dir "$OUTDIR" \
   --ncpu ${SLURM_CPUS_PER_TASK} \
   --sweep-mode sd \
-  --sefd 1.6 \
-  "${OVERRIDE_ARGS[@]}"
-#--logstep 20
+  "${OVERRIDE_ARGS[@]}" \
+  --logstep 20 \
+  --sefd 1.6
