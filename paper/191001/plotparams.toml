@@ -16,10 +16,12 @@ show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
 legend     = true                 # Show legends in plots
 
+
 [windows]
 # Window visualization options
 show_onpulse  = false             # Highlight on-pulse region
 show_offpulse = false             # Highlight off-pulse region
+
 
 [analytical]
 # Options specific to analytical plots (pa_var, l_frac)
@@ -28,35 +30,44 @@ draw_style        = "line-param"     # Style: "line-param", "line-x", "scatter",
 fit_functions     = None             # Fit functions to apply: ['exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N]
 weight_x_by       = "width_ms"       # Parameter to normalize x-axis by
 weight_y_by       = "meas_var_PA_i"  # Parameter to normalize y-axis by
-x_measured        = "Vpsi"           # Use measured quantity on x-axis
-equal_value_lines = 3                # Show constant parameter lines, only when using x_measured
 legend_params     = None             # Parameters to show in legend
 plot_text         = None             # Additional text to display
 nbins             = 15               # Number of bins for binned plots
 colour_by_sweep   = false            # Color points by sweep order
 xlim              = None             # e.g., [0.01, 10] (must be >0 for logx/log)
 ylim              = [2e-4,0.4]       # e.g., [0.0, 1.0]
+x_measured        = "Vpsi"           # Use measured quantity on x-axis
+equal_value_lines = 3                # Show constant parameter lines, only when using x_measured
 
 # If [analytical.equal_lines] exists and enabled = true it overrides equal_value_lines above. Only when using x_measured
 [analytical.equal_lines]
-enabled        = true             # master switch
-n_lines        = 5                # number of lines to draw
-colour_mode    = "shades"         # "shades" or "cmap"
-base_colour    = "#005bff"      # used when colour_mode   = "shades"
-cmap_name      = "viridis"        # used when colour_mode = "cmap"
-linestyle      = "--"
-alpha          = 0.85
-show_labels    = true
-extend_outside = false          # extend line to axes when not interpolating
-extend_mode    = "linear"       # "linear" (slope at ends) or "flat"
+enabled          = true             # master switch
+n_lines          = 5                # number of lines to draw
+colour_mode      = "shades"         # "shades" or "cmap"
+base_colour      = "blue"      # used when colour_mode   = "shades"
+cmap_name        = "viridis"        # used when colour_mode = "cmap"
+linestyle        = "--"
+alpha            = 0.85
+show_labels      = true
+extend_outside   = false            # extend line to axes when not interpolating
+extend_mode      = "linear"         # "linear" (slope at ends) or "flat"
+label_position   = "start"          # "start" | "end" | "max-y" | "mid"
+label_offset_pts = [6, -6]          # [dx, dy] in points to nudge labels
+label_ha         = "left"           # horizontal alignment
+label_va         = "top"            # vertical alignment
 
 # label the data series (per-run)
 [analytical.series_labels]
-enabled   = true
-params    = ["N"]       # which run-varying params to show, e.g., ["N"]
-position  = "max-y"     # "max-y" | "end" | "start"
-fontsize  = 16
-alpha     = 0.95
+enabled       = true
+params        = ["N"]      # which run-varying params to show, e.g., ["N"]
+position      = "max-y"    # "max-y" | "min-y" | "start" | "end" | "max-x" | "min-x" | "mid"
+fontsize      = 16
+alpha         = 0.95
+offset_pts    = [6, 6]     # [dx, dy] points offset from anchor
+ha            = "left"     # text alignment
+va            = "bottom"
+avoid_overlap = true       # try to reduce label collisions (uses adjustText if available)
+
 
 [styling]
 # Matplotlib styling options
