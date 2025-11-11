@@ -9,17 +9,18 @@
 
 [general]
 # General plotting options
-figsize    = [7,6]                # Default figure size [width, height] in inches, null for default
+figsize    = None                # Default figure size [width, height] in inches, null for default
 extension  = "pdf"                # File extension for saved plots
 use_latex  = true                 # Use LaTeX for plot text rendering
 show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
-legend     = true                 # Show legends in plots
+legend     = false                 # Show legends in plots
+legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
 
 
 [windows]
 # Window visualization options
-show_onpulse  = false             # Highlight on-pulse region
+show_onpulse  = true             # Highlight on-pulse region
 show_offpulse = false             # Highlight off-pulse region
 
 
@@ -69,6 +70,23 @@ va            = "bottom"
 avoid_overlap = true       # try to reduce label collisions (uses adjustText if available)
 
 
+[observational]
+enabled          = true        # master switch
+marker           = "*"         # matplotlib marker
+size             = 220         # marker size
+colour           = "red"       # default colour (overridden if use_series_colour=true in multi-window)
+edgecolor        = "black"     # marker edge
+linewidth        = 1.0
+alpha            = 1.0
+error_style      = "spans"     # "spans" | "bars" | "both" | "none"
+span_alpha       = 0.12        # alpha for shaded spans
+bar_alpha        = 0.7         # alpha for error bars
+bar_capsize      = 5
+use_series_colour = false      # if true (multi-window), use series/window colour instead of fixed colour
+expand_limits    = true        # auto-expand axes to include errors
+label_prefix     = ""          # optional text prepended to label
+
+
 [styling]
 # Matplotlib styling options
 pdf_fonttype    = 42
@@ -82,7 +100,7 @@ xtick_labelsize = 22
 ytick_labelsize = 22
 font_family     = "sans-serif"
 color_cycle     = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
-line_width      = 1.5
+line_width      = 1
 marker_size     = 6
 
 [latex]

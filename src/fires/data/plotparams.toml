@@ -15,6 +15,7 @@ use_latex  = true                 # Use LaTeX for plot text rendering
 show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
 legend     = true                 # Show legends in plots
+legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
 
 
 [windows]
@@ -67,6 +68,23 @@ offset_pts    = [6, 6]     # [dx, dy] points offset from anchor
 ha            = "left"     # text alignment
 va            = "bottom"
 avoid_overlap = true       # try to reduce label collisions (uses adjustText if available)
+
+
+[observational]
+enabled          = true        # master switch
+marker           = "*"         # matplotlib marker
+size             = 220         # marker size
+colour           = "red"       # default colour (overridden if use_series_colour=true in multi-window)
+edgecolor        = "black"     # marker edge
+linewidth        = 1.0
+alpha            = 1.0
+error_style      = "spans"     # "spans" | "bars" | "both" | "none"
+span_alpha       = 0.12        # alpha for shaded spans
+bar_alpha        = 0.7         # alpha for error bars
+bar_capsize      = 5
+use_series_colour = false      # if true (multi-window), use series/window colour instead of fixed colour
+expand_limits    = true        # auto-expand axes to include errors
+label_prefix     = ""          # optional text prepended to label
 
 
 [styling]

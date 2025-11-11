@@ -122,7 +122,12 @@ def get_plot_param(plot_config, section, key, default=None):
 	"""Helper to safely get plotting parameters"""
 	if plot_config is None:
 		return default
-	return plot_config.get(section, {}).get(key, default)
+	sec = plot_config.get(section)
+	if key is None:
+		return sec if sec is not None else default
+	if isinstance(sec, dict):
+		return sec.get(key, default)
+	return default
 
 
 #	--------------------------	Colour maps	---------------------------
@@ -340,7 +345,52 @@ def _extract_value_from_segments(seg_dict, quantity: str, phase_window: str, fre
 		return seg_dict['freq'][freq_key].get(quantity, np.nan)
 	except Exception:
 		return np.nan
+
+
+def _get_obs_cfg(plot_config):
+	cfg = get_plot_param(plot_config, 'observational', None)
+	if not isinstance(cfg, dict):
+		return {}
+	if not cfg.get('enabled', True):
+		return {}
+	return {
+		'marker'          : cfg.get('marker', '*'),
+		'size'            : cfg.get('size', 200),
+		'colour'          : cfg.get('colour', 'magenta'),
+		'edgecolor'       : cfg.get('edgecolor', 'black'),
+		'linewidth'       : cfg.get('linewidth', 1.0),
+		'alpha'           : cfg.get('alpha', 1.0),
+		'error_style'     : cfg.get('error_style', 'spans'),
+		'span_alpha'      : cfg.get('span_alpha', 0.1),
+		'bar_alpha'       : cfg.get('bar_alpha', 0.7),
+		'bar_capsize'     : cfg.get('bar_capsize', 5),
+		'use_series_colour': cfg.get('use_series_colour', False),
+		'expand_limits'   : cfg.get('expand_limits', True),
+		'label_prefix'    : cfg.get('label_prefix', "")
+	}
 		
+
+def _legend_if_any(ax, loc='best'):
+	"""Only draw legend if there are labeled artists."""
+	try:
+		handles, labels = ax.get_legend_handles_labels()
+		labels = [str(l).strip() for l in labels if l and not str(l).startswith('_')]
+		if not labels:
+			return
+		# Support a few convenient presets
+		if isinstance(loc, str):
+			lc = loc.strip().lower()
+			if lc in ('outside right', 'right outside'):
+				ax.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), borderaxespad=0.)
+				return
+			if lc in ('outside top', 'top outside'):
+				ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), borderaxespad=0.)
+				return
+		# Default: pass loc through to Matplotlib
+		ax.legend(loc=loc)
+	except Exception:
+		pass
+
 
 def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 	"""
@@ -1680,7 +1730,8 @@ def _plot_single_run_multi_window(
 	buffer_frac=1,
 	draw_style='line-param',
 	nbins=15,
-	colour_by_sweep=False
+	colour_by_sweep=False,
+	plot_config=None
 ):
 	"""
 	Plot multiple freq/phase window combinations from a SINGLE run on the same axes.
@@ -1864,6 +1915,7 @@ def _plot_single_run_multi_window(
 			
 	# Observational overlay
 	if obs_data is not None:
+		obs_cfg = _get_obs_cfg(plot_config) 
 		try:
 			plot_mode_obj = plot_modes.get(plot_type)
 			if plot_mode_obj is None:
@@ -1897,13 +1949,24 @@ def _plot_single_run_multi_window(
 					
 					obs_result['label'] = obs_label
 					
+					use_series_colour = obs_cfg.get('use_series_colour', False)
+					obs_colour = colour if use_series_colour else obs_cfg.get('colour', colour)
 					_plot_observational_overlay(
 						ax, obs_result,
 						weight_x_by=weight_x_by,
 						weight_y_by=weight_y_by,
-						colour=colour,
-						marker='*',
-						size=200
+						colour=obs_colour,
+						marker=obs_cfg.get('marker', '*'),
+						size=obs_cfg.get('size', 200),
+						edgecolor=obs_cfg.get('edgecolor', 'black'),
+						linewidth=obs_cfg.get('linewidth', 1.0),
+						alpha=obs_cfg.get('alpha', 1.0),
+						error_style=obs_cfg.get('error_style', 'spans'),
+						span_alpha=obs_cfg.get('span_alpha', 0.1),
+						bar_alpha=obs_cfg.get('bar_alpha', 0.7),
+						bar_capsize=obs_cfg.get('bar_capsize', 5),
+						expand_limits=obs_cfg.get('expand_limits', True),
+						label_prefix=obs_cfg.get('label_prefix', "")
 					)
 		except Exception as e:
 			logging.error(f"Failed to overlay observational data: {e}")
@@ -1914,7 +1977,8 @@ def _plot_single_run_multi_window(
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 	
 	if legend:
-		ax.legend(loc='best')
+		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
+		_legend_if_any(ax, loc=legend_loc)
 
 
 def _plot_single_job_common(
@@ -1935,7 +1999,8 @@ def _plot_single_job_common(
 	yvals_override=None,
 	draw_style='line-param',
 	nbins=15,
-	colour_by_sweep=False
+	colour_by_sweep=False,
+	legend_loc='best',
 ):
 	"""
 	Common single-job plotting helper used by plot_pa_var and plot_lfrac_var.
@@ -2012,7 +2077,7 @@ def _plot_single_job_common(
 		fit_type, fit_degree = _parse_fit_arg(fit)
 		_fit_and_plot(ax, plot_x, plot_med, fit_type, fit_degree, label=None)
 		if not embed:
-			ax.legend(loc='best')
+			_legend_if_any(ax, loc=legend_loc)
 
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
 		exp_weight = weight_y_by if applied else None
@@ -2023,7 +2088,7 @@ def _plot_single_job_common(
 		fit_type, fit_degree = _parse_fit_arg(fit)
 		_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None)
 		if not embed:
-			ax.legend(loc='best')
+			_legend_if_any(ax, loc=legend_loc)
 
 	if not embed:
 		final_yname, y_unit = _get_weighted_y_name(yname_base, weight_y_by) if (weight_y_by is not None and applied) else (yname_base, param_map.get(yname_base, ""))
@@ -2202,7 +2267,8 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				   param_key=param_key, weight_y_by=weight_for_expected)
 
 	if legend:
-		ax.legend(loc='best')
+		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
+		_legend_if_any(ax, loc=legend_loc)
 
 	if plot_text:
 		# If plot_text is a list of param names, look up and format their values
@@ -2495,6 +2561,7 @@ def plot_pa_var(
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
+	legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
 	
 
 	yname = r"\mathbb{V}(\psi)"
@@ -2522,7 +2589,8 @@ def plot_pa_var(
 				buffer_frac=buffer_frac,
 				draw_style=draw_style,
 				nbins=nbins,
-				colour_by_sweep=colour_by_sweep
+				colour_by_sweep=colour_by_sweep,
+				plot_config=plot_config
 			)
 			# Save/show
 			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
@@ -2571,25 +2639,41 @@ def plot_pa_var(
 			yvals_override=yvals,
 			draw_style=draw_style,
 			nbins=nbins,
-			colour_by_sweep=colour_by_sweep
+			colour_by_sweep=colour_by_sweep,
+			legend_loc=legend_loc
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 		
 	# Overlay observational data if provided
 	if obs_data is not None:
-		try:
-			obs_result = _process_observational_data(
-				obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window, 
-				buffer_frac=buffer_frac, plot_mode=pa_var, x_measured=x_measured
-			)
-			_plot_observational_overlay(ax, obs_result, 
-										weight_x_by=weight_x_by, 
-										weight_y_by=weight_y_by,
-										colour='red', marker='*', size=200)
-			if legend:
-				ax.legend(loc='best')
-		except Exception as e:
-			logging.error(f"Failed to overlay observational data: {e}")
+		obs_cfg = _get_obs_cfg(plot_config)
+		if obs_cfg:
+			try:
+				obs_result = _process_observational_data(
+					obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window,
+					buffer_frac=buffer_frac, plot_mode=pa_var, x_measured=x_measured
+				)
+				_plot_observational_overlay(
+					ax, obs_result,
+					weight_x_by=weight_x_by,
+					weight_y_by=weight_y_by,
+					colour=obs_cfg.get('colour', 'red'),
+					marker=obs_cfg.get('marker', '*'),
+					size=obs_cfg.get('size', 200),
+					edgecolor=obs_cfg.get('edgecolor', 'black'),
+					linewidth=obs_cfg.get('linewidth', 1.0),
+					alpha=obs_cfg.get('alpha', 1.0),
+					error_style=obs_cfg.get('error_style', 'spans'),
+					span_alpha=obs_cfg.get('span_alpha', 0.1),
+					bar_alpha=obs_cfg.get('bar_alpha', 0.7),
+					bar_capsize=obs_cfg.get('bar_capsize', 5),
+					expand_limits=obs_cfg.get('expand_limits', True),
+					label_prefix=obs_cfg.get('label_prefix', "")
+				)
+				if legend:
+					_legend_if_any(ax, loc=legend_loc)
+			except Exception as e:
+				logging.error(f"Failed to overlay observational data: {e}")
 	
 	if show:
 		plt.show()
@@ -2710,6 +2794,7 @@ def plot_lfrac(
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
+	legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
 
 	yname = r"\Pi_L"
 
@@ -2782,25 +2867,41 @@ def plot_lfrac(
 			yvals_override=yvals,
 			draw_style=draw_style,
 			nbins=nbins,
-			colour_by_sweep=colour_by_sweep
+			colour_by_sweep=colour_by_sweep,
+			legend_loc=legend_loc
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 
 	# Overlay observational data if provided
 	if obs_data is not None:
-		try:
-			obs_result = _process_observational_data(
-				obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window,
-				buffer_frac=buffer_frac, plot_mode=l_frac, x_measured=x_measured
-			)
-			_plot_observational_overlay(ax, obs_result,
-										weight_x_by=weight_x_by,
-										weight_y_by=weight_y_by,
-										colour='magenta', marker='*', size=200)
-			if legend:
-				ax.legend(loc='upper left')
-		except Exception as e:
-			logging.error(f"Failed to overlay observational data: {e}")
+		obs_cfg = _get_obs_cfg(plot_config)
+		if obs_cfg:
+			try:
+				obs_result = _process_observational_data(
+					obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window,
+					buffer_frac=buffer_frac, plot_mode=l_frac, x_measured=x_measured
+				)
+				_plot_observational_overlay(
+					ax, obs_result,
+					weight_x_by=weight_x_by,
+					weight_y_by=weight_y_by,
+					colour=obs_cfg.get('colour', 'red'),
+					marker=obs_cfg.get('marker', '*'),
+					size=obs_cfg.get('size', 200),
+					edgecolor=obs_cfg.get('edgecolor', 'black'),
+					linewidth=obs_cfg.get('linewidth', 1.0),
+					alpha=obs_cfg.get('alpha', 1.0),
+					error_style=obs_cfg.get('error_style', 'spans'),
+					span_alpha=obs_cfg.get('span_alpha', 0.1),
+					bar_alpha=obs_cfg.get('bar_alpha', 0.7),
+					bar_capsize=obs_cfg.get('bar_capsize', 5),
+					expand_limits=obs_cfg.get('expand_limits', True),
+					label_prefix=obs_cfg.get('label_prefix', "")
+				)
+				if legend:
+					_legend_if_any(ax, loc=legend_loc)
+			except Exception as e:
+				logging.error(f"Failed to overlay observational data: {e}")
 	
 	if show:
 		plt.show()
@@ -3005,7 +3106,11 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	return result
 
 
-def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=None, colour='magenta', marker='*', size=200):
+def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=None,
+								colour='magenta', marker='*', size=200,
+								edgecolor='black', linewidth=1.0, alpha=1.0,
+								error_style='spans', span_alpha=0.1, bar_alpha=0.7,
+								bar_capsize=5, expand_limits=True, label_prefix=""):
 	"""
 	Add observational data point with error bars as crosshairs on existing plot.
 	
@@ -3030,12 +3135,12 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 	x_err = obs_result['x_err']
 	y = obs_result['y_value']
 	y_err = obs_result['y_err']
-	label = obs_result['label']
-	
+	label = (label_prefix + obs_result['label']).strip()
+
 	if x is None or y is None:
 		logging.warning("Cannot plot observational data: missing x or y value")
 		return
-	
+
 	# Apply weighting if specified
 	if weight_x_by is not None and weight_x_by in obs_result['gdict']:
 		x_weight = float(np.nanmean(obs_result['gdict'][weight_x_by]))
@@ -3043,44 +3148,45 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 			x = x / x_weight
 			if x_err is not None:
 				x_err = x_err / x_weight
-	
 	if weight_y_by is not None and weight_y_by in obs_result['gdict']:
 		y_weight = float(np.nanmean(obs_result['gdict'][weight_y_by]))
 		if y_weight > 0 and np.isfinite(y_weight):
 			y = y / y_weight
 			if y_err is not None:
 				y_err = y_err / y_weight
-	
-	# Plot central point
-	ax.scatter(x, y, marker=marker, s=size, color=colour, 
-			   edgecolors='black', linewidths=1., zorder=100,
-			   label=label)
-	
-	# Plot error bars as crosshairs
-	#if x_err is not None and x_err > 0:
-	#	ax.errorbar(x, y, xerr=x_err, fmt='none', 
-	#				ecolor=colour, elinewidth=2, capsize=5, capthick=2,
-	#				zorder=99, alpha=0.7)
-	#
-	#if y_err is not None and y_err > 0:
-	#	ax.errorbar(x, y, yerr=y_err, fmt='none',
-	#				ecolor=colour, elinewidth=2, capsize=5, capthick=2,
-	#				zorder=99, alpha=0.7)
-	#
-	# Optionally add shaded regions for error ranges
-	
-	if x_err is not None and x_err > 0:
-		ax.axvspan(x - x_err, x + x_err, alpha=0.1, color=colour, zorder=1)
-	
-	if y_err is not None and y_err > 0:
-		ax.axhspan(y - y_err, y + y_err, alpha=0.1, color=colour, zorder=1)
 
-	# Ensure visibility (use full extent with errors if present)
-	x_low = x - (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
-	x_high = x + (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
-	y_low = y - (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
-	y_high = y + (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
-	_expand_limits_for_point(ax, x_low, x_high, y_low, y_high, pad_frac=0.01)
+	# Plot central point
+	ax.scatter(x, y, marker=marker, s=size, color=colour,
+			   edgecolors=edgecolor, linewidths=linewidth,
+			   zorder=100, alpha=alpha, label=label)
+
+	# Error representations
+	show_bars = error_style in ('bars', 'both')
+	show_spans = error_style in ('spans', 'both')
+
+	if show_bars:
+		if x_err is not None and x_err > 0:
+			ax.errorbar(x, y, xerr=x_err, fmt='none',
+						ecolor=colour, elinewidth=1.8, capsize=bar_capsize,
+						capthick=1.2, alpha=bar_alpha, zorder=99)
+		if y_err is not None and y_err > 0:
+			ax.errorbar(x, y, yerr=y_err, fmt='none',
+						ecolor=colour, elinewidth=1.8, capsize=bar_capsize,
+						capthick=1.2, alpha=bar_alpha, zorder=99)
+
+	if show_spans:
+		if x_err is not None and x_err > 0:
+			ax.axvspan(x - x_err, x + x_err, alpha=span_alpha, color=colour, zorder=1)
+		if y_err is not None and y_err > 0:
+			ax.axhspan(y - y_err, y + y_err, alpha=span_alpha, color=colour, zorder=1)
+
+	# Expand limits if requested
+	if expand_limits:
+		x_low = x - (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
+		x_high = x + (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
+		y_low = y - (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
+		y_high = y + (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
+		_expand_limits_for_point(ax, x_low, x_high, y_low, y_high, pad_frac=0.01)
 
 
 def _expand_limits_for_point(ax, x_low, x_high, y_low, y_high, pad_frac=0.01):
