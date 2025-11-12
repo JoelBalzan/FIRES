@@ -762,7 +762,7 @@ def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer
 
 	snr, (left, right) = snr_onpulse(
 		dspec_params, I_time, frac=0.95, subtract_baseline=True, robust_rms=True,
-		buffer_frac=buffer_frac, one_sided_offpulse=True
+		buffer_frac=buffer_frac
 	)
 	
 	if not plot_multiple_frb:
@@ -810,7 +810,7 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None, one_sided_offpulse=False):
+def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None):
 	"""
 	Estimate S/N using an on-pulse window and an (adaptive) off-pulse RMS.
 
@@ -852,18 +852,12 @@ def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust
 	mask_on = make_onpulse_mask(n, left, right)
 	onpulse = prof[mask_on]
 
-	# Off-pulse mask
-	if one_sided_offpulse:
-		# Only LEFT side before (left - buffer_bins)
-		off_mask = np.zeros(n, dtype=bool)
-		start_off = 0
-		end_off = max(0, left - buffer_bins - 1)
-		if end_off >= start_off:
-			logging.debug(f"One-sided off-pulse: using bins {start_off} to {end_off}")
-			off_mask[start_off:end_off + 1] = True
-	else:
-		# Two-sided with buffer around expanded on-pulse
-		off_mask = make_offpulse_mask(n, left, right, buffer_bins=buffer_bins)
+	off_mask = np.zeros(n, dtype=bool)
+	start_off = 0
+	end_off = max(0, left - buffer_bins - 1)
+	if end_off >= start_off:
+		logging.debug(f"One-sided off-pulse: using bins {start_off} to {end_off}")
+		off_mask[start_off:end_off + 1] = True
 
 	offpulse = prof[off_mask]
 

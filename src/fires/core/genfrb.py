@@ -372,7 +372,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		# Single FRB generation branch
 		if obs_data != None:
 			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file)
-			snr, (left, right) = snr_onpulse(dspec_params, np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac, one_sided_offpulse=True)
+			snr, (left, right) = snr_onpulse(dspec_params, np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
 			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
 			if tau[0] > 0:
 				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau[0], scatter_idx, ref_freq)
