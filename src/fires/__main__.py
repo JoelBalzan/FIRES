@@ -26,7 +26,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-							   normalise_freq_window, normalise_phase_window)
+                               normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -536,6 +536,7 @@ def main():
 						"gauss_file"       : resolved_gauss,
 						"sim_file"         : resolved_sim,
 						"plot_config"      : plot_config,
+						"buffer_frac"      : args.buffer
 					}
 		
 					plot_function = plot_mode_obj.plot_func

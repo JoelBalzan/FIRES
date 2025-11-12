@@ -522,7 +522,7 @@ def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac):
 	I = np.nansum(corrdspec[0], axis=0)
 	left, right = boxcar_width(I, frac=0.95)
 
-	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
 	
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 
@@ -581,50 +581,50 @@ def boxcar_width(profile, frac=0.95):
 
  
 def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
-    """
-    Vectorised one-sided exponential scattering for all channels via FFT.
-    """
-    X = np.asarray(dspec, dtype=float)
-    if X.ndim != 2:
-        raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
-    nc, nt = X.shape
+	"""
+	Vectorised one-sided exponential scattering for all channels via FFT.
+	"""
+	X = np.asarray(dspec, dtype=float)
+	if X.ndim != 2:
+		raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
+	nc, nt = X.shape
 
-    # Prepare per-channel tau array
-    if np.isscalar(tau_cms):
-        tau_arr = np.full(nc, float(tau_cms), dtype=float)
-    else:
-        tau_arr = np.asarray(tau_cms, dtype=float)
-        if tau_arr.shape[0] != nc:
-            raise ValueError("tau_cms length must match number of channels")
+	# Prepare per-channel tau array
+	if np.isscalar(tau_cms):
+		tau_arr = np.full(nc, float(tau_cms), dtype=float)
+	else:
+		tau_arr = np.asarray(tau_cms, dtype=float)
+		if tau_arr.shape[0] != nc:
+			raise ValueError("tau_cms length must match number of channels")
 
-    out = X.copy()
-    pos = np.isfinite(tau_arr) & (tau_arr > 0)
-    if not np.any(pos):
-        return out
+	out = X.copy()
+	pos = np.isfinite(tau_arr) & (tau_arr > 0)
+	if not np.any(pos):
+		return out
 
-    tau_pos = tau_arr[pos]
-    n_pad_arr = np.ceil(pad_factor * tau_pos / float(time_res_ms)).astype(int)
-    max_pad = int(np.max(n_pad_arr))
-    L = nt + max_pad
+	tau_pos = tau_arr[pos]
+	n_pad_arr = np.ceil(pad_factor * tau_pos / float(time_res_ms)).astype(int)
+	max_pad = int(np.max(n_pad_arr))
+	L = nt + max_pad
 
-    t_idx = np.arange(max_pad + 1, dtype=float)  # 0..max_pad
-    t_ms = t_idx * float(time_res_ms)
+	t_idx = np.arange(max_pad + 1, dtype=float)  # 0..max_pad
+	t_ms = t_idx * float(time_res_ms)
 
-    # Build IRFs for all pos channels in one go, with zero past channel-specific pad
-    irf = np.exp(-t_ms[None, :] / tau_pos[:, None])
-    mask = (t_idx[None, :] <= n_pad_arr[:, None])
-    irf *= mask
-    # Row-normalise (preserve total flux)
-    row_sum = irf.sum(axis=1, keepdims=True)
-    irf = np.divide(irf, np.maximum(row_sum, 1e-300), out=irf)
+	# Build IRFs for all pos channels in one go, with zero past channel-specific pad
+	irf = np.exp(-t_ms[None, :] / tau_pos[:, None])
+	mask = (t_idx[None, :] <= n_pad_arr[:, None])
+	irf *= mask
+	# Row-normalise (preserve total flux)
+	row_sum = irf.sum(axis=1, keepdims=True)
+	irf = np.divide(irf, np.maximum(row_sum, 1e-300), out=irf)
 
-    # Pad signals to L and FFT along time
-    Xp = np.pad(X[pos], ((0, 0), (0, max_pad)), mode='constant')  # (n_pos, L)
-    FX = np.fft.rfft(Xp, n=L, axis=1)
-    FH = np.fft.rfft(irf, n=L, axis=1)
-    Y = np.fft.irfft(FX * FH, n=L, axis=1)
-    out[pos] = Y[:, :nt]
-    return out
+	# Pad signals to L and FFT along time
+	Xp = np.pad(X[pos], ((0, 0), (0, max_pad)), mode='constant')  # (n_pos, L)
+	FX = np.fft.rfft(Xp, n=L, axis=1)
+	FH = np.fft.rfft(irf, n=L, axis=1)
+	Y = np.fft.irfft(FX * FH, n=L, axis=1)
+	out[pos] = Y[:, :nt]
+	return out
 
 
 def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None):
@@ -760,8 +760,11 @@ def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer
 
 	I_time = np.nansum(noisy_dspec[0], axis=0)
 
-	snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=buffer_frac)
-
+	snr, (left, right) = snr_onpulse(
+		dspec_params, I_time, frac=0.95, subtract_baseline=True, robust_rms=True,
+		buffer_frac=buffer_frac, one_sided_offpulse=True
+	)
+	
 	if not plot_multiple_frb:
 		logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
 
@@ -807,8 +810,7 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None, one_sided_offpulse=False,
-				tail_frac=None, max_tail_mult=5):
+def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None, one_sided_offpulse=False):
 	"""
 	Estimate S/N using an on-pulse window and an (adaptive) off-pulse RMS.
 
@@ -842,23 +844,10 @@ def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust
 	prof = np.asarray(profile, dtype=float)
 	n = prof.size
 	left, right = boxcar_width(prof, frac=frac)
-	peak_val = np.nanmax(prof)
 	gdict = dspec_params.gdict
-	init_width = gdict["width_ms"][0]/dspec_params.time_res_ms
+	init_width = gdict["width"][0]/dspec_params.time_res_ms
 
-	# Tail expansion (right side) if requested
-	if tail_frac is not None and peak_val > 0:
-		thr = tail_frac * peak_val
-		max_right = min(n - 1, right + int(max_tail_mult * init_width))
-		r = right
-		# Continue while profile stays above threshold (monotonicity not required)
-		while r + 1 <= max_right and prof[r + 1] > thr:
-			r += 1
-		right = r
-
-	width = max(1, right - left + 1)
 	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0  # use initial width for buffer sizing
-
 	# On-pulse mask (after possible tail expansion)
 	mask_on = make_onpulse_mask(n, left, right)
 	onpulse = prof[mask_on]
@@ -870,6 +859,7 @@ def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust
 		start_off = 0
 		end_off = max(0, left - buffer_bins - 1)
 		if end_off >= start_off:
+			logging.debug(f"One-sided off-pulse: using bins {start_off} to {end_off}")
 			off_mask[start_off:end_off + 1] = True
 	else:
 		# Two-sided with buffer around expanded on-pulse
@@ -963,7 +953,7 @@ def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac):
 	gdict = dspec_params.gdict
 	left, right = boxcar_width(I, frac=0.95)
 	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
-		I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
+		I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
 	noise_stokes, _ = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 	return est_profiles(corrdspec, noise_stokes, left, right)
@@ -1007,7 +997,7 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 	phits = tsdata_full.phits  # radians
 	n_time = Its.size
 
-	on_mask, _, (left, right) = on_off_pulse_masks_from_profile(Its, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+	on_mask, _, (left, right) = on_off_pulse_masks_from_profile(Its, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
 	peak_index = int(np.nanargmax(Its)) if n_time > 0 else 0
 	phase_slices = _phase_slices_from_peak(n_time, peak_index)
 
@@ -1033,7 +1023,7 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 		tsdata_f = _timeseries_from_corr(dspec_f, dspec_params, buffer_frac)
 		I = tsdata_f.iquvt[0]; Q = tsdata_f.iquvt[1]; U = tsdata_f.iquvt[2]; V = tsdata_f.iquvt[3]; L = tsdata_f.Lts; ph = tsdata_f.phits
 		on_m, _, _ = on_off_pulse_masks_from_profile(
-			I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
+			I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 		)
 		Vpsi = _pa_variance_deg2(ph)
 		Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
