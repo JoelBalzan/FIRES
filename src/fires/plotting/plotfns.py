@@ -18,10 +18,9 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+from scipy.stats import circvar
 
 from ..core.basicfns import on_off_pulse_masks_from_profile, pa_variance_deg2
-
-from scipy.stats import circvar
 
 logging.basicConfig(level=logging.INFO)
 #	----------------------------------------------------------------------------------------------------------
@@ -189,7 +188,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau_ms, show_plots, extension, 
+def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
 					legend, buffer_frac, show_onpulse, show_offpulse):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
@@ -275,7 +274,8 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	# Highlight on- and off-pulse regions if requested
 	gdict = dspec_params.gdict
 	if show_onpulse or show_offpulse:
-		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+		init_width = gdict["width"][0]/dspec_params.time_res_ms
+		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, init_width, frac=0.95, buffer_frac=buffer_frac)
 		if show_onpulse:
 			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
 		if show_offpulse:
@@ -309,8 +309,8 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension), bbox_inches='tight', dpi=600)
-		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_t_{tau_ms[0]}" + "_ILVPA." + extension)))
+		fig.savefig(os.path.join(outdir, fname + f"_t_{tau[0]}" + "_ILVPA." + extension), bbox_inches='tight', dpi=600)
+		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_t_{tau[0]}" + "_ILVPA." + extension)))
 
 
 	#	----------------------------------------------------------------------------------------------------------

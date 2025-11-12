@@ -25,24 +25,24 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
-								 add_noise, process_dspec, scatter_dspec,
-								 snr_onpulse)
+                                 add_noise, process_dspec, scatter_dspec,
+                                 snr_onpulse)
 from fires.core.genfns import psn_dspec
-from fires.utils.loaders import load_data, load_multiple_data_grouped
 from fires.utils.config import load_params
+from fires.utils.loaders import load_data, load_multiple_data_grouped
 from fires.utils.utils import dspecParams, simulated_frb
 
 logging.basicConfig(level=logging.INFO)
 
 
-def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz):
+def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau, sc_idx, ref_freq_mhz):
 	"""
 	Scatter all Stokes channels of a loaded dynamic spectrum.
 	Args:
 		dspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
 		freq_mhz: Frequency array (nchan,)
 		time_ms: Time array (ntime,)
-		tau_ms: Scattering timescale (float)
+		tau: Scattering timescale (float)
 		sc_idx: Scattering index (float)
 		ref_freq_mhz: Reference frequency (float)
 	Returns:
@@ -50,7 +50,7 @@ def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms, sc_idx, ref_freq_mhz
 	"""
 	dspec_scattered = dspec.copy()
 	time_res_ms = np.median(np.diff(time_ms))
-	tau_cms = tau_ms * (freq_mhz / ref_freq_mhz) ** (-sc_idx)
+	tau_cms = tau * (freq_mhz / ref_freq_mhz) ** (-sc_idx)
 	for stokes_idx in range(dspec.shape[0]):  # Loop over I, Q, U, V
 		dspec_scattered[stokes_idx] = scatter_dspec(
 			dspec[stokes_idx], time_res_ms, tau_cms
@@ -224,10 +224,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	# Means (main components)
 	gdict = {
 		't0'             : gauss_params[:stddev_row, 0],
-		'width_ms'     	 : gauss_params[:stddev_row, 1],
+		'width'     	 : gauss_params[:stddev_row, 1],
 		'A'              : gauss_params[:stddev_row, 2],
 		'spec_idx'       : gauss_params[:stddev_row, 3],
-		'tau_ms'         : gauss_params[:stddev_row, 4],
+		'tau'         : gauss_params[:stddev_row, 4],
 		'DM'             : gauss_params[:stddev_row, 5],
 		'RM'             : gauss_params[:stddev_row, 6],
 		'PA'             : gauss_params[:stddev_row, 7],
@@ -243,10 +243,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 	sd_dict = {
 		'sd_t0'             : gauss_params[stddev_row, 0],
-		'sd_width_ms'       : gauss_params[stddev_row, 1],
+		'sd_width'       : gauss_params[stddev_row, 1],
 		'sd_A'              : gauss_params[stddev_row, 2],
 		'sd_spec_idx'       : gauss_params[stddev_row, 3],
-		'sd_tau_ms'         : gauss_params[stddev_row, 4],
+		'sd_tau'         : gauss_params[stddev_row, 4],
 		'sd_DM'             : gauss_params[stddev_row, 5],
 		'sd_RM'             : gauss_params[stddev_row, 6],
 		'sd_PA'             : gauss_params[stddev_row, 7],
@@ -326,13 +326,13 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	if scint_file is not None:
 		scint = load_params("scparams", scint_file, "scintillation")
 		if scint.get("derive_from_tau", False):
-			tau_ms_ref = float(gdict["tau_ms"][0])          
-			tau_s_ref  = 1e-3 * tau_ms_ref                  
+			tau_ref = float(gdict["tau"][0])          
+			tau_s_ref  = 1e-3 * tau_ref                  
 			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)    
 			scint["nu_s"] = float(nu_s_hz)
 			logging.info(
 				f"Derived nu_s at reference {ref_freq:.1f} MHz: "
-				f"tau={tau_ms_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz"
+				f"tau={tau_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz"
 			)
 	else:
 		scint = None
@@ -357,7 +357,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		sweep_mode      = sweep_mode
 	)
 
-	tau_ms = gdict['tau_ms']
+	tau = gdict['tau']
 
 	if len(np.where(gauss_params[-1,:] != 0.0)[0]) > 1:
 		logging.warning("More than one value in the last row of gauss_params is not 0.")
@@ -371,11 +371,11 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	if not plot_multiple_frb:
 		# Single FRB generation branch
 		if obs_data != None:
-			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params)
-			snr, (left, right) = snr_onpulse(dspec_params, np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
+			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file)
+			snr, (left, right) = snr_onpulse(dspec_params, np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac, one_sided_offpulse=True)
 			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
-			if tau_ms[0] > 0:
-				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau_ms[0], scatter_idx, ref_freq)
+			if tau[0] > 0:
+				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau[0], scatter_idx, ref_freq)
 			if sefd > 0:
 				dspec, sigma_ch, snr = add_noise(dspec_params, dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res, 
 													plot_multiple_frb=plot_multiple_frb)
@@ -417,7 +417,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			frb_id, corrdspec, dspec_params, snr
 		)
 		if write:
-			tau = f"{tau_ms[0]:.2f}"
+			tau = f"{tau[0]:.2f}"
 			if mode == 'psn':
 				out_file = (
 					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"

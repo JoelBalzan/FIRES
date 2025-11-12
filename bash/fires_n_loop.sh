@@ -23,7 +23,7 @@ path = sys.argv[1]
 arr = np.loadtxt(path)
 last = arr[-1]
 idx = np.where(last!=0)[0]
-cols = ["t0","width_ms","A","spec_idx","tau_ms","DM","RM","PA","lfrac","vfrac","dPA","band_centre","band_width","N","mg_width_low","mg_width_high"]
+cols = ["t0","width","A","spec_idx","tau","DM","RM","PA","lfrac","vfrac","dPA","band_centre","band_width","N","mg_width_low","mg_width_high"]
 if len(idx)!=1:
     print("UNKNOWN 0 0 0"); sys.exit(0)
 i = idx[0]
@@ -40,7 +40,7 @@ fi
 echo "Sweep var: $VAR  range: $START:$STOP:$STEP"
 echo "Array task: $SLURM_ARRAY_TASK_ID"
 
-PARAMS=("t0" "width_ms" "A" "spec_idx" "tau_ms" "DM" "RM" "PA" "lfrac" "vfrac" "dPA" "band_centre" "band_width" "N" "mg_width_low" "mg_width_high")
+PARAMS=("t0" "width" "A" "spec_idx" "tau" "DM" "RM" "PA" "lfrac" "vfrac" "dPA" "band_centre" "band_width" "N" "mg_width_low" "mg_width_high")
 OVERRIDE_ARGS=()
 OVERRIDE_SUFFIX=""
 for param in "${PARAMS[@]}"; do

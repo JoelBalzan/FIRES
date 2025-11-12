@@ -19,13 +19,13 @@ import warnings
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-import numpy as np
 import matplotlib.transforms as mtransforms
+import numpy as np
 from scipy.optimize import curve_fit
 
 from fires.core.basicfns import (compute_segments, estimate_rm,
-								 on_off_pulse_masks_from_profile,
-								 pa_variance_deg2, process_dspec)
+                                 on_off_pulse_masks_from_profile,
+                                 pa_variance_deg2, process_dspec)
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key, param_info
@@ -157,8 +157,8 @@ colour_map = {
 #	--------------------------	Parameter mappings	---------------------------
 param_map = {
 	# Intrinsic parameters - format: (LaTeX_symbol, unit)
-	"tau_ms"         : (r"\tau_0", r"\mathrm{ms}"),
-	"width_ms"       : (r"W_0", r"\mathrm{ms}"),
+	"tau"         : (r"\tau_0", r"\mathrm{ms}"),
+	"width"          : (r"W_0", r"\mathrm{ms}"),
 	"A"              : (r"A_0", r"\mathrm{Jy}"),
 	"spec_idx"       : (r"\alpha_0", ""),
 	"DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
@@ -219,7 +219,7 @@ Z			plot_func (callable): Function to generate the plot.
 		
 
 # --------------------------	Plot modes definitions	---------------------------
-def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, **kwargs):
+def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=None, **kwargs):
 	"""
 	Generate basic plots using configuration from plot_config.
 	"""
@@ -229,14 +229,13 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, **kwargs):
 	show_plots = get_plot_param(plot_config, 'general', 'show_plots', True)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
-	buffer_frac = get_plot_param(plot_config, 'windows', 'buffer_frac', 1.0)
 	show_onpulse = get_plot_param(plot_config, 'windows', 'show_onpulse', False)
 	show_offpulse = get_plot_param(plot_config, 'windows', 'show_offpulse', False)
 	dspec_params = frb_data.dspec_params
 	freq_mhz = dspec_params.freq_mhz
 	time_ms = dspec_params.time_ms
 
-	tau_ms = dspec_params.gdict['tau_ms']
+	tau = dspec_params.gdict['tau']
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
 		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac
@@ -246,7 +245,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, **kwargs):
 	
 	if mode == "all":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
-				ts_data, figsize, tau_ms, show_plots, extension, 
+				ts_data, figsize, tau, show_plots, extension, 
 				legend, buffer_frac, show_onpulse, show_offpulse)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
@@ -255,7 +254,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, **kwargs):
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 	elif mode == "lvpa":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
-				ts_data, figsize, tau_ms, show_plots, extension, 
+				ts_data, figsize, tau, show_plots, extension, 
 				legend, buffer_frac, show_onpulse, show_offpulse)
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
@@ -3010,7 +3009,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	phase_slc = _get_phase_window_indices(phase_window, peak_index)
 
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-		I_profile, gdict["width_ms"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
+		I_profile, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
 
 	# Restrict to phase window

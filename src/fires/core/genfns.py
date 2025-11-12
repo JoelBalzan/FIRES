@@ -19,7 +19,7 @@ import logging
 import numpy as np
 
 from fires.core.basicfns import (add_noise, compute_required_sefd,
-								 compute_segments, scatter_dspec)
+                                 compute_segments, scatter_dspec)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -107,8 +107,8 @@ def _init_seed(seed: int | None, plot_multiple_frb: bool) -> int:
 
 def _disable_micro_variance_for_swept_base(sd_dict, xname):
 	"""
-	If sweeping a base parameter (e.g., 'tau_ms'), disable its random micro-variance
-	by zeroing the corresponding '*_sd' entry (e.g., 'tau_ms_sd') so the sweep
+	If sweeping a base parameter (e.g., 'tau'), disable its random micro-variance
+	by zeroing the corresponding '*_sd' entry (e.g., 'tau_sd') so the sweep
 	reflects only the base change.
 	Returns a modified copy of sd_dict (shallow copy; values may be arrays).
 	"""
@@ -130,18 +130,18 @@ def _disable_micro_variance_for_swept_base(sd_dict, xname):
 	return new_sd_dict
 
 
-def _make_scattering_kernel(t_ms: np.ndarray, tau_ms: float) -> np.ndarray:
+def _make_scattering_kernel(t_ms: np.ndarray, tau: float) -> np.ndarray:
 	"""
 	Exponential scattering kernel h(t) = (1/tau) exp(-t/tau) for t>=0; delta if tau<=0.
 	"""
-	if tau_ms is None or tau_ms <= 0:
+	if tau is None or tau <= 0:
 		h = np.zeros_like(t_ms, dtype=float)
 		h[np.argmin(np.abs(t_ms))] = 1.0
 		return h
 	h = np.zeros_like(t_ms, dtype=float)
 	mask = t_ms >= 0.0
 	# Avoid division by zero in very small tau
-	den = max(float(tau_ms), 1e-12)
+	den = max(float(tau), 1e-12)
 	h[mask] = np.exp(-t_ms[mask] / den) / den
 	return h
 
@@ -171,7 +171,7 @@ def _gaussian_on_grid(t_ms: np.ndarray, sigma_ms: float, normalise: str) -> np.n
 		return g 
 
 
-def _unit_fluence_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -> np.ndarray:
+def _unit_fluence_response(t_ms: np.ndarray, sigma_w_ms: float, tau: float) -> np.ndarray:
 	"""
 	Build unit-fluence (unit-area) temporal response h_tau(t; w):
 	  1) s(t; w) = unit-area Gaussian (fluence-normalised)
@@ -185,7 +185,7 @@ def _unit_fluence_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -
 	s = _gaussian_on_grid(t, float(sigma_w_ms), normalise="area")
 
 	# k: unit-area scattering kernel (delta if tau<=0)
-	tau_eff = float(tau_ms) if (tau_ms is not None and float(tau_ms) > 0) else 0.0
+	tau_eff = float(tau) if (tau is not None and float(tau) > 0) else 0.0
 	k = _make_scattering_kernel(t, tau_eff)
 
 	# Convolution (integral)
@@ -204,7 +204,7 @@ def _unit_fluence_response(t_ms: np.ndarray, sigma_w_ms: float, tau_ms: float) -
 
 def _triple_convolution_with_width_pdf(
 	t_ms: np.ndarray,
-	tau_ms: float,
+	tau: float,
 	f_arrival: np.ndarray,
 	width_mean_fwhm_ms: float,
 	mg_width_low: float | None,
@@ -239,7 +239,7 @@ def _triple_convolution_with_width_pdf(
 	hf_list, h2f_list, area_list = [], [], []
 	for w in w_samples:
 		sigma_w = float(w) / GAUSSIAN_FWHM_FACTOR
-		h_w = _unit_fluence_response(t, sigma_w_ms=sigma_w, tau_ms=tau_ms)
+		h_w = _unit_fluence_response(t, sigma_w_ms=sigma_w, tau=tau)
 		area = np.sum(h_w) * dt
 		hf_w  = np.convolve(h_w,    f_arrival, mode="same") * dt
 		h2f_w = np.convolve(h_w**2, f_arrival, mode="same") * dt
@@ -259,7 +259,7 @@ def _triple_convolution_with_width_pdf(
 
 
 def _expected_pa_variance(
-	tau_ms, sigma_deg, N, width_ms, A, A_sd,
+	tau, sigma_deg, N, width, A, A_sd,
 	time_ms=None, mg_width_low=None, mg_width_high=None, n_width_samples: int = 31
 ):
 	"""
@@ -278,12 +278,12 @@ def _expected_pa_variance(
 	t_rel = t - np.median(t)
 
 	# arrival PDF
-	sigma_arrival_ms = float(width_ms) / GAUSSIAN_FWHM_FACTOR
+	sigma_arrival_ms = float(width) / GAUSSIAN_FWHM_FACTOR
 	f = _gaussian_on_grid(t_rel, sigma_arrival_ms, normalise="area")
 
 	hf, h2f = _triple_convolution_with_width_pdf(
-		t_rel, float(tau_ms) if tau_ms is not None else 0.0, f,
-		width_mean_fwhm_ms=float(width_ms),
+		t_rel, float(tau) if tau is not None else 0.0, f,
+		width_mean_fwhm_ms=float(width),
 		mg_width_low=mg_width_low,
 		mg_width_high=mg_width_high,
 		n_width_samples=n_width_samples
@@ -309,10 +309,10 @@ def _expected_pa_variance(
 
 
 def _expected_pa_variance_basic(
-	width_ms,
+	width,
 	mg_width_low,
 	mg_width_high,
-	tau_ms,
+	tau,
 	sigma_deg,
 	N,
 	time_res_ms
@@ -329,11 +329,11 @@ def _expected_pa_variance_basic(
 	Returns:
 	  var_PA_deg2 (float|None), PA_rms_deg (float|None), aux (dict with components).
 	"""
-	W_fwhm = float(np.nanmean(np.asarray(width_ms, dtype=float)))
+	W_fwhm = float(np.nanmean(np.asarray(width, dtype=float)))
 	frac_micro = np.clip(0.5 * (float(mg_width_low) + float(mg_width_high)) / 100.0, 1e-6, None)
 	w_fwhm = W_fwhm * frac_micro
 
-	tau = float(np.nanmean(np.asarray(tau_ms, dtype=float)))
+	tau = float(np.nanmean(np.asarray(tau, dtype=float)))
 	# Convert FWHM → σ
 	sigma_W = W_fwhm / GAUSSIAN_FWHM_FACTOR
 	sigma_w = w_fwhm / GAUSSIAN_FWHM_FACTOR
@@ -459,10 +459,10 @@ def psn_dspec(
 		sd_dict = _disable_micro_variance_for_swept_base(sd_dict, xname)
 	
 	t0              = gdict['t0']
-	width_ms       	= gdict['width_ms']
+	width       	= gdict['width']
 	A               = gdict['A']
 	spec_idx        = gdict['spec_idx']
-	tau_ms 	   		= gdict['tau_ms']
+	tau 	   		= gdict['tau']
 	PA              = gdict['PA']
 	DM              = gdict['DM']
 	RM              = gdict['RM']
@@ -479,7 +479,7 @@ def psn_dspec(
 
 	sd_A               = sd_dict['sd_A']
 	sd_spec_idx        = sd_dict['sd_spec_idx']
-	sd_tau_ms          = sd_dict['sd_tau_ms']
+	sd_tau          = sd_dict['sd_tau']
 	sd_PA              = sd_dict['sd_PA']
 	sd_dm              = sd_dict['sd_DM']
 	sd_rm              = sd_dict['sd_RM']
@@ -497,7 +497,7 @@ def psn_dspec(
 		'A_i'              : [],
 		'mg_width_i'       : [],
 		'spec_idx_i'       : [],
-		'tau_ms_i'         : [],
+		'tau_i'         : [],
 		'PA_i'             : [],
 		'DM_i'             : [],
 		'RM_i'             : [],
@@ -511,12 +511,12 @@ def psn_dspec(
 	num_main_gauss = len(t0) 
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
-			t0_i              = np.random.normal(t0[g], width_ms[g] / GAUSSIAN_FWHM_FACTOR)
+			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
 			A_i        		  = np.random.normal(A[g], sd_A)
-			mg_width_i        = width_ms[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
+			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
-			tau_ms_i          = np.random.normal(tau_ms[g], sd_tau_ms)
-			tau_eff = tau_ms_i if tau_ms_i > 0 else float(tau_ms[g])
+			tau_i          = np.random.normal(tau[g], sd_tau)
+			tau_eff = tau_i if tau_i > 0 else float(tau[g])
 			if tau_eff > 0:
 				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
 			else:
@@ -543,7 +543,7 @@ def psn_dspec(
 			all_params['A_i'].append(A_i)
 			all_params['mg_width_i'].append(mg_width_i)
 			all_params['spec_idx_i'].append(spec_idx_i)
-			all_params['tau_ms_i'].append(tau_ms_i)
+			all_params['tau_i'].append(tau_i)
 			all_params['PA_i'].append(PA_i)
 			all_params['DM_i'].append(DM_i)
 			all_params['RM_i'].append(RM_i)
@@ -636,13 +636,13 @@ def psn_dspec(
 	if sd_PA > 0 and N_tot > 1:
 		actual_A_mean = np.mean(A)
 		actual_A_std = np.std(A)
-		actual_width_mean = np.mean(width_ms)
-		actual_tau_mean = np.mean(tau_ms)
+		actual_width_mean = np.mean(width)
+		actual_tau_mean = np.mean(tau)
 		exp_V_PA_deg2, _, _, _, N_eff_diag = _expected_pa_variance(
-			tau_ms=actual_tau_mean,  
+			tau=actual_tau_mean,  
 			sigma_deg=float(sd_PA),
 			N=N_tot,
-			width_ms=actual_width_mean,
+			width=actual_width_mean,
 			A=actual_A_mean,
 			A_sd=actual_A_std,
 			time_ms=time_ms,
@@ -655,17 +655,17 @@ def psn_dspec(
 		#plot_Neff_vs_time(time_ms, N_eff_t_diag)
 
 		exp_V_PA_deg2_basic = _expected_pa_variance_basic(
-			width_ms=float(np.nanmean(width_ms)),
+			width=float(np.nanmean(width)),
 			mg_width_low=float(np.nanmean(mg_width_low)),
 			mg_width_high=float(np.nanmean(mg_width_high)),
-			tau_ms=float(tau_ms) if np.ndim(tau_ms) == 0 else float(tau_ms[0]),
+			tau=float(tau) if np.ndim(tau) == 0 else float(tau[0]),
 			sigma_deg=float(sd_PA),
 			N=N_tot,
 			time_res_ms=time_res_ms
 		)
 
 		if not plot_multiple_frb:
-			print(f"tau={tau_ms[0]:.2f}:"
+			print(f"tau={tau[0]:.2f}:"
 				  f"Expected(detailed)={exp_V_PA_deg2:.2f}, "
 				  f"Expected(basic)={exp_V_PA_deg2_basic:.2f}")
 
@@ -676,9 +676,9 @@ def psn_dspec(
 	exp_vars = {
 		'exp_var_t0'             : None,
 		'exp_var_A'       		 : None,
-		'exp_var_width_ms'       : None,
+		'exp_var_width'       : None,
 		'exp_var_spec_idx'       : None,
-		'exp_var_tau_ms'         : None,
+		'exp_var_tau'         : None,
 		'exp_var_PA'             : [exp_V_PA_deg2, exp_V_PA_deg2_basic],
 		'exp_var_DM'             : None,
 		'exp_var_RM'             : None,

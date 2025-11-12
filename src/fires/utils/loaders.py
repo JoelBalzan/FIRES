@@ -11,8 +11,8 @@ from collections import defaultdict
 
 import numpy as np
 
-from fires.utils.utils import dspecParams
 from fires.utils.config import load_params
+from fires.utils.utils import dspecParams
 
 logging.basicConfig(level=logging.INFO)
 
@@ -352,7 +352,7 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 
 	# Mandatory keys (exact gparams names)
 	mandatory = [
-		't0','width_ms','A','spec_idx','tau_ms','DM','RM','PA',
+		't0','width','A','spec_idx','tau','DM','RM','PA',
 		'lfrac','vfrac','dPA','band_centre_mhz','band_width_mhz',
 		'N','mg_width_low','mg_width_high'
 	]
@@ -373,11 +373,11 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 	if scint_file is not None:
 		scint = load_params("scparams", scint_file, "scintillation")
 		if scint.get("derive_from_tau", False):
-			tau_ms_ref = float(gdict["tau"][0])  # tau already in ms
-			tau_s_ref  = 1e-3 * tau_ms_ref
+			tau_ref = float(gdict["tau"][0])  # tau already in ms
+			tau_s_ref  = 1e-3 * tau_ref
 			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)
 			scint["nu_s"] = float(nu_s_hz)
-			logging.info(f"Derived nu_s at reference {ref_freq:.1f} MHz: tau={tau_ms_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz")
+			logging.info(f"Derived nu_s at reference {ref_freq:.1f} MHz: tau={tau_ref:.3f} ms -> nu_s={nu_s_hz:.2f} Hz")
 	else:
 		scint = None
 
@@ -415,8 +415,13 @@ def load_multiple_data_grouped(data):
 	Loads ALL files per group and merges their xvals/measures together.
 	Returns unwrapped dict if single series, OrderedDict (sorted) if multiple.
 	"""
-	from collections import defaultdict, OrderedDict
-	import os, re, numpy as np, pickle, logging
+	import logging
+	import os
+	import pickle
+	import re
+	from collections import OrderedDict, defaultdict
+
+	import numpy as np
 	
 	logging.info(f"Loading grouped data from {data}")
   
@@ -471,16 +476,16 @@ def load_multiple_data_grouped(data):
 	def sort_tuple_for_key(key_dict):
 		"""
 		Build tuple used for ordering multi-run series.
-		Priority: N -> tau/tau_ms -> width/width_ms -> remaining numeric params alphabetically.
+		Priority: N -> tau/tau -> width/width -> remaining numeric params alphabetically.
 		Absent values get +inf to push to end.
 		"""
 		import math
 		inf = math.inf
 		N_val = key_dict.get('N', inf)
-		tau_val = key_dict.get('tau_ms', key_dict.get('tau', inf))
-		width_val = key_dict.get('width_ms', key_dict.get('width', inf))
+		tau_val = key_dict.get('tau', key_dict.get('tau', inf))
+		width_val = key_dict.get('width', key_dict.get('width', inf))
 		# Remaining (exclude already used)
-		used = {'N','tau','tau_ms','width','width_ms'}
+		used = {'N','tau','tau','width','width'}
 		rest = [(k, v) for k, v in key_dict.items() if k not in used]
 		rest.sort(key=lambda x: x[0])
 		rest_vals = tuple(v for _, v in rest)
