@@ -24,8 +24,8 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from fires.core.basicfns import (compute_segments, estimate_rm,
-                                 on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, process_dspec)
+								 on_off_pulse_masks_from_profile,
+								 pa_variance_deg2, process_dspec)
 from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key, param_info
@@ -2965,6 +2965,27 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 
 	# Compute per-window measures once
 	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac)
+
+	try:
+		lfrac_win = _extract_value_from_segments(segments, 'Lfrac', phase_window, freq_window)
+	except Exception:
+		lfrac_win = np.nan
+	try:
+		vfrac_win = _extract_value_from_segments(segments, 'Vfrac', phase_window, freq_window)
+	except Exception:
+		vfrac_win = np.nan
+	try:
+		vpsi_win = _extract_value_from_segments(segments, 'Vpsi', phase_window, freq_window)
+	except Exception:
+		vpsi_win = np.nan
+
+	# Log measured values for requested window
+	logging.info(
+		f"Observational window [{normalise_freq_window(freq_window, 'dspec')}, "
+		f"{normalise_phase_window(phase_window, 'dspec')}]: "
+		f"L/I={lfrac_win:.4g}, V/I={vfrac_win:.4g}, V(psi)={vpsi_win:.4g} deg^2"
+	)
+	
 	# X-axis value
 	x_value = None
 	x_err = None
@@ -3098,7 +3119,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	}
 
 	if (x_value is not None and np.isfinite(x_value)) and (y_value is not None and np.isfinite(y_value)):
-		logging.info(f"Observational measurements: x={x_value:.3f}{'' if x_err is None else f'±{x_err:.3f}'}, y={y_value:.3f}{'' if y_err is None else f'±{y_err:.3f}'}")
+		logging.info(f"Processed observational data")
 	else:
 		logging.warning("Failed to extract valid measurements from observational data")
 
