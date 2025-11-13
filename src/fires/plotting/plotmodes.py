@@ -26,7 +26,7 @@ from scipy.optimize import curve_fit
 from fires.core.basicfns import (compute_segments, estimate_rm,
 								 on_off_pulse_masks_from_profile,
 								 pa_variance_deg2, process_dspec)
-from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes
+from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes, plot_pa_profile
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key, param_info
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -248,6 +248,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 				ts_data, figsize, tau, show_plots, extension, 
 				legend, buffer_frac, show_onpulse, show_offpulse)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
+		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "iquv":
@@ -256,6 +257,8 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
 				legend, buffer_frac, show_onpulse, show_offpulse)
+	elif mode == "pa":
+			plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension)
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 	elif mode == "RM":
@@ -3404,11 +3407,18 @@ RM = PlotMode(
 	requires_multiple_frb=False
 )
 
+pa = PlotMode(
+    name="pa",
+    plot_func=basic_plots,
+    requires_multiple_frb=False
+)
+
 plot_modes = {
-	"pa_var": pa_var,
-	"l_frac": l_frac,
-	"iquv"  : iquv,
-	"lvpa"  : lvpa,
-	"dpa"   : dpa,
-	"RM"    : RM,
+    "pa_var": pa_var,
+    "l_frac": l_frac,
+    "iquv"  : iquv,
+    "lvpa"  : lvpa,
+    "dpa"   : dpa,
+    "RM"    : RM,
+    "pa"    : pa,
 }
