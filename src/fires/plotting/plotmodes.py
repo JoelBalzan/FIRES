@@ -2093,11 +2093,10 @@ def _plot_single_job_common(
 	pct_enabled = bool(pct_cfg.get('enabled', True))
 	p_low = float(pct_cfg.get('p_low', 16))
 	p_high = float(pct_cfg.get('p_high', 84))
-	y_cfg = pct_cfg.get('y', {}) or {}
-	print(y_cfg)
+	y_cfg = get_plot_param(plot_config, 'analytical', 'percentiles.y', {}) or {}
 	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
 	y_alpha = float(y_cfg.get('alpha', 0.2))
-	x_cfg = pct_cfg.get('x', {}) or {}
+	x_cfg = get_plot_param(plot_config, 'analytical', 'percentiles.x', {}) or {}
 	x_pct_enabled = bool(x_cfg.get('enabled', False)) and pct_enabled and (x_measured is not None)
 	x_style = str(x_cfg.get('style', 'bars')).lower()
 	x_alpha = float(x_cfg.get('alpha', 0.12))
