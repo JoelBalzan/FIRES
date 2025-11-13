@@ -1908,9 +1908,9 @@ def _plot_single_run_multi_window(
 		else:
 			param_key = None
 		if param_key is not None:
-			# Use the same x as the first window for expected curve
 			x, _, _ = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by)
-			_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=param_key, weight_y_by=weight_y_by)
+			if get_plot_param(plot_config, 'analytical', 'plot_expected', True):
+				_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=param_key, weight_y_by=weight_y_by)
 			
 	# Observational overlay
 	if obs_data is not None:
@@ -2000,6 +2000,7 @@ def _plot_single_job_common(
 	nbins=15,
 	colour_by_sweep=False,
 	legend_loc='best',
+	plot_config=None
 ):
 	"""
 	Common single-job plotting helper used by plot_pa_var and plot_lfrac_var.
@@ -2068,8 +2069,11 @@ def _plot_single_job_common(
 		ax.fill_between(plot_x, plot_lo, plot_hi, color=series_colour, alpha=0.2)
 
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict) and draw_style != 'binned':
-		exp_weight = weight_y_by if applied else None
-		_plot_expected(plot_x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
+		# respect config override if provided
+		_plot_expected_cfg = get_plot_param(plot_config, 'analytical', 'plot_expected', True)
+		if _plot_expected_cfg:
+			exp_weight = weight_y_by if applied else None
+			_plot_expected(plot_x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
 
 	if fit is not None and draw_style not in ('binned', 'scatter'):
 		logging.info(f"Applying fit: {fit}")
@@ -2079,8 +2083,11 @@ def _plot_single_job_common(
 			_legend_if_any(ax, loc=legend_loc)
 
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
-		exp_weight = weight_y_by if applied else None
-		_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
+		# second expected plotting (older call) — respect config as well
+		_plot_expected_cfg = get_plot_param(plot_config, 'analytical', 'plot_expected', True)
+		if _plot_expected_cfg:
+			exp_weight = weight_y_by if applied else None
+			_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
 
 	if fit is not None:
 		logging.info(f"Applying fit: {fit}")
@@ -2262,8 +2269,10 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		logging.warning(f"Could not determine expected parameter key for yname='{base_yname}', using default '{param_key}'")
 	
 	weight_for_expected = weight_y_by if (weight_y_by is not None and weight_applied_all) else None
-	_plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
-				   param_key=param_key, weight_y_by=weight_for_expected)
+	# only plot expected if config allows
+	if get_plot_param(plot_config, 'analytical', 'plot_expected', True):
+		_plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
+					   param_key=param_key, weight_y_by=weight_for_expected)
 
 	if legend:
 		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
@@ -2639,7 +2648,8 @@ def plot_pa_var(
 			draw_style=draw_style,
 			nbins=nbins,
 			colour_by_sweep=colour_by_sweep,
-			legend_loc=legend_loc
+			legend_loc=legend_loc,
+			plot_config=plot_config
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 		
@@ -2867,7 +2877,8 @@ def plot_lfrac(
 			draw_style=draw_style,
 			nbins=nbins,
 			colour_by_sweep=colour_by_sweep,
-			legend_loc=legend_loc
+			legend_loc=legend_loc,
+			plot_config=plot_config
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 

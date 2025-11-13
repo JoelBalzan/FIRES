@@ -28,6 +28,7 @@ show_offpulse = true             # Highlight off-pulse region
 # Options specific to analytical plots (pa_var, l_frac)
 plot_scale        = "log"            # Scale: "linear",     "logx",   "logy",    "log"
 draw_style        = "line-param"     # Style: "line-param", "line-x", "scatter", "binned"
+plot_expected     = true             # Whether to draw expected model curves (exp_vars) (only works for expected V(PA))
 fit_functions     = None             # Fit functions to apply: ['exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N]
 weight_x_by       = "width"       # Parameter to normalize x-axis by
 weight_y_by       = "meas_var_PA_i"  # Parameter to normalize y-axis by
