@@ -100,7 +100,6 @@ span_alpha       = 0.12        # alpha for shaded spans
 bar_alpha        = 0.7         # alpha for error bars
 bar_capsize      = 5
 use_series_colour = false      # if true (multi-window), use series/window colour instead of fixed colour
-expand_limits    = true        # auto-expand axes to include errors
 label_prefix     = ""          # optional text prepended to label
 
 

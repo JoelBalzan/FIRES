@@ -465,17 +465,14 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9, p_low=16, p_
 	return med_vals, percentile_errs
 
 
-def _x_percentiles_measured(frb_dict, x_measured: str, p_low=16, p_high=84):
+def _x_percentiles_measured(frb_dict, x_measured: str, p_low=16, p_high=84,
+							phase_window='total', freq_window='all'):
 	"""
-	Compute per-parameter-step percentiles of a measured x quantity.
-	Returns (x_med, x_lo, x_hi) arrays aligned with frb_dict["xvals"].
+	Compute per-parameter-step percentiles of a measured x quantity for the SAME
+	(freq_window, phase_window) used on the x-axis, returning (x_med, x_lo, x_hi).
 	"""
 	xvals_sweep = np.array(frb_dict["xvals"])
 	measures = frb_dict.get("measures", {})
-	# compute for total phase and all freq by default for x
-	freq_key = 'all'
-	phase_key = 'total'
-
 	x_med = []
 	x_lo = []
 	x_hi = []
@@ -485,19 +482,19 @@ def _x_percentiles_measured(frb_dict, x_measured: str, p_low=16, p_high=84):
 		for seg in seg_list:
 			if not isinstance(seg, dict):
 				continue
-			val = _extract_value_from_segments(seg, x_measured, phase_key, freq_key)
+			val = _extract_value_from_segments(seg, x_measured, phase_window, freq_window)
 			if np.isfinite(val):
 				vals.append(val)
 		if len(vals) == 0:
-			x_med.append(np.nan)
-			x_lo.append(np.nan)
-			x_hi.append(np.nan)
+			x_med.append(np.nan); x_lo.append(np.nan); x_hi.append(np.nan)
 		else:
 			arr = np.asarray(vals, dtype=float)
 			x_med.append(np.nanmedian(arr))
 			x_lo.append(np.nanpercentile(arr, p_low))
 			x_hi.append(np.nanpercentile(arr, p_high))
-	return np.asarray(x_med, dtype=float), np.asarray(x_lo, dtype=float), np.asarray(x_hi, dtype=float)
+	return (np.asarray(x_med, dtype=float),
+			np.asarray(x_lo, dtype=float),
+			np.asarray(x_hi, dtype=float))
 
 
 def _find_matching_key(key, candidates, atol=1e-10, rtol=1e-8, ndigits=6):
@@ -854,29 +851,35 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, colour='black
 		logging.error(f"Fit failed: {e}")
 
 
-def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
+def _weight_x_get_xname(
+		frb_dict,
+		weight_x_by=None,
+		x_measured=None,
+		phase_window=None,
+		freq_window=None
+	):
 	"""
-	Extracts the x values and variable name for the x-axis.
-	
-	New behavior with x_measured:
-	- If x_measured is set (e.g., 'Vpsi'), extracts measured values from segments
-	  instead of using input parameter sweep values
-	- x_measured options: 'Vpsi' (PA variance), 'Lfrac' (L/I), 'Vfrac' (V/I)
-	
-	Returns:
-	--------
-	tuple
-		(x, xname, x_unit) where x is array of values to plot on x-axis
+	Extract x-axis values.
+	When x_measured is set, now respects phase_window/freq_window instead of
+	forcing ('total','all'). Falls back to ('total','all') if not provided.
 	"""
 	if x_measured is not None:
-		# Use measured quantity on x-axis
 		xvals_sweep = np.array(frb_dict["xvals"])
 		measures = frb_dict.get("measures", {})
 		
-		# Use full-burst by default on x
-		freq_key = 'all'
-		phase_key = 'total'
-		
+		# Use provided windows or defaults
+		phase_key = normalise_phase_window(
+			phase_window if phase_window is not None else 'total',
+			target='segments'
+		)
+		freq_key = normalise_freq_window(
+			freq_window if freq_window is not None else 'all',
+			target='segments'
+		)
+		# Map back to dspec form when extracting
+		phase_key_dspec = normalise_phase_window(phase_key, target='dspec')
+		freq_key_dspec = normalise_freq_window(freq_key, target='dspec')
+
 		measured_x = []
 		for xv in xvals_sweep:
 			seg_list = measures.get(xv, [])
@@ -887,11 +890,12 @@ def _weight_x_get_xname(frb_dict, weight_x_by=None, x_measured=None):
 			for seg in seg_list:
 				if not isinstance(seg, dict):
 					continue
-				val = _extract_value_from_segments(seg, x_measured, phase_key, freq_key)
-				vals.append(val)
+				val = _extract_value_from_segments(seg, x_measured, phase_key_dspec, freq_key_dspec)
+				if np.isfinite(val):
+					vals.append(val)
 			measured_x.append(np.nanmedian(vals) if vals else np.nan)
 		
-		x = np.array(measured_x)
+		x = np.array(measured_x, dtype=float)
 		
 		if x_measured == 'Vpsi':
 			xname = r"\mathbb{V}(\psi)"
@@ -1372,9 +1376,21 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 
 			# x extraction
 			if x_measured is not None:
-				x_vals, _, _ = _weight_x_get_xname(run_data, weight_x_by=weight_x_by, x_measured=x_measured)
+				x_vals, _, _ = _weight_x_get_xname(
+					run_data,
+					weight_x_by=weight_x_by,
+					x_measured=x_measured,
+					phase_window=phase_window,
+					freq_window=freq_window
+				)
 			else:
-				x_vals, _, _ = _weight_x_get_xname(run_data, weight_x_by=weight_x_by, x_measured=None)
+				x_vals, _, _ = _weight_x_get_xname(
+					run_data,
+					weight_x_by=weight_x_by,
+					x_measured=None,
+					phase_window=phase_window,
+					freq_window=freq_window
+				)
 
 			y_quantity = 'Vpsi' if plot_type == 'pa_var' else 'Lfrac'
 			yvals_dict = _yvals_from_measures_dict(xvals, measures, plot_type, phase_window, freq_window)
@@ -1590,13 +1606,16 @@ def plot_constant_param_lines(
 		mask = np.isfinite(x) & np.isfinite(y)
 		if np.sum(mask) < 2:
 			continue
-		# Plot the line without legend label
-		ax.plot(x[mask], y[mask], color=color, alpha=alpha, linestyle=linestyle, label=None)
-		# Add text label at the leftmost point
-		x_sorted = x[mask]
-		y_sorted = y[mask]
-		if len(x_sorted) > 0:
-			val_str = f"{int(param_val)}" if param_val == int(param_val) else f"{param_val:.2g}"
+		# Sort by x so the line is monotonic in x
+		x_valid = x[mask]
+		y_valid = y[mask]
+		order = np.argsort(x_valid)
+		x_sorted = x_valid[order]
+		y_sorted = y_valid[order]
+		# Plot the line
+		ax.plot(x_sorted, y_sorted, color=color, alpha=alpha, linestyle=linestyle, label=None)
+		# Add text label at the rightmost point
+		val_str = f"{int(param_val)}" if param_val == int(param_val) else f"{param_val:.2g}"
 		label_text = label_fmt.format(param=param_name, val=val_str)
 		ax.text(x_sorted[-1], y_sorted[-1], label_text,
 				fontsize=15, alpha=alpha+0.2, color=color, zorder=0,
@@ -1627,7 +1646,13 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 	for run_key, run_data in frb_dict.items():
 		try:
 			# x values
-			x_vals, _, _ = _weight_x_get_xname(run_data, weight_x_by=weight_x_by, x_measured=x_measured)
+			x_vals, _, _ = _weight_x_get_xname(
+				run_data,
+				weight_x_by=weight_x_by,
+				x_measured=x_measured,
+				phase_window=phase_window,
+				freq_window=freq_window
+			)
 			x_vals = np.asarray(x_vals, dtype=float)
 
 			# y values
@@ -1860,10 +1885,10 @@ def _plot_single_run_multi_window(
 	pct_enabled = bool(pct_cfg.get('enabled', True))
 	p_low = float(pct_cfg.get('p_low', 16))
 	p_high = float(pct_cfg.get('p_high', 84))
-	y_cfg = get_plot_param(plot_config, 'analytical', 'percentiles.y', {}) or {}
+	y_cfg = pct_cfg.get('y', {}) or {}
 	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
 	y_alpha = float(y_cfg.get('alpha', 0.2))
-	x_cfg = get_plot_param(plot_config, 'analytical', 'percentiles.x', {}) or {}
+	x_cfg = pct_cfg.get('x', {}) or {}
 	x_pct_enabled = bool(x_cfg.get('enabled', False)) and pct_enabled and (x_measured is not None)
 	x_style = str(x_cfg.get('style', 'bars')).lower()
 	x_alpha = float(x_cfg.get('alpha', 0.12))
@@ -1886,31 +1911,36 @@ def _plot_single_run_multi_window(
 		upper = np.array([hi for (lo, hi) in percentile_errs])
 		
 		if x_last is None:
-			x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by, x_measured=x_measured)
+			x, xname, x_unit = _weight_x_get_xname(
+				frb_dict,
+				weight_x_by=weight_x_by,
+				x_measured=x_measured,
+				phase_window=phase_win,
+				freq_window=freq_win
+			)
 			x_last = x
 		else:
 			x = x_last
 
-		# Optional x-percentiles when using x_measured
 		x_lo = x_hi = None
 		if x_pct_enabled:
-			x_med, x_lo_arr, x_hi_arr = _x_percentiles_measured(frb_dict, x_measured, p_low=p_low, p_high=p_high)
-			# x returned here is already the medians; ensure alignment
+			x_med_arr, x_lo_arr, x_hi_arr = _x_percentiles_measured(
+				frb_dict, x_measured, p_low=p_low, p_high=p_high,
+				phase_window=phase_win, freq_window=freq_win
+			)
 			x_lo = x_lo_arr
 			x_hi = x_hi_arr
-
-		plot_x = x
-		plot_med = np.asarray(med_vals, dtype=float)
-		plot_lo  = lower
-		plot_hi  = upper
-
+		# Sorting reorders x; keep percentile arrays aligned
 		if draw_style == 'line-x':
 			order = np.argsort(plot_x)
 			plot_x   = plot_x[order]
 			plot_med = plot_med[order]
 			plot_lo  = plot_lo[order]
 			plot_hi  = plot_hi[order]
-
+			if x_lo is not None and x_hi is not None:
+				x_lo = x_lo[order]
+				x_hi = x_hi[order]
+				
 		elif draw_style == 'binned':
 			bx, by, blo, bhi = _bin_xy(plot_x, plot_med, nbins=nbins, strategy='equal-count')
 			plot_x, plot_med, plot_lo, plot_hi = bx, by, blo, bhi
@@ -1929,11 +1959,13 @@ def _plot_single_run_multi_window(
 		colour = get_colour(freq_win, phase_win)
 
 		if draw_style == 'scatter':
-			# asymmetric errors from percentile band
 			yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
 			xerr = None
 			if x_pct_enabled and x_lo is not None and x_hi is not None:
-				xerr = np.vstack([(plot_x - x_lo), (x_hi - plot_x)])
+				# Ensure non-negative magnitudes for errorbar
+				dx_low  = np.maximum(plot_x - x_lo, 0)
+				dx_high = np.maximum(x_hi - plot_x, 0)
+				xerr = np.vstack([dx_low, dx_high])
 			if colour_by_sweep:
 				cvals = np.arange(len(plot_x))
 				ax.errorbar(
@@ -2038,7 +2070,6 @@ def _plot_single_run_multi_window(
 						span_alpha=obs_cfg.get('span_alpha', 0.1),
 						bar_alpha=obs_cfg.get('bar_alpha', 0.7),
 						bar_capsize=obs_cfg.get('bar_capsize', 5),
-						expand_limits=obs_cfg.get('expand_limits', True),
 						label_prefix=obs_cfg.get('label_prefix', "")
 					)
 		except Exception as e:
@@ -2074,7 +2105,9 @@ def _plot_single_job_common(
 	nbins=15,
 	colour_by_sweep=False,
 	legend_loc='best',
-	plot_config=None
+	plot_config=None,
+	phase_window=None,
+	freq_window=None
 ):
 	"""
 	Common single-job plotting helper used by plot_pa_var and plot_lfrac_var.
@@ -2088,15 +2121,14 @@ def _plot_single_job_common(
 		weight_source = V_params
 	else:
 		weight_source = dspec_params
-
 	pct_cfg = get_plot_param(plot_config, 'analytical', 'percentiles', {}) or {}
 	pct_enabled = bool(pct_cfg.get('enabled', True))
 	p_low = float(pct_cfg.get('p_low', 16))
 	p_high = float(pct_cfg.get('p_high', 84))
-	y_cfg = get_plot_param(plot_config, 'analytical', 'percentiles.y', {}) or {}
+	y_cfg = pct_cfg.get('y', {}) or {}
 	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
 	y_alpha = float(y_cfg.get('alpha', 0.2))
-	x_cfg = get_plot_param(plot_config, 'analytical', 'percentiles.x', {}) or {}
+	x_cfg = pct_cfg.get('x', {}) or {}
 	x_pct_enabled = bool(x_cfg.get('enabled', False)) and pct_enabled and (x_measured is not None)
 	x_style = str(x_cfg.get('style', 'bars')).lower()
 	x_alpha = float(x_cfg.get('alpha', 0.12))
@@ -2104,14 +2136,24 @@ def _plot_single_job_common(
 	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
 	med_vals, percentile_errs = _median_percentiles(y, xvals, p_low=p_low, p_high=p_high)
 
-	x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by, x_measured=x_measured)
+	x, xname, x_unit = _weight_x_get_xname(
+		frb_dict,
+		weight_x_by=weight_x_by,
+		x_measured=x_measured,
+		phase_window=phase_window,
+		freq_window=freq_window
+	)
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
 
 	# Optional x-percentiles (only when using x_measured)
 	x_lo = x_hi = None
 	if x_pct_enabled:
-		x_med, x_lo_arr, x_hi_arr = _x_percentiles_measured(frb_dict, x_measured, p_low=p_low, p_high=p_high)
+		x_med_raw, x_lo_arr, x_hi_arr = _x_percentiles_measured(
+			frb_dict, x_measured, p_low=p_low, p_high=p_high,
+			phase_window=phase_window if phase_window else 'total',
+			freq_window=freq_window if freq_window else 'all'
+		)
 		x_lo = x_lo_arr
 		x_hi = x_hi_arr
 
@@ -2136,16 +2178,22 @@ def _plot_single_job_common(
 		plot_med = plot_med[order]
 		plot_lo  = plot_lo[order]
 		plot_hi  = plot_hi[order]
-
+		if x_lo is not None and x_hi is not None:
+			x_lo = x_lo[order]
+			x_hi = x_hi[order]
 	elif draw_style == 'binned':
 		bx, by, blo, bhi = _bin_xy(plot_x, plot_med, nbins=nbins, strategy='equal-count')
 		plot_x, plot_med, plot_lo, plot_hi = bx, by, blo, bhi
+		# After binning we cannot derive x-error bars from original percentiles safely -> drop xerr
+		x_lo = None; x_hi = None
 
 	if draw_style == 'scatter':
 		yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
 		xerr = None
 		if x_pct_enabled and x_lo is not None and x_hi is not None:
-			xerr = np.vstack([(plot_x - x_lo), (x_hi - plot_x)])
+			dx_low  = np.maximum(plot_x - x_lo, 0)
+			dx_high = np.maximum(x_hi - plot_x, 0)
+			xerr = np.vstack([dx_low, dx_high])
 		if colour_by_sweep:
 			cvals = np.arange(len(plot_x))
 			ax.errorbar(
@@ -2332,7 +2380,10 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			yvals_override=yvals_run,
 			draw_style=draw_style,
 			nbins=nbins,
-			colour_by_sweep=colour_by_sweep
+			colour_by_sweep=colour_by_sweep,
+			plot_config=plot_config,
+			phase_window=phase_window,
+			freq_window=freq_window
 		)
 		if weight_y_by is not None and not meta['applied']:
 			logging.warning(f"Requested weighting by '{weight_y_by}' for run '{override_key}' but it could not be applied. Using unweighted values.")
@@ -2744,7 +2795,7 @@ def plot_pa_var(
 			figsize=figsize,
 			fit=fit,
 			scale=scale,
-			series_label=r'\psi$_{var}$',
+			series_label=r'$\mathbb{V}(\psi)$',
 			series_colour=series_colour,
 			expected_param_key='exp_var_PA',
 			yvals_override=yvals,
@@ -2752,7 +2803,9 @@ def plot_pa_var(
 			nbins=nbins,
 			colour_by_sweep=colour_by_sweep,
 			legend_loc=legend_loc,
-			plot_config=plot_config
+			plot_config=plot_config,
+			phase_window=phase_window,
+			freq_window=freq_window
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 		
@@ -2779,7 +2832,6 @@ def plot_pa_var(
 					span_alpha=obs_cfg.get('span_alpha', 0.1),
 					bar_alpha=obs_cfg.get('bar_alpha', 0.7),
 					bar_capsize=obs_cfg.get('bar_capsize', 5),
-					expand_limits=obs_cfg.get('expand_limits', True),
 					label_prefix=obs_cfg.get('label_prefix', "")
 				)
 				if legend:
@@ -2958,11 +3010,10 @@ def plot_lfrac(
 	else:
 		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
 
-		# Determine colour based on the selected window
 		freq_label = normalise_freq_window(freq_window, target='dspec')
 		phase_label = normalise_phase_window(phase_window, target='dspec')
 		key = f"{freq_label}, {phase_label}"
-		series_colour = colour_map.get(key, colours['purple'])  # default to purple
+		series_colour = colour_map.get(key, colours['purple']) 
 		
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
@@ -2981,11 +3032,12 @@ def plot_lfrac(
 			nbins=nbins,
 			colour_by_sweep=colour_by_sweep,
 			legend_loc=legend_loc,
-			plot_config=plot_config
+			plot_config=plot_config,
+			phase_window=phase_window,
+			freq_window=freq_window
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 
-	# Overlay observational data if provided
 	if obs_data is not None:
 		obs_cfg = _get_obs_cfg(plot_config)
 		if obs_cfg:
@@ -3008,7 +3060,6 @@ def plot_lfrac(
 					span_alpha=obs_cfg.get('span_alpha', 0.1),
 					bar_alpha=obs_cfg.get('bar_alpha', 0.7),
 					bar_capsize=obs_cfg.get('bar_capsize', 5),
-					expand_limits=obs_cfg.get('expand_limits', True),
 					label_prefix=obs_cfg.get('label_prefix', "")
 				)
 				if legend:
@@ -3244,7 +3295,7 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 								colour='magenta', marker='*', size=200,
 								edgecolor='black', linewidth=1.0, alpha=1.0,
 								error_style='spans', span_alpha=0.1, bar_alpha=0.7,
-								bar_capsize=5, expand_limits=True, label_prefix=""):
+								bar_capsize=5, label_prefix=""):
 	"""
 	Add observational data point with error bars as crosshairs on existing plot.
 	
@@ -3314,66 +3365,6 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 		if y_err is not None and y_err > 0:
 			ax.axhspan(y - y_err, y + y_err, alpha=span_alpha, color=colour, zorder=1)
 
-	# Expand limits if requested
-	if expand_limits:
-		x_low = x - (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
-		x_high = x + (x_err if (x_err is not None and np.isfinite(x_err)) else 0)
-		y_low = y - (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
-		y_high = y + (y_err if (y_err is not None and np.isfinite(y_err)) else 0)
-		_expand_limits_for_point(ax, x_low, x_high, y_low, y_high, pad_frac=0.01)
-
-
-def _expand_limits_for_point(ax, x_low, x_high, y_low, y_high, pad_frac=0.01):
-	"""
-	Expand axis limits so a point (and its error extents) are guaranteed visible.
-
-	Handles linear and log axes. For log axes, expands multiplicatively.
-	Ignores non-finite bounds.
-	"""
-	def _expand_linear(low, high, vlow, vhigh):
-		changed = False
-		if np.isfinite(vlow) and vlow < low:
-			range_ = high - vlow
-			low = vlow - pad_frac * range_
-			changed = True
-		if np.isfinite(vhigh) and vhigh > high:
-			range_ = vhigh - low
-			high = vhigh + pad_frac * range_
-			changed = True
-		return low, high, changed
-
-	def _expand_log(low, high, vlow, vhigh):
-		# All must be > 0
-		changed = False
-		if not (low > 0 and high > 0):
-			return low, high, changed
-		if np.isfinite(vlow) and vlow > 0 and vlow < low:
-			factor = (high / vlow)
-			low = vlow / (1 + pad_frac * factor)
-			changed = True
-		if np.isfinite(vhigh) and vhigh > 0 and vhigh > high:
-			factor = (vhigh / low)
-			high = vhigh * (1 + pad_frac * factor)
-			changed = True
-		return low, high, changed
-
-	# X
-	xl, xh = ax.get_xlim()
-	if ax.get_xscale() == 'log':
-		xl_new, xh_new, cx = _expand_log(xl, xh, x_low, x_high)
-	else:
-		xl_new, xh_new, cx = _expand_linear(xl, xh, x_low, x_high)
-	if cx:
-		ax.set_xlim(xl_new, xh_new)
-
-	# Y
-	yl, yh = ax.get_ylim()
-	if ax.get_yscale() == 'log':
-		yl_new, yh_new, cy = _expand_log(yl, yh, y_low, y_high)
-	else:
-		yl_new, yh_new, cy = _expand_linear(yl, yh, y_low, y_high)
-	if cy:
-		ax.set_ylim(yl_new, yh_new)
 
 
 # Define PlotMode instances for each plot type
