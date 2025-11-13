@@ -41,6 +41,22 @@ ylim              = [2e-4,0.4]       # e.g., [0.0, 1.0]
 x_measured        = "Vpsi"           # Use measured quantity on x-axis
 equal_value_lines = 3                # Show constant parameter lines, only when using x_measured
 
+
+[analytical.percentiles]
+enabled = true        # master switch for percentile visualisation
+p_low   = 16          # lower percentile
+p_high  = 84          # upper percentile
+
+[analytical.percentiles.y]
+shade = true          # shade the Y percentile band between p_low and p_high
+alpha = 0.20          # alpha for Y shaded region
+
+[analytical.percentiles.x]
+enabled = false       # when x_measured is used, show X percentiles per parameter step
+style   = "bars"      # "bars" for horizontal error bars, "shade" for filled band between x_low..x_high
+alpha   = 0.12        # alpha for X shaded band (used when style="shade")
+
+
 # If [analytical.equal_lines] exists and enabled = true it overrides equal_value_lines above. Only when using x_measured
 [analytical.equal_lines]
 enabled          = true             # master switch
