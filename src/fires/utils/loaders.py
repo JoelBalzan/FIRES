@@ -403,7 +403,7 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 	logging.info(
 		f"Final data shape: {dspec.shape}, "
 		f"freq range: {freq_mhz.min():.1f}-{freq_mhz.max():.1f} MHz, "
-		f"time range: {time_ms.min():.3f}-{time_ms.max():.3f} ms"
+		f"time range: {time_ms.min():.3f}-{time_ms.max():.3f} ms \n"
 	)
 
 	return dspec, freq_mhz, time_ms, dspec_params
