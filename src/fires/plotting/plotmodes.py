@@ -2094,6 +2094,7 @@ def _plot_single_job_common(
 	p_low = float(pct_cfg.get('p_low', 16))
 	p_high = float(pct_cfg.get('p_high', 84))
 	y_cfg = pct_cfg.get('y', {}) or {}
+	print(y_cfg)
 	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
 	y_alpha = float(y_cfg.get('alpha', 0.2))
 	x_cfg = pct_cfg.get('x', {}) or {}
