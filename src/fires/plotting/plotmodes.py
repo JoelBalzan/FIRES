@@ -391,7 +391,7 @@ def _legend_if_any(ax, loc='best'):
 		pass
 
 
-def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
+def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9, p_low=16, p_high=84):
 	"""
 	Calculate median values and percentile-based error bars from grouped data.
 
@@ -407,6 +407,10 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 		Absolute tolerance for matching float keys (default: 1e-12)
 	rtol : float, optional
 		Relative tolerance for matching float keys (default: 1e-9)
+	p_low : float, optional
+		Lower percentile to compute (default: 16)
+	p_high : float, optional
+		Upper percentile to compute (default: 84)
 		
 	Returns:
 	--------
@@ -451,14 +455,49 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9):
 		if isinstance(v, (list, np.ndarray)) and len(v) > 0:
 			v_arr = np.asarray(v, dtype=float)
 			med_vals.append(np.nanmedian(v_arr))
-			lower = np.nanpercentile(v_arr, 16)
-			upper = np.nanpercentile(v_arr, 84)
+			lower = np.nanpercentile(v_arr, p_low)
+			upper = np.nanpercentile(v_arr, p_high)
 			percentile_errs.append((lower, upper))
 		else:
 			med_vals.append(np.nan)
 			percentile_errs.append((np.nan, np.nan))
 
 	return med_vals, percentile_errs
+
+
+def _x_percentiles_measured(frb_dict, x_measured: str, p_low=16, p_high=84):
+	"""
+	Compute per-parameter-step percentiles of a measured x quantity.
+	Returns (x_med, x_lo, x_hi) arrays aligned with frb_dict["xvals"].
+	"""
+	xvals_sweep = np.array(frb_dict["xvals"])
+	measures = frb_dict.get("measures", {})
+	# compute for total phase and all freq by default for x
+	freq_key = 'all'
+	phase_key = 'total'
+
+	x_med = []
+	x_lo = []
+	x_hi = []
+	for xv in xvals_sweep:
+		seg_list = measures.get(xv, [])
+		vals = []
+		for seg in seg_list:
+			if not isinstance(seg, dict):
+				continue
+			val = _extract_value_from_segments(seg, x_measured, phase_key, freq_key)
+			if np.isfinite(val):
+				vals.append(val)
+		if len(vals) == 0:
+			x_med.append(np.nan)
+			x_lo.append(np.nan)
+			x_hi.append(np.nan)
+		else:
+			arr = np.asarray(vals, dtype=float)
+			x_med.append(np.nanmedian(arr))
+			x_lo.append(np.nanpercentile(arr, p_low))
+			x_hi.append(np.nanpercentile(arr, p_high))
+	return np.asarray(x_med, dtype=float), np.asarray(x_lo, dtype=float), np.asarray(x_hi, dtype=float)
 
 
 def _find_matching_key(key, candidates, atol=1e-10, rtol=1e-8, ndigits=6):
@@ -1817,6 +1856,18 @@ def _plot_single_run_multi_window(
 			key = f"{freq_label}, {phase_label}"
 			return colour_map.get(key, colours['purple']) 
 	
+	pct_cfg = get_plot_param(plot_config, 'analytical', 'percentiles', {}) or {}
+	pct_enabled = bool(pct_cfg.get('enabled', True))
+	p_low = float(pct_cfg.get('p_low', 16))
+	p_high = float(pct_cfg.get('p_high', 84))
+	y_cfg = pct_cfg.get('y', {}) or {}
+	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
+	y_alpha = float(y_cfg.get('alpha', 0.2))
+	x_cfg = pct_cfg.get('x', {}) or {}
+	x_pct_enabled = bool(x_cfg.get('enabled', False)) and pct_enabled and (x_measured is not None)
+	x_style = str(x_cfg.get('style', 'bars')).lower()  # 'bars' or 'shade'
+	x_alpha = float(x_cfg.get('alpha', 0.12))
+
 	x_last = None
 	xname = None
 	x_unit = None
@@ -1830,15 +1881,23 @@ def _plot_single_run_multi_window(
 			return_status=True
 		)
 		
-		med_vals, percentile_errs = _median_percentiles(y_weighted, xvals)
+		med_vals, percentile_errs = _median_percentiles(y_weighted, xvals, p_low=p_low, p_high=p_high)
 		lower = np.array([lo for (lo, hi) in percentile_errs])
 		upper = np.array([hi for (lo, hi) in percentile_errs])
 		
 		if x_last is None:
-			x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by)
+			x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by, x_measured=x_measured)
 			x_last = x
 		else:
 			x = x_last
+
+		# Optional x-percentiles when using x_measured
+		x_lo = x_hi = None
+		if x_pct_enabled:
+			x_med, x_lo_arr, x_hi_arr = _x_percentiles_measured(frb_dict, x_measured, p_low=p_low, p_high=p_high)
+			# x returned here is already the medians; ensure alignment
+			x_lo = x_lo_arr
+			x_hi = x_hi_arr
 
 		plot_x = x
 		plot_med = np.asarray(med_vals, dtype=float)
@@ -1870,24 +1929,39 @@ def _plot_single_run_multi_window(
 		colour = get_colour(freq_win, phase_win)
 
 		if draw_style == 'scatter':
-			# asymmetric errors from 16–84% band
+			# asymmetric errors from percentile band
 			yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
+			xerr = None
+			if x_pct_enabled and x_lo is not None and x_hi is not None:
+				xerr = np.vstack([(plot_x - x_lo), (x_hi - plot_x)])
 			if colour_by_sweep:
 				cvals = np.arange(len(plot_x))
 				ax.errorbar(
-					plot_x, plot_med, yerr=yerr, fmt='none',
+					plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
 					ecolor='gray', alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
 				)
 				ax.scatter(plot_x, plot_med, c=cvals, cmap='viridis', s=25, alpha=0.8, label=series_label, zorder=2)
 			else:
 				ax.errorbar(
-					plot_x, plot_med, yerr=yerr, fmt='none',
+					plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
 					ecolor=colour, alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
 				)
 				ax.scatter(plot_x, plot_med, color=colour, s=25, alpha=0.8, label=series_label, zorder=2)
 		else:
 			ax.plot(plot_x, plot_med, color=colour, label=series_label, linewidth=2)
-			ax.fill_between(plot_x, plot_lo, plot_hi, color=colour, alpha=0.2)
+			# Y-shaded band (16–84 by default)
+			if y_shade:
+				ax.fill_between(plot_x, plot_lo, plot_hi, color=colour, alpha=y_alpha)
+			# Optional X-shaded band when using measured x
+			if x_pct_enabled and x_style == 'shade':
+				m = np.isfinite(plot_med) & np.isfinite(plot_x)
+				m &= np.isfinite(x_lo) & np.isfinite(x_hi)
+				if np.any(m):
+					# sort by y for fill_betweenx stability
+					order = np.argsort(plot_med[m])
+					ax.fill_betweenx(plot_med[m][order], x_lo[m][order], x_hi[m][order],
+						color=colour, alpha=x_alpha)
+
 		
 		if fit is not None and draw_style != 'binned' and draw_style != 'scatter':
 			fit_type, fit_degree = _parse_fit_arg(fit)
@@ -2015,12 +2089,31 @@ def _plot_single_job_common(
 	else:
 		weight_source = dspec_params
 
+	pct_cfg = get_plot_param(plot_config, 'analytical', 'percentiles', {}) or {}
+	pct_enabled = bool(pct_cfg.get('enabled', True))
+	p_low = float(pct_cfg.get('p_low', 16))
+	p_high = float(pct_cfg.get('p_high', 84))
+	y_cfg = pct_cfg.get('y', {}) or {}
+	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
+	y_alpha = float(y_cfg.get('alpha', 0.2))
+	x_cfg = pct_cfg.get('x', {}) or {}
+	x_pct_enabled = bool(x_cfg.get('enabled', False)) and pct_enabled and (x_measured is not None)
+	x_style = str(x_cfg.get('style', 'bars')).lower()
+	x_alpha = float(x_cfg.get('alpha', 0.12))
+
 	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
-	med_vals, percentile_errs = _median_percentiles(y, xvals)
+	med_vals, percentile_errs = _median_percentiles(y, xvals, p_low=p_low, p_high=p_high)
 
 	x, xname, x_unit = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by, x_measured=x_measured)
 	lower = np.array([lower for (lower, upper) in percentile_errs])
 	upper = np.array([upper for (lower, upper) in percentile_errs])
+
+	# Optional x-percentiles (only when using x_measured)
+	x_lo = x_hi = None
+	if x_pct_enabled:
+		x_med, x_lo_arr, x_hi_arr = _x_percentiles_measured(frb_dict, x_measured, p_low=p_low, p_high=p_high)
+		x_lo = x_lo_arr
+		x_hi = x_hi_arr
 
 	created_fig = None
 	if ax is None:
@@ -2049,24 +2142,34 @@ def _plot_single_job_common(
 		plot_x, plot_med, plot_lo, plot_hi = bx, by, blo, bhi
 
 	if draw_style == 'scatter':
-		# asymmetric errors from 16–84% band
 		yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
+		xerr = None
+		if x_pct_enabled and x_lo is not None and x_hi is not None:
+			xerr = np.vstack([(plot_x - x_lo), (x_hi - plot_x)])
 		if colour_by_sweep:
 			cvals = np.arange(len(plot_x))
 			ax.errorbar(
-				plot_x, plot_med, yerr=yerr, fmt='none',
+				plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
 				ecolor='gray', alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
 			)
 			ax.scatter(plot_x, plot_med, c=cvals, cmap='viridis', s=25, alpha=0.8, label=series_label, zorder=2)
 		else:
 			ax.errorbar(
-				plot_x, plot_med, yerr=yerr, fmt='none',
+				plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
 				ecolor=series_colour, alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
 			)
 			ax.scatter(plot_x, plot_med, color=series_colour, s=25, alpha=0.8, label=series_label, zorder=2)
 	else:
 		ax.plot(plot_x, plot_med, color=series_colour, label=series_label, linewidth=2)
-		ax.fill_between(plot_x, plot_lo, plot_hi, color=series_colour, alpha=0.2)
+		if y_shade:
+			ax.fill_between(plot_x, plot_lo, plot_hi, color=series_colour, alpha=y_alpha)
+		if x_pct_enabled and x_style == 'shade':
+			m = np.isfinite(plot_med) & np.isfinite(plot_x)
+			m &= np.isfinite(x_lo) & np.isfinite(x_hi)
+			if np.any(m):
+				order = np.argsort(plot_med[m])
+				ax.fill_betweenx(plot_med[m][order], x_lo[m][order], x_hi[m][order],
+					color=series_colour, alpha=x_alpha)
 
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict) and draw_style != 'binned':
 		# respect config override if provided
