@@ -316,65 +316,71 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	#	----------------------------------------------------------------------------------------------------------
 
 
-def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, extension):
-    """
-    Plot only the PA profile vs. time (deg), similar to the PA panel in lvpa.
+def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, extension, xlim=None, ylim=None):
+	"""
+	Plot only the PA profile vs. time (deg), similar to the PA panel in lvpa.
 
-    Inputs:
-        - fname, outdir: output naming and directory
-        - tsdata: time series data object (expects .phits [rad], .ephits [rad])
-        - time_ms: time array in ms
-        - save: save figure if True
-        - figsize: figure size tuple or None (defaults to (7, 3))
-        - show_plots: show figure interactively if True
-        - extension: output file extension (e.g., 'pdf', 'png')
-    """
-    pa_rad = tsdata.phits
-    pa_deg = np.rad2deg(pa_rad)
+	Inputs:
+		- fname, outdir: output naming and directory
+		- tsdata: time series data object (expects .phits [rad], .ephits [rad])
+		- time_ms: time array in ms
+		- save: save figure if True
+		- figsize: figure size tuple or None (defaults to (7, 3))
+		- show_plots: show figure interactively if True
+		- extension: output file extension (e.g., 'pdf', 'png')
+	"""
+	pa_rad = tsdata.phits
+	pa_deg = np.rad2deg(pa_rad)
 
-    def wrap_pa_deg(pa):
-        w = (pa + 90.0) % 180.0 - 90.0
-        w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
-        return w
+	def wrap_pa_deg(pa):
+		w = (pa + 90.0) % 180.0 - 90.0
+		w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
+		return w
 
-    phits = wrap_pa_deg(pa_deg)
-    pa_err_rad = tsdata.ephits
-    pa_err_deg = np.rad2deg(pa_err_rad)
+	phits = wrap_pa_deg(pa_deg)
+	pa_err_rad = tsdata.ephits
+	pa_err_deg = np.rad2deg(pa_err_rad)
 
-    # Log variance info (deg^2) if finite
-    finite_pa = pa_rad[np.isfinite(pa_rad)]
-    finite_pa_err = pa_err_rad[np.isfinite(pa_err_rad)]
-    if finite_pa.size == 0:
-        pa_var_deg2 = np.nan
-    else:
-        pa_var_deg2 = pa_variance_deg2(finite_pa)
-    epa_deg2 = pa_variance_deg2(finite_pa_err) if finite_pa_err.size > 0 else np.nan
-    logging.info("Var(psi) = %.3f +/- %.3f deg^2", pa_var_deg2, epa_deg2)
+	# Log variance info (deg^2) if finite
+	finite_pa = pa_rad[np.isfinite(pa_rad)]
+	finite_pa_err = pa_err_rad[np.isfinite(pa_err_rad)]
+	if finite_pa.size == 0:
+		pa_var_deg2 = np.nan
+	else:
+		pa_var_deg2 = pa_variance_deg2(finite_pa)
+	epa_deg2 = pa_variance_deg2(finite_pa_err) if finite_pa_err.size > 0 else np.nan
+	logging.info("Var(psi) = %.3f +/- %.3f deg^2", pa_var_deg2, epa_deg2)
 
-    if figsize is None:
-        figsize = (7, 3)
+	if figsize is None:
+		figsize = (7, 3)
 
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
-    fig.subplots_adjust(left=0.12, right=0.98, bottom=0.20, top=0.95)
+	fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
+	fig.subplots_adjust(left=0.12, right=0.98, bottom=0.20, top=0.95)
 
-    # Scatter points and error bars (mirror lvpa style)
-    ax.scatter(time_ms, phits, c='black', s=6, zorder=3)
-    ax.errorbar(time_ms, pa_deg, yerr=pa_err_deg, fmt='none',
-                ecolor='black', elinewidth=0.6, capsize=1, zorder=2)
+	# Scatter points and error bars (mirror lvpa style)
+	ax.scatter(time_ms, phits, c='black', s=6, zorder=3)
+	ax.errorbar(time_ms, pa_deg, yerr=pa_err_deg, fmt='none',
+				ecolor='black', elinewidth=0.6, capsize=1, zorder=2)
 
-    ax.set_xlim(time_ms[0], time_ms[-1])
-    ax.set_ylim(-90, 90)
-    ax.set_xlabel("Time [ms]")
-    ax.set_ylabel(r"$\psi$ [deg.]")
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
-    ax.tick_params(axis='x', direction='in', length=3)
-    ax.tick_params(axis='y', direction='in', length=3)
+	if xlim is not None:
+		ax.set_xlim(xlim)
+	else:
+		ax.set_xlim(time_ms[0], time_ms[-1])
+	if ylim is not None:
+		ax.set_ylim(ylim)
+	else:
+		ax.set_ylim(-90, 90)
+	ax.set_xlabel("Time [ms]")
+	ax.set_ylabel(r"$\psi$ [deg.]")
+	ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+	ax.tick_params(axis='x', direction='in', length=3)
+	ax.tick_params(axis='y', direction='in', length=3)
 
-    if show_plots:
-        plt.show()
+	if show_plots:
+		plt.show()
 
-    if save:
-        fpath = os.path.join(outdir, f"{fname}_pa.{extension}")
-        fig.savefig(fpath, bbox_inches='tight', dpi=600)
-        logging.info("Saved figure to %s \n", fpath)
+	if save:
+		fpath = os.path.join(outdir, f"{fname}_pa.{extension}")
+		fig.savefig(fpath, bbox_inches='tight', dpi=600)
+		logging.info("Saved figure to %s \n", fpath)
 
