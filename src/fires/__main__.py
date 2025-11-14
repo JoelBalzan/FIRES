@@ -210,7 +210,7 @@ def main():
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac', 'pa'],
 		metavar="",
 		help=(
 			"Generate plots. Pass 'all' to generate all (non-analytical) plots, or specify one or more plot names separated by spaces:\n"

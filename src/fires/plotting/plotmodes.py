@@ -229,6 +229,8 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	show_plots = get_plot_param(plot_config, 'general', 'show_plots', True)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
+	xlim = get_plot_param(plot_config, 'general', 'xlim', None)
+	ylim = get_plot_param(plot_config, 'general', 'ylim', None)
 	show_onpulse = get_plot_param(plot_config, 'windows', 'show_onpulse', False)
 	show_offpulse = get_plot_param(plot_config, 'windows', 'show_offpulse', False)
 	dspec_params = frb_data.dspec_params
@@ -248,7 +250,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 				ts_data, figsize, tau, show_plots, extension, 
 				legend, buffer_frac, show_onpulse, show_offpulse)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
-		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension)
+		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "iquv":
@@ -258,7 +260,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 				ts_data, figsize, tau, show_plots, extension, 
 				legend, buffer_frac, show_onpulse, show_offpulse)
 	elif mode == "pa":
-			plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension)
+			plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 	elif mode == "dpa":
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 	elif mode == "RM":
