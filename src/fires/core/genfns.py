@@ -18,8 +18,16 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import (add_noise, compute_required_sefd,
-                                 compute_segments, scatter_dspec)
+from fires.core.basicfns import (
+	add_noise,
+	compute_required_sefd,
+	compute_segments,
+	scatter_dspec,
+	rm_correct_dspec,
+	estimate_rm,
+	on_off_pulse_masks_from_profile,
+	estimate_noise_with_offpulse_mask,
+)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -42,6 +50,16 @@ def _apply_faraday_rotation(pol_angle_arr, RM, freq_mhz, ref_freq_mhz):
 
 def _calculate_dispersion_delay(DM, freq, ref_freq):
 	return 4.15 * DM * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
+
+
+def _roll_rows(arr: np.ndarray, shifts: np.ndarray) -> np.ndarray:
+	"""Vectorised np.roll for a (n_rows, n_cols) array with per-row integer shifts."""
+	arr = np.asarray(arr)
+	nr, nc = arr.shape
+	sh = np.asarray(shifts, dtype=int).reshape(nr, 1)
+	idx = (np.arange(nc)[None, :] - sh) % nc  # positive shift -> right roll
+	return np.take_along_axis(arr, idx, axis=1)
+
 
 def apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
 	"""
@@ -386,14 +404,6 @@ def plot_Neff_vs_time(time_ms, Neff_t):
 	plt.show()
 	
 
-def _roll_rows(arr: np.ndarray, shifts: np.ndarray) -> np.ndarray:
-	"""Vectorised np.roll for a (n_rows, n_cols) array with per-row integer shifts."""
-	arr = np.asarray(arr)
-	nr, nc = arr.shape
-	sh = np.asarray(shifts, dtype=int).reshape(nr, 1)
-	idx = (np.arange(nc)[None, :] - sh) % nc  # positive shift -> right roll
-	return np.take_along_axis(arr, idx, axis=1)
-
 
 def psn_dspec(
 	dspec_params,
@@ -569,15 +579,18 @@ def psn_dspec(
 				shifts = np.round(_calculate_dispersion_delay(DM_i, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
 				I_ft = _roll_rows(I_ft, shifts)
 
-			if tau_eff > 0:
-				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
-
 			pol_angle_arr = PA_i + (time_ms - t0_i) * dPA_i
 			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM_i, freq_mhz[:, None], ref_freq_mhz)
 
 			Q_ft = I_ft * lfrac_i * np.cos(2 * faraday_angles)
 			U_ft = I_ft * lfrac_i * np.sin(2 * faraday_angles)
 			V_ft = I_ft * vfrac_i
+
+			if tau_eff > 0:
+				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
+				Q_ft = scatter_dspec(Q_ft, time_res_ms, tau_cms)
+				U_ft = scatter_dspec(U_ft, time_res_ms, tau_cms)
+				V_ft = scatter_dspec(V_ft, time_res_ms, tau_cms)
 
 			dspec[0] += I_ft
 			dspec[1] += Q_ft
@@ -586,6 +599,47 @@ def psn_dspec(
 
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
+
+	try:
+		# On/off mask from frequency-summed I
+		I_ts = np.nansum(dspec[0], axis=0)
+		intrinsic_width_bins = gdict["width"][0] / time_res_ms
+		_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
+			I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+		)
+		_, noisespec = estimate_noise_with_offpulse_mask(dspec, offpulse_mask, robust=True)
+
+		res_rmtool = estimate_rm(
+			dspec, freq_mhz, time_ms, noisespec,
+			phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=False
+		)
+		measured_rm = float(res_rmtool[0])
+
+		def _int_Lfrac(cube):
+			I = np.nansum(cube[0], axis=0)
+			Q = np.nansum(cube[1], axis=0)
+			U = np.nansum(cube[2], axis=0)
+			on_mask, _, _ = on_off_pulse_masks_from_profile(
+				I, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+			)
+			I_int = float(np.nansum(I[on_mask]))
+			L_int = float(np.nansum(np.sqrt(Q[on_mask]**2 + U[on_mask]**2)))
+			return (L_int / I_int) if I_int > 0 else 0.0
+
+		if np.isfinite(measured_rm) and np.abs(measured_rm) > 0.0:
+			cand_pos = rm_correct_dspec(dspec, freq_mhz, +measured_rm, ref_freq_mhz=ref_freq_mhz)
+			cand_neg = rm_correct_dspec(dspec, freq_mhz, -measured_rm, ref_freq_mhz=ref_freq_mhz)
+			Lpos = _int_Lfrac(cand_pos)
+			Lneg = _int_Lfrac(cand_neg)
+			dspec = cand_pos if Lpos >= Lneg else cand_neg
+			chosen_sign = '+' if Lpos >= Lneg else '-'
+			Lbest = max(Lpos, Lneg)
+			logging.info("Measured RM = %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
+			             measured_rm, ref_freq_mhz, chosen_sign, Lbest)
+		else:
+			logging.info("Measured RM not significant; skipping RM correction")
+	except Exception as e:
+		logging.warning("RM measurement/derotation in psn_dspec failed (%s). Proceeding without derotation.", str(e))
 
 	V_params = {}
 	for key, values in all_params.items():
@@ -689,5 +743,5 @@ def psn_dspec(
 		'exp_var_band_width_mhz' : None
 	}
 
-	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac)
+	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True)
 
