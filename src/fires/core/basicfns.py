@@ -260,6 +260,22 @@ def est_profiles(dspec, noise_stokes, left, right):
 		phits[~keep] = np.nan
 		ephits[~keep] = np.nan
 
+		# Keep only PA runs with length >= 3; drop shorter groups
+		min_run = 5
+		valid = np.isfinite(phits)
+		if np.any(valid):
+			v = valid.astype(int)
+			dv = np.diff(np.concatenate(([0], v, [0])))
+			starts = np.where(dv == 1)[0]
+			ends = np.where(dv == -1)[0]  # index after the run
+			keep_run = np.zeros_like(valid, dtype=bool)
+			for s, e in zip(starts, ends):
+				if (e - s) >= min_run:
+					keep_run[s:e] = True
+			drop = valid & ~keep_run
+			phits[drop] = np.nan
+			ephits[drop] = np.nan
+
 		# Fractional polarisations
 		qfrac = Qts / Its
 		ufrac = Uts / Its
