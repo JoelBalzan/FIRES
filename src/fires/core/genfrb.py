@@ -412,7 +412,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 							 f"time[{time_ms[0]:.2f},{time_ms[-1]:.2f}] ms")
 			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
 			
-		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, plot_multiple_frb=plot_multiple_frb)
+		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True)
 		frb_data = simulated_frb(
 			frb_id, corrdspec, dspec_params, snr
 		)
