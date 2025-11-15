@@ -61,7 +61,7 @@ def _roll_rows(arr: np.ndarray, shifts: np.ndarray) -> np.ndarray:
 	return np.take_along_axis(arr, idx, axis=1)
 
 
-def apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
+def apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=False):
 	"""
 	Apply diffractive scintillation as a multiplicative gain field to all Stokes.
 
@@ -88,7 +88,8 @@ def apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz):
 	nu_hz = freq_mhz * 1e6
 	ref_freq_hz = ref_freq_mhz * 1e6
 
-	logging.info(f"Applying scintillation: t_s={t_s}s, nu_s={np.round(nu_s,2)}Hz, N_im={N_im}, th_lim={th_lim}")
+	if not plot_multiple_frb:
+		logging.info(f"Applying scintillation: t_s={t_s}s, nu_s={np.round(nu_s,2)}Hz, N_im={N_im}, th_lim={th_lim}")
 
 	# Simulate complex field: shape (N_t, N_nu)
 	E = simulate_scintillation(t_sec, nu_hz, t_s=t_s, nu_s=nu_s, N_im=N_im, th_lim=th_lim, ref_freq_hz=ref_freq_hz)
@@ -600,46 +601,48 @@ def psn_dspec(
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
 
-	try:
-		# On/off mask from frequency-summed I
-		I_ts = np.nansum(dspec[0], axis=0)
-		intrinsic_width_bins = gdict["width"][0] / time_res_ms
-		_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
-			I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
-		)
-		_, noisespec = estimate_noise_with_offpulse_mask(dspec, offpulse_mask, robust=True)
-
-		res_rmtool = estimate_rm(
-			dspec, freq_mhz, time_ms, noisespec,
-			phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=False
-		)
-		measured_rm = float(res_rmtool[0])
-
-		def _int_Lfrac(cube):
-			I = np.nansum(cube[0], axis=0)
-			Q = np.nansum(cube[1], axis=0)
-			U = np.nansum(cube[2], axis=0)
-			on_mask, _, _ = on_off_pulse_masks_from_profile(
-				I, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+	if np.any(np.asarray(RM, dtype=float) != 0.0):
+		try:
+			# On/off mask from frequency-summed I
+			I_ts = np.nansum(dspec[0], axis=0)
+			intrinsic_width_bins = gdict["width"][0] / time_res_ms
+			_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
+				I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
 			)
-			I_int = float(np.nansum(I[on_mask]))
-			L_int = float(np.nansum(np.sqrt(Q[on_mask]**2 + U[on_mask]**2)))
-			return (L_int / I_int) if I_int > 0 else 0.0
+			_, noisespec = estimate_noise_with_offpulse_mask(dspec, offpulse_mask, robust=True)
 
-		if np.isfinite(measured_rm) and np.abs(measured_rm) > 0.0:
-			cand_pos = rm_correct_dspec(dspec, freq_mhz, +measured_rm, ref_freq_mhz=ref_freq_mhz)
-			cand_neg = rm_correct_dspec(dspec, freq_mhz, -measured_rm, ref_freq_mhz=ref_freq_mhz)
-			Lpos = _int_Lfrac(cand_pos)
-			Lneg = _int_Lfrac(cand_neg)
-			dspec = cand_pos if Lpos >= Lneg else cand_neg
-			chosen_sign = '+' if Lpos >= Lneg else '-'
-			Lbest = max(Lpos, Lneg)
-			logging.info("Measured RM = %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
-			             measured_rm, ref_freq_mhz, chosen_sign, Lbest)
-		else:
-			logging.info("Measured RM not significant; skipping RM correction")
-	except Exception as e:
-		logging.warning("RM measurement/derotation in psn_dspec failed (%s). Proceeding without derotation.", str(e))
+			res_rmtool = estimate_rm(
+				dspec, freq_mhz, time_ms, noisespec,
+				phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=False
+			)
+			measured_rm = float(res_rmtool[0])
+
+			def _int_Lfrac(cube):
+				I = np.nansum(cube[0], axis=0)
+				Q = np.nansum(cube[1], axis=0)
+				U = np.nansum(cube[2], axis=0)
+				on_mask, _, _ = on_off_pulse_masks_from_profile(
+					I, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+				)
+				I_int = float(np.nansum(I[on_mask]))
+				L_int = float(np.nansum(np.sqrt(Q[on_mask]**2 + U[on_mask]**2)))
+				return (L_int / I_int) if I_int > 0 else 0.0
+
+			if np.isfinite(measured_rm) and np.abs(measured_rm) > 0.0:
+				cand_pos = rm_correct_dspec(dspec, freq_mhz, +measured_rm, ref_freq_mhz=ref_freq_mhz)
+				cand_neg = rm_correct_dspec(dspec, freq_mhz, -measured_rm, ref_freq_mhz=ref_freq_mhz)
+				Lpos = _int_Lfrac(cand_pos)
+				Lneg = _int_Lfrac(cand_neg)
+				dspec = cand_pos if Lpos >= Lneg else cand_neg
+				chosen_sign = '+' if Lpos >= Lneg else '-'
+				Lbest = max(Lpos, Lneg)
+				if not plot_multiple_frb:
+					logging.info("Measured RM = %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
+				             measured_rm, ref_freq_mhz, chosen_sign, Lbest)
+			else:
+				logging.info("Measured RM not significant; skipping RM correction")
+		except Exception as e:
+			logging.warning("RM measurement/derotation in psn_dspec failed (%s). Proceeding without derotation.", str(e))
 
 	V_params = {}
 	for key, values in all_params.items():
