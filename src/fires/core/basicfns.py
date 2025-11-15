@@ -133,8 +133,8 @@ def estimate_rm(dspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, sa
 	# Run RM synthesis
 	res_rmtool = rm_synth(freq_mhz / 1.0e3, iquv, eiquv, outdir, save, show_plots)
 
-	logging.info("\nResults from RMtool (RM synthesis) \n")
-	logging.info("RM = %.2f +/- %.2f rad/m2   PolAng0 = %.2f +/- %.2f deg\n" % (res_rmtool[0], res_rmtool[1], res_rmtool[2], res_rmtool[3]))
+	#logging.info("\nResults from RMtool (RM synthesis) \n")
+	#logging.info("RM = %.2f +/- %.2f rad/m2   PolAng0 = %.2f +/- %.2f deg\n" % (res_rmtool[0], res_rmtool[1], res_rmtool[2], res_rmtool[3]))
 
 	return res_rmtool
 
