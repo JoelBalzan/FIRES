@@ -139,44 +139,43 @@ def estimate_rm(dspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, sa
 	return res_rmtool
 
 
-def rm_correct_dspec(dspec, freq_mhz, rm0):
+def rm_correct_dspec(dspec, freq_mhz, rm0, ref_freq_mhz=None):
 	"""
-	Apply rotation measure correction to remove Faraday rotation from a dynamic spectrum.
- 
-	Parameters:
-	-----------
-	dspec : ndarray, shape (4, n_freq, n_time)
-		Input dynamic spectrum with Stokes I, Q, U, V
-	freq_mhz : array_like
-		Frequency channels in MHz
-	rm0 : float
-		Rotation measure to correct for in rad/m²
-		
-	Returns:
-	--------
-	ndarray, shape (4, n_freq, n_time)
-		RM-corrected dynamic spectrum where:
-		- Stokes I and V are unchanged (not affected by Faraday rotation)
-		- Stokes Q and U are rotated to remove Faraday rotation effects
+	Remove Faraday rotation from dynamic spectrum.
+	If ref_freq_mhz is provided, use its λ² as the reference (must match generation step);
+	else fall back to median λ².
+
+	Note:
+	- If ref_freq_mhz <= 0 or np.isinf(ref_freq_mhz), use λ²_ref = 0 (derotate to λ²=0).
 	"""
+	dspec = np.asarray(dspec, dtype=float)
+	new = np.zeros_like(dspec)
+	new[0] = dspec[0]
+	new[3] = dspec[3]
 
-	
-	# Initialise the new dynamic spectrum
-	new_dspec    = np.zeros(dspec.shape, dtype=float)
-	new_dspec[0] = dspec[0]
-	new_dspec[3] = dspec[3]
-	
-	# Calculate the lambda squared array
-	lambda_sq 		 = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
-	lambda_sq_median = np.nanmedian(lambda_sq)
-		
-	# Apply RM correction to Q and U spectra
-	for ci in range(len(lambda_sq)):
-		rot_angle = -2 * rm0 * (lambda_sq[ci] - lambda_sq_median)
-		new_dspec[1, ci] = dspec[1, ci] * np.cos(rot_angle) - dspec[2, ci] * np.sin(rot_angle)
-		new_dspec[2, ci] = dspec[2, ci] * np.cos(rot_angle) + dspec[1, ci] * np.sin(rot_angle)
+	# λ (m) = 299.792458 / f_MHz
+	lambda_m = 299.792458 / np.asarray(freq_mhz, dtype=float)
+	lambda_sq = lambda_m**2
+	if ref_freq_mhz is None:
+		lambda_sq_ref = np.nanmedian(lambda_sq)
+	else:
+		# ref_freq_mhz <= 0 or inf => λ²_ref = 0
+		if not np.isfinite(ref_freq_mhz) or ref_freq_mhz <= 0.0:
+			lambda_sq_ref = 0.0
+		else:
+			lambda_ref = 299.792458 / float(ref_freq_mhz)
+			lambda_sq_ref = lambda_ref**2
 
-	return new_dspec
+	rot = -2.0 * float(rm0) * (lambda_sq - lambda_sq_ref)  # (n_freq,)
+	c = np.cos(rot)
+	s = np.sin(rot)
+
+	Q = dspec[1]
+	U = dspec[2]
+	# Broadcast trig over time axis
+	new[1] = Q * c[:, None] - U * s[:, None]
+	new[2] = U * c[:, None] + Q * s[:, None]
+	return new
 
 
 def est_profiles(dspec, noise_stokes, left, right):
@@ -506,23 +505,104 @@ def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask, robust=False, dd
 	return noise_stokes, noisespec
 
 
-def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac):
+def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False):
 	"""
-	Complete pipeline for processing FRB dynamic spectra: RM correction, noise estimation, and profile extraction.
+	Complete pipeline for processing FRB dynamic spectra: RM correction (optional),
+	noise estimation, and profile extraction.
+
+	Parameters
+	----------
+	dspec : (4, n_chan, n_time) array
+	freq_mhz : (n_chan,) array
+	dspec_params : dspecParams
+	buffer_frac : float
+	skip_rm : bool (default False)
+		If True, do NOT apply rm_correct_dspec (assume already corrected).
 	"""
 	gdict = dspec_params.gdict
 	RM = gdict["RM"]
+	ref_freq_mhz = dspec_params.ref_freq_mhz
 
-	max_rm = RM[np.argmax(np.abs(RM))]
-	if np.abs(max_rm) > 0:
-		corrdspec = rm_correct_dspec(dspec, freq_mhz, max_rm)
-	else:
+	if skip_rm or np.all(RM == 0.0):
 		corrdspec = dspec.copy()
+	else:
+		# Measure RM from the dynamic spectrum and use that to derotate.
+		try:
+			n_time = dspec.shape[2]
+			time_ms = np.arange(n_time) * float(dspec_params.time_res_ms)
+
+			# Build on/off masks to estimate per-channel noise for RM measurement
+			I = np.nansum(dspec[0], axis=0)
+			_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
+				I, gdict["width"][0] / dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
+			)
+
+			# Estimate per-channel noise (4, n_chan)
+			_, noisespec = estimate_noise_with_offpulse_mask(dspec, offpulse_mask, robust=True)
+
+			# Measure RM via RM synthesis
+			res_rmtool = estimate_rm(dspec, freq_mhz, time_ms, noisespec,
+									 phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=False)
+			measured_rm = float(res_rmtool[0])
+
+			def _int_Lfrac(candidate):
+				# Compute integrated L/I over on-pulse for ranking derotation choices
+				I_ts = np.nansum(candidate[0], axis=0)  # time series
+				Q_ts = np.nansum(candidate[1], axis=0)
+				U_ts = np.nansum(candidate[2], axis=0)
+				left, right = boxcar_width(I_ts, frac=0.95)
+				on_mask = make_onpulse_mask(I_ts.size, left, right)
+				I_int = np.nansum(I_ts[on_mask])
+				L_int = np.nansum(np.sqrt(Q_ts[on_mask]**2 + U_ts[on_mask]**2))
+				return (L_int / I_int if I_int > 0 else 0.0), (left, right)
+
+			if np.isfinite(measured_rm) and np.abs(measured_rm) > 0.0:
+				# Derotate to λ² = 0 and disambiguate RM sign by maximizing L/I
+				cand_pos = rm_correct_dspec(dspec, freq_mhz, +measured_rm, ref_freq_mhz=ref_freq_mhz)
+				cand_neg = rm_correct_dspec(dspec, freq_mhz, -measured_rm, ref_freq_mhz=ref_freq_mhz)
+
+				Lfrac_pos, _ = _int_Lfrac(cand_pos)
+				Lfrac_neg, _ = _int_Lfrac(cand_neg)
+
+				if Lfrac_pos >= Lfrac_neg:
+					corrdspec = cand_pos
+					chosen_sign = '+'
+					Lfrac_best = Lfrac_pos
+				else:
+					corrdspec = cand_neg
+					chosen_sign = '-'
+					Lfrac_best = Lfrac_neg
+
+				logging.info("Measured RM = %.2f rad/m2; applied derotation to λ²=0 (sign=%s); L/I=%.3f",
+							 measured_rm, chosen_sign, Lfrac_best)
+
+				# Sanity check: residual PA vs λ² slope (should be ~0)
+				I_ts = np.nansum(corrdspec[0], axis=0)
+				left_chk, right_chk = boxcar_width(I_ts, frac=0.95)
+				Qint = np.nansum(corrdspec[1,:,left_chk:right_chk+1], axis=1)
+				Uint = np.nansum(corrdspec[2,:,left_chk:right_chk+1], axis=1)
+				phi_ch = 0.5 * np.arctan2(Uint, Qint)  # radians per channel
+				lam2 = (299.792458 / np.asarray(freq_mhz, float))**2
+				ok = np.isfinite(phi_ch) & np.isfinite(lam2)
+				if np.count_nonzero(ok) > 2:
+					# unwrap 2*PA to avoid ±π ambiguities before fitting
+					y = np.unwrap(2.0 * phi_ch[ok]) / 2.0
+					x = lam2[ok]
+					p = np.polyfit(x, y, deg=1)
+					slope = p[0]  # rad per m^2
+					logging.info("Residual dPA/d(λ²) after derotation: %.3e rad/m^2 (expect ~0)", slope)
+			else:
+				corrdspec = dspec.copy()
+				logging.info("Measured RM not significant; skipping RM correction")
+		except Exception as e:
+			# On any failure, leave spectrum un-rotated but log the issue.
+			logging.warning("RM measurement/derotation failed (%s). Leaving dspec unchanged.", str(e))
+			corrdspec = dspec.copy()
 
 	I = np.nansum(corrdspec[0], axis=0)
 	left, right = boxcar_width(I, frac=0.95)
-
-	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+	_, offpulse_mask, _ = on_off_pulse_masks_from_profile(I, gdict["width"][0]/dspec_params.time_res_ms,
+														  frac=0.95, buffer_frac=buffer_frac)
 	
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 
@@ -903,19 +983,6 @@ def _integrated_fractions_from_timeseries(I, Q, U, V, L, on_mask) -> tuple[float
 	return float(integrated_L / integrated_I), float(integrated_V / integrated_I)
 
 
-def _pa_variance_deg2(phits: np.ndarray) -> float:
-	"""
-	Circular variance of PA in deg^2. phits in radians, uses circvar on 2*PA, divides by 4.
-	Returns deg^2.
-	"""
-	valid = np.isfinite(phits)
-	if not np.any(valid):
-		return np.nan
-	pa_var = circvar(2.0 * phits[valid]) / 4.0
-	# convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
-	return (180/np.pi)**2 * pa_var
-
-
 def _freq_quarter_slices(n_chan: int) -> dict[str, slice]:
 	"""
 	Build frequency quarter slices over channel index.
@@ -943,6 +1010,10 @@ def _phase_slices_from_peak(n_time: int, peak_index: int) -> dict[str, slice]:
 
 
 def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac):
+	"""
+	Extract time–series products from an already RM–corrected (or raw) dspec without
+	re-applying RM correction. Avoids double Faraday de-rotation.
+	"""
 	I = np.nansum(corrdspec[0], axis=0)
 	gdict = dspec_params.gdict
 	left, right = boxcar_width(I, frac=0.95)
@@ -950,10 +1021,12 @@ def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac):
 		I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
 	noise_stokes, _ = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
+	# skip_rm=True prevents second RM correction
 	return est_profiles(corrdspec, noise_stokes, left, right)
 
 
-def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) -> dict:
+
+def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, skip_rm=False) -> dict:
 	"""
 	Compute per-segment measurements from a single dynamic spectrum:
 	  - phase segments: first (leading), last (trailing), total
@@ -981,7 +1054,7 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 	  }
 	"""
 	gdict = dspec_params.gdict
-	tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
+	tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=skip_rm)
 
 	Its = tsdata_full.iquvt[0]
 	Qts = tsdata_full.iquvt[1]
@@ -1003,7 +1076,7 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 			slc_mask[start:stop] = True
 		on_mask_slice = on_mask & slc_mask
 
-		Vpsi = _pa_variance_deg2(phits[slc_mask])
+		Vpsi = pa_variance_deg2(phits[slc_mask])
 		Lfrac, Vfrac = _integrated_fractions_from_timeseries(Its, Qts, Uts, Vts, Lts, on_mask_slice)
 		return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
 
@@ -1019,7 +1092,7 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1) ->
 		on_m, _, _ = on_off_pulse_masks_from_profile(
 			I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 		)
-		Vpsi = _pa_variance_deg2(ph)
+		Vpsi = pa_variance_deg2(ph)
 		Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
 		return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
 
@@ -1036,6 +1109,6 @@ def pa_variance_deg2(phits: np.ndarray) -> float:
 	valid = np.isfinite(phits)
 	if not np.any(valid):
 		return np.nan
-	pa_var = circvar(2.0 * phits[valid]) / 4.0
+	pa_var = circvar(2.0 * phits[valid], low=-np.pi, high=np.pi) / 4.0
 	# convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
 	return (180/np.pi)**2 * pa_var

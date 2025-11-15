@@ -18,9 +18,8 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
-from scipy.stats import circvar
 
-from ..core.basicfns import on_off_pulse_masks_from_profile, pa_variance_deg2
+from fires.core.basicfns import on_off_pulse_masks_from_profile, pa_variance_deg2
 
 logging.basicConfig(level=logging.INFO)
 #	----------------------------------------------------------------------------------------------------------
@@ -41,20 +40,31 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 	
 	if figsize is None:
 		figsize = (7, 9)
+	Lts = np.sqrt(np.asarray(iquvt[1])**2 + np.asarray(iquvt[2])**2)
+
+	# On-pulse mask from I
+	on_mask, _, _ = on_off_pulse_masks_from_profile(iquvt[0], intrinsic_width_bins=1, frac=0.95, buffer_frac=None)
+	I_int = np.nansum(np.where(on_mask, iquvt[0], 0.0))
+	L_int = np.nansum(np.where(on_mask, Lts, 0.0))
+	Lfrac = (L_int / I_int) if I_int > 0 else np.nan
+
 	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.08, 0.70, 0.90, 0.28])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	
+
 	ax.axhline(c='c', ls='--', lw=0.25)
 	ax.plot(tmsarr, iquvt[0] / np.nanmax(iquvt[0]), 'k-', lw=0.5, label='I')
 	ax.plot(tmsarr, iquvt[1] / np.nanmax(iquvt[0]), 'r-', lw=0.5, label='Q')
 	ax.plot(tmsarr, iquvt[2] / np.nanmax(iquvt[0]), 'm-', lw=0.5, label='U')
 	ax.plot(tmsarr, iquvt[3] / np.nanmax(iquvt[0]), 'b-', lw=0.5, label='V')
+	# Also plot L
+	ax.plot(tmsarr, Lts / np.nanmax(iquvt[0]), color='C2', lw=0.7, label='L')
 	ax.set_ylim(ymax=1.1)
 	ax.set_xlim([np.amin(tmsarr), np.amax(tmsarr)])
 	ax.legend(loc='upper right', ncol=2)
 	ax.set_ylabel(r'Normalised flux density')
 	ax.set_xticklabels([])
+	ax.set_title(f'Integrated L/I (95% boxcar) = {Lfrac:.3f}', fontsize=9)
 	ax.yaxis.set_label_coords(-0.05, 0.5)
 		
 	ax0 = fig.add_axes([0.08, 0.54, 0.90, 0.16])
@@ -211,7 +221,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 		logging.warning("All PA values are NaN or non-finite. Cannot compute variance.")
 		pa_var_deg2 = np.nan
 	else:
-		pa_var = circvar(2 * finite_pa) / 4.0
 		pa_var_deg2 = pa_variance_deg2(finite_pa)
 	
 	pa_deg = np.rad2deg(pa_rad)
@@ -225,11 +234,9 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	pa_err_rad = tsdata.ephits 
 	finite_pa_err = pa_err_rad[np.isfinite(pa_err_rad)]
 	if finite_pa_err.size == 0:
-		epa_rad = np.nan
 		epa_deg2 = np.nan
 	else:
-		epa_rad = circvar(2 * finite_pa_err) / 4.0
-		epa_deg2 = (180/np.pi)**2 * epa_rad
+		epa_deg2 = pa_variance_deg2(finite_pa_err) 
 	pa_err_deg = np.rad2deg(pa_err_rad)
 
 	logging.info("Var(psi) = %.3f +/- %.3f deg^2" % (pa_var_deg2, epa_deg2))

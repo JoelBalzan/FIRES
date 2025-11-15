@@ -24,9 +24,10 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from fires.core.basicfns import (compute_segments, estimate_rm,
-								 on_off_pulse_masks_from_profile,
-								 pa_variance_deg2, process_dspec)
-from fires.plotting.plotfns import plot_dpa, plot_ilv_pa_ds, plot_stokes, plot_pa_profile
+                                 on_off_pulse_masks_from_profile,
+                                 pa_variance_deg2, process_dspec)
+from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_pa_profile,
+                                    plot_stokes)
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key, param_info
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -240,7 +241,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	tau = dspec_params.gdict['tau']
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
-		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac
+		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac, skip_rm=True
 	)
 
 	iquvt = ts_data.iquvt
@@ -369,10 +370,9 @@ def _get_obs_cfg(plot_config):
 		'bar_alpha'       : cfg.get('bar_alpha', 0.7),
 		'bar_capsize'     : cfg.get('bar_capsize', 5),
 		'use_series_colour': cfg.get('use_series_colour', False),
-		'expand_limits'   : cfg.get('expand_limits', True),
 		'label_prefix'    : cfg.get('label_prefix', "")
 	}
-		
+
 
 def _legend_if_any(ax, loc='best'):
 	"""Only draw legend if there are labeled artists."""
@@ -3127,7 +3127,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		dspec = np.concatenate([dspec, zeros], axis=0)
 
 	# Process full-band once (used for metadata and some fallbacks)
-	ts_data_full, corr_dspec, noisespec_full, noise_stokes_full = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac)
+	ts_data_full, corr_dspec, noisespec_full, noise_stokes_full = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True)
 
 	I_profile_full = ts_data_full.iquvt[0]
 	L_profile_full = ts_data_full.Lts
@@ -3191,7 +3191,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	dspec_win = dspec[:, freq_slc, :]
 	freq_win = freq_mhz[freq_slc] if isinstance(freq_slc, slice) else freq_mhz
 
-	ts_data_win, corr_dspec_win, noisespec_win, noise_stokes_win = process_dspec(dspec_win, freq_win, dspec_params, buffer_frac)
+	ts_data_win, corr_dspec_win, noisespec_win, noise_stokes_win = process_dspec(dspec_win, freq_win, dspec_params, buffer_frac, skip_rm=True)
 
 	I_profile = ts_data_win.iquvt[0]
 	L_profile = ts_data_win.Lts
