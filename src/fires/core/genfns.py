@@ -599,7 +599,7 @@ def psn_dspec(
 			dspec[3] += V_ft
 
 	if scint_dict is not None:
-		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz)
+		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
 
 	if np.any(np.asarray(RM, dtype=float) != 0.0):
 		try:
