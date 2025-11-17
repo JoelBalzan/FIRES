@@ -19,7 +19,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-from fires.core.basicfns import on_off_pulse_masks_from_profile, pa_variance_deg2
+from fires.core.basicfns import (compute_segments,
+                                 on_off_pulse_masks_from_profile,
+                                 pa_variance_deg2)
+from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logging.basicConfig(level=logging.INFO)
 #	----------------------------------------------------------------------------------------------------------
@@ -199,7 +202,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 #	----------------------------------------------------------------------------------------------------------
 
 def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
-					legend, buffer_frac, show_onpulse, show_offpulse):
+					legend, buffer_frac, show_onpulse, show_offpulse, segments=None):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
 		Inputs:
@@ -212,6 +215,26 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 			- tsdata: Time series data object
 			- noise_stokes: Noise levels for each Stokes parameter
 	"""
+
+	# Select the requested phase/freq windows (fall back to total/all)
+	phase_win = getattr(dspec_params, "phase_window", None)
+	freq_win  = getattr(dspec_params, "freq_window", None)
+	phase_key = normalise_phase_window(phase_win, "segments") if phase_win else "total"
+	freq_key  = normalise_freq_window(freq_win, "segments") if freq_win else "all"
+
+	# Pull the values that will be used elsewhere (e.g. overlays/labels)
+	vpsi = segments["phase"].get(phase_key, {}).get("Vpsi", np.nan)
+	lfrac = segments["phase"].get(phase_key, {}).get("Lfrac", np.nan)
+	vfrac = segments["phase"].get(phase_key, {}).get("Vfrac", np.nan)
+	logging.info("Var(psi) [%s]: %.3f deg^2  | L/I=%.3f  V/I=%.3f", phase_key, vpsi, lfrac, vfrac)
+
+	# Optionally log all phase partitions for diagnostics
+	try:
+		logging.debug("Segments[phase]= %s", {k: {m: round(v,3) if np.isfinite(v) else np.nan
+		                                        for m,v in d.items()} for k,d in segments["phase"].items()})
+	except Exception:
+		pass
+
 
 	pa_rad = tsdata.phits
 	pa_deg = np.rad2deg(pa_rad)
@@ -238,8 +261,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	else:
 		epa_deg2 = pa_variance_deg2(finite_pa_err) 
 	pa_err_deg = np.rad2deg(pa_err_rad)
-
-	logging.info("Var(psi) = %.3f +/- %.3f deg^2" % (pa_var_deg2, epa_deg2))
 
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
 	L = tsdata.Lts / 1e3  # Convert from Jy to kJy

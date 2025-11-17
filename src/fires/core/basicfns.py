@@ -178,11 +178,10 @@ def rm_correct_dspec(dspec, freq_mhz, rm0, ref_freq_mhz=None):
 	return new
 
 
-def est_profiles(dspec, noise_stokes, left, right):
+def est_profiles(dspec, noise_stokes, left, right, remove_pa_trend: bool = False):
 	"""
 	Extract and analyze time-resolved polarisation profiles from a dynamic spectrum.
 	
-	Parameters:
 	Parameters:
 	-----------
 	dspec : ndarray, shape (4, n_freq, n_time)  
@@ -193,17 +192,13 @@ def est_profiles(dspec, noise_stokes, left, right):
 		Starting time bin index for integration window
 	right : int
 		Ending time bin index for integration window
+	remove_pa_trend : bool, default False
+		If True, fit and subtract a linear trend from detected PA bins
+		(robust to wrapping by fitting unwrapped 2*PA, then re-wrapping result).
 		
 	Returns:
 	--------
 	frb_time_series
-		Object containing time-resolved polarisation measurements:
-		- iquvt: Time series of I, Q, U, V
-		- lts, elts: Linear polarisation intensity and error
-		- pts, epts: Total polarisation intensity and error  
-		- phits, dphits: Linear polarisation angle and error (degrees)
-		- psits, dpsits: Circular polarisation angle and error (degrees)
-		- Fractional polarisations: qfrac, ufrac, vfrac, lfrac, pfrac with errors
 	"""
 	pa_mask_sigma = 2.0  # PA detection threshold in sigma_L
 
@@ -228,46 +223,39 @@ def est_profiles(dspec, noise_stokes, left, right):
 		r = L_meas / np.maximum(sigma_L, eps)
 		cutoff = 1.57
 
-		# Debias (Everett & Weisberg 2001 / Wardle-Kronberg threshold 1.57)
 		Lts = np.zeros_like(L_meas)
 		det = r >= cutoff
 		Lts[det] = np.sqrt(np.maximum(L_meas[det]**2 - sigma_L[det]**2, 0.0))
 		eLts = np.full_like(Lts, np.nan)
 		eLts[det] = sigma_L[det]
 	
-		# Total polarisation
 		Pts = np.sqrt(Lts**2 + Vts**2)
 		ePts = np.sqrt((Lts**2 * eLts**2) + (Vts**2 * Vts_rms**2)) / np.maximum(Pts, eps)
 
-		# Position angle (keep in radians internally)
 		phits = np.full_like(Lts, np.nan)
 		ephits = np.full_like(Lts, np.nan)
 
-		# PA detection mask
 		pa_det = (Lts >= pa_mask_sigma * sigma_L)
 
 		phits[pa_det] = 0.5 * np.arctan2(Uts[pa_det], Qts[pa_det])
-		# Stable σ_PA approximation for detected bins
 		ephits[pa_det] = 0.5 * np.sqrt(
 			(Qts[pa_det]**2 * Uts_rms**2 + Uts[pa_det]**2 * Qts_rms**2)
 			/ np.maximum((Qts[pa_det]**2 + Uts[pa_det]**2)**2, eps)
 		)
 
-		# Restrict PA to on-pulse window
 		win_mask = np.zeros_like(pa_det, dtype=bool)
 		win_mask[left:right+1] = True
 		keep = pa_det & win_mask
 		phits[~keep] = np.nan
 		ephits[~keep] = np.nan
 
-		# Keep only PA runs with length >= 3; drop shorter groups
 		min_run = 5
 		valid = np.isfinite(phits)
 		if np.any(valid):
 			v = valid.astype(int)
 			dv = np.diff(np.concatenate(([0], v, [0])))
 			starts = np.where(dv == 1)[0]
-			ends = np.where(dv == -1)[0]  # index after the run
+			ends = np.where(dv == -1)[0]
 			keep_run = np.zeros_like(valid, dtype=bool)
 			for s, e in zip(starts, ends):
 				if (e - s) >= min_run:
@@ -276,14 +264,30 @@ def est_profiles(dspec, noise_stokes, left, right):
 			phits[drop] = np.nan
 			ephits[drop] = np.nan
 
-		# Fractional polarisations
+		# Optional linear PA trend removal
+		if remove_pa_trend:
+			valid2 = np.isfinite(phits)
+			if np.count_nonzero(valid2) >= 3:
+				t = np.arange(phits.size, dtype=float)
+				# unwrap 2*PA to reduce wrapping ambiguities
+				y_unwrap = np.unwrap(2.0 * phits[valid2])
+				t_fit = t[valid2]
+				# Linear fit y = a + b t (single call)
+				p = np.polyfit(t_fit, y_unwrap, 1)
+				b, a = p[0], p[1]
+				trend = (a + b * t_fit) / 2.0
+				phits[valid2] = phits[valid2] - trend
+				# Re-wrap back to [-pi/2, pi/2]
+				phits[valid2] = ((phits[valid2] + np.pi/2) % np.pi) - np.pi/2
+
+				#logging.info("Removed linear PA trend: slope=%.3e rad/bin, intercept=%.3f rad", b/2.0, a/2.0)
+
 		qfrac = Qts / Its
 		ufrac = Uts / Its
 		vfrac = Vts / Its
 		lfrac = Lts / Its
 		pfrac = Pts / Its
 
-		# Fractional errors (guard zeros)
 		def _frac_err(val, err_val, base, err_base):
 			return np.abs(val / np.maximum(base, eps)) * np.sqrt(
 				(err_val / np.maximum(val, eps))**2 + (err_base / np.maximum(base, eps))**2
@@ -297,9 +301,9 @@ def est_profiles(dspec, noise_stokes, left, right):
 
 	return frb_time_series(
 		iquvt, Lts, eLts, Pts, ePts,
-		phits, ephits,  # linear PA + error
-		np.full_like(phits, np.nan),  # placeholder circular PA
-		np.full_like(phits, np.nan),  # placeholder circular PA err
+		phits, ephits,
+		np.full_like(phits, np.nan),
+		np.full_like(phits, np.nan),
 		qfrac, eqfrac, ufrac, eufrac, vfrac, evfrac, lfrac, elfrac, pfrac, epfrac
 	)
 
@@ -521,7 +525,7 @@ def estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask, robust=False, dd
 	return noise_stokes, noisespec
 
 
-def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False):
+def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False, remove_pa_trend=False):
 	"""
 	Complete pipeline for processing FRB dynamic spectra: RM correction (optional),
 	noise estimation, and profile extraction.
@@ -622,29 +626,29 @@ def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False):
 	
 	noise_stokes, noisespec = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
 
-	tsdata = est_profiles(corrdspec, noise_stokes, left, right)
+	tsdata = est_profiles(corrdspec, noise_stokes, left, right, remove_pa_trend=remove_pa_trend)
 
 	return tsdata, corrdspec, noisespec, noise_stokes
 
 
 def boxcar_width(profile, frac=0.95):
 	"""
-	Find the minimum contiguous time window that contains a specified fraction of the total burst energy.
-	
-	Parameters:
-	-----------
+	Find the minimum contiguous time window that contains a specified fraction
+	of the total burst energy.
+
+	Parameters
+	----------
 	profile : array_like
-		1D intensity profile (typically integrated over frequency)
-	frac : float, optional
-		Fraction of total flux to enclose (default: 0.95 for 95%)
-		
-	Returns:
-	--------
-	tuple
-		Three-element tuple containing:
-		- width: Width of optimal window in milliseconds
-		- best_start: Starting index of optimal window  
-		- best_end: Ending index of optimal window
+		1D intensity profile (frequency-summed).
+	frac : float
+		Fraction of total flux to enclose (default 0.95).
+
+	Returns
+	-------
+	left : int
+		Starting index (inclusive) of optimal window.
+	right : int
+		Ending index (inclusive) of optimal window.
 	"""
 	prof = np.nan_to_num(np.squeeze(profile))
 	n = len(prof)
@@ -1001,33 +1005,42 @@ def _integrated_fractions_from_timeseries(I, Q, U, V, L, on_mask) -> tuple[float
 
 def _freq_quarter_slices(n_chan: int) -> dict[str, slice]:
 	"""
-	Build frequency quarter slices over channel index.
+	Build balanced frequency quarter slices over channel index.
 	Returns dict for '1q','2q','3q','4q','all'.
 	"""
-	q = max(1, n_chan // 4)
-	return {
-		"1q": slice(0, q),
-		"2q": slice(q, 2*q),
-		"3q": slice(2*q, 3*q),
-		"4q": slice(3*q, None),
-		"all": slice(None)
-	}
+	n = int(n_chan)
+	base, rem = divmod(n, 4)
+	sizes = [base + (1 if i < rem else 0) for i in range(4)]
+	start = 0
+	slices = {}
+	for i, sz in enumerate(sizes):
+		end = start + sz
+		name = f"{i+1}q"
+		slices[name] = slice(start, end)
+		start = end
+	slices["all"] = slice(None)
+	return slices
 
 
-def _phase_slices_from_peak(n_time: int, peak_index: int) -> dict[str, slice]:
+def _phase_slices_from_peak(n_time: int, peak_index: int, include_peak: str = "last") -> dict[str, slice]:
 	"""
-	Build standard phase slices relative to peak index.
-	Returns dict with 'first' (leading), 'last' (trailing), and 'total'.
+	Build phase slices relative to peak index.
+	include_peak: 'first' puts peak bin in the leading slice; 'last' (default) in trailing slice.
 	"""
-	first = slice(0, max(0, int(peak_index)))
-	last = slice(max(0, int(peak_index)), int(n_time))
+	pi = int(max(0, min(n_time - 1, peak_index)))
+	if include_peak == "first":
+		first = slice(0, pi + 1)
+		last = slice(pi + 1, int(n_time))
+	else:
+		first = slice(0, pi)
+		last = slice(pi, int(n_time))
 	total = slice(None)
 	return {"first": first, "last": last, "total": total}
 
 
-def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac):
+def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac, remove_pa_trend=False):
 	"""
-	Extract time–series products from an already RM–corrected (or raw) dspec without
+	Extract time-series products from an already RM-corrected (or raw) dspec without
 	re-applying RM correction. Avoids double Faraday de-rotation.
 	"""
 	I = np.nansum(corrdspec[0], axis=0)
@@ -1037,12 +1050,12 @@ def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac):
 		I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
 	noise_stokes, _ = estimate_noise_with_offpulse_mask(corrdspec, offpulse_mask)
-	# skip_rm=True prevents second RM correction
-	return est_profiles(corrdspec, noise_stokes, left, right)
+
+	return est_profiles(corrdspec, noise_stokes, left, right, remove_pa_trend=remove_pa_trend)
 
 
 
-def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, skip_rm=False) -> dict:
+def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, skip_rm=False, remove_pa_trend=False) -> dict:
 	"""
 	Compute per-segment measurements from a single dynamic spectrum:
 	  - phase segments: first (leading), last (trailing), total
@@ -1070,7 +1083,7 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, sk
 	  }
 	"""
 	gdict = dspec_params.gdict
-	tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=skip_rm)
+	tsdata_full, corr_dspec, _, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=skip_rm, remove_pa_trend=remove_pa_trend)
 
 	Its = tsdata_full.iquvt[0]
 	Qts = tsdata_full.iquvt[1]
@@ -1080,9 +1093,38 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, sk
 	phits = tsdata_full.phits  # radians
 	n_time = Its.size
 
-	on_mask, _, (left, right) = on_off_pulse_masks_from_profile(Its, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
+	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(Its, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac)
 	peak_index = int(np.nanargmax(Its)) if n_time > 0 else 0
-	phase_slices = _phase_slices_from_peak(n_time, peak_index)
+	phase_slices = _phase_slices_from_peak(n_time, peak_index, include_peak="first")
+
+	def _masked_stats(arr, mask):
+		if mask is None or arr.size == 0:
+			return {"mean": np.nan, "median": np.nan, "std": np.nan, "var": np.nan}
+		data = arr[mask]
+		if data.size == 0 or not np.any(np.isfinite(data)):
+			return {"mean": np.nan, "median": np.nan, "std": np.nan, "var": np.nan}
+		mean = float(np.nanmean(data))
+		med  = float(np.nanmedian(data))
+		std  = float(np.nanstd(data, ddof=1))
+		var  = float(np.nanvar(data, ddof=1))
+		return {"mean": mean, "median": med, "std": std, "var": var}
+
+	def _collect_onoff_stats():
+		return {
+			"onpulse": {
+				"I": _masked_stats(Its, on_mask),
+				"Q": _masked_stats(Qts, on_mask),
+				"U": _masked_stats(Uts, on_mask),
+				"V": _masked_stats(Vts, on_mask),
+			},
+			"offpulse": {
+				"I": _masked_stats(Its, off_mask),
+				"Q": _masked_stats(Qts, off_mask),
+				"U": _masked_stats(Uts, off_mask),
+				"V": _masked_stats(Vts, off_mask),
+			},
+			"window": {"left": int(left), "right": int(right)}
+		}
 
 	def _measure_phase_slice(slc: slice) -> dict:
 		slc_mask = np.zeros(n_time, dtype=bool)
@@ -1092,7 +1134,8 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, sk
 			slc_mask[start:stop] = True
 		on_mask_slice = on_mask & slc_mask
 
-		Vpsi = pa_variance_deg2(phits[slc_mask])
+		# PA variance restricted to on-pulse within this slice
+		Vpsi = pa_variance_deg2(phits[on_mask_slice])
 		Lfrac, Vfrac = _integrated_fractions_from_timeseries(Its, Qts, Uts, Vts, Lts, on_mask_slice)
 		return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
 
@@ -1103,18 +1146,21 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, sk
 
 	def _measure_freq_slice(slc: slice) -> dict:
 		dspec_f = corr_dspec[:, slc, :]
-		tsdata_f = _timeseries_from_corr(dspec_f, dspec_params, buffer_frac)
+		tsdata_f = _timeseries_from_corr(dspec_f, dspec_params, buffer_frac, remove_pa_trend=remove_pa_trend)
 		I = tsdata_f.iquvt[0]; Q = tsdata_f.iquvt[1]; U = tsdata_f.iquvt[2]; V = tsdata_f.iquvt[3]; L = tsdata_f.Lts; ph = tsdata_f.phits
 		on_m, _, _ = on_off_pulse_masks_from_profile(
 			I, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 		)
-		Vpsi = pa_variance_deg2(ph)
+		Vpsi = pa_variance_deg2(ph[on_m])
 		Lfrac, Vfrac = _integrated_fractions_from_timeseries(I, Q, U, V, L, on_m)
 		return {"Vpsi": Vpsi, "Lfrac": Lfrac, "Vfrac": Vfrac}
 
 	freq_measures = {name: _measure_freq_slice(slc) for name, slc in fq.items()}
 
-	return {"phase": phase_measures, "freq": freq_measures}
+	global_stats = _collect_onoff_stats()
+	print_global_stats(global_stats, logger=True)
+
+	return {"phase": phase_measures, "freq": freq_measures, "global": global_stats}
 
 
 def pa_variance_deg2(phits: np.ndarray) -> float:
@@ -1128,3 +1174,32 @@ def pa_variance_deg2(phits: np.ndarray) -> float:
 	pa_var = circvar(2.0 * phits[valid], low=-np.pi, high=np.pi) / 4.0
 	# convert to deg^2 in the same convention as used elsewhere: Var_deg2 = (deg(std))^2
 	return (180/np.pi)**2 * pa_var
+
+def format_global_stats(global_stats: dict) -> str:
+    """
+    Return a readable multi-line string for global_stats produced by compute_segments.
+    """
+    win = global_stats.get("window", {})
+    lines = []
+    lines.append(f"On-pulse window: [{win.get('left','?')} , {win.get('right','?')}]")
+    for region in ("onpulse", "offpulse"):
+        lines.append(f"\n{region.upper()}:")
+        stokes_stats = global_stats.get(region, {})
+        lines.append("  Stokes  mean        median      std         var")
+        for st in ("I", "Q", "U", "V"):
+            s = stokes_stats.get(st, {})
+            lines.append(
+                f"  {st:>5}  {s.get('mean',np.nan):>11.5g}  {s.get('median',np.nan):>11.5g}  "
+                f"{s.get('std',np.nan):>11.5g}  {s.get('var',np.nan):>11.5g}"
+            )
+    return "\n".join(lines)
+
+def print_global_stats(global_stats: dict, logger: bool = True):
+    """
+    Log or print the formatted global_stats.
+    """
+    msg = format_global_stats(global_stats)
+    if logger:
+        logging.info("\n" + msg)
+    else:
+        print(msg)
