@@ -167,6 +167,14 @@ def main():
 			"Note: Use PARAM=VALUE to override the mean, and PARAM_sd=VALUE or sd_PARAM=VALUE to override the std dev."
 		)
 	)
+	parser.add_argument(
+		"-b", "--baseline",
+		type=str,
+		default=None,
+		choices=["median", "mean"],
+		metavar="",
+		help="Baseline correction method to use. Options are 'median' or 'mean'. If not set, no baseline correction is applied."
+	)
 
 	# =====================================================================
 	# Window Selection
@@ -468,10 +476,11 @@ def main():
 				obs_data        = None,
 				obs_params      = None,
 				param_overrides = all_param_overrides,
-				logstep           = args.logstep
+				logstep         = args.logstep,
+				baseline_correct = args.baseline,
 				)
 		else:
-			FRB, noisespec, gdict = generate_frb(
+			FRB, noisespec, gdict, segments = generate_frb(
 				data            = args.sim_data,
 				frb_id          = args.frb_identifier,
 				sim_file        = resolved_sim,
@@ -492,7 +501,9 @@ def main():
 				target_snr      = args.snr,
 				obs_data        = args.obs_data,
 				obs_params      = args.obs_params,
-				param_overrides = all_param_overrides
+				param_overrides = all_param_overrides,
+				logstep         = None,
+				baseline_correct = args.baseline,
 			)
 			if args.chi2_fit:
 				logging.info("Performing chi-squared fitting on the final profiles... \n")
@@ -536,7 +547,8 @@ def main():
 						"gauss_file"       : resolved_gauss,
 						"sim_file"         : resolved_sim,
 						"plot_config"      : plot_config,
-						"buffer_frac"      : args.buffer
+						"buffer_frac"      : args.buffer,
+						"segments"         : segments if 'segments' in locals() else None,
 					}
 		
 					plot_function = plot_mode_obj.plot_func

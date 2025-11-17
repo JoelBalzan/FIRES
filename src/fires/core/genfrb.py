@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
                                  add_noise, process_dspec, scatter_dspec,
-                                 snr_onpulse)
+                                 snr_onpulse, compute_segments, print_global_stats)
 from fires.core.genfns import psn_dspec
 from fires.utils.config import load_params
 from fires.utils.loaders import load_data, load_multiple_data_grouped
@@ -58,7 +58,7 @@ def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau, sc_idx, ref_freq_mhz):
 	return dspec_scattered
 
 
-def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_snr=None,):
+def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_snr=None, baseline_correct=None):
 	"""Generate dynamic spectrum based on mode."""
 	var = var if plot_multiple_frb else None
 
@@ -77,11 +77,12 @@ def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_sn
 			variation_parameter=var,
 			xname=xname,
 			plot_multiple_frb=plot_multiple_frb,
-			target_snr=target_snr
+			target_snr=target_snr,
+			baseline_correct=baseline_correct
 		)
 
 
-def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None):
+def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, baseline_correct=None):
 	"""
 	Process a single task (combination of timescale and realisation).
 	"""
@@ -99,7 +100,8 @@ def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None):
 		var=var,
 		plot_multiple_frb=requires_multiple_frb,
 		dspec_params=local_params,
-		target_snr=target_snr
+		target_snr=target_snr,
+		baseline_correct=baseline_correct
 	)
 
 	return var, measures, V_params, snr, exp_vars
@@ -191,7 +193,7 @@ def _window_dspec(dspec: np.ndarray,
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
-				logstep=None, target_snr=None, param_overrides=None):
+				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -377,42 +379,24 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			if tau[0] > 0:
 				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau[0], scatter_idx, ref_freq)
 			if sefd > 0:
-				dspec, sigma_ch, snr = add_noise(dspec_params, dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res, 
-													plot_multiple_frb=plot_multiple_frb)
-
-			if freq_window != "full-band" or phase_window != "total":
-				dspec, freq_mhz, time_ms = _window_dspec(
-					dspec, freq_mhz, time_ms,
-					freq_window=freq_window, phase_window=phase_window
+				dspec, sigma_ch, snr = add_noise(
+					dspec_params, dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res,
+					plot_multiple_frb=plot_multiple_frb, buffer_frac=buffer_frac
 				)
-				logging.info(f"Windowed dspec shape: {dspec.shape}  "
-							 f"freq[{freq_mhz[0]:.2f},{freq_mhz[-1]:.2f}] MHz  "
-							 f"time[{time_ms[0]:.2f},{time_ms[-1]:.2f}] ms")
-			
-			# Update dspec_params with new time and frequency arrays
-			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
+			segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
 
 		else:
-			dspec, snr, _, _, _ = _generate_dspec(
+			dspec, snr, _, _, segments = _generate_dspec(
 			xname=None,
 			mode=mode,
 			var=None,
 			plot_multiple_frb=False,
 			target_snr=target_snr,
-			dspec_params=dspec_params
+			dspec_params=dspec_params,
+			baseline_correct=baseline_correct
 		)
 
-			if freq_window != "full-band" or phase_window != "total":
-				dspec, freq_mhz, time_ms = _window_dspec(
-					dspec, freq_mhz, time_ms,
-					freq_window=freq_window, phase_window=phase_window
-				)
-				logging.info(f"Windowed dspec shape: {dspec.shape}  "
-							 f"freq[{freq_mhz[0]:.2f},{freq_mhz[-1]:.2f}] MHz  "
-							 f"time[{time_ms[0]:.2f},{time_ms[-1]:.2f}] ms")
-			dspec_params = dspec_params._replace(time_ms=time_ms, freq_mhz=freq_mhz)
-			
-		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True)
+		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 		frb_data = simulated_frb(
 			frb_id, corrdspec, dspec_params, snr
 		)
@@ -425,7 +409,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				)
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump(frb_data, frb_file)
-		return frb_data, noise_spec, gdict
+		return frb_data, noise_spec, gdict, segments
 
 
 
@@ -566,7 +550,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					mode=mode,
 					plot_mode=plot_mode,
 					target_snr=target_snr,
-					dspec_params=dspec_params
+					dspec_params=dspec_params,
+					baseline_correct=baseline_correct
 				)
 				results = list(tqdm(
 					executor.map(partial_func, tasks),

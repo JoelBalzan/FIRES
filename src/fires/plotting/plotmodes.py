@@ -220,7 +220,7 @@ Z			plot_func (callable): Function to generate the plot.
 		
 
 # --------------------------	Plot modes definitions	---------------------------
-def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=None, **kwargs):
+def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=None, segments=None, **kwargs):
 	"""
 	Generate basic plots using configuration from plot_config.
 	"""
@@ -241,15 +241,15 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	tau = dspec_params.gdict['tau']
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
-		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac, skip_rm=True
+		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True
 	)
 
 	iquvt = ts_data.iquvt
 	
 	if mode == "all":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
-				ts_data, figsize, tau, show_plots, extension, 
-				legend, buffer_frac, show_onpulse, show_offpulse)
+				ts_data, figsize, tau, show_plots, extension,
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
@@ -259,7 +259,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	elif mode == "lvpa":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
-				legend, buffer_frac, show_onpulse, show_offpulse)
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments)
 	elif mode == "pa":
 			plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 	elif mode == "dpa":
@@ -459,6 +459,7 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9, p_low=16, p_
 
 		if isinstance(v, (list, np.ndarray)) and len(v) > 0:
 			v_arr = np.asarray(v, dtype=float)
+			#print("med:", np.nanmedian(v_arr), "avg:", np.nanmean(v_arr), "min:", np.nanmin(v_arr), "max:", np.nanmax(v_arr))
 			med_vals.append(np.nanmedian(v_arr))
 			lower = np.nanpercentile(v_arr, p_low)
 			upper = np.nanpercentile(v_arr, p_high)
@@ -3127,14 +3128,10 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		dspec = np.concatenate([dspec, zeros], axis=0)
 
 	# Process full-band once (used for metadata and some fallbacks)
-	ts_data_full, corr_dspec, noisespec_full, noise_stokes_full = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True)
-
-	I_profile_full = ts_data_full.iquvt[0]
-	L_profile_full = ts_data_full.Lts
-	peak_index_full = int(np.nanargmax(I_profile_full)) if I_profile_full.size > 0 else 0
+	ts_data_full, corr_dspec, noisespec_full, noise_stokes_full = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 
 	# Compute per-window measures once
-	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac)
+	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
 
 	try:
 		lfrac_win = _extract_value_from_segments(segments, 'Lfrac', phase_window, freq_window)
@@ -3191,7 +3188,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	dspec_win = dspec[:, freq_slc, :]
 	freq_win = freq_mhz[freq_slc] if isinstance(freq_slc, slice) else freq_mhz
 
-	ts_data_win, corr_dspec_win, noisespec_win, noise_stokes_win = process_dspec(dspec_win, freq_win, dspec_params, buffer_frac, skip_rm=True)
+	ts_data_win, corr_dspec_win, noisespec_win, noise_stokes_win = process_dspec(dspec_win, freq_win, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 
 	I_profile = ts_data_win.iquvt[0]
 	L_profile = ts_data_win.Lts

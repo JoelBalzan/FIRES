@@ -411,7 +411,8 @@ def psn_dspec(
 	plot_multiple_frb,
 	variation_parameter=None,
 	xname=None,
-	target_snr=None
+	target_snr=None,
+	baseline_correct: bool = True,
 ):
 	"""
 	Generate dynamic spectrum from microshots (polarised shot noise) with optional parameter sweeping.
@@ -638,7 +639,7 @@ def psn_dspec(
 				Lbest = max(Lpos, Lneg)
 				if not plot_multiple_frb:
 					logging.info("Measured RM = %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
-				             measured_rm, ref_freq_mhz, chosen_sign, Lbest)
+							 measured_rm, ref_freq_mhz, chosen_sign, Lbest)
 			else:
 				logging.info("Measured RM not significant; skipping RM correction")
 		except Exception as e:
@@ -687,6 +688,31 @@ def psn_dspec(
 		)
 	else:
 		snr = None
+
+	# Off-pulse baseline correction (per Stokes, per frequency channel)
+	print("Baseline correct:", baseline_correct)
+	if baseline_correct is not None:
+		try:
+			# Recompute off-pulse mask on the noisy I time-series
+			I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
+			intrinsic_width_bins = gdict["width"][0] / time_res_ms
+			_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
+				I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+			)
+			if np.any(offpulse_mask):
+				if baseline_correct == "mean":
+					offsets = np.nanmean(dspec[:, :, offpulse_mask], axis=2)   # (4, nf)
+				else:
+					offsets = np.nanmedian(dspec[:, :, offpulse_mask], axis=2) # (4, nf)
+				# Subtract per [stokes, freq] baseline across time
+				dspec = dspec - offsets[:, :, None]
+				if not plot_multiple_frb:
+					logging.info("Applied per-Stokes, per-channel off-pulse baseline correction (%s).", baseline_correct)
+			else:
+				if not plot_multiple_frb:
+					logging.info("Baseline correction skipped: empty off-pulse mask.")
+		except Exception as e:
+			logging.warning("Baseline correction failed; continuing without it (%s).", str(e))
 
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
@@ -746,5 +772,5 @@ def psn_dspec(
 		'exp_var_band_width_mhz' : None
 	}
 
-	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True)
+	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 
