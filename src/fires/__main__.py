@@ -171,9 +171,9 @@ def main():
 		"-b", "--baseline",
 		type=str,
 		default=None,
-		choices=["median", "mean"],
+		choices=["median", "mean", "z", "z_i"],
 		metavar="",
-		help="Baseline correction method to use. Options are 'median' or 'mean'. If not set, no baseline correction is applied."
+		help="Baseline correction method to use. Options are: 'median', 'mean', 'z', or 'z_i'. If not set, no baseline correction is applied."
 	)
 
 	# =====================================================================
