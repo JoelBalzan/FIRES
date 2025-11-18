@@ -18,16 +18,11 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import (
-	add_noise,
-	compute_required_sefd,
-	compute_segments,
-	scatter_dspec,
-	rm_correct_dspec,
-	estimate_rm,
-	on_off_pulse_masks_from_profile,
-	estimate_noise_with_offpulse_mask,
-)
+from fires.core.basicfns import (add_noise, compute_required_sefd,
+								 compute_segments,
+								 estimate_noise_with_offpulse_mask,
+								 estimate_rm, on_off_pulse_masks_from_profile,
+								 rm_correct_dspec, scatter_dspec, snr_onpulse)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -405,6 +400,148 @@ def plot_Neff_vs_time(time_ms, Neff_t):
 	plt.show()
 	
 
+def _baseline_diagnostics(dspec: np.ndarray, bl_mask: np.ndarray, time_res_ms: float | None,
+						  label: str = "pre", plot_multiple_frb: bool = False) -> None:
+	"""
+	Log baseline diagnostics over the baseline window (bl_mask).
+	- dspec: (4, nf, nt)
+	- bl_mask: (nt,) baseline window mask (True=time bins used for baseline)
+	- time_res_ms: bin size for reporting (optional)
+	- label: 'pre' or 'post' (or any tag)
+	"""
+	try:
+		if dspec is None or bl_mask is None or dspec.ndim != 3 or dspec.shape[0] != 4:
+			return
+		nf, nt = dspec.shape[1], dspec.shape[2]
+		nb = int(np.count_nonzero(bl_mask))
+		if nb == 0:
+			if not plot_multiple_frb:
+				logging.info(f"[baseline:{label}] empty baseline mask; skipping diagnostics.")
+			return
+		win_ms = float(nb) * float(time_res_ms) if time_res_ms is not None else None
+		if not plot_multiple_frb:
+			msg = f"[baseline:{label}] window bins={nb}/{nt}"
+			if win_ms is not None:
+				msg += f" (~{win_ms:.2f} ms)"
+			logging.info(msg)
+
+		names = ["I", "Q", "U", "V"]
+		# Per-Stokes per-channel mean/std over baseline window
+		for s_idx, s_name in enumerate(names):
+			slab = dspec[s_idx, :, :]  # (nf, nt)
+			mu_f = np.nanmean(slab[:, bl_mask], axis=1)            # (nf,)
+			sd_f = np.nanstd(slab[:, bl_mask], axis=1, ddof=1)     # (nf,)
+
+			# Summaries
+			mu_med = float(np.nanmedian(mu_f))
+			mu_mean = float(np.nanmean(mu_f))
+			mu_abs_over_sd_med = float(np.nanmedian(np.abs(mu_f) / np.where(sd_f > 0, sd_f, np.nan)))
+			sd_med = float(np.nanmedian(sd_f))
+			sd_p16 = float(np.nanpercentile(sd_f, 16)) if np.isfinite(sd_f).any() else np.nan
+			sd_p84 = float(np.nanpercentile(sd_f, 84)) if np.isfinite(sd_f).any() else np.nan
+			n_bad = int(np.count_nonzero(~np.isfinite(mu_f) | ~np.isfinite(sd_f)))
+			n_zero = int(np.count_nonzero(sd_f == 0))
+
+			if not plot_multiple_frb:
+				logging.info(
+					f"[baseline:{label}] {s_name}: mu_med={mu_med:.3g}, mu_mean={mu_mean:.3g}, "
+					f"sd_med={sd_med:.3g} [{sd_p16:.3g},{sd_p84:.3g}], "
+					f"median(|mu|/sd)={mu_abs_over_sd_med:.3g}, bad_ch={n_bad}, zero_sd={n_zero}"
+				)
+
+		# Simple outlier checks vs I-channel
+		I_sd = np.nanstd(dspec[0, :, bl_mask], axis=1, ddof=1)
+		I_sd_med = float(np.nanmedian(I_sd))
+		if np.isfinite(I_sd_med) and I_sd_med > 0:
+			for s_idx, s_name in enumerate(names):
+				sd = np.nanstd(dspec[s_idx, :, bl_mask], axis=1, ddof=1)
+				ratio = sd / I_sd_med
+				hi = np.where(ratio > 3.0)[0]   # >3x I median std
+				lo = np.where(ratio < 0.3)[0]   # <0.3x I median std
+				if not plot_multiple_frb and (hi.size or lo.size):
+					logging.info(
+						f"[baseline:{label}] {s_name}: outlier std channels: "
+						f"high>{3.0}x: {hi[:8].tolist()}... ({hi.size} total), "
+						f"low<{0.3}x: {lo[:8].tolist()}... ({lo.size} total)"
+					)
+	except Exception as e:
+		if not plot_multiple_frb:
+			logging.warning(f"[baseline:{label}] diagnostics failed: {e}")
+
+
+def _stokes_consistency_diagnostics(dspec: np.ndarray,
+                                     time_res_ms: float,
+                                     buffer_frac: float | None,
+                                     intrinsic_width_bins: float,
+                                     label: str,
+                                     plot_multiple_frb: bool,
+                                     snr_min: float = 5.0) -> None:
+    """
+    Timeseries (frequency-summed) Stokes consistency with SNR gating:
+      - Build I_ts, Q_ts, U_ts, V_ts by summing over frequency
+      - Build on-pulse mask from I_ts (95% boxcar with buffer)
+      - Build pre-burst baseline window using buffer_frac as guard
+      - Gate on I_ts > snr_min * sigma_off
+    """
+    try:
+        I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
+        Q_ts = np.nansum(dspec[1], axis=0)
+        U_ts = np.nansum(dspec[2], axis=0)
+        V_ts = np.nansum(dspec[3], axis=0)
+        nt = I_ts.size
+
+        # On-pulse from timeseries
+        on_mask, _, (left, right) = on_off_pulse_masks_from_profile(
+            I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+        )
+
+        # Pre-burst baseline window [0 : left - guard]
+        guard_bins = int(np.ceil(float(buffer_frac) * float(intrinsic_width_bins))) if buffer_frac is not None else 0
+        L_end = max(0, int(left) - guard_bins)
+        bl_mask = np.zeros(nt, dtype=bool)
+        if L_end > 0:
+            bl_mask[:L_end] = True
+        if not np.any(bl_mask):
+            bl_mask = ~on_mask
+
+        # Off-pulse RMS on I_ts
+        sigma_off = float(np.nanstd(I_ts[bl_mask], ddof=1))
+        sigma_off = sigma_off if sigma_off > 0 else 1.0
+
+        # SNR-gated on-pulse selection
+        on_snr = on_mask & (I_ts >= snr_min * sigma_off)
+        if not np.any(on_snr):
+            if not plot_multiple_frb:
+                logging.info(f"[stokes_ts:{label}] no bins above {snr_min:.1f}σ in on-pulse; skipping.")
+            return
+
+        I2 = I_ts**2
+        P2 = Q_ts**2 + U_ts**2 + V_ts**2
+
+        R = (I2 - P2)[on_snr]
+        p16 = float(np.nanpercentile(R, 16))
+        med = float(np.nanmedian(R))
+        p84 = float(np.nanpercentile(R, 84))
+        mean = float(np.nanmean(R))
+        frac_neg = float(np.mean(R < 0.0))
+
+        p = np.sqrt(P2[on_snr]) / np.maximum(I_ts[on_snr], 1e-12)
+        p_med = float(np.nanmedian(p))
+        p_mean = float(np.nanmean(p))
+        p95 = float(np.nanpercentile(p, 95))
+
+        if not plot_multiple_frb:
+            logging.info(
+                f"[stokes_ts:{label}] R=I^2-P^2: med={med:.3g}, p16={p16:.3g}, p84={p84:.3g}, "
+                f"mean={mean:.3g}, frac(R<0)={frac_neg:.3%}"
+            )
+            logging.info(
+                f"[stokes_ts:{label}] p=sqrt(Q^2+U^2+V^2)/I: median={p_med:.3g}, mean={p_mean:.3g}, p95={p95:.3g} \n"
+            )
+    except Exception as e:
+        if not plot_multiple_frb:
+            logging.warning(f"[stokes_ts:{label}] diagnostics failed: {e}")
+
 
 def psn_dspec(
 	dspec_params,
@@ -645,6 +782,11 @@ def psn_dspec(
 		except Exception as e:
 			logging.warning("RM measurement/derotation in psn_dspec failed (%s). Proceeding without derotation.", str(e))
 
+	I_ts_pre = np.nansum(dspec[0], axis=0)
+	intrinsic_width_bins = gdict["width"][0] / time_res_ms
+	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre",
+                                 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+
 	V_params = {}
 	for key, values in all_params.items():
 		arr = np.asarray(values, dtype=float)
@@ -689,30 +831,124 @@ def psn_dspec(
 	else:
 		snr = None
 
+	I_ts_noise = np.nansum(dspec[0], axis=0)
+	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre",
+                                 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 	# Off-pulse baseline correction (per Stokes, per frequency channel)
-	print("Baseline correct:", baseline_correct)
 	if baseline_correct is not None:
 		try:
-			# Recompute off-pulse mask on the noisy I time-series
+			# Determine on/off bounds from frequency-summed I
 			I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
-			intrinsic_width_bins = gdict["width"][0] / time_res_ms
-			_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
+			intrinsic_width_bins = float(gdict["width"][0]) / float(time_res_ms)
+			on_mask, _, (left, right) = on_off_pulse_masks_from_profile(
 				I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
 			)
-			if np.any(offpulse_mask):
-				if baseline_correct == "mean":
-					offsets = np.nanmean(dspec[:, :, offpulse_mask], axis=2)   # (4, nf)
+
+			# Guard derived from buffer_frac: guard_bins = buffer_frac * intrinsic_width_bins
+			guard_bins = 0
+			if buffer_frac is not None:
+				guard_bins = int(np.ceil(float(buffer_frac) * intrinsic_width_bins))
+				guard_bins = max(0, guard_bins)
+
+			# Single left (pre-burst) baseline window: [0, left - guard)
+			nt = I_ts.size
+			L_end = max(0, int(left) - guard_bins)
+
+			bl_mask = np.zeros(nt, dtype=bool)
+			if L_end > 0:
+				bl_mask[:L_end] = True
+
+			# Fallback: if empty (very short data), use off-pulse = ~on_mask
+			if not np.any(bl_mask):
+				bl_mask = ~on_mask
+
+			# Diagnostics before correction
+			#_baseline_diagnostics(dspec, bl_mask, time_res_ms, label="pre", plot_multiple_frb=plot_multiple_frb)
+
+			mode = "median" if baseline_correct is True else str(baseline_correct).lower()
+
+			# Use explicit time-index selection to avoid axis confusion with boolean masks
+			idx_t = np.flatnonzero(bl_mask)  # (nb,)
+			nf, nt = dspec.shape[1], dspec.shape[2]
+
+			if mode in ("median", "mean"):
+				# Subtract baseline only (per Stokes, per channel)
+				if idx_t.size == 0:
+					offsets = np.zeros((4, nf), dtype=float)
 				else:
-					offsets = np.nanmedian(dspec[:, :, offpulse_mask], axis=2) # (4, nf)
-				# Subtract per [stokes, freq] baseline across time
+					if mode == "mean":
+						# offsets[s, f] = mean over time in baseline window
+						offsets = np.nanmean(np.take(dspec, idx_t, axis=2), axis=2)  # (4, nf)
+					else:
+						offsets = np.nanmedian(np.take(dspec, idx_t, axis=2), axis=2) # (4, nf)
+
+				# Sanity check shape before broadcasting
+				if offsets.shape != (4, nf):
+					logging.warning("Baseline offsets wrong shape %s; expected (4,%d). Fixing by reshaping.",
+									offsets.shape, nf)
+					offsets = np.reshape(offsets, (4, nf))
 				dspec = dspec - offsets[:, :, None]
 				if not plot_multiple_frb:
-					logging.info("Applied per-Stokes, per-channel off-pulse baseline correction (%s).", baseline_correct)
+					logging.info("Applied baseline subtraction (%s) using single pre-burst window.", mode)
+
+			elif mode in ("zscore", "zscore_per_stokes", "z"):
+				# Per-Stokes z-score per frequency channel
+				if idx_t.size == 0:
+					mu = np.zeros((4, nf), dtype=float)
+					sd = np.ones((4, nf), dtype=float)
+				else:
+					sub = np.take(dspec, idx_t, axis=2)             # (4, nf, nb)
+					mu = np.nanmean(sub, axis=2)                    # (4, nf)
+					sd = np.nanstd(sub, axis=2, ddof=1)             # (4, nf)
+					sd = np.where(sd > 0, sd, 1.0)
+				if mu.shape != (4, nf) or sd.shape != (4, nf):
+					raise RuntimeError(f"z-score shapes invalid: mu {mu.shape}, sd {sd.shape}, nf={nf}")
+				dspec = (dspec - mu[:, :, None]) / sd[:, :, None]
+				if not plot_multiple_frb:
+					logging.info("Applied z-score (per-Stokes, per-channel) using single pre-burst window.")
+
+			elif mode in ("zscore_i_shared", "z_i"):
+				# Use I-channel μ,σ per frequency for all Stokes (preserves polarization ratios)
+				I = dspec[0]                                         # (nf, nt)
+				if idx_t.size == 0:
+					mu_I = np.zeros((nf,), dtype=float)
+					sd_I = np.ones((nf,), dtype=float)
+				else:
+					I_sub = np.take(I, idx_t, axis=1)                # (nf, nb) time axis=1
+					mu_I = np.nanmean(I_sub, axis=1)                 # (nf,)
+					sd_I = np.nanstd(I_sub, axis=1, ddof=1)          # (nf,)
+					sd_I = np.where(sd_I > 0, sd_I, 1.0)
+				if mu_I.shape != (nf,) or sd_I.shape != (nf,):
+					raise RuntimeError(f"z_i shapes invalid: mu_I {mu_I.shape}, sd_I {sd_I.shape}, nf={nf}")
+				dspec = (dspec - mu_I[None, :, None]) / sd_I[None, :, None]
+				if not plot_multiple_frb:
+					logging.info("Applied z-score using I-channel μ,σ (shared) with single pre-burst window.")
+
 			else:
 				if not plot_multiple_frb:
-					logging.info("Baseline correction skipped: empty off-pulse mask.")
+					logging.info("Unknown baseline_correct mode '%s'; skipping baseline correction.", mode)
+
+			# Diagnostics after correction
+			#_baseline_diagnostics(dspec, bl_mask, time_res_ms, label="post", plot_multiple_frb=plot_multiple_frb)
+
+			I_ts_bline = np.nansum(dspec[0], axis=0)
+			_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre",
+                                 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+			snr_post_bline, _ = snr_onpulse(
+				dspec_params,
+				I_ts_bline,
+				frac=0.95,
+				subtract_baseline=True,
+				robust_rms=True,
+				buffer_frac=buffer_frac
+			)
+			if not plot_multiple_frb:
+				logging.info(f"Stokes I S/N (post-baseline): {snr_post_bline:.2f}")
+
 		except Exception as e:
 			logging.warning("Baseline correction failed; continuing without it (%s).", str(e))
+
+
 
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
