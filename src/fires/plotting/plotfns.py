@@ -19,12 +19,11 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
-from fires.core.basicfns import (compute_segments,
-                                 on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2)
+from fires.core.basicfns import (on_off_pulse_masks_from_profile,
+                                 pa_variance_deg2, print_global_stats)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 #	----------------------------------------------------------------------------------------------------------
 
 def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots, extension):
@@ -227,13 +226,8 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	lfrac = segments["phase"].get(phase_key, {}).get("Lfrac", np.nan)
 	vfrac = segments["phase"].get(phase_key, {}).get("Vfrac", np.nan)
 	logging.info("Var(psi) [%s]: %.3f deg^2  | L/I=%.3f  V/I=%.3f", phase_key, vpsi, lfrac, vfrac)
-
-	# Optionally log all phase partitions for diagnostics
-	try:
-		logging.debug("Segments[phase]= %s", {k: {m: round(v,3) if np.isfinite(v) else np.nan
-		                                        for m,v in d.items()} for k,d in segments["phase"].items()})
-	except Exception:
-		pass
+	# Print global stats to log
+	print_global_stats(segments["global"], logger=True)
 
 
 	pa_rad = tsdata.phits

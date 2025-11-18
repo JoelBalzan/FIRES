@@ -26,7 +26,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-                               normalise_freq_window, normalise_phase_window)
+							   normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -315,7 +315,13 @@ def main():
 
 	init_logging(args.verbose)
 	if args.verbose:
-		LOG.debug("Verbose logging enabled.")
+		logging.basicConfig(level=logging.DEBUG, force=True)
+	else:
+		logging.basicConfig(level=logging.INFO, force=True)
+	LOG = logging.getLogger("FIRES")
+	LOG.debug("Verbose logging enabled.")
+	logging.getLogger("PIL").setLevel(logging.WARNING)
+	logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
 
 
 	if args.init_config:

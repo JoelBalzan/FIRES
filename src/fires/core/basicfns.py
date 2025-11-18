@@ -727,64 +727,80 @@ def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
 	return out
 
 
-def compute_required_sefd(dspec, f_res_hz, t_res_s, target_snr, n_pol=2, frac=0.95, buffer_frac=None):
+def compute_required_sefd(dspec_params,
+									 dspec_clean,
+									 freq_mhz,
+									 target_snr,
+									 n_pol=2,
+									 buffer_frac=None,
+									 robust_rms=True):
 	"""
-	Compute SEFD needed for a desired S/N, using adaptive on/off selection
-	consistent with snr_onpulse (with tail inclusion).
+	Consistent SEFD solver using exactly the same windowing logic as snr_onpulse
+	(but WITHOUT noise yet). Avoids window mismatches and bandwidth ambiguity.
 
 	Parameters
 	----------
-	dspec : (4, n_chan, n_time)
-	f_res_hz : float
-	t_res_s : float
-	target_snr : float
-	n_pol : int
-	frac : float
-	buffer_frac : float or None
-	subtract_baseline : bool
-	one_sided_offpulse : bool
-		Use only pre-pulse region for noise (avoids scattered tail).
-	tail_frac : float or None
-		Include right-side tail bins with flux > tail_frac * peak in on-pulse.
-	max_tail_mult : int
-		Cap tail extension vs initial width.
+	dspec_params : object with gdict, time_res_ms
+	dspec_clean  : (4, n_chan, n_time) noiseless cube
+	freq_mhz     : (n_chan,) frequencies
+	target_snr   : desired S/N for Stokes I
+	n_pol        : number of summed polarisations (default 2)
+	buffer_frac  : buffer fraction (same as used elsewhere)
+	robust_rms   : keep True (MAD scaling consistent with later estimator)
 
 	Returns
 	-------
-	sefd_required : float
+	sefd : float
 	details : dict
 	"""
 	if target_snr is None or target_snr <= 0:
 		raise ValueError("target_snr must be > 0")
+	# Profile identical to snr_onpulse input
+	profile = np.nansum(dspec_clean[0], axis=0)
 
-	prof = np.nansum(dspec[0], axis=0)
+	# Rebuild the boxcar window identically
+	left, right = boxcar_width(profile, frac=0.95)
+	init_width_bins = dspec_params.gdict["width"][0] / dspec_params.time_res_ms
+	buffer_bins = int(float(buffer_frac) * init_width_bins) if buffer_frac is not None else 0
+	on_mask = make_onpulse_mask(profile.size, left, right)
 
-	# Build masks similarly to snr_onpulse but WITHOUT noise (so baseline from left only if one_sided_offpulse)
-	left, right = boxcar_width(prof, frac=frac)
-	peak_val = np.nanmax(prof)
-	init_width = max(1, right - left + 1)
-
-	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0
-
-	on_mask = make_onpulse_mask(prof.size, left, right)
-
-	off_mask = np.zeros(prof.size, dtype=bool)
+	# Off-pulse selection (pre-burst only, guarded)
+	off_mask = np.zeros(profile.size, dtype=bool)
 	end_off = max(0, left - buffer_bins - 1)
 	if end_off >= 0:
-		off_mask[0:end_off + 1] = True
+		off_mask[:end_off + 1] = True
 
-	pulse = prof[on_mask]
-	E_on = np.nansum(pulse)
+	F_on = float(np.nansum(profile[on_mask]))
 	N_on = int(on_mask.sum())
-	N_chan = dspec.shape[1]
+	N_chan = dspec_clean.shape[1]
+	if F_on <= 0 or N_on == 0 or N_chan == 0:
+		raise ValueError("Insufficient on-pulse energy for SEFD estimation.")
 
-	if E_on <= 0 or N_on == 0 or N_chan == 0:
-		raise ValueError("Cannot compute SEFD (invalid on-pulse energy).")
+	# Channel bandwidth: prefer explicit attribute if present
+	if hasattr(dspec_params, "channel_bw_hz") and dspec_params.channel_bw_hz is not None:
+		ch_bw = float(dspec_params.channel_bw_hz)
+	else:
+		# Fallback: use spacing; warn if irregular
+		diffs = np.diff(freq_mhz)
+		if np.any(np.abs(diffs - diffs[0]) > 1e-6):
+			logging.warning("Irregular channel spacing; using first diff for bandwidth fallback.")
+		ch_bw = float(diffs[0] * 1e6)
 
-	# Invert radiometer SNR relation (SNR ∝ 1/SEFD)
-	sefd_req = (E_on * np.sqrt(n_pol * f_res_hz * t_res_s)) / (target_snr * np.sqrt(N_chan * N_on))
+	t_res_s = dspec_params.time_res_ms / 1000.0
 
-	return sefd_req
+	# Analytic inversion of SNR relation:
+	# SNR_target = F_on * sqrt(n_pol * ch_bw * t_res_s) / (SEFD * sqrt(N_chan * N_on))
+	sefd = F_on * np.sqrt(n_pol * ch_bw * t_res_s) / (target_snr * np.sqrt(N_chan * N_on))
+
+	details = {
+		"F_on": F_on,
+		"N_on": N_on,
+		"N_chan": N_chan,
+		"left": left,
+		"right": right,
+		"channel_bw_hz": ch_bw
+	}
+	return sefd, details
 
 
 def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer_frac, n_pol=2,
@@ -860,9 +876,9 @@ def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer
 
 	I_time = np.nansum(noisy_dspec[0], axis=0)
 
+	# New snr_onpulse without baseline subtraction
 	snr, (left, right) = snr_onpulse(
-		dspec_params, I_time, frac=0.95, subtract_baseline=True, robust_rms=True,
-		buffer_frac=buffer_frac
+		dspec_params, I_time, frac=0.95, robust_rms=True, buffer_frac=buffer_frac
 	)
 	
 	if not plot_multiple_frb:
@@ -910,75 +926,164 @@ def boxcar_snr(ys, rms):
 	return (global_maxSNR/rms, boxcarw)
 
 
-def snr_onpulse(dspec_params, profile, frac=0.95, subtract_baseline=True, robust_rms=True, buffer_frac=None):
+def baseline_stats_from_offpulse(profile: np.ndarray,
+								 offpulse_mask: np.ndarray,
+								 subtract_baseline: bool = True,
+								 robust_rms: bool = True) -> tuple[float, float]:
 	"""
-	Estimate S/N using an on-pulse window and an (adaptive) off-pulse RMS.
-
-	Improvements:
-	  - Optional tail expansion: include scattered tail in on-pulse so it is NOT treated as noise.
-	  - Optional one-sided off-pulse: use only pre-burst region to avoid tail leakage.
+	Compute baseline level and RMS from an off-pulse region of a 1-D time series.
 
 	Parameters
 	----------
 	profile : 1D array
-	frac : float
-		Fraction of total flux for initial window (boxcar_width).
+		Time series (e.g., freq-summed Stokes I).
+	offpulse_mask : 1D bool
+		True where samples are off-pulse.
 	subtract_baseline : bool
+		If True return the median (or mean) offset to subtract; else 0.0
 	robust_rms : bool
-	buffer_frac : float or None
-		Fraction of (initial) on-pulse width excluded on each side from off-pulse.
-	one_sided_offpulse : bool
-		If True, estimate noise ONLY from bins strictly before the on-pulse window (after buffer).
-	tail_frac : float or None
-		If set (e.g. 0.003), extend the right edge to include all bins with flux > tail_frac * peak
-		(up to max_tail_mult * initial_width). Helps include scattering tail in on-pulse.
-	max_tail_mult : int
-		Safety cap on tail extension (multiple of initial width).
+		If True, return MAD-based sigma; else std.
 
 	Returns
 	-------
-	snr : float
-	(left, right) : tuple
-		Final on-pulse edges used.
+	baseline : float
+		Recommended baseline offset (0.0 if subtract_baseline=False or empty off-pulse).
+	sigma : float
+		Estimated off-pulse RMS (NaN if insufficient samples).
 	"""
 	prof = np.asarray(profile, dtype=float)
-	n = prof.size
-	left, right = boxcar_width(prof, frac=frac)
-	gdict = dspec_params.gdict
-	init_width = gdict["width"][0]/dspec_params.time_res_ms
+	mask = np.asarray(offpulse_mask, dtype=bool)
+	offpulse = prof[mask]
 
-	buffer_bins = int(float(buffer_frac) * init_width) if buffer_frac is not None else 0  # use initial width for buffer sizing
-	# On-pulse mask (after possible tail expansion)
-	mask_on = make_onpulse_mask(n, left, right)
-	onpulse = prof[mask_on]
+	if offpulse.size == 0:
+		return 0.0 if subtract_baseline else 0.0, np.nan
 
-	off_mask = np.zeros(n, dtype=bool)
-	start_off = 0
-	end_off = max(0, left - buffer_bins - 1)
-	if end_off >= start_off:
-		logging.debug(f"One-sided off-pulse: using bins {start_off} to {end_off}")
-		off_mask[start_off:end_off + 1] = True
-
-	offpulse = prof[off_mask]
-
-	baseline = 0.0
 	if subtract_baseline:
-		if offpulse.size > 0:
-			baseline = np.nanmedian(offpulse)
-			onpulse = onpulse - baseline
-			offpulse = offpulse - baseline
+		baseline = float(np.nanmedian(offpulse))
+	else:
+		baseline = 0.0
+
+	# Centered for RMS estimation
+	off_centered = offpulse - baseline
 
 	if robust_rms:
-		if offpulse.size > 0:
-			mad = np.nanmedian(np.abs(offpulse - np.nanmedian(offpulse)))
-			sigma = 1.4826 * mad if mad > 0 else np.nanstd(offpulse)
-		else:
-			sigma = np.nan
+		mad = float(np.nanmedian(np.abs(off_centered - np.nanmedian(off_centered))))
+		sigma = 1.4826 * mad if mad > 0 else float(np.nanstd(off_centered))
 	else:
-		sigma = np.nanstd(offpulse) if offpulse.size > 0 else np.nan
+		sigma = float(np.nanstd(off_centered)) if off_centered.size > 0 else np.nan
 
-	N_on = int(mask_on.sum())
-	snr = np.nansum(onpulse) / (sigma * np.sqrt(max(N_on, 1))) if (sigma is not None and sigma > 0) else 0.0
+	return baseline, sigma
+
+
+def apply_baseline_correction(
+	dspec: np.ndarray,
+	offpulse_mask: np.ndarray,
+	mode: str = "median"
+) -> tuple[np.ndarray, dict]:
+	"""
+	Apply per-frequency-channel baseline correction using a common off-pulse mask.
+
+	Parameters
+	----------
+	dspec : array, shape (4, nf, nt)
+		Dynamic spectrum (Stokes I,Q,U,V).
+	offpulse_mask : array, shape (nt,)
+		Boolean mask selecting off-pulse time bins.
+	mode : str
+		One of:
+		  - "median" | "mean": subtract per-(Stokes, freq) baseline
+		  - "zscore" | "zscore_per_stokes" | "z": per-(Stokes, freq) z-score
+		  - "zscore_i_shared" | "z_i": use I-channel μ,σ per freq for all Stokes
+
+	Returns
+	-------
+	dspec_corr : array
+		Baseline-corrected dynamic spectrum (same shape).
+	info : dict
+		Metadata: {"mode", "used_bins", "mu", "sd", "offsets"} (present as applicable).
+	"""
+	if dspec is None or dspec.ndim != 3 or dspec.shape[0] != 4:
+		raise ValueError("dspec must have shape (4, nf, nt)")
+	nf, nt = dspec.shape[1], dspec.shape[2]
+
+	off = np.asarray(offpulse_mask, dtype=bool)
+	if off.size != nt:
+		raise ValueError(f"offpulse_mask has wrong length {off.size}; expected {nt}")
+
+	idx_t = np.flatnonzero(off)
+	info: dict[str, object] = {"mode": str(mode), "used_bins": int(idx_t.size)}
+
+	# No-op if no off-pulse samples
+	if idx_t.size == 0:
+		return dspec, info
+
+	m = mode.lower()
+	if m in ("median", "mean"):
+		sub = np.take(dspec, idx_t, axis=2)                   # (4, nf, nb)
+		if m == "mean":
+			offsets = np.nanmean(sub, axis=2)                 # (4, nf)
+		else:
+			offsets = np.nanmedian(sub, axis=2)               # (4, nf)
+		dspec_corr = dspec - offsets[:, :, None]
+		info["offsets"] = offsets
+		return dspec_corr, info
+
+	if m in ("zscore", "zscore_per_stokes", "z"):
+		sub = np.take(dspec, idx_t, axis=2)                   # (4, nf, nb)
+		mu = np.nanmean(sub, axis=2)                          # (4, nf)
+		sd = np.nanstd(sub, axis=2, ddof=1)                   # (4, nf)
+		sd = np.where(sd > 0, sd, 1.0)
+		dspec_corr = (dspec - mu[:, :, None]) / sd[:, :, None]
+		info["mu"] = mu
+		info["sd"] = sd
+		return dspec_corr, info
+
+	if m in ("zscore_i_shared", "z_i"):
+		I = dspec[0]                                          # (nf, nt)
+		I_sub = np.take(I, idx_t, axis=1)                     # (nf, nb)
+		mu_I = np.nanmean(I_sub, axis=1)                      # (nf,)
+		sd_I = np.nanstd(I_sub, axis=1, ddof=1)               # (nf,)
+		sd_I = np.where(sd_I > 0, sd_I, 1.0)
+		dspec_corr = (dspec - mu_I[None, :, None]) / sd_I[None, :, None]
+		info["mu_I"] = mu_I
+		info["sd_I"] = sd_I
+		return dspec_corr, info
+
+	# Unknown mode: return input unchanged
+	return dspec, info
+
+
+def snr_onpulse(dspec_params, profile, frac=0.95, robust_rms=True, buffer_frac=None):
+	"""
+	Estimate S/N on a 1-D profile using an on-pulse window and off-pulse RMS.
+	Assumes the profile is already baseline-free (or that noise has zero mean).
+	"""
+	prof = np.asarray(profile, dtype=float)
+
+	intrinsic_width_bins = dspec_params.gdict["width"][0] / dspec_params.time_res_ms
+	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
+		prof, intrinsic_width_bins=intrinsic_width_bins, frac=frac, buffer_frac=buffer_frac
+	)
+
+	# Off-pulse RMS only (no baseline subtraction from on-pulse)
+	off = prof[off_mask]
+	if off.size == 0 or not np.any(np.isfinite(off)):
+		return 0.0, (left, right)
+	if robust_rms:
+		med = float(np.nanmedian(off))
+		mad = float(np.nanmedian(np.abs(off - med)))
+		sigma = 1.4826 * mad if mad > 0 else float(np.nanstd(off))
+	else:
+		sigma = float(np.nanstd(off)) if off.size > 0 else np.nan
+	if not np.isfinite(sigma) or sigma <= 0:
+		return 0.0, (left, right)
+
+	N_on = int(np.count_nonzero(on_mask))
+	if N_on <= 0:
+		return 0.0, (left, right)
+
+	S_on = float(np.nansum(prof[on_mask]))
+	snr = S_on / (sigma * np.sqrt(N_on))
 	return snr, (left, right)
 
 
@@ -1158,7 +1263,6 @@ def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, sk
 	freq_measures = {name: _measure_freq_slice(slc) for name, slc in fq.items()}
 
 	global_stats = _collect_onoff_stats()
-	print_global_stats(global_stats, logger=True)
 
 	return {"phase": phase_measures, "freq": freq_measures, "global": global_stats}
 
@@ -1176,30 +1280,30 @@ def pa_variance_deg2(phits: np.ndarray) -> float:
 	return (180/np.pi)**2 * pa_var
 
 def format_global_stats(global_stats: dict) -> str:
-    """
-    Return a readable multi-line string for global_stats produced by compute_segments.
-    """
-    win = global_stats.get("window", {})
-    lines = []
-    lines.append(f"On-pulse window: [{win.get('left','?')} , {win.get('right','?')}]")
-    for region in ("onpulse", "offpulse"):
-        lines.append(f"\n{region.upper()}:")
-        stokes_stats = global_stats.get(region, {})
-        lines.append("  Stokes  mean        median      std         var")
-        for st in ("I", "Q", "U", "V"):
-            s = stokes_stats.get(st, {})
-            lines.append(
-                f"  {st:>5}  {s.get('mean',np.nan):>11.5g}  {s.get('median',np.nan):>11.5g}  "
-                f"{s.get('std',np.nan):>11.5g}  {s.get('var',np.nan):>11.5g}"
-            )
-    return "\n".join(lines)
+	"""
+	Return a readable multi-line string for global_stats produced by compute_segments.
+	"""
+	win = global_stats.get("window", {})
+	lines = []
+	lines.append(f"On-pulse window: [{win.get('left','?')} , {win.get('right','?')}]")
+	for region in ("onpulse", "offpulse"):
+		lines.append(f"\n{region.upper()}:")
+		stokes_stats = global_stats.get(region, {})
+		lines.append("  Stokes  mean        median      std         var")
+		for st in ("I", "Q", "U", "V"):
+			s = stokes_stats.get(st, {})
+			lines.append(
+				f"  {st:>5}  {s.get('mean',np.nan):>11.5g}  {s.get('median',np.nan):>11.5g}  "
+				f"{s.get('std',np.nan):>11.5g}  {s.get('var',np.nan):>11.5g}"
+			)
+	return "\n".join(lines)
 
 def print_global_stats(global_stats: dict, logger: bool = True):
-    """
-    Log or print the formatted global_stats.
-    """
-    msg = format_global_stats(global_stats)
-    if logger:
-        logging.info("\n" + msg)
-    else:
-        print(msg)
+	"""
+	Log or print the formatted global_stats.
+	"""
+	msg = format_global_stats(global_stats)
+	if logger:
+		logging.debug("\n" + msg)
+	else:
+		print(msg)

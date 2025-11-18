@@ -19,7 +19,7 @@ import logging
 import numpy as np
 
 from fires.core.basicfns import (add_noise, compute_required_sefd,
-								 compute_segments,
+								 compute_segments, apply_baseline_correction,
 								 estimate_noise_with_offpulse_mask,
 								 estimate_rm, on_off_pulse_masks_from_profile,
 								 rm_correct_dspec, scatter_dspec, snr_onpulse)
@@ -470,77 +470,77 @@ def _baseline_diagnostics(dspec: np.ndarray, bl_mask: np.ndarray, time_res_ms: f
 
 
 def _stokes_consistency_diagnostics(dspec: np.ndarray,
-                                     time_res_ms: float,
-                                     buffer_frac: float | None,
-                                     intrinsic_width_bins: float,
-                                     label: str,
-                                     plot_multiple_frb: bool,
-                                     snr_min: float = 5.0) -> None:
-    """
-    Timeseries (frequency-summed) Stokes consistency with SNR gating:
-      - Build I_ts, Q_ts, U_ts, V_ts by summing over frequency
-      - Build on-pulse mask from I_ts (95% boxcar with buffer)
-      - Build pre-burst baseline window using buffer_frac as guard
-      - Gate on I_ts > snr_min * sigma_off
-    """
-    try:
-        I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
-        Q_ts = np.nansum(dspec[1], axis=0)
-        U_ts = np.nansum(dspec[2], axis=0)
-        V_ts = np.nansum(dspec[3], axis=0)
-        nt = I_ts.size
+									 time_res_ms: float,
+									 buffer_frac: float | None,
+									 intrinsic_width_bins: float,
+									 label: str,
+									 plot_multiple_frb: bool,
+									 snr_min: float = 5.0) -> None:
+	"""
+	Timeseries (frequency-summed) Stokes consistency with SNR gating:
+	  - Build I_ts, Q_ts, U_ts, V_ts by summing over frequency
+	  - Build on-pulse mask from I_ts (95% boxcar with buffer)
+	  - Build pre-burst baseline window using buffer_frac as guard
+	  - Gate on I_ts > snr_min * sigma_off
+	"""
+	try:
+		I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
+		Q_ts = np.nansum(dspec[1], axis=0)
+		U_ts = np.nansum(dspec[2], axis=0)
+		V_ts = np.nansum(dspec[3], axis=0)
+		nt = I_ts.size
 
-        # On-pulse from timeseries
-        on_mask, _, (left, right) = on_off_pulse_masks_from_profile(
-            I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
-        )
+		# On-pulse from timeseries
+		on_mask, _, (left, right) = on_off_pulse_masks_from_profile(
+			I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+		)
 
-        # Pre-burst baseline window [0 : left - guard]
-        guard_bins = int(np.ceil(float(buffer_frac) * float(intrinsic_width_bins))) if buffer_frac is not None else 0
-        L_end = max(0, int(left) - guard_bins)
-        bl_mask = np.zeros(nt, dtype=bool)
-        if L_end > 0:
-            bl_mask[:L_end] = True
-        if not np.any(bl_mask):
-            bl_mask = ~on_mask
+		# Pre-burst baseline window [0 : left - guard]
+		guard_bins = int(np.ceil(float(buffer_frac) * float(intrinsic_width_bins))) if buffer_frac is not None else 0
+		L_end = max(0, int(left) - guard_bins)
+		bl_mask = np.zeros(nt, dtype=bool)
+		if L_end > 0:
+			bl_mask[:L_end] = True
+		if not np.any(bl_mask):
+			bl_mask = ~on_mask
 
-        # Off-pulse RMS on I_ts
-        sigma_off = float(np.nanstd(I_ts[bl_mask], ddof=1))
-        sigma_off = sigma_off if sigma_off > 0 else 1.0
+		# Off-pulse RMS on I_ts
+		sigma_off = float(np.nanstd(I_ts[bl_mask], ddof=1))
+		sigma_off = sigma_off if sigma_off > 0 else 1.0
 
-        # SNR-gated on-pulse selection
-        on_snr = on_mask & (I_ts >= snr_min * sigma_off)
-        if not np.any(on_snr):
-            if not plot_multiple_frb:
-                logging.info(f"[stokes_ts:{label}] no bins above {snr_min:.1f}σ in on-pulse; skipping.")
-            return
+		# SNR-gated on-pulse selection
+		on_snr = on_mask & (I_ts >= snr_min * sigma_off)
+		if not np.any(on_snr):
+			if not plot_multiple_frb:
+				logging.info(f"[stokes_ts:{label}] no bins above {snr_min:.1f}σ in on-pulse; skipping.")
+			return
 
-        I2 = I_ts**2
-        P2 = Q_ts**2 + U_ts**2 + V_ts**2
+		I2 = I_ts**2
+		P2 = Q_ts**2 + U_ts**2 + V_ts**2
 
-        R = (I2 - P2)[on_snr]
-        p16 = float(np.nanpercentile(R, 16))
-        med = float(np.nanmedian(R))
-        p84 = float(np.nanpercentile(R, 84))
-        mean = float(np.nanmean(R))
-        frac_neg = float(np.mean(R < 0.0))
+		R = (I2 - P2)[on_snr]
+		p16 = float(np.nanpercentile(R, 16))
+		med = float(np.nanmedian(R))
+		p84 = float(np.nanpercentile(R, 84))
+		mean = float(np.nanmean(R))
+		frac_neg = float(np.mean(R < 0.0))
 
-        p = np.sqrt(P2[on_snr]) / np.maximum(I_ts[on_snr], 1e-12)
-        p_med = float(np.nanmedian(p))
-        p_mean = float(np.nanmean(p))
-        p95 = float(np.nanpercentile(p, 95))
+		p = np.sqrt(P2[on_snr]) / np.maximum(I_ts[on_snr], 1e-12)
+		p_med = float(np.nanmedian(p))
+		p_mean = float(np.nanmean(p))
+		p95 = float(np.nanpercentile(p, 95))
 
-        if not plot_multiple_frb:
-            logging.info(
-                f"[stokes_ts:{label}] R=I^2-P^2: med={med:.3g}, p16={p16:.3g}, p84={p84:.3g}, "
-                f"mean={mean:.3g}, frac(R<0)={frac_neg:.3%}"
-            )
-            logging.info(
-                f"[stokes_ts:{label}] p=sqrt(Q^2+U^2+V^2)/I: median={p_med:.3g}, mean={p_mean:.3g}, p95={p95:.3g} \n"
-            )
-    except Exception as e:
-        if not plot_multiple_frb:
-            logging.warning(f"[stokes_ts:{label}] diagnostics failed: {e}")
+		if not plot_multiple_frb:
+			logging.info(
+				f"[stokes_ts:{label}] R=I^2-P^2: med={med:.3g}, p16={p16:.3g}, p84={p84:.3g}, "
+				f"mean={mean:.3g}, frac(R<0)={frac_neg:.3%}"
+			)
+			logging.info(
+				f"[stokes_ts:{label}] p=sqrt(Q^2+U^2+V^2)/I: median={p_med:.3g}, mean={p_mean:.3g}, p95={p95:.3g} \n"
+			)
+	except Exception as e:
+		if not plot_multiple_frb:
+			logging.warning(f"[stokes_ts:{label}] diagnostics failed: {e}")
 
 
 def psn_dspec(
@@ -550,6 +550,7 @@ def psn_dspec(
 	xname=None,
 	target_snr=None,
 	baseline_correct: bool = True,
+	target_snr_mode: str = "analytic"  # NEW: 'analytic' | 'iter' | 'scale_intensity'
 ):
 	"""
 	Generate dynamic spectrum from microshots (polarised shot noise) with optional parameter sweeping.
@@ -739,6 +740,78 @@ def psn_dspec(
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
 
+	intrinsic_width_bins = gdict["width"][0] / time_res_ms
+	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre-noise",
+								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+
+	V_params = {}
+	for key, values in all_params.items():
+		arr = np.asarray(values, dtype=float)
+		var = float(np.nanvar(arr)) if arr.size else np.nan
+		V_params[f"meas_var_{key}"] = var
+
+	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
+	t_res_s = time_res_ms / 1000.0
+
+	if target_snr is not None:
+		if target_snr_mode == "scale_intensity":
+			# Scale clean dspec intensity instead of changing SEFD
+			prof = np.nansum(dspec[0], axis=0)
+			left, right = compute_segments(dspec, freq_mhz, time_ms, dspec_params,
+										   buffer_frac, skip_rm=True)["global"]["window"].values()
+			# Simple SNR estimate assuming nominal SEFD for current cube
+			f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
+			t_res_s = time_res_ms / 1000.0
+			N_on = right - left + 1
+			N_chan = dspec.shape[1]
+			F_on = np.nansum(prof[left:right+1])
+			# If sefd given, compute current expected SNR; else assume 1 Jy SEFD baseline
+			sefd_eff = sefd if sefd > 0 else 1.0
+			snr_est = F_on * np.sqrt(2 * f_res_hz * t_res_s) / (sefd_eff * np.sqrt(N_chan * N_on))
+			if snr_est > 0:
+				scale = target_snr / snr_est
+				dspec *= scale
+				if not plot_multiple_frb:
+					logging.info("Applied amplitude scaling factor %.3f for target S/N %g", scale, target_snr)
+		else:
+			sefd_est, sefd_details = compute_required_sefd(
+				dspec_params, dspec, freq_mhz,
+				target_snr=target_snr,
+				n_pol=2,
+				buffer_frac=buffer_frac,
+				robust_rms=True
+			)
+
+			if target_snr_mode == "iter":
+				# One corrective iteration using measured SNR
+				_, _, snr_meas = add_noise(
+					dspec_params, dspec, sefd_est,
+					(freq_mhz[1] - freq_mhz[0]) * 1e6,
+					time_res_ms / 1000.0,
+					plot_multiple_frb=True,
+					buffer_frac=buffer_frac,
+					n_pol=2
+				)
+				if snr_meas > 0:
+					sefd_est *= (snr_meas / target_snr)
+			sefd = sefd_est
+			if not plot_multiple_frb:
+				logging.info("SEFD set to %.3f Jy (mode=%s) for target S/N %g",
+							 sefd, target_snr_mode, target_snr)
+
+	if sefd > 0:
+		dspec, sigma_ch, snr = add_noise(dspec_params,
+			dspec, sefd,
+			(freq_mhz[1] - freq_mhz[0]) * 1e6,
+			time_res_ms / 1000.0,
+			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
+		)
+	else:
+		snr = None
+
+	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="post-noise",
+								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+
 	if np.any(np.asarray(RM, dtype=float) != 0.0):
 		try:
 			# On/off mask from frequency-summed I
@@ -782,165 +855,31 @@ def psn_dspec(
 		except Exception as e:
 			logging.warning("RM measurement/derotation in psn_dspec failed (%s). Proceeding without derotation.", str(e))
 
-	I_ts_pre = np.nansum(dspec[0], axis=0)
-	intrinsic_width_bins = gdict["width"][0] / time_res_ms
-	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre",
-                                 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
-
-	V_params = {}
-	for key, values in all_params.items():
-		arr = np.asarray(values, dtype=float)
-		var = float(np.nanvar(arr)) if arr.size else np.nan
-		V_params[f"meas_var_{key}"] = var
-
-	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
-	t_res_s = time_res_ms / 1000.0
-
-	if target_snr is not None:
-		sefd_est = compute_required_sefd(
-			dspec,
-			f_res_hz=f_res_hz,
-			t_res_s=t_res_s,
-			target_snr=target_snr,
-			n_pol=2,
-			frac=0.95,
-			buffer_frac=buffer_frac,
-		)
-		sefd_work = sefd_est
-		max_iter, tol = 5, 0.02
-		for _ in range(max_iter):
-			_, _, snr_meas = add_noise(dspec_params,
-				dspec, sefd_work, f_res_hz, t_res_s,
-				plot_multiple_frb=True, buffer_frac=buffer_frac,
-				n_pol=2
-			)
-			if snr_meas <= 0: break
-			ratio = snr_meas / target_snr
-			if abs(ratio - 1) < tol: break
-			sefd_work *= ratio
-		sefd = sefd_work
-
-		if not plot_multiple_frb:
-			print(f"SEFD set to {sefd:.3g} Jy for target S/N {target_snr}")
-
-	if sefd > 0:
-		dspec, sigma_ch, snr = add_noise(dspec_params,
-			dspec, sefd, f_res_hz, t_res_s,
-			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
-		)
-	else:
-		snr = None
-
-	I_ts_noise = np.nansum(dspec[0], axis=0)
-	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre",
-                                 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 	# Off-pulse baseline correction (per Stokes, per frequency channel)
 	if baseline_correct is not None:
 		try:
-			# Determine on/off bounds from frequency-summed I
 			I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
 			intrinsic_width_bins = float(gdict["width"][0]) / float(time_res_ms)
-			on_mask, _, (left, right) = on_off_pulse_masks_from_profile(
+			on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
 				I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
 			)
 
-			# Guard derived from buffer_frac: guard_bins = buffer_frac * intrinsic_width_bins
-			guard_bins = 0
-			if buffer_frac is not None:
-				guard_bins = int(np.ceil(float(buffer_frac) * intrinsic_width_bins))
-				guard_bins = max(0, guard_bins)
-
-			# Single left (pre-burst) baseline window: [0, left - guard)
-			nt = I_ts.size
-			L_end = max(0, int(left) - guard_bins)
-
-			bl_mask = np.zeros(nt, dtype=bool)
-			if L_end > 0:
-				bl_mask[:L_end] = True
-
-			# Fallback: if empty (very short data), use off-pulse = ~on_mask
-			if not np.any(bl_mask):
-				bl_mask = ~on_mask
-
-			# Diagnostics before correction
-			#_baseline_diagnostics(dspec, bl_mask, time_res_ms, label="pre", plot_multiple_frb=plot_multiple_frb)
-
 			mode = "median" if baseline_correct is True else str(baseline_correct).lower()
 
-			# Use explicit time-index selection to avoid axis confusion with boolean masks
-			idx_t = np.flatnonzero(bl_mask)  # (nb,)
-			nf, nt = dspec.shape[1], dspec.shape[2]
+			dspec, bl_info = apply_baseline_correction(dspec, off_mask, mode=mode)
 
-			if mode in ("median", "mean"):
-				# Subtract baseline only (per Stokes, per channel)
-				if idx_t.size == 0:
-					offsets = np.zeros((4, nf), dtype=float)
-				else:
-					if mode == "mean":
-						# offsets[s, f] = mean over time in baseline window
-						offsets = np.nanmean(np.take(dspec, idx_t, axis=2), axis=2)  # (4, nf)
-					else:
-						offsets = np.nanmedian(np.take(dspec, idx_t, axis=2), axis=2) # (4, nf)
+			if not plot_multiple_frb:
+				logging.info(f"Applied baseline correction mode='{mode}' using {bl_info.get('used_bins',0)} off-pulse bins.")
 
-				# Sanity check shape before broadcasting
-				if offsets.shape != (4, nf):
-					logging.warning("Baseline offsets wrong shape %s; expected (4,%d). Fixing by reshaping.",
-									offsets.shape, nf)
-					offsets = np.reshape(offsets, (4, nf))
-				dspec = dspec - offsets[:, :, None]
-				if not plot_multiple_frb:
-					logging.info("Applied baseline subtraction (%s) using single pre-burst window.", mode)
-
-			elif mode in ("zscore", "zscore_per_stokes", "z"):
-				# Per-Stokes z-score per frequency channel
-				if idx_t.size == 0:
-					mu = np.zeros((4, nf), dtype=float)
-					sd = np.ones((4, nf), dtype=float)
-				else:
-					sub = np.take(dspec, idx_t, axis=2)             # (4, nf, nb)
-					mu = np.nanmean(sub, axis=2)                    # (4, nf)
-					sd = np.nanstd(sub, axis=2, ddof=1)             # (4, nf)
-					sd = np.where(sd > 0, sd, 1.0)
-				if mu.shape != (4, nf) or sd.shape != (4, nf):
-					raise RuntimeError(f"z-score shapes invalid: mu {mu.shape}, sd {sd.shape}, nf={nf}")
-				dspec = (dspec - mu[:, :, None]) / sd[:, :, None]
-				if not plot_multiple_frb:
-					logging.info("Applied z-score (per-Stokes, per-channel) using single pre-burst window.")
-
-			elif mode in ("zscore_i_shared", "z_i"):
-				# Use I-channel μ,σ per frequency for all Stokes (preserves polarization ratios)
-				I = dspec[0]                                         # (nf, nt)
-				if idx_t.size == 0:
-					mu_I = np.zeros((nf,), dtype=float)
-					sd_I = np.ones((nf,), dtype=float)
-				else:
-					I_sub = np.take(I, idx_t, axis=1)                # (nf, nb) time axis=1
-					mu_I = np.nanmean(I_sub, axis=1)                 # (nf,)
-					sd_I = np.nanstd(I_sub, axis=1, ddof=1)          # (nf,)
-					sd_I = np.where(sd_I > 0, sd_I, 1.0)
-				if mu_I.shape != (nf,) or sd_I.shape != (nf,):
-					raise RuntimeError(f"z_i shapes invalid: mu_I {mu_I.shape}, sd_I {sd_I.shape}, nf={nf}")
-				dspec = (dspec - mu_I[None, :, None]) / sd_I[None, :, None]
-				if not plot_multiple_frb:
-					logging.info("Applied z-score using I-channel μ,σ (shared) with single pre-burst window.")
-
-			else:
-				if not plot_multiple_frb:
-					logging.info("Unknown baseline_correct mode '%s'; skipping baseline correction.", mode)
-
-			# Diagnostics after correction
-			#_baseline_diagnostics(dspec, bl_mask, time_res_ms, label="post", plot_multiple_frb=plot_multiple_frb)
+			_stokes_consistency_diagnostics(
+				dspec, time_res_ms, buffer_frac, intrinsic_width_bins,
+				label="post-bline", plot_multiple_frb=plot_multiple_frb, snr_min=5.0
+			)
 
 			I_ts_bline = np.nansum(dspec[0], axis=0)
-			_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre",
-                                 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 			snr_post_bline, _ = snr_onpulse(
-				dspec_params,
-				I_ts_bline,
-				frac=0.95,
-				subtract_baseline=True,
-				robust_rms=True,
-				buffer_frac=buffer_frac
+				dspec_params, I_ts_bline, frac=0.95,
+				robust_rms=True, buffer_frac=buffer_frac
 			)
 			if not plot_multiple_frb:
 				logging.info(f"Stokes I S/N (post-baseline): {snr_post_bline:.2f}")
