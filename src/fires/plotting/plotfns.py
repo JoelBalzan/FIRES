@@ -290,7 +290,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 
 	# Set fixed unit label with math italic S
-	axs[1].set_ylabel(r"$S$ [kJy]")
+	axs[1].set_ylabel(r"$S$ [arb.]")
 
 
 	# Highlight on- and off-pulse regions if requested
