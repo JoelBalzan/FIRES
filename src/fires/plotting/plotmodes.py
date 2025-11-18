@@ -1241,393 +1241,462 @@ def _format_legend_label(od: dict, legend_params=None, gdict=None) -> str:
 
 
 def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight_y_by=None,
-							target_values=None, n_lines=5, linestyle='-', alpha=1,
-							show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
-							freq_window='full-band', x_measured=None, y_measured=None, 
-							interpolate=False, interp_kind='quadratic', interp_points=100, fit=None, fit_points=200,
-							colour_mode='shades', base_colour='#005bff', cmap_name='viridis',
-							extend_outside=False, extend_mode='linear',
-							label_position='start', label_offset_pts=(0, 0), label_ha='left', label_va='top'):
-	"""
-	Plot background lines showing constant values of a swept parameter.
-	Added dynamic colouring:
-	 - colour_mode='shades': dark→light shades of base_colour
-	 - colour_mode='cmap': sampled from matplotlib colormap cmap_name
-	Parameters added:
-		colour_mode : 'shades' | 'cmap'
-		base_colour : hex (used if colour_mode='shades')
-		cmap_name   : matplotlib colormap name (used if colour_mode='cmap')
-		label_position: 'start' | 'end' | 'max-y' | 'mid'
-		label_offset_pts: (dx, dy) points
-	"""
-	# Collect all xvals across runs
-	all_xvals = set()
-	for run_key, run_data in frb_dict.items():
-		for xv in run_data["xvals"]:
-			if np.isfinite(xv):
-				all_xvals.add(float(xv))
-	if not all_xvals:
-		logging.warning(f"No valid xvals found. Cannot plot equal-value lines.")
-		return
+                            target_values=None, n_lines=5, linestyle='-', alpha=1,
+                            show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
+                            freq_window='full-band', x_measured=None, y_measured=None, 
+                            interpolate=False, interp_kind='quadratic', interp_points=100, fit=None, fit_points=200,
+                            colour_mode='shades', base_colour='#005bff', cmap_name='viridis',
+                            extend_outside=False, extend_mode='linear',
+                            label_position='start', label_offset_pts=(0, 0), label_ha='left', label_va='top',
+                            dynamic_update=True, max_draw_points=512):
+    """
+    Plot background lines showing constant values of a swept parameter, and keep them
+    extended across the visible axes even after xlim/ylim changes.
 
-	# Determine axis span early
-	xlim = ax.get_xlim()
-	x_plot_min, x_plot_max = (min(xlim), max(xlim))
-	x_is_log = (ax.get_xscale() == 'log')
-	if x_is_log:
-		eps = 1e-300
-		x_plot_min = max(x_plot_min, eps)
-		x_plot_max = max(x_plot_max, x_plot_min * (1 + 1e-6))
-	def _x_grid(n):
-		n = int(max(10, n))
-		return np.geomspace(x_plot_min, x_plot_max, n) if x_is_log else np.linspace(x_plot_min, x_plot_max, n)
+    When dynamic_update=True (default), we attach an axes callback so lines are
+    recomputed across the current x-limits on any change (zoom/pan/set_xlim).
+    """
 
-	# Select parameter values
-	sorted_values = sorted(all_xvals)
+    # Collect all xvals across runs
+    all_xvals = set()
+    for run_key, run_data in frb_dict.items():
+        for xv in run_data["xvals"]:
+            if np.isfinite(xv):
+                all_xvals.add(float(xv))
+    if not all_xvals:
+        logging.warning(f"No valid xvals found. Cannot plot equal-value lines.")
+        return
 
-	def _select_nearest(sorted_vals, desired_vals):
-		"""Map each desired value to the nearest available sweep value (stable, unique)."""
-		if not sorted_vals or not desired_vals:
-			return []
-		avail = np.asarray(sorted_vals, dtype=float)
-		out = []
-		used = set()
-		for dv in desired_vals:
-			idx = int(np.nanargmin(np.abs(avail - float(dv))))
-			chosen = float(avail[idx])
-			# avoid duplicates if possible by searching neighbors
-			if chosen in used and avail.size > 1:
-				lo, hi = idx - 1, idx + 1
-				best = None
-				best_dist = np.inf
-				if lo >= 0 and float(avail[lo]) not in used:
-					best = float(avail[lo]); best_dist = abs(avail[lo] - dv)
-				if hi < avail.size and float(avail[hi]) not in used:
-					d = abs(avail[hi] - dv)
-					if d < best_dist:
-						best = float(avail[hi]); best_dist = d
-				if best is not None:
-					chosen = best
-			out.append(chosen)
-			used.add(chosen)
-		# preserve input order while removing exact repeats
-		seen = set()
-		return [v for v in out if not (v in seen or seen.add(v))]
+    def _current_x_span():
+        xlim = ax.get_xlim()
+        x_min, x_max = (min(xlim), max(xlim))
+        x_is_log = (ax.get_xscale() == 'log')
+        if x_is_log:
+            eps = 1e-300
+            x_min = max(x_min, eps)
+            x_max = max(x_max, x_min * (1 + 1e-6))
+        return x_min, x_max, x_is_log
 
-	if target_values is None:
-		if len(sorted_values) <= n_lines:
-			selected_values = sorted_values
-		else:
-			indices = np.linspace(0, len(sorted_values) - 1, n_lines, dtype=int)
-			selected_values = [sorted_values[i] for i in indices]
-	else:
-		# Map user-provided targets to nearest available sweep values
-		selected_values = _select_nearest(sorted_values, list(target_values))
-		if not selected_values:
-			logging.warning("No selectable values for equal-value lines from target_values; skipping.")
-			return
+    def _x_grid(n):
+        x_min, x_max, x_is_log = _current_x_span()
+        n = int(max(10, n))
+        return np.geomspace(x_min, x_max, n) if x_is_log else np.linspace(x_min, x_max, n)
 
-	# Build colour sequence
-	def _generate_colours(vals, mode, base, cmap_nm):
-		import matplotlib.cm as cm
-		import matplotlib.colors as mcolors
-		n = len(vals)
-		if n == 0:
-			return []
-		if mode == 'cmap':
-			cmap = cm.get_cmap(cmap_nm)
-			# Normalise by actual numeric range of vals for semantic colour mapping
-			vmin, vmax = min(vals), max(vals)
-			if vmax == vmin:
-				return [cmap(0.5)] * n
-			return [cmap((v - vmin) / (vmax - vmin)) for v in vals]
-		# shades mode
-		base_rgb = np.array(mcolors.to_rgb(base))
-		# factors from darker (0.55) to lighter (1.25)
-		factors = np.linspace(0.55, 1.25, n)
-		out = []
-		for f in factors:
-			if f <= 1:
-				col = base_rgb * f
-			else:
-				blend = f - 1.0  # move toward white
-				col = base_rgb + (1 - base_rgb) * blend
-			col = np.clip(col, 0, 1)
-			out.append(col)
-		return out
+    # Select parameter values to draw
+    sorted_values = sorted(all_xvals)
 
-	colours_for_lines = _generate_colours(selected_values, colour_mode, base_colour, cmap_name)
+    def _select_nearest(sorted_vals, desired_vals):
+        if not sorted_vals or not desired_vals:
+            return []
+        avail = np.asarray(sorted_vals, dtype=float)
+        out = []
+        used = set()
+        for dv in desired_vals:
+            idx = int(np.nanargmin(np.abs(avail - float(dv))))
+            chosen = float(avail[idx])
+            if chosen in used and avail.size > 1:
+                lo, hi = idx - 1, idx + 1
+                best = None
+                best_dist = np.inf
+                if lo >= 0 and float(avail[lo]) not in used:
+                    best = float(avail[lo]); best_dist = abs(avail[lo] - dv)
+                if hi < avail.size and float(avail[hi]) not in used:
+                    d = abs(avail[hi] - dv)
+                    if d < best_dist:
+                        best = float(avail[hi]); best_dist = d
+                if best is not None:
+                    chosen = best
+            out.append(chosen)
+            used.add(chosen)
+        seen = set()
+        return [v for v in out if not (v in seen or seen.add(v))]
 
-	logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines with colour_mode='{colour_mode}'\n")
+    if target_values is None:
+        if len(sorted_values) <= n_lines:
+            selected_values = sorted_values
+        else:
+            indices = np.linspace(0, len(sorted_values) - 1, n_lines, dtype=int)
+            selected_values = [sorted_values[i] for i in indices]
+    else:
+        selected_values = _select_nearest(sorted_values, list(target_values))
+        if not selected_values:
+            logging.warning("No selectable values for equal-value lines from target_values; skipping.")
+            return
 
-	# (Existing model helpers unchanged)
-	def _safe_exp(z): return np.exp(np.clip(z, -700.0, 700.0))
-	def _model_power(x, a, n): return a * np.power(x, n)
-	def _model_power_fixed(x, a, n_fixed): return a * np.power(x, n_fixed)
-	def _model_exp(x, a, b): return a * _safe_exp(b * x)
-	def _model_broken_power(x, a, n1, n2, x_break): return np.where(x < x_break, a * x**n1, a * x_break**(n1-n2) * x**n2)
+    # Colours
+    def _generate_colours(vals, mode, base, cmap_nm):
+        import matplotlib.cm as cm
+        import matplotlib.colors as mcolors
+        n = len(vals)
+        if n == 0:
+            return []
+        if mode == 'cmap':
+            cmap = cm.get_cmap(cmap_nm)
+            vmin, vmax = min(vals), max(vals)
+            if vmax == vmin:
+                return [cmap(0.5)] * n
+            return [cmap((v - vmin) / (vmax - vmin)) for v in vals]
+        base_rgb = np.array(mcolors.to_rgb(base))
+        factors = np.linspace(0.55, 1.25, n)
+        out = []
+        for f in factors:
+            if f <= 1:
+                col = base_rgb * f
+            else:
+                blend = f - 1.0
+                col = base_rgb + (1 - base_rgb) * blend
+            col = np.clip(col, 0, 1)
+            out.append(col)
+        return out
 
-	for (xval, line_colour) in zip(selected_values, colours_for_lines):
-		x_points = []
-		y_points = []
-		for run_key, run_data in frb_dict.items():
-			xvals = run_data["xvals"]
-			measures = run_data["measures"]
-			V_params = run_data.get("V_params", {})
-			dspec_params = run_data.get("dspec_params", {})
+    colours_for_lines = _generate_colours(selected_values, colour_mode, base_colour, cmap_name)
+    logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines with colour_mode='{colour_mode}'\n")
 
-			xval_indices = np.where(np.isclose(xvals, xval, rtol=1e-6))[0]
-			if len(xval_indices) == 0:
-				continue
+    # Model helpers
+    def _safe_exp(z): return np.exp(np.clip(z, -700.0, 700.0))
+    def _model_power(x, a, n): return a * np.power(x, n)
+    def _model_power_fixed(x, a, n_fixed): return a * np.power(x, n_fixed)
+    def _model_exp(x, a, b): return a * _safe_exp(b * x)
+    def _model_broken_power(x, a, n1, n2, x_break): return np.where(x < x_break, a * x**n1, a * x_break**(n1-n2) * x**n2)
 
-			# x extraction
-			if x_measured is not None:
-				x_vals, _, _ = _weight_x_get_xname(
-					run_data,
-					weight_x_by=weight_x_by,
-					x_measured=x_measured,
-					phase_window=phase_window,
-					freq_window=freq_window
-				)
-			else:
-				x_vals, _, _ = _weight_x_get_xname(
-					run_data,
-					weight_x_by=weight_x_by,
-					x_measured=None,
-					phase_window=phase_window,
-					freq_window=freq_window
-				)
+    # Maintain handles and updaters to avoid GC
+    if not hasattr(ax, '_equal_lines_dynamic'):
+        ax._equal_lines_dynamic = []
 
-			y_quantity = 'Vpsi' if plot_type == 'pa_var' else 'Lfrac'
-			yvals_dict = _yvals_from_measures_dict(xvals, measures, plot_type, phase_window, freq_window)
+    for (xval, line_colour) in zip(selected_values, colours_for_lines):
+        x_points = []
+        y_points = []
 
-			if weight_y_by is not None:
-				weight_source = V_params if is_measured_key(weight_y_by) else dspec_params
-				yvals_weighted, _ = _weight_dict(xvals, yvals_dict, weight_source, weight_by=weight_y_by, return_status=True)
-			else:
-				yvals_weighted = yvals_dict
+        # Aggregate medians across runs at this constant param value
+        for run_key, run_data in frb_dict.items():
+            xvals = run_data["xvals"]
+            measures = run_data["measures"]
+            V_params = run_data.get("V_params", {})
+            dspec_params = run_data.get("dspec_params", {})
 
-			for idx in xval_indices:
-				x_coord = x_vals[idx] if idx < len(x_vals) else np.nan
-				xv_key = xvals[idx]
-				y_vals = yvals_weighted.get(xv_key, [])
-				y_coord = np.nanmedian(y_vals) if y_vals else np.nan
-				if np.isfinite(x_coord) and np.isfinite(y_coord):
-					x_points.append(x_coord)
-					y_points.append(y_coord)
+            xval_indices = np.where(np.isclose(xvals, xval, rtol=1e-6))[0]
+            if len(xval_indices) == 0:
+                continue
 
-		if len(x_points) < 2:
-			continue
+            # x extraction (measured or weighted)
+            x_vals, _, _ = _weight_x_get_xname(
+                run_data,
+                weight_x_by=weight_x_by,
+                x_measured=x_measured,
+                phase_window=phase_window,
+                freq_window=freq_window
+            )
 
-		sorted_indices = np.argsort(x_points)
-		x_sorted = np.array(x_points)[sorted_indices]
-		y_sorted = np.array(y_points)[sorted_indices]
+            yvals_dict = _yvals_from_measures_dict(xvals, measures, plot_type, phase_window, freq_window)
+            if weight_y_by is not None:
+                weight_source = V_params if is_measured_key(weight_y_by) else dspec_params
+                yvals_weighted, _ = _weight_dict(xvals, yvals_dict, weight_source, weight_by=weight_y_by, return_status=True)
+            else:
+                yvals_weighted = yvals_dict
 
-		# Fit or interpolate (unchanged logic condensed)
-		def _attempt_fit():
-			if fit is None:
-				return None
-			fit_type, fit_degree = _parse_fit_arg(fit)
-			x_fit = _x_grid(fit_points)
-			xd = x_sorted
-			yd = y_sorted
-			if xd.size < 2:
-				return None
-			try:
-				if fit_type == 'linear':
-					p = np.polyfit(xd, yd, 1); return x_fit, np.polyval(p, x_fit)
-				if fit_type == 'poly':
-					deg = fit_degree if (fit_degree and fit_degree >= 1) else 2
-					deg = min(deg, max(1, xd.size - 1))
-					p = np.polyfit(xd, yd, deg); return x_fit, np.polyval(p, x_fit)
-				if fit_type == 'exp':
-					m = yd > 0
-					xf, yf = xd[m], yd[m]
-					if xf.size >= 2:
-						p = np.polyfit(xf, np.log(yf), 1)
-						return x_fit, _safe_exp(p[0] * x_fit + p[1])
-				if fit_type in ('power', 'power_fixed_n'):
-					mpos = xd > 0
-					xf, yf = xd[mpos], yd[mpos]
-					if xf.size >= 2:
-						if fit_degree is not None:
-							nf = float(fit_degree)
-							if np.all(yf > 0):
-								ln_a = np.nanmean(np.log(yf) - nf * np.log(xf))
-								a_hat = np.exp(ln_a)
-								return x_fit, _model_power_fixed(x_fit, a_hat, nf)
-						else:
-							if np.all(yf > 0):
-								p = np.polyfit(np.log(xf), np.log(yf), 1)
-								n_hat, ln_a_hat = p[0], p[1]
-								a_hat = np.exp(ln_a_hat)
-								return x_fit, _model_power(x_fit, a_hat, n_hat)
-				if fit_type == 'log':
-					mpos = xd > 0
-					xf, yf = xd[mpos], yd[mpos]
-					if xf.size >= 2:
-						p = np.polyfit(np.log10(xf), yf, 1)
-						return x_fit, np.polyval(p, np.log10(np.clip(x_fit, 1e-300, None)))
-				if fit_type == 'broken-power':
-					mpos = xd > 0
-					xf, yf = xd[mpos], yd[mpos]
-					if xf.size >= 4:
-						p0 = [np.nanmax(yf), 1.0, 0.0, np.median(xf)]
-						bounds = ([0, -np.inf, -np.inf, np.min(xf)], [np.inf, np.inf, np.inf, np.max(xf)])
-						from scipy.optimize import curve_fit
-						popt, _ = curve_fit(_model_broken_power, xf, yf, p0=p0, bounds=bounds, maxfev=20000)
-						return x_fit, _model_broken_power(x_fit, *popt)
-			except Exception as e:
-				logging.debug(f"Equal-line fit failed ({fit_type}): {e}")
-			return None
+            for idx in xval_indices:
+                x_coord = x_vals[idx] if idx < len(x_vals) else np.nan
+                xv_key = xvals[idx]
+                y_vals = yvals_weighted.get(xv_key, [])
+                y_coord = np.nanmedian(y_vals) if y_vals else np.nan
+                if np.isfinite(x_coord) and np.isfinite(y_coord):
+                    x_points.append(x_coord)
+                    y_points.append(y_coord)
 
-		fit_results = _attempt_fit()
-		if fit_results is not None:
-			x_line, y_line = fit_results
-			ax.plot(x_line, y_line, linestyle=linestyle, alpha=alpha, color=line_colour, linewidth=1.8, zorder=zorder)
-		else:
-			if interpolate and len(x_sorted) >= 3:
-				try:
-					actual_kind = interp_kind
-					if interp_kind == 'cubic' and len(x_sorted) < 4:
-						actual_kind = 'quadratic'
-					if interp_kind == 'quadratic' and len(x_sorted) < 3:
-						actual_kind = 'linear'
-					from scipy.interpolate import interp1d
-					f = interp1d(x_sorted, y_sorted, kind=actual_kind, bounds_error=False, fill_value='extrapolate')
-					x_smooth = _x_grid(interp_points)
-					y_smooth = f(x_smooth)
-					ax.plot(x_smooth, y_smooth, linestyle=linestyle, alpha=alpha, color=line_colour, linewidth=1.5, zorder=zorder)
-				except Exception:
-					ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=line_colour, linewidth=1.5, zorder=zorder)
-			else:
-				# No smoothing interpolation: optionally extend to axis limits
-				if extend_outside and len(x_sorted) >= 2:
-					left_extend  = x_plot_min < x_sorted[0]
-					right_extend = x_plot_max > x_sorted[-1]
+        if len(x_points) < 2:
+            continue
 
-					x_ext = []
-					y_ext = []
+        sorted_indices = np.argsort(x_points)
+        x_sorted = np.array(x_points)[sorted_indices]
+        y_sorted = np.array(y_points)[sorted_indices]
 
-					# Left extension point
-					if left_extend:
-						if extend_mode == 'linear':
-							dx = x_sorted[1] - x_sorted[0]
-							if dx != 0 and np.isfinite(dx):
-								m = (y_sorted[1] - y_sorted[0]) / dx
-								y_left = y_sorted[0] + m * (x_plot_min - x_sorted[0])
-							else:
-								y_left = y_sorted[0]
-						else:  # 'flat'
-							y_left = y_sorted[0]
-						x_ext.append(x_plot_min)
-						y_ext.append(y_left)
+        # Build an evaluator g(x) for dynamic recompute
+        g = None
+        fit_desc = None
+        if fit is not None:
+            try:
+                fit_type, fit_degree = _parse_fit_arg(fit)
+                xd, yd = x_sorted, y_sorted
+                if fit_type == 'linear' and xd.size >= 2:
+                    p = np.polyfit(xd, yd, 1)
+                    g = lambda x: np.polyval(p, x)
+                    fit_desc = 'linear'
+                elif fit_type == 'poly' and xd.size >= max(2, (fit_degree or 2) + 1):
+                    deg = fit_degree if (fit_degree and fit_degree >= 1) else 2
+                    deg = min(deg, max(1, xd.size - 1))
+                    p = np.polyfit(xd, yd, deg)
+                    g = lambda x, p=p: np.polyval(p, x)
+                    fit_desc = f'poly-{deg}'
+                elif fit_type == 'exp' and xd.size >= 2 and np.all(yd > 0):
+                    p = np.polyfit(xd, np.log(yd), 1)
+                    g = lambda x, p=p: _safe_exp(p[0] * x + p[1])
+                    fit_desc = 'exp'
+                elif fit_type in ('power', 'power_fixed_n') and xd.size >= 2 and np.all(yd > 0) and np.all(xd > 0):
+                    if fit_degree is not None:
+                        nf = float(fit_degree)
+                        ln_a = np.nanmean(np.log(yd) - nf * np.log(xd))
+                        a_hat = np.exp(ln_a)
+                        g = lambda x, a=a_hat, nf=nf: _model_power_fixed(np.clip(x, 1e-300, None), a, nf)
+                        fit_desc = f'power-n{nf}'
+                    else:
+                        p = np.polyfit(np.log(xd), np.log(yd), 1)
+                        n_hat, ln_a_hat = p[0], p[1]
+                        a_hat = np.exp(ln_a_hat)
+                        g = lambda x, a=a_hat, n=n_hat: _model_power(np.clip(x, 1e-300, None), a, n)
+                        fit_desc = 'power'
+                elif fit_type == 'log' and xd.size >= 2 and np.all(xd > 0):
+                    p = np.polyfit(np.log10(xd), yd, 1)
+                    g = lambda x, p=p: np.polyval(p, np.log10(np.clip(x, 1e-300, None)))
+                    fit_desc = 'log'
+                elif fit_type == 'broken-power' and xd.size >= 4 and np.all(xd > 0):
+                    from scipy.optimize import curve_fit as _cf
+                    p0 = [np.nanmax(yd), 1.0, 0.0, np.median(xd)]
+                    bounds = ([0, -np.inf, -np.inf, np.min(xd)], [np.inf, np.inf, np.inf, np.max(xd)])
+                    popt, _ = _cf(_model_broken_power, xd, yd, p0=p0, bounds=bounds, maxfev=20000)
+                    g = lambda x, p=popt: _model_broken_power(np.clip(x, 1e-300, None), *p)
+                    fit_desc = 'broken-power'
+            except Exception as e:
+                logging.debug(f"Equal-line fit callable failed: {e}")
+                g = None
 
-					# Core polyline
-					x_ext.extend(x_sorted.tolist())
-					y_ext.extend(y_sorted.tolist())
+        if g is None and interpolate and len(x_sorted) >= 2:
+            try:
+                from scipy.interpolate import interp1d
+                kind = interp_kind
+                if kind == 'cubic' and len(x_sorted) < 4:
+                    kind = 'quadratic'
+                if kind == 'quadratic' and len(x_sorted) < 3:
+                    kind = 'linear'
+                f = interp1d(x_sorted, y_sorted, kind=kind, bounds_error=False, fill_value='extrapolate', assume_sorted=True)
+                g = lambda x, f=f: f(x)
+                fit_desc = f'interp-{kind}'
+            except Exception as e:
+                logging.debug(f"Equal-line interpolation failed: {e}")
+                g = None
 
-					# Right extension point
-					if right_extend:
-						if extend_mode == 'linear':
-							dx = x_sorted[-1] - x_sorted[-2]
-							if dx != 0 and np.isfinite(dx):
-								m = (y_sorted[-1] - y_sorted[-2]) / dx
-								y_right = y_sorted[-1] + m * (x_plot_max - x_sorted[-1])
-							else:
-								y_right = y_sorted[-1]
-						else:  # 'flat'
-							y_right = y_sorted[-1]
-						x_ext.append(x_plot_max)
-						y_ext.append(y_right)
+        if g is None:
+            # Piecewise linear with linear/flat extrapolation
+            def _g_piecewise(x, xs=x_sorted, ys=y_sorted, mode=extend_mode):
+                x = np.asarray(x, dtype=float)
+                y = np.interp(x, xs, ys)
+                if xs.size >= 2:
+                    if mode == 'linear':
+                        mL = (ys[1] - ys[0]) / (xs[1] - xs[0])
+                        mR = (ys[-1] - ys[-2]) / (xs[-1] - xs[-2])
+                        left_mask = (x < xs[0])
+                        right_mask = (x > xs[-1])
+                        y[left_mask] = ys[0] + mL * (x[left_mask] - xs[0])
+                        y[right_mask] = ys[-1] + mR * (x[right_mask] - xs[-1])
+                    else:
+                        # flat
+                        y[x < xs[0]] = ys[0]
+                        y[x > xs[-1]] = ys[-1]
+                return y
+            g = _g_piecewise
+            fit_desc = f'polyline-{extend_mode}'
 
-					ax.plot(np.asarray(x_ext), np.asarray(y_ext), linestyle=linestyle, alpha=alpha, color=line_colour, linewidth=1.5, zorder=zorder)
-				else:
-					ax.plot(x_sorted, y_sorted, linestyle=linestyle, alpha=alpha, color=line_colour, linewidth=1.5, zorder=zorder)
+        # Create the line artist and optional text label
+        x_draw = _x_grid(min(max_draw_points, fit_points if fit else (interp_points if interpolate else max_draw_points)))
+        y_draw = np.asarray(g(x_draw), dtype=float)
+        line, = ax.plot(x_draw, y_draw, linestyle=linestyle, alpha=alpha, color=line_colour, linewidth=1.8, zorder=zorder)
 
-		if show_labels:
-			param_symbol, _ = _param_info_or_dynamic(target_param)
-			val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
-			# choose label anchor on the polyline
-			lbl_pos = (label_position or 'start').lower()
-			if lbl_pos == 'end':
-				ix = -1
-			elif lbl_pos == 'max-y':
-				ix = int(np.nanargmax(y_sorted))
-			elif lbl_pos == 'mid':
-				ix = int(len(x_sorted) // 2)
-			else:  # 'start'
-				ix = 0
-			_text_with_offset(
-				ax, float(x_sorted[ix]), float(y_sorted[ix]),
-				rf"${param_symbol} = {val_str}$",
-				dx_pts=float(label_offset_pts[0]) if label_offset_pts else 0.0,
-				dy_pts=float(label_offset_pts[1]) if label_offset_pts else 0.0,
-				ha=label_ha, va=label_va,
-				color=line_colour, fontsize=18, alpha=min(alpha + 0.2, 1.0),
-				zorder=10
-			)
+        txt = None
+        if show_labels:
+            param_symbol, _ = _param_info_or_dynamic(target_param)
+            val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
+            lbl_pos = (label_position or 'start').lower()
+            def _label_index(xa, ya):
+                if lbl_pos == 'end':
+                    return -1
+                if lbl_pos == 'max-y':
+                    return int(np.nanargmax(ya))
+                if lbl_pos == 'mid':
+                    return int(len(xa) // 2)
+                return 0
+            ix = _label_index(x_draw, y_draw)
+            txt = _text_with_offset(
+                ax, float(x_draw[ix]), float(y_draw[ix]),
+                rf"${param_symbol} = {val_str}$",
+                dx_pts=float(label_offset_pts[0]) if label_offset_pts else 0.0,
+                dy_pts=float(label_offset_pts[1]) if label_offset_pts else 0.0,
+                ha=label_ha, va=label_va,
+                color=line_colour, fontsize=18, alpha=min(alpha + 0.2, 1.0),
+                zorder=max(zorder + 1, 10)
+            )
+
+        # Dynamic updater – recompute curve on xlim change
+        def _update_equal_line(event_ax=None, _line=line, _text=txt, _g=g):
+            try:
+                x_new = _x_grid(min(max_draw_points, fit_points if fit else (interp_points if interpolate else max_draw_points)))
+                y_new = np.asarray(_g(x_new), dtype=float)
+                _line.set_data(x_new, y_new)
+                if _text is not None and y_new.size > 0 and np.all(np.isfinite(y_new)):
+                    lbl_pos_local = (label_position or 'start').lower()
+                    if lbl_pos_local == 'end':
+                        ii = -1
+                    elif lbl_pos_local == 'max-y':
+                        ii = int(np.nanargmax(y_new))
+                    elif lbl_pos_local == 'mid':
+                        ii = int(len(x_new) // 2)
+                    else:
+                        ii = 0
+                    _text.set_position((float(x_new[ii]), float(y_new[ii])))
+                # force a canvas draw later; do not trigger autoscale
+            except Exception as e:
+                logging.debug(f"Equal-line update failed: {e}")
+
+        # Register callback(s)
+        if dynamic_update:
+            cid = ax.callbacks.connect('xlim_changed', _update_equal_line)
+            # Also update once now to ensure it matches any post-plot autoscale
+            _update_equal_line()
+
+            # Keep references to prevent GC
+            ax._equal_lines_dynamic.append({'cid': cid, 'update': _update_equal_line, 'line': line, 'text': txt, 'desc': fit_desc})
+
 
 
 def plot_constant_param_lines(
-	ax,
-	param_data,
-	x_key='vpsi',
-	y_key='lfrac',
-	color='gray',
-	alpha=0.5,
-	linestyle='--',
-	label_fmt=r"${param} = {val}$",
-	param_name=r"\sigma_\psi"
+    ax,
+    param_data,
+    x_key='vpsi',
+    y_key='lfrac',
+    color='gray',
+    alpha=0.5,
+    linestyle='--',
+    label_fmt=r"${param} = {val}$",
+    param_name=r"\sigma_\psi",
+    extend_mode='linear',          # 'linear' or 'flat' extrapolation
+    label_position='end',          # 'start' | 'end' | 'max-y' | 'mid'
+    label_offset_pts=(0, 0),
+    dynamic_update=True,
+    linewidth=1.5,
+    max_draw_points=512
 ):
-	"""
-	Overlay lines of constant parameter on a 2D plot.
+    """
+    Overlay lines of constant parameter on a 2D plot and keep them extended across
+    the visible axes even after xlim/ylim changes (via callbacks).
 
-	param_data: dict
-		Keys are parameter values, values are dicts with keys for x and y arrays.
-		Example:
-			{
-				1.0: {'vpsi': [...], 'lfrac': [...]},
-				2.0: {'vpsi': [...], 'lfrac': [...]},
-				...
-			}
-	x_key: str
-		Key for x-axis data in each dict (default: 'vpsi')
-	y_key: str
-		Key for y-axis data in each dict (default: 'lfrac')
-	color: str
-		Line color
-	alpha: float
-		Line transparency
-	linestyle: str
-		Line style
-	label_fmt: str
-		Format string for legend label. Use {param} and {val} for substitution.
-	param_name: str
-		LaTeX or string for parameter symbol in label.
-	"""
-	for param_val, vals in param_data.items():
-		x = np.asarray(vals.get(x_key, []))
-		y = np.asarray(vals.get(y_key, []))
-		mask = np.isfinite(x) & np.isfinite(y)
-		if np.sum(mask) < 2:
-			continue
-		# Sort by x so the line is monotonic in x
-		x_valid = x[mask]
-		y_valid = y[mask]
-		order = np.argsort(x_valid)
-		x_sorted = x_valid[order]
-		y_sorted = y_valid[order]
-		# Plot the line
-		ax.plot(x_sorted, y_sorted, color=color, alpha=alpha, linestyle=linestyle, label=None)
-		# Add text label at the rightmost point
-		val_str = f"{int(param_val)}" if param_val == int(param_val) else f"{param_val:.2g}"
-		label_text = label_fmt.format(param=param_name, val=val_str)
-		ax.text(x_sorted[-1], y_sorted[-1], label_text,
-				fontsize=15, alpha=alpha+0.2, color=color, zorder=0,
-				verticalalignment='bottom', horizontalalignment='left',
-				bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-						   alpha=0.7, edgecolor='none'))
+    param_data: dict
+        { param_value: {x_key: [...], y_key: [...]}, ... }
+    """
+
+    def _current_x_span():
+        xlim = ax.get_xlim()
+        x_min, x_max = (min(xlim), max(xlim))
+        x_is_log = (ax.get_xscale() == 'log')
+        if x_is_log:
+            eps = 1e-300
+            x_min = max(x_min, eps)
+            x_max = max(x_max, x_min * (1 + 1e-6))
+        return x_min, x_max, x_is_log
+
+    def _x_grid(n):
+        x_min, x_max, x_is_log = _current_x_span()
+        n = int(max(10, n))
+        return np.geomspace(x_min, x_max, n) if x_is_log else np.linspace(x_min, x_max, n)
+
+    def _g_piecewise(x, xs, ys, mode='linear'):
+        x = np.asarray(x, dtype=float)
+        y = np.interp(x, xs, ys)
+        if xs.size >= 2:
+            if mode == 'linear':
+                mL = (ys[1] - ys[0]) / (xs[1] - xs[0])
+                mR = (ys[-1] - ys[-2]) / (xs[-1] - xs[-2])
+                left_mask = (x < xs[0])
+                right_mask = (x > xs[-1])
+                y[left_mask] = ys[0] + mL * (x[left_mask] - xs[0])
+                y[right_mask] = ys[-1] + mR * (x[right_mask] - xs[-1])
+            else:
+                # flat
+                y[x < xs[0]] = ys[0]
+                y[x > xs[-1]] = ys[-1]
+        return y
+
+    def _label_index(xa, ya, pos):
+        pl = (pos or 'end').lower()
+        if pl == 'start':
+            return 0
+        if pl == 'end':
+            return -1
+        if pl == 'max-y':
+            return int(np.nanargmax(ya)) if ya.size > 0 else -1
+        if pl == 'mid':
+            return int(len(xa) // 2) if xa.size > 0 else -1
+        return -1
+
+    # Keep handles and callbacks to avoid GC
+    if not hasattr(ax, '_const_param_lines_dynamic'):
+        ax._const_param_lines_dynamic = []
+
+    # Deterministic order
+    for param_val in sorted(param_data.keys(), key=lambda v: (isinstance(v, str), v)):
+        vals = param_data[param_val]
+        x = np.asarray(vals.get(x_key, []), dtype=float)
+        y = np.asarray(vals.get(y_key, []), dtype=float)
+        m = np.isfinite(x) & np.isfinite(y)
+        if np.sum(m) < 2:
+            continue
+
+        x_valid = x[m]
+        y_valid = y[m]
+        order = np.argsort(x_valid)
+        x_sorted = np.unique(x_valid[order])
+        # If x had duplicates, average corresponding y's at same x
+        if x_sorted.size != x_valid[order].size:
+            # consolidate by x using median
+            uniq_x, inv = np.unique(x_valid[order], return_inverse=True)
+            y_accum = [[] for _ in range(uniq_x.size)]
+            for xi, yi in zip(inv, y_valid[order]):
+                y_accum[xi].append(yi)
+            y_sorted = np.array([np.nanmedian(v) if v else np.nan for v in y_accum], dtype=float)
+            x_sorted = uniq_x
+        else:
+            y_sorted = y_valid[order]
+
+        if x_sorted.size < 2:
+            continue
+
+        # Build evaluator for dynamic recompute
+        def _g(xq, xs=x_sorted, ys=y_sorted, mode=extend_mode):
+            return _g_piecewise(xq, xs, ys, mode=mode)
+
+        # Initial draw across current span
+        x_draw = _x_grid(max_draw_points)
+        y_draw = np.asarray(_g(x_draw), dtype=float)
+        line, = ax.plot(x_draw, y_draw, color=color, alpha=alpha, linestyle=linestyle, linewidth=linewidth, label=None)
+
+        # Label
+        val_str = f"{int(param_val)}" if (isinstance(param_val, (int, float)) and float(param_val).is_integer()) else f"{param_val:.2g}" if isinstance(param_val, (int, float)) else str(param_val)
+        label_text = label_fmt.format(param=param_name, val=val_str)
+        ix = _label_index(x_draw, y_draw, label_position)
+        txt = _text_with_offset(
+            ax, float(x_draw[ix]), float(y_draw[ix]), label_text,
+            dx_pts=float(label_offset_pts[0]) if label_offset_pts else 0.0,
+            dy_pts=float(label_offset_pts[1]) if label_offset_pts else 0.0,
+            ha='left', va='bottom',
+            color=color, fontsize=15, alpha=min(alpha + 0.2, 1.0),
+            zorder=max(line.get_zorder() + 1, 10),
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='none')
+        )
+
+        # Updater on axis changes
+        def _update_const_line(event_ax=None, _line=line, _text=txt, _g=_g):
+            try:
+                x_new = _x_grid(max_draw_points)
+                y_new = np.asarray(_g(x_new), dtype=float)
+                _line.set_data(x_new, y_new)
+                if _text is not None and y_new.size > 0 and np.all(np.isfinite(y_new)):
+                    ii = _label_index(x_new, y_new, label_position)
+                    _text.set_position((float(x_new[ii]), float(y_new[ii])))
+            except Exception:
+                pass
+
+        if dynamic_update:
+            cid1 = ax.callbacks.connect('xlim_changed', _update_const_line)
+            cid2 = ax.callbacks.connect('ylim_changed', _update_const_line)  # reposition label if needed
+            _update_const_line()
+            ax._const_param_lines_dynamic.append({'cids': (cid1, cid2), 'update': _update_const_line, 'line': line, 'text': txt, 'param': param_val})
 
 
 def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=None,
