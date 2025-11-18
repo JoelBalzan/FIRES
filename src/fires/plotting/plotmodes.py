@@ -1105,8 +1105,8 @@ def _print_med_snrs(subdict):
 				return None
 			return np.nanmedian(vals)
 		return val if val is not None and np.isfinite(val) else None
-	med_low = np.max(lowest) #med(lowest)
-	med_high = np.max(highest) #med(highest)
+	med_low = med(lowest)
+	med_high = med(highest)
 	if med_low is not None or med_high is not None:
 		logging.info(f"Median S/N at:\n lowest x: S/N = {med_low if med_low is not None else 'nan'}, \nhighest x: S/N = {med_high if med_high is not None else 'nan'}\n")
 	else:
