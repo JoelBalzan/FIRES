@@ -197,18 +197,18 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
-	sim_file = load_params("simparams", sim_file, "simulation")
+	sim_params = load_params("simparams", sim_file, "simulation")
 
 	# Extract frequency and time parameters
-	f_start = float(sim_file['f0'])
-	f_end   = float(sim_file['f1'])
-	t_start = float(sim_file['t0'])
-	t_end   = float(sim_file['t1'])
-	f_res   = float(sim_file['f_res'])
-	t_res   = float(sim_file['t_res'])
+	f_start = float(sim_params['f0'])
+	f_end   = float(sim_params['f1'])
+	t_start = float(sim_params['t0'])
+	t_end   = float(sim_params['t1'])
+	f_res   = float(sim_params['f_res'])
+	t_res   = float(sim_params['t_res'])
 
-	scatter_idx = float(sim_file['scattering_index'])
-	ref_freq 	= float(sim_file['reference_freq'])
+	scatter_idx = float(sim_params['scattering_index'])
+	ref_freq 	= float(sim_params['reference_freq'])
 
 	# Generate frequency and time arrays
 	freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
@@ -373,7 +373,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	if not plot_multiple_frb:
 		# Single FRB generation branch
 		if obs_data != None:
-			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file)
+			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file, sim_file, scint_file)
 			snr, (left, right) = snr_onpulse(dspec_params, np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
 			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
 			if tau[0] > 0:

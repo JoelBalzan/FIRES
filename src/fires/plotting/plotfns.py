@@ -20,7 +20,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, print_global_stats)
+                                 pa_variance_deg2, print_global_stats, wrap_pa_deg)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logger = logging.getLogger(__name__)
@@ -242,11 +242,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	
 	pa_deg = np.rad2deg(pa_rad)
 
-	def wrap_pa_deg(pa):
-		w = (pa + 90.0) % 180.0 - 90.0
-		w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
-		return w
-
 	phits = wrap_pa_deg(pa_deg)
 	pa_err_rad = tsdata.ephits 
 	finite_pa_err = pa_err_rad[np.isfinite(pa_err_rad)]
@@ -266,7 +261,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	fig.subplots_adjust(hspace=0.)
 
 	# Plot polarisation angle
-	axs[0].scatter(time_ms, phits, c='black', s=1, zorder=8)
+	axs[0].scatter(time_ms, phits, c='black', s=2.5, zorder=8)
 	axs[0].errorbar(time_ms, pa_deg, yerr=pa_err_deg, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
  
 	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
@@ -353,11 +348,6 @@ def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, e
 	"""
 	pa_rad = tsdata.phits
 	pa_deg = np.rad2deg(pa_rad)
-
-	def wrap_pa_deg(pa):
-		w = (pa + 90.0) % 180.0 - 90.0
-		w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
-		return w
 
 	phits = wrap_pa_deg(pa_deg)
 	pa_err_rad = tsdata.ephits

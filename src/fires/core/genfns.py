@@ -806,11 +806,11 @@ def psn_dspec(
 			time_res_ms / 1000.0,
 			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
 		)
+		_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="post-noise",
+								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 	else:
 		snr = None
-
-	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="post-noise",
-								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+	
 
 	if np.any(np.asarray(RM, dtype=float) != 0.0):
 		try:

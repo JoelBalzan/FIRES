@@ -1307,3 +1307,10 @@ def print_global_stats(global_stats: dict, logger: bool = True):
 		logging.debug("\n" + msg)
 	else:
 		print(msg)
+
+
+
+def wrap_pa_deg(pa):
+    w = (pa + 90.0) % 180.0 - 90.0
+    w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
+    return w
