@@ -1,4 +1,4 @@
-# Observation Parameters
+# Simulation Parameters
 # ----------------------
 # f0: Starting frequency in MHz
 # f1: Ending frequency in MHz
@@ -9,15 +9,12 @@
 # scattering_index: Scattering index
 # reference_freq: reference frequency for scattering and dispersion in MHz
 
-
-########################
+[simulation]
 f0    = 751.5          
 f1    = 1087.5         
 f_res = 1               
-t0    = -0.4770          
-t1    = 0.6242              
-t_res = 0.003            
-########################
-scattering_index = -4   
-reference_freq   = 1000 
-########################
+t0    = -0.518          
+t1    = 0.665              
+t_res = 0.003
+scattering_index = -3.22
+reference_freq   = 1000
