@@ -16,14 +16,14 @@ show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
 legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
-xlim       = [-2.75,-1.5]
-ylim       = [-40, 50]
+xlim       = None
+ylim       = None
 
 
 [windows]
 # Window visualization options
 show_onpulse  = true             # Highlight on-pulse region
-show_offpulse = true             # Highlight off-pulse region
+show_offpulse = false             # Highlight off-pulse region
 
 
 [analytical]
