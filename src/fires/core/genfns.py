@@ -357,9 +357,6 @@ def _expected_pa_variance_basic(
 	sigma_w_tot = np.sqrt(sigma_w**2 + tau**2)
 
 	# Effective number scaling ~ fraction of independent shots per macro duration
-	N_eff_t = float(N) * (sigma_w_tot / max(sigma_W_tot, 1e-12))
-
-	# Effective number scaling ~ fraction of independent shots per macro duration
 	ratio = sigma_w_tot / max(sigma_W_tot, 1e-12)
 	N_eff_t = float(N) * ratio
 
