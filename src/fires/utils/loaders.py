@@ -26,7 +26,8 @@ def get_parameters(filepath):
 	valid_keys = {
 		't0','width','A','spec_idx','tau','DM','RM','PA',
 		'lfrac','vfrac','dPA','band_centre','band_width',
-		'N','mg_width_low','mg_width_high'
+		'N','mg_width_low','mg_width_high',
+		'label'  # allow label from parameters.txt
 	}
 	params = {}
 	with open(filepath,'r') as f:
@@ -47,6 +48,10 @@ def get_parameters(filepath):
 
 	# Parse each provided key exactly; do not fabricate missing ones here.
 	for k,v in params.items():
+		if k == 'label':
+			# keep label as a raw string
+			gdict[k] = v.strip()
+			continue
 		if k in ('width','tau','lfrac','vfrac','dPA','mg_width_low','mg_width_high'):
 			gdict[k] = parse_list(v)
 		else:
@@ -57,7 +62,7 @@ def get_parameters(filepath):
 				continue
 
 	# Simple label fallback
-	gdict['label'] = params.get('label','FRB')
+	gdict['label'] = gdict.get('label', params.get('label','FRB'))
 	return gdict
 
 
@@ -287,13 +292,11 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 	# Derive a better label if missing or default
 	try:
 		current_label = gdict.get('label', 'FRB')
-		if current_label == 'FRB' or not current_label.strip():
-			# Prefer base_pattern if it exists, else directory name
+		if current_label == 'FRB' or not isinstance(current_label, str) or not current_label.strip():
 			base_candidate = base_pattern if base_pattern else os.path.basename(os.path.normpath(data_dir))
-			# Strip common suffixes
 			base_candidate = re.sub(r'_htr.*$', '', base_candidate)
-			# If numeric ID present (>=5 digits), format as FRB <ID>
-			m = re.search(r'(\d{5,})', base_candidate)
+			# Keep optional trailing letter on the date code (e.g., 240318A, 20240318A)
+			m = re.search(r'(\d{6,8}[A-Za-z]+|\d{6,8}|\d{5,}[A-Za-z]+|\d{5,})', base_candidate)
 			if m:
 				new_label = f"FRB {m.group(1)}"
 			else:
@@ -302,6 +305,15 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 			logging.info(f"Derived observational label: {new_label}")
 	except Exception as e:
 		logging.debug(f"Failed to derive label automatically: {e}")
+
+	try:
+		lbl = gdict.get('label', '').strip()
+		if lbl and not re.match(r'(?i)^FRB\b', lbl):
+			if re.fullmatch(r'\d{5,8}[A-Za-z]?', lbl):
+				gdict['label'] = f"FRB {lbl}"
+				logging.info(f"Normalised label: {gdict['label']}")
+	except Exception as e:
+		logging.debug(f"Failed to normalise label: {e}")
 
 	# Merge gauss_file only for truly missing keys (not for present zeros)
 	sd_dict = None
