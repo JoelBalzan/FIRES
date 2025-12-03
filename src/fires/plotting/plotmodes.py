@@ -1805,7 +1805,7 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 			if not label_parts:
 				continue
 
-			label_text = r"$" + ",\; ".join(label_parts) + r"$"
+			label_text = r"$" + r",\; ".join(label_parts) + r"$"
 			txt = _text_with_offset(
 				ax, x_anchor, y_anchor, label_text,
 				dx_pts=float(offset_pts[0]) if offset_pts else 0.0,
