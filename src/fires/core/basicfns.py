@@ -847,7 +847,7 @@ def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer
 	"""
 	dspec = np.asarray(dspec, dtype=float)
 
-	_, n_chan, n_time = dspec.shape
+	n_stokes, n_chan, n_time = dspec.shape
 
 	# Normalise inputs
 	sefd_arr = np.full(n_chan, sefd, dtype=float) if np.isscalar(sefd) else np.asarray(sefd, dtype=float)
@@ -858,9 +858,9 @@ def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer
 
 	stokes_scale = np.asarray(stokes_scale, dtype=float)
 
-	sigma_ch = np.vstack([sigma_I_ch * stokes_scale[s] for s in range(4)])  # (4, n_chan)
+	sigma_ch = np.vstack([sigma_I_ch * stokes_scale[s] for s in range(n_stokes)])  # (4, n_chan)
 
-	noise_white = np.random.normal(0.0, sigma_ch[:, :, None], size=(4, n_chan, n_time))
+	noise_white = np.random.normal(0.0, sigma_ch[:, :, None], size=(n_stokes, n_chan, n_time))
 
 	if add_slow_baseline:
 		if time_res_ms is None:
