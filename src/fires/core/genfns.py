@@ -540,6 +540,38 @@ def _stokes_consistency_diagnostics(dspec: np.ndarray,
 			logging.warning(f"[stokes_ts:{label}] diagnostics failed: {e}")
 
 
+def _resolve_polarisation(lfrac_i_raw, vfrac_i_raw):
+	"""
+	Convert user-facing inputs into physical (L/I, V/I) with quadrature constraint.
+
+	Inputs
+	------
+	lfrac_i_raw : desired linear fraction L/I (can be any real; may exceed physical bounds)
+	vfrac_i_raw : desired circular fraction V/I (same)
+
+	Returns
+	-------
+	lfrac_phys, vfrac_phys : actual L/I, V/I obeying sqrt(L^2+V^2)/I <= 1
+	"""
+	l = float(lfrac_i_raw)
+	v = float(vfrac_i_raw)
+
+	# If both zero → unpolarised
+	if l == 0.0 and v == 0.0:
+		return 0.0, 0.0
+
+	# Total polarised fraction in amplitude space
+	p2 = l**2 + v**2
+
+	# If within physical region, keep as-is
+	if p2 <= 1.0:
+		return l, v
+
+	# Otherwise rescale to lie on the unit circle in (L/I, V/I) space
+	scale = 1.0 / np.sqrt(p2)
+	return l * scale, v * scale
+
+
 def psn_dspec(
 	dspec_params,
 	plot_multiple_frb,
@@ -626,7 +658,7 @@ def psn_dspec(
 
 	sd_A               = sd_dict['sd_A']
 	sd_spec_idx        = sd_dict['sd_spec_idx']
-	sd_tau          = sd_dict['sd_tau']
+	sd_tau             = sd_dict['sd_tau']
 	sd_PA              = sd_dict['sd_PA']
 	sd_dm              = sd_dict['sd_DM']
 	sd_rm              = sd_dict['sd_RM']
@@ -644,7 +676,7 @@ def psn_dspec(
 		'A_i'              : [],
 		'mg_width_i'       : [],
 		'spec_idx_i'       : [],
-		'tau_i'         : [],
+		'tau_i'            : [],
 		'PA_i'             : [],
 		'DM_i'             : [],
 		'RM_i'             : [],
@@ -672,19 +704,16 @@ def psn_dspec(
 			PA_i              = np.random.normal(PA[g], sd_PA)
 			DM_i              = np.random.normal(DM[g], sd_dm)
 			RM_i              = np.random.normal(RM[g], sd_rm)
-			lfrac_i           = np.random.normal(lfrac[g], sd_lfrac)
-			vfrac_i           = np.random.normal(vfrac[g], sd_vfrac)
+			# lfrac, vfrac are desired L/I and V/I; allow per-micro variation
+			lfrac_raw = np.random.normal(lfrac[g], sd_lfrac)
+			vfrac_raw = np.random.normal(vfrac[g], sd_vfrac)
+			lfrac_i, vfrac_i = _resolve_polarisation(lfrac_raw, vfrac_raw)
+
+
 			dPA_i             = np.random.normal(dPA[g], sd_dPA)
 			band_centre_mhz_i = np.random.normal(band_centre_mhz[g], sd_band_centre_mhz)
 			band_width_mhz_i  = np.random.normal(band_width_mhz[g], sd_band_width_mhz)
-
-			if sd_vfrac > 0.0:
-				vfrac_i = np.clip(vfrac_i, 0.0, 1.0)
-				lfrac_i = np.clip(1.0 - vfrac_i, 0.0, 1.0)
-			elif sd_lfrac > 0.0:
-				lfrac_i = np.clip(lfrac_i, 0.0, 1.0)
-				vfrac_i = np.clip(1.0 - lfrac_i, 0.0, 1.0)
-
+	
 			# Record parameters
 			all_params['t0_i'].append(t0_i)
 			all_params['A_i'].append(A_i)

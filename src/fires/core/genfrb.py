@@ -107,90 +107,6 @@ def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, b
 	return var, measures, V_params, snr, exp_vars
 
 
-def _normalise_freq_key(key: str | None) -> str:
-	if key is None:
-		return "all"
-	k = str(key).lower()
-	alias = {
-		"full": "all", "full-band": "all", "fullband": "all",
-		"lowest-quarter": "1q", "lower-mid-quarter": "2q",
-		"upper-mid-quarter": "3q", "highest-quarter": "4q"
-	}
-	return alias.get(k, k)
-
-def _normalise_phase_key(key: str | None) -> str:
-	if key is None:
-		return "total"
-	k = str(key).lower()
-	alias = {"leading": "first", "trailing": "last", "all": "total"}
-	return alias.get(k, k)
-
-
-def _window_dspec(dspec: np.ndarray,
-				  freq_mhz: np.ndarray,
-				  time_ms: np.ndarray,
-				  freq_window=None,
-				  phase_window=None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-	"""
-	Apply optional frequency and phase windows. Supports:
-	  - freq_window: [fmin,fmax] MHz or '1q'|'2q'|'3q'|'4q'|'all' (+ synonyms)
-	  - phase_window: [tmin,tmax] ms or 'first'|'last'|'total' (+ synonyms)
-	Returns windowed (dspec, freq_mhz, time_ms).
-	"""
-	dspec_w = dspec
-	f_w = freq_mhz
-	t_w = time_ms
-
-	if freq_window is not None:
-		if isinstance(freq_window, (list, tuple, np.ndarray)) and len(freq_window) == 2:
-			fmin, fmax = float(freq_window[0]), float(freq_window[1])
-			fmask = (f_w >= min(fmin, fmax)) & (f_w <= max(fmin, fmax))
-			if np.any(fmask):
-				logging.info(f"Applying freq_window [{min(fmin,fmax):.2f}, {max(fmin,fmax):.2f}] MHz "
-							 f"-> {np.count_nonzero(fmask)}/{len(f_w)} channels")
-				dspec_w = dspec_w[:, fmask, :]
-				f_w = f_w[fmask]
-			else:
-				logging.warning("freq_window produced empty selection; ignoring frequency window.")
-		elif isinstance(freq_window, str):
-			key = _normalise_freq_key(freq_window)
-			slc_dict = _freq_quarter_slices(dspec_w.shape[1])
-			slc = slc_dict.get(key, slc_dict["all"])
-			prev = dspec_w.shape[1]
-			dspec_w = dspec_w[:, slc, :]
-			f_w = f_w[slc]
-			logging.info(f"Applying freq_window '{freq_window}' (-> '{key}') -> {dspec_w.shape[1]}/{prev} channels")
-		else:
-			logging.warning(f"Unrecognised freq_window={freq_window}; ignoring.")
-
-	if phase_window is not None:
-		if isinstance(phase_window, (list, tuple, np.ndarray)) and len(phase_window) == 2:
-			tmin, tmax = float(phase_window[0]), float(phase_window[1])
-			tmask = (t_w >= min(tmin, tmax)) & (t_w <= max(tmin, tmax))
-			if np.any(tmask):
-				logging.info(f"Applying phase_window [{min(tmin,tmax):.2f}, {max(tmin,tmax):.2f}] ms "
-							 f"-> {np.count_nonzero(tmask)}/{len(t_w)} time bins")
-				dspec_w = dspec_w[:, :, tmask]
-				t_w = t_w[tmask]
-			else:
-				logging.warning("phase_window produced empty selection; ignoring phase window.")
-		elif isinstance(phase_window, str):
-			key = _normalise_phase_key(phase_window)
-			I_time = np.nansum(dspec_w[0], axis=0) if dspec_w.shape[1] > 0 else np.zeros_like(t_w)
-			peak_idx = int(np.nanargmax(I_time)) if I_time.size > 0 else 0
-			slc_dict = _phase_slices_from_peak(dspec_w.shape[2], peak_idx)
-			slc = slc_dict.get(key, slice(None))
-			prev = dspec_w.shape[2]
-			dspec_w = dspec_w[:, :, slc]
-			t_w = t_w[slc]
-			logging.info(f"Applying phase_window '{phase_window}' (-> '{key}', peak idx {peak_idx}) "
-						 f"-> {dspec_w.shape[2]}/{prev} time bins")
-		else:
-			logging.warning(f"Unrecognised phase_window={phase_window}; ignoring.")
-
-	return dspec_w, f_w, t_w
-
-
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
 				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None):
@@ -229,7 +145,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'width'     	 : gauss_params[:stddev_row, 1],
 		'A'              : gauss_params[:stddev_row, 2],
 		'spec_idx'       : gauss_params[:stddev_row, 3],
-		'tau'         : gauss_params[:stddev_row, 4],
+		'tau'            : gauss_params[:stddev_row, 4],
 		'DM'             : gauss_params[:stddev_row, 5],
 		'RM'             : gauss_params[:stddev_row, 6],
 		'PA'             : gauss_params[:stddev_row, 7],
@@ -245,10 +161,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 	sd_dict = {
 		'sd_t0'             : gauss_params[stddev_row, 0],
-		'sd_width'       : gauss_params[stddev_row, 1],
+		'sd_width'       	: gauss_params[stddev_row, 1],
 		'sd_A'              : gauss_params[stddev_row, 2],
 		'sd_spec_idx'       : gauss_params[stddev_row, 3],
-		'sd_tau'         : gauss_params[stddev_row, 4],
+		'sd_tau'         	: gauss_params[stddev_row, 4],
 		'sd_DM'             : gauss_params[stddev_row, 5],
 		'sd_RM'             : gauss_params[stddev_row, 6],
 		'sd_PA'             : gauss_params[stddev_row, 7],
