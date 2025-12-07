@@ -1,0 +1,7 @@
+#!/home/joel/Documents/GitHub/FIRES/.venv/bin/python3.12
+import sys
+from RMtools_3D.make_freq_file import save_freq_file
+if __name__ == '__main__':
+    if sys.argv[0].endswith('.exe'):
+        sys.argv[0] = sys.argv[0][:-4]
+    sys.exit(save_freq_file())
