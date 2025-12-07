@@ -11,7 +11,7 @@
 # General plotting options
 figsize    = None                # Default figure size [width, height] in inches, null for default
 extension  = "pdf"                # File extension for saved plots
-use_latex  = true                 # Use LaTeX for plot text rendering
+use_latex  = false                 # Use LaTeX for plot text rendering --- requires a configured TeX install
 show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
 legend     = false                 # Show legends in plots
