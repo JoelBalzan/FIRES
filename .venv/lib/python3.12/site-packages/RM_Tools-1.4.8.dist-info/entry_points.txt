@@ -1,0 +1,19 @@
+[console_scripts]
+qufit = RMtools_1D.do_QUfit_1D_mnest:main
+rmclean1d = RMtools_1D.do_RMclean_1D:main
+rmclean3d = RMtools_3D.do_RMclean_3D:main
+rmsynth1d = RMtools_1D.do_RMsynth_1D:main
+rmsynth1dFITS = RMtools_1D.do_RMsynth_1D_fromFITS:main
+rmsynth3d = RMtools_3D.do_RMsynth_3D:main
+rmtools_3DIrescale = RMtools_3D.rescale_I_model_3D:command_line
+rmtools_assemblechunks = RMtools_3D.assemble_chunks:main
+rmtools_bwdepol = RMtools_1D.rmtools_bwdepol:main
+rmtools_bwpredict = RMtools_1D.rmtools_bwpredict:main
+rmtools_calcRMSF = RMtools_1D.calculate_RMSF:main
+rmtools_createchunks = RMtools_3D.create_chunks:main
+rmtools_extractregion = RMtools_3D.extract_region:main
+rmtools_fitIcube = RMtools_3D.do_fitIcube:main
+rmtools_freqfile = RMtools_3D.make_freq_file:save_freq_file
+rmtools_peakfitcube = RMtools_3D.RMpeakfit_3D:main
+rmtools_testdata1D = RMtools_1D.mk_test_ascii_data:main
+rmtools_testdata3D = RMtools_3D.mk_test_cube_data:main
