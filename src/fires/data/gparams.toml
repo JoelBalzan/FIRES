@@ -30,8 +30,17 @@
 #	DM			        - Dispersion measure in pc/cm^3          | At reference frequency supplied in simparams.toml  |
 #	RM			        - Rotation measure in rad/m^2           =|                                                    |
 #	PA		          - Polarisation angle in degrees                                                               |
-#	(L/I)		        - Linear polarisation fraction                                                                | Can be varied normally
-#	(V/I)		        - Circular polarisation fraction                                                              |
+#	lfrac		        - Linear polarisation fraction L/I (can be negative)                                          |
+#	vfrac		        - Circular polarisation fraction V/I (can be negative)                                        |
+#                                                                                                               |
+#	  IMPORTANT:                                                                                                  | Can be varied
+#	    - lfrac and vfrac are the *desired* Stokes fractions:                                                     |
+#	        L/I = lfrac,  V/I = vfrac                                                                             |
+#	    - FIRES enforces the physical constraint                                                                  |
+#	        sqrt((L/I)^2 + (V/I)^2) <= 1                                                                          |
+#	      by rescaling (lfrac, vfrac) together if lfrac^2 + vfrac^2 > 1.                                          |
+#	      So you can set, e.g., lfrac=0.95, vfrac=-0.05 directly.                                                 |
+#                                                                                                               |
 #	dPA             - Change in polarisation angle with time in deg/ms                                            |
 # band_centre     - Central frequency of the Gaussian in MHz                                                    |
 # band_width      - Frequency bandwidth of the Gaussian in MHz                                                 =|
@@ -39,13 +48,13 @@
 # mg_width_low    - Lower FWHM range of the micro-gaussians as a percentage of width  =| Cannot be varied --- Uniform distribution
 # mg_width_high   - Higher FWHM range of the micro-gaussians as a percentage of width =| w_i ~ width * U(mg_width_low/100, mg_width_high/100) 
 #
-#--------------------------------------------------------------------------------------------------------------------------------------------- #
-#  t0   width   A         spec_idx   tau   DM    RM     PA    lfrac   vfrac   dPA   band_centre  band_width   N    mg_width_low  mg_width_high #
-#--------------------------------------------------------------------------------------------------------------------------------------------- #
-  -2.0  0.5     1         0.0        20    0.0   0.0    20     0.95   -0.05   0.0    0.0          0.0         100  5             20            # gaussian mean
-#--------------------------------------------------------------------------------------------------------------------------------------------- #
-  0.0   0.0     0.0       0.0        0.0   0.0   0.0    30     0.0     0.0    0.0    0.0          0.0         0    0             0             # gaussian std dev
-  0.0   0.0     0.0       0.0        0.0   0.0   0.0     0     0.0     0.0    0.0    0.0          0.0         0    0             0             # start
-  0.0   0.0     0.0       0.0        2.0   0.0   0.0     0     0.0     0.0    0.0    0.0          0.0         0    0             0             # stop
-  0.0   0.0     0.0       0.0        0.1   0.0   0.0     0     0.0     0.0    0.0    0.0          0.0         0    0             0             # step
-#--------------------------------------------------------------------------------------------------------------------------------------------- #
+#----------------------------------------------------------------------------------------------------------------------------------------------------- #
+#  t0   width   A         spec_idx   tau   DM    RM     PA    lfrac   vfrac   pfrac   dPA   band_centre  band_width   N    mg_width_low  mg_width_high #
+#----------------------------------------------------------------------------------------------------------------------------------------------------- #
+  -2.0  0.5     1         0.0        20    0.0   0.0    20     0.95   -0.05   1.0     0.0    0.0          0.0         100  5             20            # gaussian mean
+#----------------------------------------------------------------------------------------------------------------------------------------------------- #
+  0.0   0.0     0.0       0.0        0.0   0.0   0.0    30     0.0     0.0    0.0     0.0    0.0          0.0         0    0             0             # gaussian std dev
+  0.0   0.0     0.0       0.0        0.0   0.0   0.0     0     0.0     0.0    0.0     0.0    0.0          0.0         0    0             0             # start
+  0.0   0.0     0.0       0.0        2.0   0.0   0.0     0     0.0     0.0    0.0     0.0    0.0          0.0         0    0             0             # stop
+  0.0   0.0     0.0       0.0        0.1   0.0   0.0     0     0.0     0.0    0.0     0.0    0.0          0.0         0    0             0             # step
+#----------------------------------------------------------------------------------------------------------------------------------------------------- #
