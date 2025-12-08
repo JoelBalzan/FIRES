@@ -1,4 +1,4 @@
-#!/home/joel/Documents/GitHub/FIRES/.venv/bin/python3.12
+#!/home/joel/Documents/GitHub/FIRES/.venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

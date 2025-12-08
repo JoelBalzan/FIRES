@@ -2532,7 +2532,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			0.98, 0.01, f"${display_text}$",
 			transform=ax.transAxes, color='gray',
 			va='bottom', ha='right', zorder=5,
-			bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.5, edgecolor='none')
+			#bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.5, edgecolor='none')
 		)
 
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
@@ -2668,15 +2668,6 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				x_measured=x_measured, position=position, fontsize=fs, alpha=a,
 				offset_pts=dxdy, ha=ha, va=va, collect_texts=_texts
 			)
-			if avoid_overlap and _texts:
-				try:
-					from adjustText import adjust_text
-					adjust_text(_texts, ax=ax, only_move={'points':'y', 'texts':'y'},
-								autoalign='y', expand_text=(1.05, 1.15),
-								arrowprops=dict(arrowstyle='-', color='0.3', lw=0.8, alpha=0.6))
-				except Exception:
-					# adjustText not available or failed; continue without adjustment
-					pass
 		except Exception as e:
 			logging.debug(f"series_labels failed: {e}")
 
