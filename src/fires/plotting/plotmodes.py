@@ -1677,7 +1677,7 @@ def plot_constant_param_lines(
             ha='left', va='bottom',
             color=color, fontsize=15, alpha=min(alpha + 0.2, 1.0),
             zorder=max(line.get_zorder() + 1, 10),
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='none')
+            #bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='none')
         )
 
         # Updater on axis changes
