@@ -2032,8 +2032,8 @@ def _plot_single_run_multi_window(
 			x_hi = None
 			
 		# labels/colours as before
-		freq_label = normalise_freq_window(freq_win, target='dspec')
-		phase_label = normalise_phase_window(phase_win, target='dspec')
+		freq_label = normalise_freq_window(freq_win, target='dspec').capitalize()
+		phase_label = normalise_phase_window(phase_win, target='dspec').capitalize()
 		if varying_freq and varying_phase:
 			series_label = f"{freq_label}, {phase_label}"
 		elif varying_freq:
@@ -2127,8 +2127,8 @@ def _plot_single_run_multi_window(
 					
 					colour = get_colour(freq_win, phase_win)
 					
-					freq_label = freq_canonical
-					phase_label = phase_canonical
+					freq_label = freq_canonical.capitalize()
+					phase_label = phase_canonical.capitalize()
 					if varying_freq and varying_phase:
 						obs_label = f"{obs_result['label']} ({freq_label}, {phase_label})"
 					elif varying_freq:
