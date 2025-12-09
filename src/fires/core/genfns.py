@@ -18,11 +18,11 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import (add_noise, compute_required_sefd,
-								 compute_segments, apply_baseline_correction,
-								 estimate_noise_with_offpulse_mask,
-								 estimate_rm, on_off_pulse_masks_from_profile,
-								 rm_correct_dspec, scatter_dspec, snr_onpulse)
+from fires.core.basicfns import (add_noise, apply_baseline_correction,
+                                 compute_required_sefd, compute_segments,
+                                 estimate_noise_with_offpulse_mask,
+                                 estimate_rm, on_off_pulse_masks_from_profile,
+                                 rm_correct_dspec, scatter_dspec, snr_onpulse)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -752,7 +752,7 @@ def psn_dspec(
 			U_ft = I_ft * lfrac_i * np.sin(2 * faraday_angles)
 			V_ft = I_ft * vfrac_i
 
-			if tau_eff > 0:
+			if tau_eff > 0 and sd_tau > 0:
 				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
 				Q_ft = scatter_dspec(Q_ft, time_res_ms, tau_cms)
 				U_ft = scatter_dspec(U_ft, time_res_ms, tau_cms)
@@ -762,6 +762,13 @@ def psn_dspec(
 			dspec[1] += Q_ft
 			dspec[2] += U_ft
 			dspec[3] += V_ft
+
+	if tau > 0 and sd_tau == 0:
+		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
+		dspec[0] = scatter_dspec(dspec[0], time_res_ms, tau_cms)
+		dspec[1] = scatter_dspec(dspec[1], time_res_ms, tau_cms)
+		dspec[2] = scatter_dspec(dspec[2], time_res_ms, tau_cms)
+		dspec[3] = scatter_dspec(dspec[3], time_res_ms, tau_cms)
 
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
