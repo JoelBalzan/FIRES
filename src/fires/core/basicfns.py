@@ -881,8 +881,13 @@ def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer
 		dspec_params, I_time, frac=0.95, robust_rms=True, buffer_frac=buffer_frac
 	)
 	
+	# Peak S/N using max boxcar
+	peak_snr, boxcarw = boxcar_snr(I_time, np.nanstd(I_time))
+	
 	if not plot_multiple_frb:
+		logging.info("Added noise with SEFD=%.1f Jy", float(np.mean(sefd_arr)))
 		logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
+		logging.info(f"Stokes I peak S/N (max boxcar): {peak_snr:.2f} (width={boxcarw})")
 
 	return noisy_dspec, sigma_ch, snr
 
@@ -1311,6 +1316,6 @@ def print_global_stats(global_stats: dict, logger: bool = True):
 
 
 def wrap_pa_deg(pa):
-    w = (pa + 90.0) % 180.0 - 90.0
-    w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
-    return w
+	w = (pa + 90.0) % 180.0 - 90.0
+	w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
+	return w
