@@ -24,9 +24,8 @@ from itertools import product
 import numpy as np
 from tqdm import tqdm
 
-from fires.core.basicfns import (_freq_quarter_slices, _phase_slices_from_peak,
-                                 add_noise, process_dspec, scatter_dspec,
-                                 snr_onpulse, compute_segments, print_global_stats)
+from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
+                                 snr_onpulse, boxcar_snr, compute_segments)
 from fires.core.genfns import psn_dspec
 from fires.utils.config import load_params
 from fires.utils.loaders import load_data, load_multiple_data_grouped
@@ -290,8 +289,12 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		# Single FRB generation branch
 		if obs_data != None:
 			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file, sim_file, scint_file)
-			snr, (left, right) = snr_onpulse(dspec_params, np.nansum(dspec[0], axis=0), frac=0.95, buffer_frac=buffer_frac)
+			I_time = np.nansum(dspec[0], axis=0)
+			snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
+			peak_snr, boxcarw = boxcar_snr(I_time, np.nanstd(I_time))
+
 			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
+			logging.info(f"Stokes I peak S/N (max boxcar): {peak_snr:.2f} (width={boxcarw})")
 			if tau[0] > 0:
 				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau[0], scatter_idx, ref_freq)
 			if sefd > 0:
