@@ -882,12 +882,12 @@ def add_noise(dspec_params, dspec, sefd, f_res, t_res, plot_multiple_frb, buffer
 	)
 	
 	# Peak S/N using max boxcar
-	peak_snr, boxcarw = boxcar_snr(I_time, np.nanstd(I_time))
+	#peak_snr, boxcarw = boxcar_snr(I_time, np.nanstd(I_time))
 	
 	if not plot_multiple_frb:
 		logging.info("Added noise with SEFD=%.1f Jy", float(np.mean(sefd_arr)))
 		logging.info(f"Stokes I S/N (on-pulse method): {snr:.2f}")
-		logging.info(f"Stokes I peak S/N (max boxcar): {peak_snr:.2f} (width={boxcarw})")
+		#logging.info(f"Stokes I peak S/N (max boxcar): {peak_snr:.2f} (width={boxcarw})")
 
 	return noisy_dspec, sigma_ch, snr
 
@@ -1319,3 +1319,26 @@ def wrap_pa_deg(pa):
 	w = (pa + 90.0) % 180.0 - 90.0
 	w[np.isclose(w, -90.0, atol=1e-6)] = 90.0
 	return w
+
+
+def scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau, sc_idx, ref_freq_mhz):
+	"""
+	Scatter all Stokes channels of a loaded dynamic spectrum.
+	Args:
+		dspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
+		freq_mhz: Frequency array (nchan,)
+		time_ms: Time array (ntime,)
+		tau: Scattering timescale (float)
+		sc_idx: Scattering index (float)
+		ref_freq_mhz: Reference frequency (float)
+	Returns:
+		dspec_scattered: Scattered dynamic spectrum (same shape as input)
+	"""
+	dspec_scattered = dspec.copy()
+	time_res_ms = np.median(np.diff(time_ms))
+	tau_cms = tau * (freq_mhz / ref_freq_mhz) ** (-sc_idx)
+	for stokes_idx in range(dspec.shape[0]):  # Loop over I, Q, U, V
+		dspec_scattered[stokes_idx] = scatter_dspec(
+			dspec[stokes_idx], time_res_ms, tau_cms
+		)
+	return dspec_scattered
