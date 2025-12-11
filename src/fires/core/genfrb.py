@@ -24,7 +24,7 @@ from itertools import product
 import numpy as np
 from tqdm import tqdm
 
-from fires.core.basicfns import (add_noise, process_dspec, scatter_dspec,
+from fires.core.basicfns import (add_noise, process_dspec, scatter_loaded_dspec,
                                  snr_onpulse, boxcar_snr, compute_segments)
 from fires.core.genfns import psn_dspec
 from fires.utils.config import load_params
@@ -34,51 +34,6 @@ from fires.utils.utils import dspecParams, simulated_frb
 logging.basicConfig(level=logging.INFO)
 
 
-def _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau, sc_idx, ref_freq_mhz):
-	"""
-	Scatter all Stokes channels of a loaded dynamic spectrum.
-	Args:
-		dspec: 3D array [4, nchan, ntime] (Stokes I, Q, U, V)
-		freq_mhz: Frequency array (nchan,)
-		time_ms: Time array (ntime,)
-		tau: Scattering timescale (float)
-		sc_idx: Scattering index (float)
-		ref_freq_mhz: Reference frequency (float)
-	Returns:
-		dspec_scattered: Scattered dynamic spectrum (same shape as input)
-	"""
-	dspec_scattered = dspec.copy()
-	time_res_ms = np.median(np.diff(time_ms))
-	tau_cms = tau * (freq_mhz / ref_freq_mhz) ** (-sc_idx)
-	for stokes_idx in range(dspec.shape[0]):  # Loop over I, Q, U, V
-		dspec_scattered[stokes_idx] = scatter_dspec(
-			dspec[stokes_idx], time_res_ms, tau_cms
-		)
-	return dspec_scattered
-
-
-def _generate_dspec(xname, mode, var, plot_multiple_frb, dspec_params, target_snr=None, baseline_correct=None):
-	"""Generate dynamic spectrum based on mode."""
-	var = var if plot_multiple_frb else None
-
-	# Choose the correct function
-	if mode == 'psn':
-		dspec_func = psn_dspec
-
-	# Get the argument names for the selected function
-	sig = inspect.signature(dspec_func)
-	allowed_args = set(sig.parameters.keys())
-
- 
-	if mode == 'psn':
-		return psn_dspec(
-			dspec_params=dspec_params,
-			variation_parameter=var,
-			xname=xname,
-			plot_multiple_frb=plot_multiple_frb,
-			target_snr=target_snr,
-			baseline_correct=baseline_correct
-		)
 
 
 def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, baseline_correct=None):
@@ -93,15 +48,14 @@ def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, b
 	
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
-	_, snr, V_params, exp_vars, measures = _generate_dspec(
-		xname=xname,
-		mode=mode,
-		var=var,
-		plot_multiple_frb=requires_multiple_frb,
-		dspec_params=local_params,
-		target_snr=target_snr,
-		baseline_correct=baseline_correct
-	)
+	_, snr, V_params, exp_vars, measures = psn_dspec(
+			dspec_params=dspec_params,
+			variation_parameter=var,
+			xname=xname,
+			plot_multiple_frb=requires_multiple_frb,
+			target_snr=target_snr,
+			baseline_correct=baseline_correct
+		)
 
 	return var, measures, V_params, snr, exp_vars
 
@@ -291,12 +245,12 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file, sim_file, scint_file)
 			I_time = np.nansum(dspec[0], axis=0)
 			snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
-			peak_snr, boxcarw = boxcar_snr(I_time, np.nanstd(I_time))
+			#peak_snr, boxcarw = boxcar_snr(I_time, np.nanstd(I_time))
 
 			logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")  
-			logging.info(f"Stokes I peak S/N (max boxcar): {peak_snr:.2f} (width={boxcarw})")
+			#logging.info(f"Stokes I peak S/N (max boxcar): {peak_snr:.2f} (width={boxcarw})")
 			if tau[0] > 0:
-				dspec = _scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau[0], scatter_idx, ref_freq)
+				dspec = scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau[0], scatter_idx, ref_freq)
 			if sefd > 0:
 				dspec, sigma_ch, snr = add_noise(
 					dspec_params, dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res,
@@ -305,7 +259,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
 
 		else:
-			dspec, snr, _, _, segments = _generate_dspec(
+			dspec, snr, _, _, segments = psn_dspec(
 			xname=None,
 			mode=mode,
 			var=None,
