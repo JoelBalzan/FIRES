@@ -91,6 +91,151 @@ def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, b
 	return var, measures, V_params, snr, exp_vars
 
 
+def _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys):
+	"""
+	Set up the sweep parameters for multiple FRB generation.
+	"""
+	# Validate sweep definition - allow single point sweeps
+	if sweep_mode == "none":
+		raise ValueError(
+			f"Plot mode '{plot_mode.name}' requires a parameter sweep. "
+			"Use --sweep-mode mean or --sweep-mode sd and set exactly one non-zero step in gparams."
+		)
+
+	# Check if we have a sweep defined (non-zero step) or single point (zero step but specified start)
+	has_sweep = not np.all(gauss_params[-1, :] == 0.0)  # step_row
+	has_single_point = np.all(gauss_params[-1, :] == 0.0) and not np.all(gauss_params[-3, :] == 0.0)  # start_row
+
+	if not has_sweep and not has_single_point:
+		logging.error("No sweep or single point defined. For sweep: set non-zero step. For single point: set start value with zero step.")
+		logging.info("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
+		sys.exit(1)
+
+	# Find the active column (either non-zero step or non-zero start with zero step)
+	if has_sweep:
+		active_cols = np.where(gauss_params[-1, :] != 0.0)[0]  # step_row
+	else:
+		active_cols = np.where(gauss_params[-3, :] != 0.0)[0]  # start_row
+
+	if active_cols.size == 0:
+		logging.error("No parameter column identified for sweep/single point.")
+		sys.exit(1)
+	if active_cols.size > 1:
+		logging.error("ERROR: More than one active column (multiple non-zero steps or starts).")
+		sys.exit(1)
+
+	col_idx = active_cols[0]
+	start = sweep_spec['start']
+	stop = sweep_spec['stop']
+	step = sweep_spec['step']
+	
+	# Handle single point case (zero step)
+	if step == 0:
+		xvals = np.array([start], dtype=float)
+		logging.info(f"Using single point: {start} for realizations")
+	else:
+		# Use logarithmic spacing if logstep is provided, otherwise linear
+		if logstep is not None:
+			# Logarithmic spacing
+			if start <= 0 or stop <= 0:
+				raise ValueError(
+					f"Logarithmic sweep (--logstep) requires positive start and stop values. "
+					f"Got start={start}, stop={stop}"
+				)
+		
+			xvals = np.logspace(np.log10(start), np.log10(stop), logstep)
+			logging.info(f"Using logarithmic sweep: {logstep} points from {start} to {stop}")
+		else:
+			if step is None or step == 0:
+				raise ValueError("Linear sweep requires a non-zero step. Use --logstep for logarithmic sweeps.")
+
+			direction = 1.0 if stop >= start else -1.0
+			step = abs(step) * direction
+
+			dist = abs(stop - start)
+			if dist == 0:
+				xvals = np.array([start], dtype=float)
+			else:
+				n_steps = int(np.floor(dist / abs(step)))
+				end = start + n_steps * step
+				xvals = np.linspace(start, end, n_steps + 1)
+
+			logging.info(
+				f"Using linear sweep: {len(xvals)} points from {xvals[0]} to {xvals[-1]} (step={step})"
+			)
+			
+	xname = gdict_keys[col_idx]
+	return xvals, col_idx, xname
+
+
+def _collect_results(results, xvals):
+	measures = {v: [] for v in xvals}
+	V_params = {v: {} for v in xvals}
+	snrs 	 = {v: [] for v in xvals}
+	exp_vars = {v: {} for v in xvals}
+
+	for var, seg_measures, params_dict, snr, exp_var_psi_deg2 in results:
+		measures[var].append(seg_measures)
+		snrs[var].append(snr)
+		for key, value in params_dict.items():
+			if key not in V_params[var]:
+				V_params[var][key] = []
+			V_params[var][key].append(value)
+		for key, value in exp_var_psi_deg2.items():
+			if key not in exp_vars[var]:
+				exp_vars[var][key] = []
+			exp_vars[var][key].append(value)
+			
+	return measures, V_params, snrs, exp_vars
+
+# Slurm / chunking support
+def _slurm_array_size():
+	cnt = os.environ.get("SLURM_ARRAY_TASK_COUNT")
+	if cnt is not None:
+		return int(cnt)
+	min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
+	max_s = os.environ.get("SLURM_ARRAY_TASK_MAX")
+	if max_s is not None:
+		min_i = int(min_s) if min_s is not None else 0
+		return int(max_s) - min_i + 1
+	return int(os.environ.get("FIRESSWEEP_COUNT", "1"))
+
+def _slurm_array_id():
+	min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
+	task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+	if task_id is not None:
+		if min_s is not None:
+			return int(task_id) - int(min_s)
+		return int(task_id)
+	return int(os.environ.get("FIRESSWEEP_ID", "0"))
+
+def _slurm_chunk_xvals(xvals):
+
+	_array_count = _slurm_array_size()
+	_array_id = _slurm_array_id()
+	if _array_count > 1:
+		total = len(xvals)
+		base = total // _array_count
+		rem = total % _array_count
+		if _array_id < rem:
+			start_idx = _array_id * (base + 1)
+			end_idx = start_idx + (base + 1)
+		else:
+			start_idx = rem * (base + 1) + (_array_id - rem) * base
+			end_idx = start_idx + base
+
+		if start_idx >= total or start_idx == end_idx:
+			logging.info(f"Array task {_array_id}/{_array_count - 1}: no assigned xvals.")
+			sys.exit(0)
+
+		xvals = xvals[start_idx:min(end_idx, total)]
+		logging.info(
+			f"Array task {_array_id}/{_array_count - 1}: "
+			f"processing {len(xvals)} sweep values (idx {start_idx}:{min(end_idx, total)} of {total})."
+		)
+	return xvals, _array_id, _array_count
+
+
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
 				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None):
@@ -344,11 +489,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				logging.error("For obs_data sweep, exactly one sweep column must be set for 'tau'.")
 				sys.exit(1)
 			
-			# ...existing code for setting up xvals...
+			xvals, col_idx, xname = _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys)
 			
-			xname = 'tau'
-			
-			# ...existing code for Slurm/chunking...
+			xvals, _array_id, _array_count = _slurm_chunk_xvals(xvals)
 			
 			tasks = list(product(xvals, range(nseed)))
 			
@@ -373,7 +516,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					desc=f"Processing tau sweep on observed data"
 				))
 			
-			# ...existing code for collecting results...
+			measures, V_params, snrs, exp_vars = _collect_results(results, xvals)
 			
 			frb_dict = {
 				"xname": xname,
@@ -388,125 +531,36 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				"original_segments": original_segments,
 			}
 			
-			# ...existing code for writing...
+			if write:
+				sweep_idx = _array_id if _array_count > 1 else 0
+			
+				parts = [f"sweep_{sweep_idx}", f"n{nseed}", f"plot_{plot_mode.name}", f"xname_{xname}"]
+			
+				if len(xvals) > 0:
+					parts.append(f"xvals_{min(xvals):.2f}-{max(xvals):.2f}")
+			
+				parts.append(f"mode_{mode}")
+			
+				# Add mean and stddev overrides
+				if mean_override_parts:
+					parts.extend(mean_override_parts)
+				if sd_override_parts:
+					parts.extend(sd_override_parts)
+			
+				fname = "_".join(parts) + ".pkl"
+				fpath = os.path.join(out_dir, fname)
+			
+				with open(fpath, "wb") as f:
+					pkl.dump(frb_dict, f)
+			
+				logging.info(f"Saved results to {fpath}")
 			
 			return frb_dict
 
 		else:
-			# Validate sweep definition - allow single point sweeps
-			if sweep_mode == "none":
-				raise ValueError(
-					f"Plot mode '{plot_mode.name}' requires a parameter sweep. "
-					"Use --sweep-mode mean or --sweep-mode sd and set exactly one non-zero step in gparams."
-				)
+			xvals, col_idx, xname = _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys)
 
-			# Check if we have a sweep defined (non-zero step) or single point (zero step but specified start)
-			has_sweep = not np.all(gauss_params[step_row, :] == 0.0)
-			has_single_point = np.all(gauss_params[step_row, :] == 0.0) and not np.all(gauss_params[start_row, :] == 0.0)
-
-			if not has_sweep and not has_single_point:
-				logging.error("No sweep or single point defined. For sweep: set non-zero step. For single point: set start value with zero step.")
-				logging.info("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
-				sys.exit(1)
-
-			# Find the active column (either non-zero step or non-zero start with zero step)
-			if has_sweep:
-				active_cols = np.where(gauss_params[step_row, :] != 0.0)[0]
-			else:
-				active_cols = np.where(gauss_params[start_row, :] != 0.0)[0]
-
-			if active_cols.size == 0:
-				logging.error("No parameter column identified for sweep/single point.")
-				sys.exit(1)
-			if active_cols.size > 1:
-				logging.error("ERROR: More than one active column (multiple non-zero steps or starts).")
-				sys.exit(1)
-
-			col_idx = active_cols[0]
-			start = sweep_spec['start']
-			stop = sweep_spec['stop']
-			step = sweep_spec['step']
-			
-			# Handle single point case (zero step)
-			if step == 0:
-				xvals = np.array([start], dtype=float)
-				logging.info(f"Using single point: {start} for {nseed} realizations")
-			else:
-				# Use logarithmic spacing if logstep is provided, otherwise linear
-				if logstep is not None:
-					# Logarithmic spacing
-					if start <= 0 or stop <= 0:
-						raise ValueError(
-							f"Logarithmic sweep (--logstep) requires positive start and stop values. "
-							f"Got start={start}, stop={stop}"
-						)
-				
-					xvals = np.logspace(np.log10(start), np.log10(stop), logstep)
-					logging.info(f"Using logarithmic sweep: {logstep} points from {start} to {stop}")
-				else:
-					if step is None or step == 0:
-						raise ValueError("Linear sweep requires a non-zero step. Use --logstep for logarithmic sweeps.")
-
-					direction = 1.0 if stop >= start else -1.0
-					step = abs(step) * direction
-
-					dist = abs(stop - start)
-					if dist == 0:
-						xvals = np.array([start], dtype=float)
-					else:
-						n_steps = int(np.floor(dist / abs(step)))
-						end = start + n_steps * step
-						xvals = np.linspace(start, end, n_steps + 1)
-
-					logging.info(
-						f"Using linear sweep: {len(xvals)} points from {xvals[0]} to {xvals[-1]} (step={step})"
-					)
-					
-			gdict_keys = list(gdict.keys())
-			xname = gdict_keys[col_idx]
-
-			# Slurm / chunking support
-			def _slurm_array_size():
-				cnt = os.environ.get("SLURM_ARRAY_TASK_COUNT")
-				if cnt is not None:
-					return int(cnt)
-				min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
-				max_s = os.environ.get("SLURM_ARRAY_TASK_MAX")
-				if max_s is not None:
-					min_i = int(min_s) if min_s is not None else 0
-					return int(max_s) - min_i + 1
-				return int(os.environ.get("FIRESSWEEP_COUNT", "1"))
-			def _slurm_array_id():
-				min_s = os.environ.get("SLURM_ARRAY_TASK_MIN")
-				task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
-				if task_id is not None:
-					if min_s is not None:
-						return int(task_id) - int(min_s)
-					return int(task_id)
-				return int(os.environ.get("FIRESSWEEP_ID", "0"))
-
-			_array_count = _slurm_array_size()
-			_array_id = _slurm_array_id()
-			if _array_count > 1:
-				total = len(xvals)
-				base = total // _array_count
-				rem = total % _array_count
-				if _array_id < rem:
-					start_idx = _array_id * (base + 1)
-					end_idx = start_idx + (base + 1)
-				else:
-					start_idx = rem * (base + 1) + (_array_id - rem) * base
-					end_idx = start_idx + base
-
-				if start_idx >= total or start_idx == end_idx:
-					logging.info(f"Array task {_array_id}/{_array_count - 1}: no assigned xvals.")
-					sys.exit(0)
-
-				xvals = xvals[start_idx:min(end_idx, total)]
-				logging.info(
-					f"Array task {_array_id}/{_array_count - 1}: "
-					f"processing {len(xvals)} sweep values (idx {start_idx}:{min(end_idx, total)} of {total})."
-				)
+			xvals, _array_id, _array_count = _slurm_chunk_xvals(xvals)
 
 			tasks = list(product(xvals, range(nseed)))
 
@@ -526,22 +580,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					desc=f"Processing sweep of {xname} ({sweep_mode} mode)"
 				))
 
-			measures = {v: [] for v in xvals}
-			V_params = {v: {} for v in xvals}
-			snrs 	 = {v: [] for v in xvals}
-			exp_vars = {v: {} for v in xvals}
-
-			for var, seg_measures, params_dict, snr, exp_var_psi_deg2 in results:
-				measures[var].append(seg_measures)
-				snrs[var].append(snr)
-				for key, value in params_dict.items():
-					if key not in V_params[var]:
-						V_params[var][key] = []
-					V_params[var][key].append(value)
-				for key, value in exp_var_psi_deg2.items():
-					if key not in exp_vars[var]:
-						exp_vars[var][key] = []
-					exp_vars[var][key].append(value)
+			measures, V_params, snrs, exp_vars = _collect_results(results, xvals)
 
 
 			frb_dict = {
