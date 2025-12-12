@@ -18,11 +18,12 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import (add_noise, apply_baseline_correction,
-                                 compute_required_sefd, compute_segments,
+from fires.core.basicfns import (add_noise, stokes_consistency_diagnostics,
+                                 compute_segments,
                                  estimate_noise_with_offpulse_mask,
                                  estimate_rm, on_off_pulse_masks_from_profile,
-                                 rm_correct_dspec, scatter_dspec, snr_onpulse)
+                                 rm_correct_dspec, scatter_dspec, snr_onpulse,
+								 scale_dspec_to_target_snr, correct_baseline)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -466,78 +467,6 @@ def _baseline_diagnostics(dspec: np.ndarray, bl_mask: np.ndarray, time_res_ms: f
 			logging.warning(f"[baseline:{label}] diagnostics failed: {e}")
 
 
-def _stokes_consistency_diagnostics(dspec: np.ndarray,
-									 time_res_ms: float,
-									 buffer_frac: float | None,
-									 intrinsic_width_bins: float,
-									 label: str,
-									 plot_multiple_frb: bool,
-									 snr_min: float = 5.0) -> None:
-	"""
-	Timeseries (frequency-summed) Stokes consistency with SNR gating:
-	  - Build I_ts, Q_ts, U_ts, V_ts by summing over frequency
-	  - Build on-pulse mask from I_ts (95% boxcar with buffer)
-	  - Build pre-burst baseline window using buffer_frac as guard
-	  - Gate on I_ts > snr_min * sigma_off
-	"""
-	try:
-		I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
-		Q_ts = np.nansum(dspec[1], axis=0)
-		U_ts = np.nansum(dspec[2], axis=0)
-		V_ts = np.nansum(dspec[3], axis=0)
-		nt = I_ts.size
-
-		# On-pulse from timeseries
-		on_mask, _, (left, right) = on_off_pulse_masks_from_profile(
-			I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
-		)
-
-		# Pre-burst baseline window [0 : left - guard]
-		guard_bins = int(np.ceil(float(buffer_frac) * float(intrinsic_width_bins))) if buffer_frac is not None else 0
-		L_end = max(0, int(left) - guard_bins)
-		bl_mask = np.zeros(nt, dtype=bool)
-		if L_end > 0:
-			bl_mask[:L_end] = True
-		if not np.any(bl_mask):
-			bl_mask = ~on_mask
-
-		# Off-pulse RMS on I_ts
-		sigma_off = float(np.nanstd(I_ts[bl_mask], ddof=1))
-		sigma_off = sigma_off if sigma_off > 0 else 1.0
-
-		# SNR-gated on-pulse selection
-		on_snr = on_mask & (I_ts >= snr_min * sigma_off)
-		if not np.any(on_snr):
-			if not plot_multiple_frb:
-				logging.info(f"[stokes_ts:{label}] no bins above {snr_min:.1f}σ in on-pulse; skipping.")
-			return
-
-		I2 = I_ts**2
-		P2 = Q_ts**2 + U_ts**2 + V_ts**2
-
-		R = (I2 - P2)[on_snr]
-		p16 = float(np.nanpercentile(R, 16))
-		med = float(np.nanmedian(R))
-		p84 = float(np.nanpercentile(R, 84))
-		mean = float(np.nanmean(R))
-		frac_neg = float(np.mean(R < 0.0))
-
-		p = np.sqrt(P2[on_snr]) / np.maximum(I_ts[on_snr], 1e-12)
-		p_med = float(np.nanmedian(p))
-		p_mean = float(np.nanmean(p))
-		p95 = float(np.nanpercentile(p, 95))
-
-		if not plot_multiple_frb:
-			logging.info(
-				f"[stokes_ts:{label}] R=I^2-P^2: med={med:.3g}, p16={p16:.3g}, p84={p84:.3g}, "
-				f"mean={mean:.3g}, frac(R<0)={frac_neg:.3%}"
-			)
-			logging.info(
-				f"[stokes_ts:{label}] p=sqrt(Q^2+U^2+V^2)/I: median={p_med:.3g}, mean={p_mean:.3g}, p95={p95:.3g} \n"
-			)
-	except Exception as e:
-		if not plot_multiple_frb:
-			logging.warning(f"[stokes_ts:{label}] diagnostics failed: {e}")
 
 
 def _resolve_polarisation(lfrac_i_raw, vfrac_i_raw):
@@ -774,7 +703,7 @@ def psn_dspec(
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
 
 	intrinsic_width_bins = gdict["width"][0] / time_res_ms
-	_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="pre-noise",
+	stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="pre-noise",
 								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 
 	V_params = {}
@@ -783,63 +712,18 @@ def psn_dspec(
 		var = float(np.nanvar(arr)) if arr.size else np.nan
 		V_params[f"meas_var_{key}"] = var
 
-	f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6 
-	t_res_s = time_res_ms / 1000.0
-
 	if target_snr is not None:
-		if target_snr_mode == "scale_intensity":
-			# Scale clean dspec intensity instead of changing SEFD
-			prof = np.nansum(dspec[0], axis=0)
-			left, right = compute_segments(dspec, freq_mhz, time_ms, dspec_params,
-										   buffer_frac, skip_rm=True)["global"]["window"].values()
-			# Simple SNR estimate assuming nominal SEFD for current cube
-			f_res_hz = (freq_mhz[1] - freq_mhz[0]) * 1e6
-			t_res_s = time_res_ms / 1000.0
-			N_on = right - left + 1
-			N_chan = dspec.shape[1]
-			F_on = np.nansum(prof[left:right+1])
-			# If sefd given, compute current expected SNR; else assume 1 Jy SEFD baseline
-			sefd_eff = sefd if sefd > 0 else 1.0
-			snr_est = F_on * np.sqrt(2 * f_res_hz * t_res_s) / (sefd_eff * np.sqrt(N_chan * N_on))
-			if snr_est > 0:
-				scale = target_snr / snr_est
-				dspec *= scale
-				if not plot_multiple_frb:
-					logging.info("Applied amplitude scaling factor %.3f for target S/N %g", scale, target_snr)
-		else:
-			sefd_est, sefd_details = compute_required_sefd(
-				dspec_params, dspec, freq_mhz,
-				target_snr=target_snr,
-				n_pol=2,
-				buffer_frac=buffer_frac,
-				robust_rms=True
-			)
-
-			if target_snr_mode == "iter":
-				# One corrective iteration using measured SNR
-				_, _, snr_meas = add_noise(
-					dspec_params, dspec, sefd_est,
-					(freq_mhz[1] - freq_mhz[0]) * 1e6,
-					time_res_ms / 1000.0,
-					plot_multiple_frb=True,
-					buffer_frac=buffer_frac,
-					n_pol=2
-				)
-				if snr_meas > 0:
-					sefd_est *= (snr_meas / target_snr)
-			sefd = sefd_est
-			if not plot_multiple_frb:
-				logging.info("SEFD set to %.3f Jy (mode=%s) for target S/N %g",
-							 sefd, target_snr_mode, target_snr)
+		sefd = scale_dspec_to_target_snr(target_snr_mode, target_snr, dspec_params, dspec, freq_mhz, time_res_ms,
+			   buffer_frac, sefd, plot_multiple_frb, time_ms)
 
 	if sefd > 0:
-		dspec, sigma_ch, snr = add_noise(dspec_params,
+		dspec, _, snr = add_noise(dspec_params,
 			dspec, sefd,
 			(freq_mhz[1] - freq_mhz[0]) * 1e6,
 			time_res_ms / 1000.0,
 			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
 		)
-		_stokes_consistency_diagnostics(dspec, time_res_ms, buffer_frac, intrinsic_width_bins, label="post-noise",
+		stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="post-noise",
 								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 	else:
 		snr = None
@@ -891,31 +775,7 @@ def psn_dspec(
 	# Off-pulse baseline correction (per Stokes, per frequency channel)
 	if baseline_correct is not None:
 		try:
-			I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
-			intrinsic_width_bins = float(gdict["width"][0]) / float(time_res_ms)
-			on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
-				I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
-			)
-
-			mode = "median" if baseline_correct is True else str(baseline_correct).lower()
-
-			dspec, bl_info = apply_baseline_correction(dspec, off_mask, mode=mode)
-
-			if not plot_multiple_frb:
-				logging.info(f"Applied baseline correction mode='{mode}' using {bl_info.get('used_bins',0)} off-pulse bins.")
-
-			_stokes_consistency_diagnostics(
-				dspec, time_res_ms, buffer_frac, intrinsic_width_bins,
-				label="post-bline", plot_multiple_frb=plot_multiple_frb, snr_min=5.0
-			)
-
-			I_ts_bline = np.nansum(dspec[0], axis=0)
-			snr_post_bline, _ = snr_onpulse(
-				dspec_params, I_ts_bline, frac=0.95,
-				robust_rms=True, buffer_frac=buffer_frac
-			)
-			if not plot_multiple_frb:
-				logging.info(f"Stokes I S/N (post-baseline): {snr_post_bline:.2f}")
+			dspec = correct_baseline(intrinsic_width_bins, buffer_frac, baseline_correct, plot_multiple_frb, dspec_params)
 
 		except Exception as e:
 			logging.warning("Baseline correction failed; continuing without it (%s).", str(e))
