@@ -25,7 +25,7 @@ import numpy as np
 from tqdm import tqdm
 
 from fires.core.basicfns import (add_noise, process_dspec, scatter_loaded_dspec,
-                                 snr_onpulse, boxcar_snr, compute_segments)
+								 snr_onpulse, boxcar_snr, compute_segments)
 from fires.core.genfns import psn_dspec
 from fires.utils.config import load_params
 from fires.utils.loaders import load_data, load_multiple_data_grouped
@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 
-def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, baseline_correct=None):
+def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, baseline_correct=None, obs_data=None, obs_params=None, gauss_file=None, sim_file=None, scint_file=None):
 	"""
 	Process a single task (combination of timescale and realisation).
 	"""
@@ -48,14 +48,45 @@ def _process_task(task, xname, mode, plot_mode, dspec_params, target_snr=None, b
 	
 	requires_multiple_frb = plot_mode.requires_multiple_frb
 
-	_, snr, V_params, exp_vars, measures = psn_dspec(
-			dspec_params=dspec_params,
-			variation_parameter=var,
-			xname=xname,
-			plot_multiple_frb=requires_multiple_frb,
-			target_snr=target_snr,
-			baseline_correct=baseline_correct
-		)
+	if obs_data is not None:
+		# Load the observed data
+		dspec, freq_mhz, time_ms, dspec_params_local = load_data(obs_data, obs_params, gauss_file, sim_file, scint_file)
+		scatter_idx = dspec_params_local.sc_idx
+		ref_freq = dspec_params_local.ref_freq_mhz
+		sefd = dspec_params_local.sefd
+		f_res = dspec_params_local.freq_res_mhz
+		t_res = dspec_params_local.time_res_ms
+		buffer_frac = dspec_params_local.buffer_frac
+		
+		# Scatter with var (tau)
+		if var > 0:
+			dspec = scatter_loaded_dspec(dspec, freq_mhz, time_ms, var, scatter_idx, ref_freq)
+		
+		# Add noise
+		if sefd > 0:
+			dspec, sigma_ch, snr = add_noise(
+				dspec_params_local, dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res,
+				plot_multiple_frb=requires_multiple_frb, buffer_frac=buffer_frac
+			)
+		else:
+			I_time = np.nansum(dspec[0], axis=0)
+			snr, _ = snr_onpulse(dspec_params_local, I_time, frac=0.95, buffer_frac=buffer_frac)
+		
+		# Compute segments
+		segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params_local, buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
+		
+		measures = segments
+		V_params = {}
+		exp_vars = {}
+	else:
+		_, snr, V_params, exp_vars, measures = psn_dspec(
+				dspec_params=local_params,
+				variation_parameter=var,
+				xname=xname,
+				plot_multiple_frb=requires_multiple_frb,
+				target_snr=target_snr,
+				baseline_correct=baseline_correct
+			)
 
 	return var, measures, V_params, snr, exp_vars
 
@@ -298,6 +329,69 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 				logging.error(f"No .pkl files found in {data}.")
 				sys.exit(1)
 			return frb_dict
+		
+		elif obs_data != None:
+			# Load the observed data once to record original S/N and segments
+			dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file, sim_file, scint_file)
+			I_time = np.nansum(dspec[0], axis=0)
+			original_snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
+			logging.info(f"Original data S/N: {original_snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")
+			original_segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
+			
+			# Assume sweep is set for tau; validate
+			gdict_keys = list(gdict.keys())
+			if active_cols.size != 1 or gdict_keys[col_idx] != 'tau':
+				logging.error("For obs_data sweep, exactly one sweep column must be set for 'tau'.")
+				sys.exit(1)
+			
+			# ...existing code for setting up xvals...
+			
+			xname = 'tau'
+			
+			# ...existing code for Slurm/chunking...
+			
+			tasks = list(product(xvals, range(nseed)))
+			
+			with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+				partial_func = functools.partial(
+					_process_task,
+					xname=xname,
+					mode=mode,
+					plot_mode=plot_mode,
+					target_snr=target_snr,
+					dspec_params=dspec_params,
+					baseline_correct=baseline_correct,
+					obs_data=obs_data,
+					obs_params=obs_params,
+					gauss_file=gauss_file,
+					sim_file=sim_file,
+					scint_file=scint_file
+				)
+				results = list(tqdm(
+					executor.map(partial_func, tasks),
+					total=len(tasks),
+					desc=f"Processing tau sweep on observed data"
+				))
+			
+			# ...existing code for collecting results...
+			
+			frb_dict = {
+				"xname": xname,
+				"xvals": xvals,
+				"measures": measures,       
+				"V_params": V_params,
+				"exp_vars": exp_vars,
+				"dspec_params": dspec_params,
+				"plot_mode": plot_mode,
+				"snrs": snrs,
+				"original_snr": original_snr,
+				"original_segments": original_segments,
+			}
+			
+			# ...existing code for writing...
+			
+			return frb_dict
+
 		else:
 			# Validate sweep definition - allow single point sweeps
 			if sweep_mode == "none":
