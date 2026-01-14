@@ -22,6 +22,7 @@ import numpy as np
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
                                  pa_variance_deg2, print_global_stats, wrap_pa_deg)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
+from fires.plotting.plot_helper import draw_plot_text
 
 logger = logging.getLogger(__name__)
 #	----------------------------------------------------------------------------------------------------------
@@ -200,8 +201,8 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
-					legend, buffer_frac, show_onpulse, show_offpulse, segments=None):
+def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
+					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
 		Inputs:
@@ -272,6 +273,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, freq_mhz, time_ms, save, fname, outdir, 
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
+	draw_plot_text(axs[0], display_text, plot_config)
 	
 	# Plot the mean across all frequency channels (axis 0)
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)

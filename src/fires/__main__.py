@@ -26,7 +26,7 @@ from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import plot_modes
 from fires.utils import config as cfg
 from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-							   normalise_freq_window, normalise_phase_window)
+                               normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -242,7 +242,7 @@ def main():
 	)
 	parser.add_argument(
 		"--override-plot",
-		type=str,
+		#type=str,
 		nargs="+",
 		action="extend",
 		default=None,

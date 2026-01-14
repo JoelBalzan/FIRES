@@ -14,10 +14,22 @@ extension  = "pdf"                # File extension for saved plots
 use_latex  = true                 # Use LaTeX for plot text rendering
 show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
-legend     = true                 # Show legends in plots
+legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
 xlim       = None
 ylim       = None
+plot_text  = ["\\boldsymbol{(d)}"] # Additional text to display, i.e., mixing literals and params: plot_text = ["FRB 191001", "tau", "DM"]. Options can be modified below
+
+[general.plot_text_style]
+enabled    = true          # master switch
+position   = "top-left"    # "bottom-right" | "bottom-left" | "top-right" | "top-left" or [x, y] in axes coords
+colour     = "black"       # or any matplotlib colour
+alpha      = 1.0           # text alpha
+fontsize   = 22            # or null to use default
+offset_pts = [0, 0]        # [dx, dy] in points
+ha         = "left"        # optional override; null = auto from position
+va         = "top"         # optional override; null = auto from position
+zorder     = 5
 
 
 [windows]
@@ -32,10 +44,9 @@ plot_scale        = "log"            # Scale: "linear",     "logx",   "logy",   
 draw_style        = "line-param"     # Style: "line-param", "line-x", "scatter", "binned"
 plot_expected     = true             # Whether to draw expected model curves (exp_vars) (only works for expected V(PA))
 fit_functions     = None             # Fit functions to apply: ['exp', 'power', 'log', 'linear', 'constant', 'broken-power' or 'power,N', 'poly,N' for power/polynomial of degree N]
-weight_x_by       = "width"       # Parameter to normalize x-axis by
+weight_x_by       = "width"          # Parameter to normalize x-axis by
 weight_y_by       = "meas_var_PA_i"  # Parameter to normalize y-axis by
 legend_params     = None             # Parameters to show in legend
-plot_text         = None             # Additional text to display
 nbins             = 15               # Number of bins for binned plots
 colour_by_sweep   = false            # Color points by sweep order
 xlim              = None             # e.g., [0.01, 10] (must be >0 for logx/log)

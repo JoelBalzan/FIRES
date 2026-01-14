@@ -452,8 +452,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		else:
 			dspec, snr, _, _, segments = psn_dspec(
 			xname=None,
-			mode=mode,
-			var=None,
 			plot_multiple_frb=False,
 			target_snr=target_snr,
 			dspec_params=dspec_params,

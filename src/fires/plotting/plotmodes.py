@@ -19,17 +19,19 @@ import warnings
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-import matplotlib.transforms as mtransforms
 import numpy as np
 from scipy.optimize import curve_fit
 
 from fires.core.basicfns import (compute_segments, estimate_rm,
-                                 on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, process_dspec)
+								 on_off_pulse_masks_from_profile,
+								 pa_variance_deg2, process_dspec)
+from fires.plotting.plot_helper import (build_plot_text_string, get_plot_param, 
+								draw_plot_text, param_info_or_dynamic, text_with_offset,
+								colours, colour_map, param_map)
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_pa_profile,
-                                    plot_stokes)
+									plot_stokes)
 from fires.utils.loaders import load_data
-from fires.utils.params import base_param_name, is_measured_key, param_info
+from fires.utils.params import base_param_name, is_measured_key
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logging.basicConfig(level=logging.INFO)
@@ -119,85 +121,6 @@ def configure_matplotlib_from_config(plot_config=None, use_latex=None):
 				raise
 
 
-def get_plot_param(plot_config, section, key, default=None):
-	"""Helper to safely get plotting parameters"""
-	if plot_config is None:
-		return default
-	sec = plot_config.get(section)
-	if key is None:
-		return sec if sec is not None else default
-	if isinstance(sec, dict):
-		return sec.get(key, default)
-	return default
-
-
-#	--------------------------	Colour maps	---------------------------
-#colour blind friendly: https://gist.github.com/thriveth/8560036
-colours = {
-	'red'   : '#e41a1c',
-	'blue'  : '#377eb8',
-	'purple': '#984ea3',
-	'orange': '#ff7f00',
-	'green' : '#4daf4a',
-	'pink'  : '#f781bf',
-	'brown' : '#a65628',
-	'gray'  : '#999999',
-	'yellow': '#dede00'
-} 
-
-colour_map = {
-	'lowest-quarter, total'   : '#e41a1c',
-	'highest-quarter, total'  : '#377eb8',
-	'full-band, total'        : '#984ea3',
-	'full-band, leading'      : '#ff7f00',
-	'full-band, trailing'     : '#4daf4a',
-	'lower-mid-quarter, total': '#a65628',
-	'upper-mid-quarter, total': '#999999',
-}
-
-#	--------------------------	Parameter mappings	---------------------------
-param_map = {
-	# Intrinsic parameters - format: (LaTeX_symbol, unit)
-	"tau"         : (r"\tau_0", r"\mathrm{ms}"),
-	"width"          : (r"W_0", r"\mathrm{ms}"),
-	"A"              : (r"A_0", r"\mathrm{Jy}"),
-	"spec_idx"       : (r"\alpha_0", ""),
-	"DM"             : (r"\mathrm{DM}_0", r"\mathrm{pc\,cm^{-3}}"),
-	"RM"             : (r"\mathrm{RM}_0", r"\mathrm{rad\,m^{-2}}"),
-	"PA"             : (r"\psi_0", r"\mathrm{deg}"),
-	"lfrac"          : (r"\Pi_{L,0}", ""),
-	"vfrac"          : (r"\Pi_{V,0}", ""),
-	"dPA"            : (r"\Delta\psi_0", r"\mathrm{deg}"),
-	"band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
-	"band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
-	"N"              : (r"N", ""),
-	"mg_width_low"   : (r"w_{\mathrm{low},0}", r"\%"),
-	"mg_width_high"  : (r"w_{\mathrm{high},0}", r"\%"),
-	# sd_<param> 
-	"sd_t0"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
-	"sd_A"              : (r"\sigma_A", ""),
-	"sd_spec_idx"       : (r"\sigma_\alpha", ""),
-	"sd_DM"             : (r"\sigma_{\mathrm{DM}}", r"\mathrm{pc\,cm^{-3}}"),
-	"sd_RM"             : (r"\sigma_{\mathrm{RM}}", r"\mathrm{rad\,m^{-2}}"),
-	"sd_PA"             : (r"\sigma_{\psi}", r"\mathrm{deg}"),
-	"sd_lfrac"          : (r"\sigma_{\Pi_L}", ""),
-	"sd_vfrac"          : (r"\sigma_{\Pi_V}", ""),
-	"sd_dPA"            : (r"\sigma_{\Delta\psi}", r"\mathrm{deg}"),
-	"sd_band_centre_mhz": (r"\sigma_{\nu_c}", r"\mathrm{MHz}"),
-	"sd_band_width_mhz" : (r"\sigma_{\Delta \nu}", r"\mathrm{MHz}"),
-}
-
-def _param_info_or_dynamic(name: str) -> tuple[str, str]:
-	"""
-	Get (symbol, unit) for a parameter key.
-	- First, try param_map (explicit overrides).
-	- Otherwise, build from canonical rules in fires.utils.params.
-	"""
-	if name in param_map:
-		val = param_map[name]
-		return val if isinstance(val, tuple) else (val, "")
-	return param_info(name)
-
 def _base_of(key: str | None) -> str | None:
 	if key is None:
 		return None
@@ -211,7 +134,7 @@ class PlotMode:
 
 		Args:
 			name (str): Name of the plot mode.
-Z			plot_func (callable): Function to generate the plot.
+			plot_func (callable): Function to generate the plot.
 			requires_multiple_frb (bool): Whether this plot mode requires `plot_var=True`.
 		"""
 		self.name = name
@@ -220,7 +143,7 @@ Z			plot_func (callable): Function to generate the plot.
 		
 
 # --------------------------	Plot modes definitions	---------------------------
-def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=None, segments=None, **kwargs):
+def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=None, segments=None,**kwargs):
 	"""
 	Generate basic plots using configuration from plot_config.
 	"""
@@ -232,6 +155,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
 	xlim = get_plot_param(plot_config, 'general', 'xlim', None)
 	ylim = get_plot_param(plot_config, 'general', 'ylim', None)
+
 	show_onpulse = get_plot_param(plot_config, 'windows', 'show_onpulse', False)
 	show_offpulse = get_plot_param(plot_config, 'windows', 'show_offpulse', False)
 	dspec_params = frb_data.dspec_params
@@ -240,6 +164,11 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 
 	tau = dspec_params.gdict['tau']
 
+	plot_text = get_plot_param(plot_config, 'general', 'plot_text', [])
+	if plot_text:
+		display_text = build_plot_text_string(plot_text, dspec_params.gdict)
+
+
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
 		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True
 	)
@@ -247,9 +176,9 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	iquvt = ts_data.iquvt
 	
 	if mode == "all":
-		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
-				ts_data, figsize, tau, show_plots, extension,
-				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments)
+		plot_ilv_pa_ds(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir, 
+				ts_data, figsize, tau, show_plots, extension, 
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
@@ -257,9 +186,9 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 	elif mode == "lvpa":
-		plot_ilv_pa_ds(corr_dspec, dspec_params, freq_mhz, time_ms, save, fname, out_dir, 
+		plot_ilv_pa_ds(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
-				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments)
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text)
 	elif mode == "pa":
 			plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 	elif mode == "dpa":
@@ -666,20 +595,6 @@ def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
 			ax.xaxis.set_minor_locator(mticker.NullLocator())
 
 
-def _text_with_offset(ax, x, y, s, dx_pts=0, dy_pts=0, ha='left', va='bottom',
-					  transform='data', color=None, fontsize=None, alpha=None,
-					  bbox=None, zorder=None, rotation=None):
-	"""
-	Draw text at (x, y) with an offset in points (dx_pts, dy_pts).
-	- transform='data' or 'axes' selects the base transform.
-	"""
-	base = ax.transData if transform == 'data' else ax.transAxes
-	offset = mtransforms.ScaledTranslation(dx_pts/72.0, dy_pts/72.0, ax.figure.dpi_scale_trans)
-	tr = base + offset
-	return ax.text(x, y, s, transform=tr, ha=ha, va=va, color=color, fontsize=fontsize,
-				   alpha=alpha, bbox=bbox, zorder=zorder, rotation=rotation)
-
-
 def _set_scale_and_labels(ax, scale, xname, yname, x=None, x_unit="", y_unit=""):
 	# Format labels with units in square brackets if non-empty
 	# Units containing LaTeX commands must be kept inside math mode
@@ -939,7 +854,7 @@ def _weight_x_get_xname(
 
 	if sweep_mode == "sd":
 		x = xvals_raw
-		sym, unit = _param_info_or_dynamic(f"sd_{xname_raw}")
+		sym, unit = param_info_or_dynamic(f"sd_{xname_raw}")
 		return x, sym, unit
 
 	# Try to find weights
@@ -1002,7 +917,7 @@ def _weight_x_get_xname(
 			x = xvals_raw / w
 
 	# Build labels/units for weighted x
-	weight_symbol, weight_unit = _param_info_or_dynamic(weight_x_by)
+	weight_symbol, weight_unit = param_info_or_dynamic(weight_x_by)
 	xname = base_name + r" / " + weight_symbol
 	x_unit = "" if base_unit == weight_unit else (f"{base_unit}/{weight_unit}" if weight_unit else base_unit)
 	return x, xname, x_unit
@@ -1027,7 +942,7 @@ def _get_weighted_y_name(yname, weight_y_by):
 	if weight_y_by is None:
 		return yname, y_base_unit
 
-	w_sym, w_unit = _param_info_or_dynamic(weight_y_by)
+	w_sym, w_unit = param_info_or_dynamic(weight_y_by)
 
 	# Special case: PA variance ratio
 	if yname == r"\mathbb{V}(\psi)" and _base_of(weight_y_by) == "PA_i":
@@ -1231,7 +1146,7 @@ def _format_legend_label(od: dict, legend_params=None, gdict=None) -> str:
 		elif gdict is not None and k in gdict and len(gdict[k]) > 0:
 			val = gdict[k][0]
 		if val is not None:
-			sym, _ = _param_info_or_dynamic(k)
+			sym, _ = param_info_or_dynamic(k)
 			try:
 				s = str(int(val)) if float(val).is_integer() else f"{float(val):g}"
 			except Exception:
@@ -1502,7 +1417,7 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 
 		txt = None
 		if show_labels:
-			param_symbol, _ = _param_info_or_dynamic(target_param)
+			param_symbol, _ = param_info_or_dynamic(target_param)
 			val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
 			lbl_pos = (label_position or 'start').lower()
 			def _label_index(xa, ya):
@@ -1514,7 +1429,7 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 					return int(len(xa) // 2)
 				return 0
 			ix = _label_index(x_draw, y_draw)
-			txt = _text_with_offset(
+			txt = text_with_offset(
 				ax, float(x_draw[ix]), float(y_draw[ix]),
 				rf"${param_symbol} = {val_str}$",
 				dx_pts=float(label_offset_pts[0]) if label_offset_pts else 0.0,
@@ -1670,7 +1585,7 @@ def plot_constant_param_lines(
 		val_str = f"{int(param_val)}" if (isinstance(param_val, (int, float)) and float(param_val).is_integer()) else f"{param_val:.2g}" if isinstance(param_val, (int, float)) else str(param_val)
 		label_text = label_fmt.format(param=param_name, val=val_str)
 		ix = _label_index(x_draw, y_draw, label_position)
-		txt = _text_with_offset(
+		txt = text_with_offset(
 			ax, float(x_draw[ix]), float(y_draw[ix]), label_text,
 			dx_pts=float(label_offset_pts[0]) if label_offset_pts else 0.0,
 			dy_pts=float(label_offset_pts[1]) if label_offset_pts else 0.0,
@@ -1774,7 +1689,7 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 			# Build label text from params_to_label for this run
 			label_parts = []
 			for pname in params_to_label:
-				sym, _ = _param_info_or_dynamic(pname)
+				sym, _ = param_info_or_dynamic(pname)
 				# Look in run_data param stores
 				val = None
 				# Try dspec_params.gdict
@@ -1806,7 +1721,7 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 				continue
 
 			label_text = r"$" + r",\; ".join(label_parts) + r"$"
-			txt = _text_with_offset(
+			txt = text_with_offset(
 				ax, x_anchor, y_anchor, label_text,
 				dx_pts=float(offset_pts[0]) if offset_pts else 0.0,
 				dy_pts=float(offset_pts[1]) if offset_pts else 0.0,
@@ -1869,7 +1784,8 @@ def _plot_single_run_multi_window(
 	draw_style='line-param',
 	nbins=15,
 	colour_by_sweep=False,
-	plot_config=None
+	plot_config=None,
+	plot_text=None
 ):
 	"""
 	Plot multiple freq/phase window combinations from a SINGLE run on the same axes.
@@ -2165,6 +2081,15 @@ def _plot_single_run_multi_window(
 	base_yname = r"\mathbb{V}(\psi)" if plot_type == 'pa_var' else r"\Pi_L"
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if weight_y_by else (base_yname, "")
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
+
+	if plot_text:
+		gdict = None
+		if "dspec_params" in frb_dict and hasattr(frb_dict["dspec_params"], "gdict"):
+			gdict = frb_dict["dspec_params"].gdict
+		elif "gdict" in frb_dict:
+			gdict = frb_dict["gdict"]
+		display_text = build_plot_text_string(plot_text, gdict)
+		draw_plot_text(ax, display_text, plot_config)
 	
 	if legend:
 		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
@@ -2519,32 +2444,14 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		_legend_if_any(ax, loc=legend_loc)
 
 	if plot_text:
-		# If plot_text is a list of param names, look up and format their values
 		first_run = next(iter(frb_dict.values()))
 		gdict = None
 		if "dspec_params" in first_run and hasattr(first_run["dspec_params"], "gdict"):
 			gdict = first_run["dspec_params"].gdict
 		elif "gdict" in first_run:
 			gdict = first_run["gdict"]
-		# Build label
-		label_parts = []
-		for item in plot_text:
-			if gdict and item in gdict and len(gdict[item]) > 0:
-				val = gdict[item][0]
-				sym, unit = _param_info_or_dynamic(item)
-				val_str = str(int(val)) if float(val).is_integer() else f"{float(val):g}"
-				label = rf"{sym} = {val_str}" + (rf"~[{unit}]" if unit else "")
-				label_parts.append(label)
-			else:
-				# Not a param, treat as literal text
-				label_parts.append(str(item))
-		display_text = r",\; ".join(label_parts)
-		ax.text(
-			0.98, 0.01, f"${display_text}$",
-			transform=ax.transAxes, color='gray',
-			va='bottom', ha='right', zorder=5,
-			#bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.5, edgecolor='none')
-		)
+		display_text = build_plot_text_string(plot_text, gdict)
+		draw_plot_text(ax, display_text, plot_config)
 
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
 	
@@ -2788,7 +2695,7 @@ def plot_pa_var(
 				else:
 					equal_value_lines = int(nv)
 	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
-	plot_text = get_plot_param(plot_config, 'analytical', 'plot_text', [])
+	plot_text = get_plot_param(plot_config, 'general', 'plot_text', [])
 	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
 	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
@@ -2829,7 +2736,8 @@ def plot_pa_var(
 				draw_style=draw_style,
 				nbins=nbins,
 				colour_by_sweep=colour_by_sweep,
-				plot_config=plot_config
+				plot_config=plot_config,
+				plot_text=plot_text
 			)
 			# Save/show
 			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
@@ -2885,6 +2793,16 @@ def plot_pa_var(
 			freq_window=freq_window
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
+
+		if plot_text:
+			gdict = None
+			dsp = frb_dict.get("dspec_params")
+			if dsp is not None and hasattr(dsp, "gdict"):
+				gdict = dsp.gdict
+			elif "gdict" in frb_dict:
+				gdict = frb_dict["gdict"]
+			display_text = build_plot_text_string(plot_text, gdict)
+			draw_plot_text(ax, display_text, plot_config)
 		
 	# Overlay observational data if provided
 	if obs_data is not None:
@@ -3023,7 +2941,7 @@ def plot_lfrac(
 				else:
 					equal_value_lines = int(nv)
 	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
-	plot_text = get_plot_param(plot_config, 'analytical', 'plot_text', [])
+	plot_text = get_plot_param(plot_config, 'general', 'plot_text', [])
 	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
 	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
@@ -3060,7 +2978,9 @@ def plot_lfrac(
 				buffer_frac=buffer_frac,
 				draw_style=draw_style,
 				nbins=nbins,
-				colour_by_sweep=colour_by_sweep
+				colour_by_sweep=colour_by_sweep,
+				plot_config=plot_config,
+				plot_text=plot_text
 			)
 			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 			if show:
@@ -3114,6 +3034,16 @@ def plot_lfrac(
 			freq_window=freq_window
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
+
+		if plot_text:
+			gdict = None
+			dsp = frb_dict.get("dspec_params")
+			if dsp is not None and hasattr(dsp, "gdict"):
+				gdict = dsp.gdict
+			elif "gdict" in frb_dict:
+				gdict = frb_dict["gdict"]
+			display_text = build_plot_text_string(plot_text, gdict)
+			draw_plot_text(ax, display_text, plot_config)
 
 	if obs_data is not None:
 		obs_cfg = _get_obs_cfg(plot_config)
