@@ -118,10 +118,14 @@ def get_plot_param(plot_config, section, key, default=None):
 	return default
 
 				   
-def draw_plot_text(ax, display_text, plot_config=None):
+def draw_plot_text(ax, display_text, plot_type, plot_config=None):
 	if not display_text:
 		return
-	style = get_plot_param(plot_config, 'general', 'text_style', {}) or {}
+	if plot_type=='general':
+		group = 'text_style'
+	else:
+		group = 'param_text_style'
+	style = get_plot_param(plot_config, plot_type, group, {}) or {}
 	if not style.get('enabled', True):
 		return
 
