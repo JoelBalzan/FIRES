@@ -18,7 +18,7 @@ legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
 xlim       = None
 ylim       = None
-text       = ["\\boldsymbol{(c)}"] # Additional text to display. Options can be modified below
+text       = None # Additional text to display. Options can be modified below
 
 [general.text_style]
 enabled    = true          # master switch

@@ -10,7 +10,7 @@
 [general]
 # General plotting options
 figsize    = None                # Default figure size [width, height] in inches, null for default
-extension  = "pdf"                # File extension for saved plots
+extension  = "jpg"                # File extension for saved plots
 use_latex  = true                 # Use LaTeX for plot text rendering
 show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
@@ -18,7 +18,7 @@ legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
 xlim       = None
 ylim       = None
-text       = ["\\boldsymbol{(c)}"] # Additional text to display. Options can be modified below
+text       = None # Additional text to display. Options can be modified below
 
 [general.text_style]
 enabled    = true          # master switch
