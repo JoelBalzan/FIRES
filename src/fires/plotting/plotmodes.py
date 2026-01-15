@@ -23,14 +23,14 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from fires.core.basicfns import (compute_segments, estimate_rm,
-                                 on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, process_dspec)
+								 on_off_pulse_masks_from_profile,
+								 pa_variance_deg2, process_dspec)
 from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
-                                        colours, draw_plot_text,
-                                        get_plot_param, param_info_or_dynamic,
-                                        param_map, text_with_offset)
+										colours, draw_plot_text,
+										get_plot_param, param_info_or_dynamic,
+										param_map, text_with_offset)
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_pa_profile,
-                                    plot_stokes)
+									plot_stokes)
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -2610,6 +2610,18 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			)
 		except Exception as e:
 			logging.debug(f"series_labels failed: {e}")
+
+		# Reduce collisions between series labels if requested
+		if avoid_overlap and _texts:
+			try:
+				from adjustText import adjust_text
+				# Let adjustText nudge labels to avoid overlaps
+				adjust_text(_texts, ax=ax)
+			except ImportError:
+				logging.debug(
+					"series_labels: avoid_overlap=True but 'adjustText' is not installed; "
+					"run 'pip install adjustText' to enable automatic label adjustment."
+				)
 
 
 def plot_pa_var(
