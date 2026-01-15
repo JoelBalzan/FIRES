@@ -23,13 +23,14 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from fires.core.basicfns import (compute_segments, estimate_rm,
-								 on_off_pulse_masks_from_profile,
-								 pa_variance_deg2, process_dspec)
-from fires.plotting.plot_helper import (build_plot_text_string, get_plot_param, 
-								draw_plot_text, param_info_or_dynamic, text_with_offset,
-								colours, colour_map, param_map)
+                                 on_off_pulse_masks_from_profile,
+                                 pa_variance_deg2, process_dspec)
+from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
+                                        colours, draw_plot_text,
+                                        get_plot_param, param_info_or_dynamic,
+                                        param_map, text_with_offset)
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_pa_profile,
-									plot_stokes)
+                                    plot_stokes)
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -164,9 +165,9 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 
 	tau = dspec_params.gdict['tau']
 
-	plot_text = get_plot_param(plot_config, 'general', 'plot_text', [])
-	if plot_text:
-		display_text = build_plot_text_string(plot_text, dspec_params.gdict)
+	text = get_plot_param(plot_config, 'general', 'text', [])
+	if text:
+		display_text = build_plot_text_string(text, dspec_params.gdict)
 
 
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
@@ -1785,7 +1786,7 @@ def _plot_single_run_multi_window(
 	nbins=15,
 	colour_by_sweep=False,
 	plot_config=None,
-	plot_text=None
+	param_text=None
 ):
 	"""
 	Plot multiple freq/phase window combinations from a SINGLE run on the same axes.
@@ -2082,13 +2083,13 @@ def _plot_single_run_multi_window(
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if weight_y_by else (base_yname, "")
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 
-	if plot_text:
+	if param_text:
 		gdict = None
 		if "dspec_params" in frb_dict and hasattr(frb_dict["dspec_params"], "gdict"):
 			gdict = frb_dict["dspec_params"].gdict
 		elif "gdict" in frb_dict:
 			gdict = frb_dict["gdict"]
-		display_text = build_plot_text_string(plot_text, gdict)
+		display_text = build_plot_text_string(param_text, gdict)
 		draw_plot_text(ax, display_text, plot_config)
 	
 	if legend:
@@ -2273,7 +2274,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				   legend=True, equal_value_lines=None, equal_lines_cfg=None, plot_type='pa_var',
 				   phase_window='total', freq_window='full-band',
 				   draw_style='line-param', nbins=15, colour_by_sweep=False,
-				   legend_params=None, plot_text=None, plot_config=None):
+				   legend_params=None, param_text=None, plot_config=None):
 	"""
 	Common plotting logic for plot_pa_var and plot_lfrac_var.
 	"""
@@ -2443,14 +2444,14 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
 		_legend_if_any(ax, loc=legend_loc)
 
-	if plot_text:
+	if param_text:
 		first_run = next(iter(frb_dict.values()))
 		gdict = None
 		if "dspec_params" in first_run and hasattr(first_run["dspec_params"], "gdict"):
 			gdict = first_run["dspec_params"].gdict
 		elif "gdict" in first_run:
 			gdict = first_run["gdict"]
-		display_text = build_plot_text_string(plot_text, gdict)
+		display_text = build_plot_text_string(param_text, gdict)
 		draw_plot_text(ax, display_text, plot_config)
 
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
@@ -2695,7 +2696,7 @@ def plot_pa_var(
 				else:
 					equal_value_lines = int(nv)
 	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
-	plot_text = get_plot_param(plot_config, 'general', 'plot_text', [])
+	param_text = get_plot_param(plot_config, 'analytical', 'param_text', [])
 	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
 	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
@@ -2737,7 +2738,7 @@ def plot_pa_var(
 				nbins=nbins,
 				colour_by_sweep=colour_by_sweep,
 				plot_config=plot_config,
-				plot_text=plot_text
+				param_text=param_text
 			)
 			# Save/show
 			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
@@ -2760,7 +2761,7 @@ def plot_pa_var(
 			legend=legend, equal_value_lines=equal_value_lines, equal_lines_cfg=equal_lines_cfg,
 			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window,
 			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
-			legend_params=legend_params, plot_text=plot_text, plot_config=plot_config
+			legend_params=legend_params, param_text=param_text, plot_config=plot_config
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 	else:
@@ -2794,14 +2795,14 @@ def plot_pa_var(
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 
-		if plot_text:
+		if param_text:
 			gdict = None
 			dsp = frb_dict.get("dspec_params")
 			if dsp is not None and hasattr(dsp, "gdict"):
 				gdict = dsp.gdict
 			elif "gdict" in frb_dict:
 				gdict = frb_dict["gdict"]
-			display_text = build_plot_text_string(plot_text, gdict)
+			display_text = build_plot_text_string(param_text, gdict)
 			draw_plot_text(ax, display_text, plot_config)
 		
 	# Overlay observational data if provided
@@ -2941,7 +2942,7 @@ def plot_lfrac(
 				else:
 					equal_value_lines = int(nv)
 	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
-	plot_text = get_plot_param(plot_config, 'general', 'plot_text', [])
+	param_text = get_plot_param(plot_config, 'analytical', 'param_text', [])
 	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
 	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
@@ -2980,7 +2981,7 @@ def plot_lfrac(
 				nbins=nbins,
 				colour_by_sweep=colour_by_sweep,
 				plot_config=plot_config,
-				plot_text=plot_text
+				param_text=param_text
 			)
 			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 			if show:
@@ -3001,7 +3002,7 @@ def plot_lfrac(
 			legend=legend, equal_value_lines=equal_value_lines, equal_lines_cfg=equal_lines_cfg,
 			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window,
 			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
-			legend_params=legend_params, plot_text=plot_text, plot_config=plot_config
+			legend_params=legend_params, param_text=param_text, plot_config=plot_config
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 	else:
@@ -3035,14 +3036,14 @@ def plot_lfrac(
 		)
 		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
 
-		if plot_text:
+		if param_text:
 			gdict = None
 			dsp = frb_dict.get("dspec_params")
 			if dsp is not None and hasattr(dsp, "gdict"):
 				gdict = dsp.gdict
 			elif "gdict" in frb_dict:
 				gdict = frb_dict["gdict"]
-			display_text = build_plot_text_string(plot_text, gdict)
+			display_text = build_plot_text_string(param_text, gdict)
 			draw_plot_text(ax, display_text, plot_config)
 
 	if obs_data is not None:

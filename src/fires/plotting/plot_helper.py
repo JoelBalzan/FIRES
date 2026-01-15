@@ -1,5 +1,6 @@
-from fires.utils.params import param_info
 import matplotlib.transforms as mtransforms
+
+from fires.utils.params import param_info
 
 #	--------------------------	Colour maps	---------------------------
 #colour blind friendly: https://gist.github.com/thriveth/8560036
@@ -120,7 +121,7 @@ def get_plot_param(plot_config, section, key, default=None):
 def draw_plot_text(ax, display_text, plot_config=None):
 	if not display_text:
 		return
-	style = get_plot_param(plot_config, 'general', 'plot_text_style', {}) or {}
+	style = get_plot_param(plot_config, 'general', 'text_style', {}) or {}
 	if not style.get('enabled', True):
 		return
 
