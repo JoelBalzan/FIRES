@@ -18,9 +18,9 @@ legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
 xlim       = None
 ylim       = None
-plot_text  = ["\\boldsymbol{(d)}"] # Additional text to display, i.e., mixing literals and params: plot_text = ["FRB 191001", "tau", "DM"]. Options can be modified below
+text       = ["\\boldsymbol{(c)}"] # Additional text to display. Options can be modified below
 
-[general.plot_text_style]
+[general.text_style]
 enabled    = true          # master switch
 position   = "top-left"    # "bottom-right" | "bottom-left" | "top-right" | "top-left" or [x, y] in axes coords
 colour     = "black"       # or any matplotlib colour
@@ -53,6 +53,19 @@ xlim              = None             # e.g., [0.01, 10] (must be >0 for logx/log
 ylim              = [2e-4,0.4]       # e.g., [0.0, 1.0]
 x_measured        = "Vpsi"           # Use measured quantity on x-axis
 equal_value_lines = 3                # Show constant parameter lines, only when using x_measured
+param_text        = None             # Show parameter values used, i.e., ["lfrac"]. Options can be modified below
+
+
+[analytical.param_text_style]
+enabled    = true          # master switch
+position   = "bottom-right"    # "bottom-right" | "bottom-left" | "top-right" | "top-left" or [x, y] in axes coords
+colour     = "black"       # or any matplotlib colour
+alpha      = 1.0           # text alpha
+fontsize   = 22            # or null to use default
+offset_pts = [0, 0]        # [dx, dy] in points
+ha         = "left"        # optional override; null = auto from position
+va         = "top"         # optional override; null = auto from position
+zorder     = 5
 
 
 [analytical.percentiles]
