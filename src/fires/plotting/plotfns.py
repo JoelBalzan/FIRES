@@ -273,7 +273,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
-	draw_plot_text(axs[0], display_text, plot_config)
+	draw_plot_text(axs[0], display_text, 'general', plot_config)
 	
 	# Plot the mean across all frequency channels (axis 0)
 	axs[1].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
