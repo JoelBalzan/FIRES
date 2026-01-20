@@ -265,22 +265,23 @@ def est_profiles(dspec, noise_stokes, left, right, remove_pa_trend: bool = False
 			ephits[drop] = np.nan
 
 		# Optional linear PA trend removal
-		if remove_pa_trend:
-			valid2 = np.isfinite(phits)
-			if np.count_nonzero(valid2) >= 3:
-				t = np.arange(phits.size, dtype=float)
-				# unwrap 2*PA to reduce wrapping ambiguities
-				y_unwrap = np.unwrap(2.0 * phits[valid2])
-				t_fit = t[valid2]
-				# Linear fit y = a + b t (single call)
-				p = np.polyfit(t_fit, y_unwrap, 1)
-				b, a = p[0], p[1]
-				trend = (a + b * t_fit) / 2.0
-				phits[valid2] = phits[valid2] - trend
-				# Re-wrap back to [-pi/2, pi/2]
-				phits[valid2] = ((phits[valid2] + np.pi/2) % np.pi) - np.pi/2
-
-				#logging.info("Removed linear PA trend: slope=%.3e rad/bin, intercept=%.3f rad", b/2.0, a/2.0)
+		#remove_pa_trend = False
+		#print(remove_pa_trend)
+		#if remove_pa_trend:
+		#	valid2 = np.isfinite(phits)
+		#	if np.count_nonzero(valid2) >= 3:
+		#		t = np.arange(phits.size, dtype=float)
+		#		# unwrap 2*PA to reduce wrapping ambiguities
+		#		y_unwrap = np.unwrap(2.0 * phits[valid2])
+		#		t_fit = t[valid2]
+		#		# Linear fit y = a + b t (single call)
+		#		p = np.polyfit(t_fit, y_unwrap, 1)
+		#		b, a = p[0], p[1]
+		#		trend = (a + b * t_fit) / 2.0
+		#		phits[valid2] = phits[valid2] - trend
+		#		# Re-wrap back to [-pi/2, pi/2]
+		#		phits[valid2] = ((phits[valid2] + np.pi/2) % np.pi) - np.pi/2
+		#		#logging.info("Removed linear PA trend: slope=%.3e rad/bin, intercept=%.3f rad", b/2.0, a/2.0)
 
 		qfrac = Qts / Its
 		ufrac = Uts / Its
