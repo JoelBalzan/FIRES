@@ -571,6 +571,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			return frb_dict
 
 		else:
+			gdict_keys = list(gdict.keys())
+
 			xvals, col_idx, xname = _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys)
 
 			xvals, _array_id, _array_count = _slurm_chunk_xvals(xvals)
