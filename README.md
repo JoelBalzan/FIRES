@@ -24,6 +24,11 @@ fires --help
 
 ## Quickstart Examples
 
+On first use, initialise your local configuration (only needs to be done once):
+```bash
+fires --init-config
+```
+
 Simulate a single FRB and plot linear polarisation + PA:
 ```bash
 fires --plot lvpa
@@ -262,6 +267,13 @@ Fitting / Overlay:
 Depending on options:
 - Pickled simulation objects (--write)
 - Plot PDFs/PNGs as configured (plotparams.toml)
+
+## Examples and Paper Data
+
+- Example Jupyter notebooks are provided in [examples/](examples/):
+  - [FRB_20191001A_example.ipynb](examples/FRB_20191001A_example.ipynb)
+  - [FRB_20191001A_sweep.ipynb](examples/FRB_20191001A_sweep.ipynb)
+- Parameter files and supporting data used for the paper figures are in [paper/](paper/), with FRB-specific setups under [paper/191001](paper/191001) and [paper/240318A](paper/240318A). The example notebooks reference these configurations to reproduce the paper-style analyses.
 
 ## Development
 
