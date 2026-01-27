@@ -13,8 +13,8 @@
 f0    = 751.5
 f1    = 900.5
 f_res = 1
-t0    = -7.4040
-t1    = 11.56
+t0    = -6.4327
+t1    = 10.61
 t_res = 0.0230
 scattering_index = -4.85
 reference_freq   = 1000
