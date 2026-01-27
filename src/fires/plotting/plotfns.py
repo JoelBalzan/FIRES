@@ -20,9 +20,10 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, print_global_stats, wrap_pa_deg)
-from fires.utils.utils import normalise_freq_window, normalise_phase_window
+                                 pa_variance_deg2, print_global_stats,
+                                 wrap_pa_deg)
 from fires.plotting.plot_helper import draw_plot_text
+from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logger = logging.getLogger(__name__)
 #	----------------------------------------------------------------------------------------------------------
@@ -256,7 +257,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	L = tsdata.Lts / 1e3  # Convert from Jy to kJy
 	
 	if figsize is None:
-		figsize = (7, 9)
+		figsize = (7, 7)
 	
 	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=figsize)
 	fig.subplots_adjust(hspace=0.)
@@ -319,7 +320,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
   		extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 	axs[2].set_xlabel("Time [ms]")
 	axs[2].set_ylabel("Freq. [MHz]")
-	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
+	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
 
 	if legend:
 		axs[1].legend(loc='upper right')
