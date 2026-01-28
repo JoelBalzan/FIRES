@@ -289,7 +289,7 @@ pytest   # (if tests added)
 Scintillation routines adapted from:
 Sprenger T. (2025). ScintillationMaker. https://github.com/SprengerT/ScintillationMaker (commit e33a4ca).
 
-Please cite FIRES and ScintillationMaker if scintillation functionality is used.
+Please cite FIRES (this page and/or https://arxiv.org/abs/2601.19254) and ScintillationMaker if scintillation functionality is used.
 
 ## License
 
