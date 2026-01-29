@@ -284,6 +284,10 @@ pip install -e .
 pytest   # (if tests added)
 ```
 
+## Compatibility
+
+FIRES has been tested on Linux with Python 3.12.
+
 ## Citation
 
 Scintillation routines adapted from:
