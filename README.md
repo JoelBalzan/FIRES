@@ -291,6 +291,11 @@ Sprenger T. (2025). ScintillationMaker. https://github.com/SprengerT/Scintillati
 
 Please cite FIRES (this page and/or https://arxiv.org/abs/2601.19254) and ScintillationMaker if scintillation functionality is used.
 
+## Acknowledgements
+
+Acknowledgements
+This project is based on the work by Tehya Conroy and Apurba Bera.
+
 ## License
 
 See repository for licensing details.
