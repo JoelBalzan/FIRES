@@ -563,7 +563,7 @@ def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False, rem
 
 			# Measure RM via RM synthesis
 			res_rmtool = estimate_rm(dspec, freq_mhz, time_ms, noisespec,
-									 phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=False)
+									 phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=True)
 			measured_rm = float(res_rmtool[0])
 
 			def _int_Lfrac(candidate):

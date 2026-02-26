@@ -257,7 +257,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	L = tsdata.Lts / 1e3  # Convert from Jy to kJy
 	
 	if figsize is None:
-		figsize = (7, 7)
+		figsize = (7, 9)
 	
 	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=figsize)
 	fig.subplots_adjust(hspace=0.)
