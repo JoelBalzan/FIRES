@@ -10,7 +10,7 @@
 [general]
 # General plotting options
 figsize    = None                # Default figure size [width, height] in inches, null for default
-extension  = "png"                # File extension for saved plots
+extension  = "pdf"                # File extension for saved plots
 use_latex  = true                 # Use LaTeX for plot text rendering
 show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
@@ -18,7 +18,7 @@ legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
 xlim       = None
 ylim       = None
-text       = None # Additional text to display. Options can be modified below
+text       = ["\\boldsymbol{(a)}"] # Additional text to display. Options can be modified below
 
 [general.text_style]
 enabled    = true          # master switch
@@ -54,6 +54,14 @@ ylim              = [2e-4,0.4]       # e.g., [0.0, 1.0]
 x_measured        = "Vpsi"           # Use measured quantity on x-axis
 equal_value_lines = 3                # Show constant parameter lines, only when using x_measured
 param_text        = None             # Show parameter values used, i.e., ["lfrac"]. Options can be modified below
+xshade = [
+  { range = [0.001, 0.02], colour = "#D9B382", alpha = 0.18 },
+  { range = [0.021, 0.5], colour = "#8FA7A1", alpha = 0.18 },
+  { range = [0.53, 40.0], colour = "#B9A0C9", alpha = 0.18 }
+]              # Shade x-ranges: [[0, 1], [2, 3]] or [{range=[0,1], colour="red", alpha=0.2}, ...]
+xshade_colour    = "lightgray"       # Matplotlib colour for x-range shading
+xshade_alpha     = 0.25              # Transparency for shaded regions
+xshade_zorder    = 0                 # Draw order (use low value to keep behind data)
 
 
 [analytical.param_text_style]

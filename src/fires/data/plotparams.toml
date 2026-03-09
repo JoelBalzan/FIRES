@@ -54,6 +54,10 @@ ylim              = [2e-4,0.4]       # e.g., [0.0, 1.0]
 x_measured        = "Vpsi"           # Use measured quantity on x-axis
 equal_value_lines = 3                # Show constant parameter lines, only when using x_measured
 param_text        = None             # Show parameter values used, i.e., ["lfrac"]. Options can be modified below
+xshade           = None              # Shade x-ranges: [[0, 1], [2, 3]] or [{range=[0,1], colour="red", alpha=0.2}, ...]
+xshade_colour    = "lightgray"       # Matplotlib colour for x-range shading
+xshade_alpha     = 0.25              # Transparency for shaded regions
+xshade_zorder    = 0                 # Draw order (use low value to keep behind data)
 
 
 [analytical.param_text_style]
