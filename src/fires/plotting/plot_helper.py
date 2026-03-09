@@ -42,8 +42,8 @@ param_map = {
 	"band_centre_mhz": (r"\nu_{\mathrm{c},0}", r"\mathrm{MHz}"),
 	"band_width_mhz" : (r"\Delta \nu_0", r"\mathrm{MHz}"),
 	"N"              : (r"N", ""),
-	"mg_width_low"   : (r"w_{\mathrm{low},0}", r"\%"),
-	"mg_width_high"  : (r"w_{\mathrm{high},0}", r"\%"),
+	"mg_width_low"   : (r"w_{\mathrm{low}}", r"\%"),
+	"mg_width_high"  : (r"w_{\mathrm{high}}", r"\%"),
 	# sd_<param> 
 	"sd_t0"             : (r"\sigma_{t_0}", r"\mathrm{ms}"),
 	"sd_A"              : (r"\sigma_A", ""),
@@ -81,7 +81,7 @@ def build_plot_text_string(plot_text, gdict):
 				val = gdict[item][0]
 				sym, unit = param_info_or_dynamic(item)
 				val_str = str(int(val)) if float(val).is_integer() else f"{float(val):g}"
-				label = rf"{sym} = {val_str}" + (rf"~[{unit}]" if unit else "")
+				label = rf"{sym} = {val_str}" + (rf"~{unit}" if unit else "")
 				label_parts.append(label)
 			else:
 				label_parts.append(str(item))

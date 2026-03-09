@@ -12,6 +12,7 @@
 # Date: 2025-05-20
 # -----------------------------------------------------------------------------
 
+import ast
 #	--------------------------	Import modules	---------------------------
 import logging
 import os
@@ -563,6 +564,106 @@ def _apply_axis_limits(ax, xlim=None, ylim=None):
 		ax.set_xlim(*xok)
 	if yok:
 		ax.set_ylim(*yok)
+
+
+def _parse_xshade_ranges(xshade):
+	"""
+	Parse x-shading ranges from config.
+
+	Accepted formats:
+	- list/tuple of 2-item ranges: [[x0, x1], [x2, x3]]
+	- list of dict entries: [{range=[x0, x1], colour="...", alpha=0.2, zorder=0}, ...]
+	- TOML array-of-arrays: [[0, 1], [2, 3]]
+	- string representation of either form.
+	"""
+	if xshade is None:
+		return []
+
+	parsed = xshade
+	if isinstance(xshade, str):
+		s = xshade.strip()
+		if not s:
+			return []
+		try:
+			parsed = ast.literal_eval(s)
+		except Exception:
+			logging.warning("analytical.xshade could not be parsed from string; ignoring.")
+			return []
+
+	if not isinstance(parsed, (list, tuple)):
+		logging.warning("analytical.xshade must be a list/tuple of [xmin, xmax] ranges.")
+		return []
+
+	ranges = []
+	for idx, item in enumerate(parsed):
+		entry_colour = None
+		entry_alpha = None
+		entry_zorder = None
+		rng = item
+
+		if isinstance(item, dict):
+			rng = item.get('range', item.get('xrange', None))
+			entry_colour = item.get('colour', item.get('color', None))
+			entry_alpha = item.get('alpha', None)
+			entry_zorder = item.get('zorder', None)
+
+		if not (isinstance(rng, (list, tuple)) and len(rng) == 2):
+			logging.warning(f"Skipping invalid xshade entry at index {idx}: {item}")
+			continue
+		try:
+			x0 = float(rng[0])
+			x1 = float(rng[1])
+		except Exception:
+			logging.warning(f"Skipping non-numeric xshade entry at index {idx}: {item}")
+			continue
+		if not (np.isfinite(x0) and np.isfinite(x1)):
+			logging.warning(f"Skipping non-finite xshade entry at index {idx}: {item}")
+			continue
+		if x0 == x1:
+			continue
+
+		if entry_alpha is not None:
+			try:
+				entry_alpha = float(entry_alpha)
+			except Exception:
+				entry_alpha = None
+		if entry_zorder is not None:
+			try:
+				entry_zorder = int(entry_zorder)
+			except Exception:
+				entry_zorder = None
+
+		ranges.append({
+			'lo': min(x0, x1),
+			'hi': max(x0, x1),
+			'colour': entry_colour,
+			'alpha': entry_alpha,
+			'zorder': entry_zorder,
+		})
+
+	return ranges
+
+
+def _apply_xshade_regions(ax, xshade, colour='lightgray', alpha=0.25, zorder=0):
+	"""Apply vertical shaded x-ranges to an axis."""
+	ranges = _parse_xshade_ranges(xshade)
+	if not ranges:
+		return
+
+	xscale = ax.get_xscale()
+	for item in ranges:
+		lo = item['lo']
+		hi = item['hi']
+		item_colour = item.get('colour') if item.get('colour') is not None else colour
+		item_alpha = item.get('alpha') if item.get('alpha') is not None else alpha
+		item_zorder = item.get('zorder') if item.get('zorder') is not None else zorder
+		if xscale == 'log':
+			if hi <= 0:
+				continue
+			if lo <= 0:
+				lo = np.nextafter(0.0, 1.0)
+		if lo < hi:
+			ax.axvspan(lo, hi, color=item_colour, alpha=item_alpha, zorder=item_zorder, linewidth=0)
 
 
 def _apply_log_decade_ticks(ax, axis='y', base=10, show_minor=True):
@@ -2736,6 +2837,10 @@ def plot_pa_var(
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
 	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
 	ylim_cfg = get_plot_param(plot_config, 'analytical', 'ylim', None)
+	xshade_cfg = get_plot_param(plot_config, 'analytical', 'xshade', None)
+	xshade_colour = get_plot_param(plot_config, 'analytical', 'xshade_colour', 'lightgray')
+	xshade_alpha = float(get_plot_param(plot_config, 'analytical', 'xshade_alpha', 0.25))
+	xshade_zorder = int(get_plot_param(plot_config, 'analytical', 'xshade_zorder', 0))
 
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
@@ -2778,6 +2883,7 @@ def plot_pa_var(
 			)
 			# Save/show
 			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
+			_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
 			if show:
 				plt.show()
 			if save:
@@ -2850,6 +2956,8 @@ def plot_pa_var(
 				gdict = frb_dict["gdict"]
 			display_text = build_plot_text_string(text, gdict)
 			draw_plot_text(ax, display_text, 'general', plot_config)
+
+	_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
 		
 	# Overlay observational data if provided
 	if obs_data is not None:
@@ -2994,6 +3102,10 @@ def plot_lfrac(
 	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
 	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
 	ylim_cfg = get_plot_param(plot_config, 'analytical', 'ylim', None)
+	xshade_cfg = get_plot_param(plot_config, 'analytical', 'xshade', None)
+	xshade_colour = get_plot_param(plot_config, 'analytical', 'xshade_colour', 'lightgray')
+	xshade_alpha = float(get_plot_param(plot_config, 'analytical', 'xshade_alpha', 0.25))
+	xshade_zorder = int(get_plot_param(plot_config, 'analytical', 'xshade_zorder', 0))
 	
 	# Extract general config
 	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
@@ -3032,6 +3144,7 @@ def plot_lfrac(
 				text=text
 			)
 			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
+			_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
 			if show:
 				plt.show()
 			if save:
@@ -3103,6 +3216,8 @@ def plot_lfrac(
 				gdict = frb_dict["gdict"]
 			display_text = build_plot_text_string(text, gdict)
 			draw_plot_text(ax, display_text, 'general', plot_config)
+
+	_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
 
 	if obs_data is not None:
 		obs_cfg = _get_obs_cfg(plot_config)
