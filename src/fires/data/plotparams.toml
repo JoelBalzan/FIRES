@@ -90,7 +90,7 @@ alpha   = 0.12        # alpha for X shaded band (used when style="shade")
 # If [analytical.equal_lines] exists and enabled = true it overrides equal_value_lines above. Only when using x_measured
 [analytical.equal_lines]
 enabled          = true             # master switch
-n_lines          = 5                # number of lines to draw
+n_lines          = [15,23,40]                # number of lines to draw
 colour_mode      = "shades"         # "shades" or "cmap"
 base_colour      = "blue"      # used when colour_mode   = "shades"
 cmap_name        = "viridis"        # used when colour_mode = "cmap"
