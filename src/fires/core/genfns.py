@@ -620,8 +620,8 @@ def psn_dspec(
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
-			#A_i        		  = np.random.normal(A[g], sd_A)
-			A_i        		  = np.random.uniform(A[g], sd_A)
+			A_i        		  = np.random.normal(A[g], sd_A)
+			#A_i        		  = np.random.uniform(A[g], sd_A)
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_i          = np.random.normal(tau[g], sd_tau)
@@ -631,7 +631,8 @@ def psn_dspec(
 			else:
 				tau_cms = None
 
-			PA_i              = np.random.normal(PA[g], sd_PA)
+			#PA_i              = np.random.normal(PA[g], sd_PA)
+			PA_i              = np.random.uniform(PA[g] - sd_PA, PA[g] + sd_PA)
 			DM_i              = np.random.normal(DM[g], sd_dm)
 			RM_i              = np.random.normal(RM[g], sd_rm)
 			# lfrac, vfrac are desired L/I and V/I; allow per-micro variation
