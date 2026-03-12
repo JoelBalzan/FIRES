@@ -653,13 +653,13 @@ def psn_dspec(
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
-			#A_i        		  = np.random.normal(A[g], sd_A)
+			A_i        		  = np.random.normal(A[g], sd_A)
 			#A_i = sample_powerlaw(
 			#    alpha=2,
 			#    xmin=A[g] / 10,
 			#    xmax=A[g] * 10
 			#)
-			A_i = sample_lognormal(A[g], sd_A)
+			#A_i = sample_lognormal(A[g], sd_A)
 			#A_i        		  = np.random.uniform(A[g], sd_A)
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
