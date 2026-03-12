@@ -501,6 +501,16 @@ def _resolve_polarisation(lfrac_i_raw, vfrac_i_raw):
 	return l * scale, v * scale
 
 
+def sample_powerlaw(alpha, xmin, xmax, size=None):
+    u = np.random.uniform(0, 1, size=size)
+
+    if alpha == 1:
+        return xmin * (xmax / xmin) ** u
+
+    pow = 1 - alpha
+    return (xmin**pow + u * (xmax**pow - xmin**pow)) ** (1 / pow)
+
+
 def psn_dspec(
 	dspec_params,
 	plot_multiple_frb,
@@ -620,7 +630,12 @@ def psn_dspec(
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
-			A_i        		  = np.random.normal(A[g], sd_A)
+			#A_i        		  = np.random.normal(A[g], sd_A)
+			A_i = sample_powerlaw(
+			    alpha=2,
+			    xmin=A[g] / 10,
+			    xmax=A[g] * 10
+			)
 			#A_i        		  = np.random.uniform(A[g], sd_A)
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
