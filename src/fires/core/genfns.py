@@ -18,12 +18,12 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import (add_noise, stokes_consistency_diagnostics,
-                                 compute_segments,
+from fires.core.basicfns import (add_noise, compute_segments, correct_baseline,
                                  estimate_noise_with_offpulse_mask,
                                  estimate_rm, on_off_pulse_masks_from_profile,
-                                 rm_correct_dspec, scatter_dspec, snr_onpulse,
-								 scale_dspec_to_target_snr, correct_baseline)
+                                 rm_correct_dspec, scale_dspec_to_target_snr,
+                                 scatter_dspec, snr_onpulse,
+                                 stokes_consistency_diagnostics)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 
@@ -511,6 +511,29 @@ def sample_powerlaw(alpha, xmin, xmax, size=None):
     return (xmin**pow + u * (xmax**pow - xmin**pow)) ** (1 / pow)
 
 
+def sample_lognormal(mean, sigma, size=None):
+    """
+    Draw samples from a log-normal distribution.
+
+    Parameters
+    ----------
+    mean : float
+        Mean amplitude in linear space (approximate).
+    sigma : float
+        Log-space standard deviation.
+    size : int or tuple, optional
+        Number of samples.
+
+    Returns
+    -------
+    ndarray or float
+        Log-normal random samples.
+    """
+
+    mu = np.log(mean) - 0.5 * sigma**2
+    return np.random.lognormal(mean=mu, sigma=sigma, size=size)
+
+
 def psn_dspec(
 	dspec_params,
 	plot_multiple_frb,
@@ -631,11 +654,12 @@ def psn_dspec(
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
 			#A_i        		  = np.random.normal(A[g], sd_A)
-			A_i = sample_powerlaw(
-			    alpha=2,
-			    xmin=A[g] / 10,
-			    xmax=A[g] * 10
-			)
+			#A_i = sample_powerlaw(
+			#    alpha=2,
+			#    xmin=A[g] / 10,
+			#    xmax=A[g] * 10
+			#)
+			A_i = sample_lognormal(A[g], sd_A)
 			#A_i        		  = np.random.uniform(A[g], sd_A)
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
