@@ -631,8 +631,7 @@ def psn_dspec(
 			else:
 				tau_cms = None
 
-			#PA_i              = np.random.normal(PA[g], sd_PA)
-			PA_i              = np.random.uniform(PA[g] - sd_PA, PA[g] + sd_PA)
+			PA_i              = np.random.normal(PA[g], sd_PA)
 			DM_i              = np.random.normal(DM[g], sd_dm)
 			RM_i              = np.random.normal(RM[g], sd_rm)
 			# lfrac, vfrac are desired L/I and V/I; allow per-micro variation
