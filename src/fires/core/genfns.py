@@ -534,6 +534,57 @@ def sample_lognormal(mean, sigma, size=None):
     return np.random.lognormal(mean=mu, sigma=sigma, size=size)
 
 
+def _sample_amplitude(mean_amp, sd_amp, amp_sampling):
+	"""Draw micro-shot amplitude according to configured distribution."""
+	dist = "normal"
+	cfg = amp_sampling if isinstance(amp_sampling, dict) else {}
+	if cfg.get("dist") is not None:
+		dist = str(cfg.get("dist")).strip().lower().replace("-", "_")
+	if dist == "gaussian":
+		dist = "normal"
+	elif dist == "log_normal":
+		dist = "lognormal"
+	elif dist == "power_law":
+		dist = "powerlaw"
+
+	mean_amp = float(mean_amp)
+	sd_amp = float(sd_amp)
+
+	if dist == "normal":
+		return float(np.random.normal(mean_amp, sd_amp)) if sd_amp > 0 else mean_amp
+
+	if dist == "lognormal":
+		sigma = cfg.get("lognormal_sigma")
+		sigma = float(sigma) if sigma is not None else sd_amp
+		sigma = max(sigma, 0.0)
+		if sigma == 0.0:
+			return max(mean_amp, 0.0)
+		return float(sample_lognormal(max(mean_amp, 1e-12), sigma))
+
+	if dist == "powerlaw":
+		alpha = float(cfg.get("powerlaw_alpha", 1.8))
+		xmin_scale = float(cfg.get("powerlaw_xmin_scale", 0.1))
+		xmax_scale = float(cfg.get("powerlaw_xmax_scale", 10.0))
+		base = max(abs(mean_amp), 1e-12)
+		xmin = max(1e-12, base * xmin_scale)
+		xmax = max(xmin * (1.0 + 1e-9), base * xmax_scale)
+		return float(sample_powerlaw(alpha=alpha, xmin=xmin, xmax=xmax))
+
+	if dist == "uniform":
+		low_scale = float(cfg.get("uniform_low_scale", 0.0))
+		high_scale = float(cfg.get("uniform_high_scale", 2.0))
+		base = abs(mean_amp)
+		low = base * low_scale
+		high = base * high_scale
+		if high < low:
+			low, high = high, low
+		if np.isclose(high, low):
+			return float(low)
+		return float(np.random.uniform(low, high))
+
+	raise ValueError(f"Unsupported amplitude distribution '{dist}'")
+
+
 def psn_dspec(
 	dspec_params,
 	plot_multiple_frb,
@@ -568,7 +619,10 @@ def psn_dspec(
 
 	seed = _init_seed(seed, plot_multiple_frb)
 
-	gdict = {k: np.array(v, copy=True) for k, v in gdict.items()}
+	gdict = {
+		k: (dict(v) if isinstance(v, dict) else np.array(v, copy=True))
+		for k, v in gdict.items()
+	}
 	sd_dict = {k: np.array(v, copy=True) for k, v in sd_dict.items()}
 
 	is_mean_sweep = (sweep_mode == "mean")
@@ -629,6 +683,7 @@ def psn_dspec(
 	sd_dPA             = sd_dict['sd_dPA']
 	sd_band_centre_mhz = sd_dict['sd_band_centre_mhz']
 	sd_band_width_mhz  = sd_dict['sd_band_width_mhz']
+	amp_sampling        = gdict.get('amp_sampling', {'dist': 'normal'})
 	
 			
 	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
@@ -653,14 +708,7 @@ def psn_dspec(
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
-			#A_i        		  = np.random.normal(A[g], sd_A)
-			A_i = sample_powerlaw(
-			    alpha=sd_A,
-			    xmin=A[g] / 10,
-			    xmax=A[g] * 10
-			)
-			#A_i = sample_lognormal(A[g], sd_A)
-			#A_i        		  = np.random.uniform(A[g], sd_A)
+			A_i = _sample_amplitude(A[g], sd_A, amp_sampling)
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_i          = np.random.normal(tau[g], sd_tau)

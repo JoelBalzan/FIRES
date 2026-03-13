@@ -58,3 +58,12 @@
   0.0   0.0     0.0       0.0        2.0   0.0   0.0     0     0.0     0.0    0.0    0.0          0.0         0    0             0             # stop
   0.0   0.0     0.0       0.0        0.1   0.0   0.0     0     0.0     0.0    0.0    0.0          0.0         0    0             0             # step
 #--------------------------------------------------------------------------------------------------------------------------------------------- #
+#
+#   Optional amplitude sampling metadata (parsed from '#@' lines below):
+#@amp_dist = normal              # normal | lognormal | powerlaw | uniform
+#@amp_powerlaw_alpha = 3         # used when amp_dist=powerlaw
+#@amp_powerlaw_xmin_scale = 0.1  # xmin = A * scale
+#@amp_powerlaw_xmax_scale = 10.0 # xmax = A * scale
+#@amp_uniform_low_scale = 0.0    # low = |A| * scale
+#@amp_uniform_high_scale = 2.0   # high = |A| * scale
+#@amp_lognormal_sigma = None     # if None, uses sd_A as sigma
