@@ -40,7 +40,7 @@ def _parse_gauss_metadata(gauss_file):
 	"""Parse optional '#@key = value' metadata directives from gparams files."""
 	defaults = {
 		"dist": "normal",
-		"powerlaw_alpha": 1.8,
+		"powerlaw_alpha": 3,
 		"powerlaw_xmin_scale": 0.1,
 		"powerlaw_xmax_scale": 10.0,
 		"uniform_low_scale": 0.0,
