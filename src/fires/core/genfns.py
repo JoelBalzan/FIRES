@@ -800,9 +800,29 @@ def psn_dspec(
 		var = float(np.nanvar(arr)) if arr.size else np.nan
 		V_params[f"meas_var_{key}"] = var
 
-	if target_snr is not None:
-		sefd = scale_dspec_to_target_snr(target_snr_mode, target_snr, dspec_params, dspec, freq_mhz, time_res_ms,
-			   buffer_frac, sefd, plot_multiple_frb, time_ms)
+	# Apply target-SNR scaling only when a positive target is explicitly provided.
+	use_target_snr = False
+	try:
+		if target_snr is not None:
+			tsnr = float(target_snr)
+			if np.isfinite(tsnr) and tsnr > 0:
+				use_target_snr = True
+	except (TypeError, ValueError):
+		use_target_snr = False
+
+	if use_target_snr:
+		sefd = scale_dspec_to_target_snr(
+			target_snr_mode,
+			float(target_snr),
+			dspec_params,
+			dspec,
+			freq_mhz,
+			time_res_ms,
+			buffer_frac,
+			sefd,
+			plot_multiple_frb,
+			time_ms,
+		)
 
 	if sefd > 0:
 		dspec, _, snr = add_noise(dspec_params,
@@ -863,7 +883,7 @@ def psn_dspec(
 	# Off-pulse baseline correction (per Stokes, per frequency channel)
 	if baseline_correct is not None:
 		try:
-			dspec = correct_baseline(intrinsic_width_bins, buffer_frac, baseline_correct, plot_multiple_frb, dspec_params)
+			dspec = correct_baseline(dspec, intrinsic_width_bins, buffer_frac, baseline_correct, plot_multiple_frb, dspec_params)
 
 		except Exception as e:
 			logging.warning("Baseline correction failed; continuing without it (%s).", str(e))

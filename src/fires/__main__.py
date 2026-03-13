@@ -19,9 +19,11 @@ import sys
 import traceback
 from email import parser
 from inspect import signature
+from pathlib import Path
 
 import numpy as np
 
+from fires.config.schema import parse_fires_config
 from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import plot_modes
 from fires.utils import config as cfg
@@ -44,7 +46,7 @@ def main():
 	parser.add_argument(
 		"--config-dir", 
 		type=str, 
-		help="Override user config dir (default: ~/.config/fires)"
+		help="Path to fires.toml or directory containing fires.toml (required)."
 	)
 	parser.add_argument(
 		"--init-config", 
@@ -53,8 +55,8 @@ def main():
 	)
 	parser.add_argument(
 		"--edit-config", 
-		choices=["gparams", "simparams", "scparams", "plotparams"], 
-		help="Open config in $EDITOR"
+		choices=["fires", "plotparams"], 
+		help="Open default config in $EDITOR"
 	)
 
 	# =====================================================================
@@ -82,11 +84,6 @@ def main():
 		help="Directory to save the simulated FRB data (default: 'simfrbs/')."
 	)
 	parser.add_argument(
-		"--write",
-		action="store_true",
-		help="If set, the simulation data will be pickled."
-	)
-	parser.add_argument(
 		"-v", "--verbose",
 		action="store_true",
 		help="Enable verbose output."
@@ -106,46 +103,6 @@ def main():
 		   )
 	)
 	parser.add_argument(
-		"--seed",
-		type=int,
-		default=None,
-		metavar="",
-		help="Set seed for repeatability in psn mode."
-	)
-	parser.add_argument(
-		"--nseed",
-		type=int,
-		default=1,
-		metavar="",
-		help="How many realisations to generate for analytical plots."
-	)
-	parser.add_argument(
-		"--ncpu",
-		type=int,
-		default=1,
-		metavar="",
-		help="Number of CPUs to use for parallel processing. Default is 1 (single-threaded)."
-	)
-	parser.add_argument(
-		"--sefd",
-		type=float,
-		default=0.0,
-		metavar="",
-		help="System equivalent flux density in Jansky for adding noise. Default is 0 Jy (no noise)."
-	)
-	parser.add_argument(
-		"--snr",
-		type=float,
-		default=None,
-		metavar="",
-		help="Target S/N for the pulse peak. If set, this will override the --sefd option."
-	)
-	parser.add_argument(
-		"--scint",
-		action="store_true",
-		help="Enable scintillation effects from scparamts.toml."
-	)
-	parser.add_argument(
 		"--chi2-fit",
 		action="store_true",
 		help="Enable chi-squared fitting on the final profiles (plot != analytical)."
@@ -158,7 +115,7 @@ def main():
 		default=None,
 		metavar="PARAM=VALUE",
 		help=(
-			"Override gparams parameters. Provide space-separated key=value pairs.\n"
+			"Override emission/sweep parameters from fires.toml. Provide space-separated key=value pairs.\n"
 			"Examples:\n"
 			"  --override-param N=5 tau=0.5\n"
 			"  --override-param lfrac=0.8\n"
@@ -166,14 +123,6 @@ def main():
 			"  --override-param N=5 --override-param mg_width_low=20 mg_width_high=40\n"
 			"Note: Use PARAM=VALUE to override the mean, and PARAM_sd=VALUE or sd_PARAM=VALUE to override the std dev."
 		)
-	)
-	parser.add_argument(
-		"-b", "--baseline",
-		type=str,
-		default=None,
-		choices=["median", "mean", "z", "z_i"],
-		metavar="",
-		help="Baseline correction method to use. Options are: 'median', 'mean', 'z', or 'z_i'. If not set, no baseline correction is applied."
 	)
 
 	# =====================================================================
@@ -204,13 +153,6 @@ def main():
 				"Default is 'full-band' or 'full'."
 	  )
 	)
-	parser.add_argument(
-		"--buffer",
-		type=float,
-		default=1,
-		metavar="",
-		help="Buffer time in between on- and off-pulse regions as a fraction of the intrinsic pulse width for noise estimation. Default is 1."
-	)
 	# =====================================================================
 	# Plotting Options - General
 	# =====================================================================
@@ -220,7 +162,7 @@ def main():
 		default=['lvpa'],
 		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac', 'pa'],
 		metavar="",
-		help=(
+			help=(
 			"Generate plots. Pass 'all' to generate all (non-analytical) plots, or specify one or more plot names separated by spaces:\n"
 			"Basic Plots:\n"
 			"  'iquv': Plot the Stokes parameters (I, Q, U, V) vs. time or frequency.\n"
@@ -228,8 +170,8 @@ def main():
 			"  'dpa': Plot the derivative of the polarisation angle (dPA/dt) vs. time.\n"
 			"  'RM': Plot the rotation measure (RM) vs. frequency from RM-Tools.\n"
 			"Analytical Plots:\n"
-			"  'pa_var': Plot the variance of the polarisation angle (PA) vs. swept parameter in gparams.\n"
-			"  'l_frac': Plot the fraction of linear polarisation (L/I)/(L/I)_0 vs. swept parameter in gparams.\n"
+			"  'pa_var': Plot the variance of the polarisation angle (PA) vs. swept parameter.\n"
+			"  'l_frac': Plot the fraction of linear polarisation (L/I)/(L/I)_0 vs. swept parameter.\n"
 			"Pass 'None' to disable all plots."
 		)
 	)
@@ -258,23 +200,6 @@ def main():
 	# =====================================================================
 	# Plotting Options - Analytic Plots (pa_var, l_frac)
 	# =====================================================================
-	parser.add_argument(
-		"--logstep",
-		type=int,
-		default=None,
-		help="Number of steps for logarithmic parameter sweeps --- overrides default linear step in gparams (default: None --- will use default linear step)."
-	)
-	parser.add_argument(
-		"--sweep-mode",
-		type=str,
-		default="none",
-		choices=["none", "mean", "sd"],
-		metavar="",
-		help=("Parameter sweep mode for analytical plots:\n"
-			  "  none      : disable sweeping (use means + micro std dev only)\n"
-			  "  mean      : sweep the mean value (std dev forced to 0 for that param)\n"
-			  "  sd		   : keep mean fixed, sweep the micro std dev\n")
-	)
 	parser.add_argument(
 		"--compare-windows",
 		type=str,
@@ -333,12 +258,50 @@ def main():
 		return
 
 
-	resolved_sim   = str(cfg.find_config_file("simparams", config_dir=args.config_dir))
-	resolved_gauss = str(cfg.find_config_file("gparams",   config_dir=args.config_dir))
-	if args.scint:
-		resolved_scint = str(cfg.find_config_file("scparams", config_dir=args.config_dir))
+	resolved_master = None
+	use_master = False
+	if args.config_dir:
+		cfg_path = Path(args.config_dir).expanduser().resolve()
+		if cfg_path.is_file() and cfg_path.name == "fires.toml":
+			resolved_master = cfg_path
+			use_master = True
+		elif cfg_path.is_dir():
+			cand = cfg_path / "fires.toml"
+			if cand.exists():
+				resolved_master = cand
+				use_master = True
+
+	if not use_master or resolved_master is None:
+		parser.error("Master config required: pass --config-dir <path-to-fires.toml or directory containing fires.toml>.")
+	master_cfg = None
+
+	try:
+		master_cfg = parse_fires_config(cfg.load_params("fires", override_path=resolved_master))
+		logging.info("Using master config: %s", resolved_master)
+		if args.output_dir == "simfrbs/":
+			args.output_dir = str(master_cfg.output.directory)
+	except Exception as e:
+		parser.error(f"Failed to load master config {resolved_master}: {e}")
+
+	write_output = bool(master_cfg.output.write)
+	seed = master_cfg.meta.seed
+	ncpu = int(master_cfg.numerics.n_cpus)
+	nseed = int(master_cfg.numerics.nseed)
+	buffer_frac = float(master_cfg.observation.buffer_fraction)
+	sefd = float(master_cfg.observation.sefd)
+	target_snr = float(master_cfg.observation.target_snr) if master_cfg.observation.target_snr is not None else None
+	if target_snr is not None and target_snr <= 0:
+		target_snr = None
+	baseline_correct = master_cfg.observation.baseline_correct
+	if isinstance(baseline_correct, bool) and not baseline_correct:
+		baseline_correct = None
+	if bool(master_cfg.analysis.sweep.enable):
+		sweep_mode = str(master_cfg.analysis.sweep.mode).lower()
 	else:
-		resolved_scint = None
+		sweep_mode = "none"
+	logstep = None
+	if master_cfg.analysis.sweep.parameter.log_steps is not None:
+		logstep = int(master_cfg.analysis.sweep.parameter.log_steps)
 
 	plot_config = {}
 	try:
@@ -376,7 +339,7 @@ def main():
 
 	save_plots = plot_config.get('general', {}).get('save_plots', False)
 
-	if args.write or save_plots:
+	if write_output or save_plots:
 		os.makedirs(args.output_dir, exist_ok=True)
 		logging.info(f"Output directory: '{data_directory}' \n")
   
@@ -458,58 +421,60 @@ def main():
 	try:
 		if selected_plot_mode.requires_multiple_frb:
 			if args.sim_data is None:
-				logging.info(f"Processing with {args.ncpu} threads. \n")
+				logging.info(f"Processing with {ncpu} threads. \n")
    
 			frb_dict = generate_frb(
 				data            = args.sim_data,
 				frb_id          = args.frb_identifier,
-				sim_file        = resolved_sim,
-				gauss_file      = resolved_gauss,
-				scint_file      = resolved_scint,
+				sim_file        = None,
+				gauss_file      = None,
+				scint_file      = None,
+				master_file     = str(resolved_master) if use_master and resolved_master is not None else None,
 				out_dir         = args.output_dir,
-				write           = args.write,
+				write           = write_output,
 				mode            = args.mode,
-				seed            = args.seed,
-				nseed           = args.nseed,
-				sefd            = args.sefd,
-				n_cpus          = args.ncpu,
+				seed            = seed,
+				nseed           = nseed,
+				sefd            = sefd,
+				n_cpus          = ncpu,
 				plot_mode       = selected_plot_mode,
 				phase_window    = args.phase_window,
 				freq_window     = args.freq_window,
-				buffer_frac     = args.buffer,
-				sweep_mode      = args.sweep_mode,
-				target_snr      = args.snr,
+				buffer_frac     = buffer_frac,
+				sweep_mode      = sweep_mode,
+				target_snr      = target_snr,
 				obs_data        = None,
 				obs_params      = None,
 				param_overrides = all_param_overrides,
-				logstep         = args.logstep,
-				baseline_correct = args.baseline,
+				logstep         = logstep,
+				baseline_correct = baseline_correct,
 				)
 		else:
 			FRB, noisespec, gdict, segments = generate_frb(
 				data            = args.sim_data,
 				frb_id          = args.frb_identifier,
-				sim_file        = resolved_sim,
-				gauss_file      = resolved_gauss,
-				scint_file      = resolved_scint,
+				sim_file        = None,
+				gauss_file      = None,
+				scint_file      = None,
+				master_file     = str(resolved_master) if use_master and resolved_master is not None else None,
 				out_dir         = args.output_dir,
-				write           = args.write,
+				write           = write_output,
 				mode            = args.mode,
-				seed            = args.seed,
+				seed            = seed,
 				nseed           = None,
-				sefd            = args.sefd,
+				sefd            = sefd,
 				n_cpus          = None,
 				plot_mode       = selected_plot_mode,
 				phase_window    = args.phase_window,
 				freq_window     = args.freq_window,
-				buffer_frac     = args.buffer,
+				buffer_frac     = buffer_frac,
 				sweep_mode      = None,
-				target_snr      = args.snr,
+				target_snr      = target_snr,
 				obs_data        = args.obs_data,
 				obs_params      = args.obs_params,
 				param_overrides = all_param_overrides,
 				logstep         = None,
-				baseline_correct = args.baseline,
+				baseline_correct = baseline_correct,
 			)
 			if args.chi2_fit:
 				logging.info("Performing chi-squared fitting on the final profiles... \n")
@@ -550,10 +515,10 @@ def main():
 						"compare_windows"  : window_pairs,
 						"obs_data"         : args.obs_data,
 						"obs_params"       : args.obs_params,
-						"gauss_file"       : resolved_gauss,
-						"sim_file"         : resolved_sim,
+						"gauss_file"       : str(resolved_master),
+						"sim_file"         : str(resolved_master),
 						"plot_config"      : plot_config,
-						"buffer_frac"      : args.buffer,
+						"buffer_frac"      : buffer_frac,
 						"segments"         : segments if 'segments' in locals() else None,
 					}
 		

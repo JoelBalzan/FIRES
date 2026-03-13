@@ -29,44 +29,40 @@ On first use, initialise your local configuration (only needs to be done once):
 fires --init-config
 ```
 
-Simulate a single FRB and plot linear polarisation + PA:
-```bash
-fires --plot lvpa
+This creates:
+```text
+~/.config/fires/
+  fires.toml
+  plotparams.toml
 ```
 
-Add noise with SEFD (Jy):
+Run with a master config (`--config-dir` accepts either a directory containing `fires.toml` or the file path itself):
 ```bash
-fires --sefd 50 --plot iquv
+fires --config-dir paper/191001 --plot lvpa
 ```
 
-Force a target peak S/N (overrides --sefd):
+Override a parameter at runtime:
 ```bash
-fires --snr 25 --plot lvpa
-```
-
-Enable scintillation (requires scparams.toml):
-```bash
-fires --scint --plot iquv
-```
-
-Sweep scattering timescale analytically (uses gparams sweep rows):
-```bash
-fires --plot pa_var l_frac --sweep-mode sd
-```
-
-Override a Gaussian parameter mean and std dev at runtime:
-```bash
-fires --override-param tau=0.8 sd_tau=0.15 --plot lvpa
+fires --config-dir paper/191001 --override-param tau=0.8 sd_tau=0.15 --plot lvpa
 ```
 
 Change plot config values inline:
 ```bash
-fires --override-plot styling.font_size=18 general.extension=png --plot iquv
+fires --config-dir paper/191001 --override-plot styling.font_size=18 general.extension=png --plot iquv
 ```
 
 Compare multiple windows from a single run:
 ```bash
-fires --compare-windows full-band:leading full-band:trailing full-band:total --plot lvpa
+fires --config-dir paper/191001 --compare-windows full-band:leading full-band:trailing full-band:total --plot lvpa
+```
+
+Use precomputed simulation data for analytical plotting:
+```bash
+fires --config-dir paper/191001/PA_sweep/L0.95 \
+      --plot l_frac \
+      --sim-data /path/to/precomputed/sweep \
+      --obs-data /path/to/obs \
+      --obs-params /path/to/parameters.txt
 ```
 
 ## Configuration System
@@ -78,35 +74,30 @@ fires --init-config
 Creates editable copies in:
 ```
 ~/.config/fires/
-  simparams.toml
-  gparams.toml
-  scparams.toml
+  fires.toml
   plotparams.toml
 ```
 
 Edit a config (respects $VISUAL / $EDITOR; falls back to nano):
 ```bash
-fires --edit-config simparams
-fires --edit-config gparams
-fires --edit-config scparams
+fires --edit-config fires
 fires --edit-config plotparams
 ```
 
-Override base directory:
+Override config location:
 ```bash
-fires --config-dir /path/to/custom/config
+fires --config-dir /path/to/custom/config-dir
+fires --config-dir /path/to/custom/fires.toml
 ```
 
 Search order per file:
 1. Explicit override (e.g. via --config-dir)
 2. User config (~/.config/fires/)
-3. Packaged defaults (src/fires/data/*.toml)
+3. Packaged defaults (src/fires/config/*.toml)
 
 ## File Roles
 
-- simparams.toml: Dynamic spectrum axes (frequency/time ranges), scattering index, reference frequency.
-- gparams.toml: Gaussian ensemble specification (mean row + std dev row + sweep rows). Only one parameter may be swept per run.
-- scparams.toml: Scintillation maker parameters (timescale, bandwidth, number of phasor components).
+- fires.toml: Master simulation configuration (meta, grid, propagation, emission, sweep, observation, numerics, output).
 - plotparams.toml: Plotting + style configuration (see below).
 
 ## Plot Configuration (plotparams.toml)
@@ -143,8 +134,8 @@ color_cycle     = ["#1f77b4","#ff7f0e","#2ca02c","#d62728"]
 
 Runtime override examples:
 ```bash
-fires --override-plot general.extension=png general.save_plots=true --plot lvpa
-fires --override-plot styling.font_size=20 analytical.plot_scale=log --plot pa_var
+fires --config-dir paper/191001 --override-plot general.extension=png general.save_plots=true --plot lvpa
+fires --config-dir paper/191001 --override-plot styling.font_size=20 analytical.plot_scale=log --plot pa_var
 ```
 
 Nested keys use dot notation; lists use Python literal syntax: figsize=[6,4].
@@ -175,33 +166,31 @@ Frequency windows:
 - 1q, 2q, 3q, 4q, full, full-band
 - Verbose aliases: lowest-quarter, lower-mid-quarter, upper-mid-quarter, highest-quarter
 
-Noise estimation uses on/off-pulse segmentation plus buffer fraction (--buffer). Default buffer: 1 × intrinsic width.
+Noise estimation uses on/off-pulse segmentation plus `observation.buffer_fraction` from `fires.toml`.
 
 ## Analytical Sweeps
 
-gparams last three rows (start, stop, step) define a sweep range for exactly one parameter (non-zero step). Modes:
-- --sweep-mode none: use mean row + std dev row only
-- --sweep-mode mean: sweep mean; force its std dev to zero
-- --sweep-mode sd: fixed mean; sweep its std dev
-Optional logarithmic stepping: --logstep N (replaces linear stepping count).
+Sweeps are configured in `fires.toml` under `[analysis.sweep]` and `[analysis.sweep.parameter]`:
+- `enable = true|false`
+- `mode = "none" | "mean" | "sd"`
+- `parameter.name`, `start`, `stop`, `step`
+- Optional `log_steps` for logarithmic spacing
 
-Analytical plots (pa_var, l_frac) may aggregate multiple FRB realisations (--nseed).
+Analytical plots (`pa_var`, `l_frac`) aggregate realisations using `numerics.nseed`.
 
 ## Baseline Correction
 
---baseline choices:
-- median: subtract median off-pulse
-- mean: subtract mean off-pulse
-- z: convert to z-score globally
-- z_i: per-frequency-channel z-score
-Omit for none.
+Set `observation.baseline_correct` in `fires.toml`:
+- `false` or `null`: disable baseline correction
+- `median`: subtract median off-pulse
+- `mean`: subtract mean off-pulse
+- `z`: convert to z-score globally
+- `z_i`: per-frequency-channel z-score
 
 ## Scintillation
 
-Enable with --scint (loads scparams.toml). Gain applied multiplicatively to all Stokes prior to noise. Parameters:
-- t_s (characteristic timescale, s)
-- nu_s (decorrelation bandwidth, Hz)
-- N_im (number of phasor components)
+Configure under `[propagation.scintillation]` in `fires.toml`.
+Gain is applied multiplicatively to all Stokes prior to noise.
 
 ## Chi-squared Fitting
 
@@ -211,40 +200,31 @@ Enable with --scint (loads scparams.toml). Gain applied multiplicatively to all 
 
 Provide measured dynamic spectrum for analytical comparison:
 ```bash
-fires --plot pa_var --obs-data path/to/obs.npy --obs-params path/to/params.toml
+fires --config-dir paper/191001 --plot pa_var --obs-data path/to/obs.npy --obs-params path/to/params.toml
 ```
 
 ## Command-Line Reference
 
 ```text
 Configuration:
-  --config-dir <dir>      Override user config directory
+  --config-dir <path>     Path to fires.toml or directory containing fires.toml (required for runs)
   --init-config           Copy packaged defaults to user config
-  --edit-config {gparams,simparams,scparams,plotparams}
+  --edit-config {fires,plotparams}
 
 Core I/O:
   -f, --frb_identifier <str>   FRB identifier (default FRB)
   -d, --sim-data <path>        Existing simulation data (use instead of generating)
   -o, --output-dir <dir>       Output directory (default simfrbs/)
-  --write                      Persist simulation products (pickle/arrays)
   -v, --verbose                Verbose logging
 
 Generation:
   -m, --mode psn               Micro-shot ensemble (only mode at present)
-  --seed <int>                 RNG seed
-  --nseed <int>                Number of realisations (analytical)
-  --ncpu <int>                 Parallel threads (analytical multi-runs)
-  --sefd <float>               System equivalent flux density (Jy)
-  --snr <float>                Target peak S/N (overrides --sefd)
-  --scint                      Enable scintillation
   --override-param PARAM=VAL [PARAM=VAL ...]
                                Override mean or std dev (use sd_<param> or <param>_sd)
-  -b, --baseline {median,mean,z,z_i}
 
 Windows & Noise:
   --phase-window {leading,trailing,total,first,last,all}
   --freq-window  {1q,2q,3q,4q,full,full-band,...}
-  --buffer <float>              Buffer multiplier (default 1)
 
 Plotting:
   -p, --plot <modes...>         any of: all None iquv lvpa dpa RM pa_var l_frac pa
@@ -252,8 +232,6 @@ Plotting:
   --override-plot KEY=VALUE [...]  Nested via dot notation
 
 Analytical:
-  --sweep-mode {none,mean,sd}
-  --logstep <int>               Logarithmic step count (optional)
   --compare-windows FREQ:PHASE [..]  Multi-window overlay (single-run)
 
 Fitting / Overlay:
@@ -265,7 +243,7 @@ Fitting / Overlay:
 ## Outputs
 
 Depending on options:
-- Pickled simulation objects (--write)
+- Pickled simulation objects (`output.write = true` in `fires.toml`)
 - Plot PDFs/PNGs as configured (plotparams.toml)
 
 ## Examples and Paper Data

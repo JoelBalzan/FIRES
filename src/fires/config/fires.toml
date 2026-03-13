@@ -1,0 +1,155 @@
+[meta]
+name    = "FIRES"
+seed    = 12345
+version = 1
+
+# ========================================================== 
+# SIMULATION GRID 
+# ========================================================== 
+
+[simulation.grid]
+f_start_MHz = 751.5
+f_end_MHz   = 900.5
+df_MHz      = 1.0
+
+t_start_ms = -6.4327
+t_end_ms   = 10.61
+dt_ms      = 0.0230
+
+reference_freq_MHz = 1000  # Reference for spectral index and tau(nu) scaling.
+
+# ========================================================== 
+# PROPAGATION PHYSICS
+# ========================================================== 
+
+[propagation.scattering]
+index = -4.85  # Scattering law exponent: tau(nu) ~ (nu/nu_ref)^index.
+
+[propagation.scintillation]
+enable          = true
+timescale_s     = 300
+bandwidth_Hz    = 1.5e6
+derive_from_tau = false  # If true: nu_s is derived from tau_ms at reference_freq_MHz.
+
+N_images     = 5000  # Number of phasor/image terms in scintillation screen.
+theta_extent = 3.0   # Angular truncation control for screen synthesis.
+return_field = false # Return complex field (E) in addition to gain if enabled in code path.
+
+[propagation.scintillation.output]
+save_gain = false
+path      = "scint_gain.npy"
+
+# ========================================================== 
+# EMISSION MODEL
+# ========================================================== 
+
+[emission]
+model = "gaussian_microshot"
+
+# ----------------------------------------------------------
+# Gaussian envelope components
+# ----------------------------------------------------------
+
+[[emission.components]]
+t0_ms           = -2.0
+width_ms        = 0.5
+amplitude_Jy    = 0.2
+spectral_index  = 0.0
+tau_ms          = 1.78  # Scattering timescale at reference_freq_MHz (ms).
+dm              = 0.0   # Dispersion measure (pc cm^-3).
+rm              = 0.0   # Rotation measure (rad m^-2).
+pa_deg          = 20
+lfrac           = 0.95  # Desired L/I.
+vfrac           = -0.05 # Desired V/I; code rescales (L/I,V/I) together if L^2+V^2 > 1.
+dpa_deg_per_ms  = 0.0
+band_centre_MHz = 0.0
+band_width_MHz  = 0.0
+
+# Microshot population
+
+[emission.components.microshots]
+N               = 100
+width_frac_low  = 0.05  # Microshot FWHM fraction of component width (lower bound).
+width_frac_high = 0.20  # Microshot FWHM fraction of component width (upper bound).
+
+# ----------------------------------------------------------
+# Microshot statistical variations
+# ----------------------------------------------------------
+
+[emission.components.microshot_scatter]
+t0_sigma_ms          = 0.0  # Per-microshot Gaussian scatter (std dev) around component mean.
+width_sigma_ms       = 0.0
+amplitude_sigma      = 0.0
+spectral_index_sigma = 0.0
+tau_sigma_ms         = 0.0
+dm_sigma             = 0.0
+rm_sigma             = 0.0
+pa_sigma_deg         = 30
+lfrac_sigma          = 0.0
+vfrac_sigma          = 0.0
+dpa_sigma            = 0.0
+band_centre_sigma    = 0.0
+band_width_sigma     = 0.0
+
+# ----------------------------------------------------------
+# Amplitude distribution
+# ----------------------------------------------------------
+
+[emission.components.amplitude_distribution]
+type = "powerlaw"  # normal | lognormal | powerlaw | uniform
+
+[emission.components.amplitude_distribution.powerlaw]
+alpha      = 3    # p(A) ~ A^-alpha.
+xmin_scale = 0.1  # Lower bound = amplitude_Jy * xmin_scale.
+xmax_scale = 10.0 # Upper bound = amplitude_Jy * xmax_scale.
+
+[emission.components.amplitude_distribution.lognormal]
+sigma = 0.3  # Log-space sigma used when type = "lognormal".
+
+[emission.components.amplitude_distribution.uniform]
+low_scale  = 0.0 # Lower bound = |amplitude_Jy| * low_scale.
+high_scale = 2.0 # Upper bound = |amplitude_Jy| * high_scale.
+
+# ========================================================== 
+# ANALYSIS / SWEEP CONTROL
+# ========================================================== 
+
+[analysis.sweep]
+enable = true
+mode   = "sd"   # none | mean | sd
+
+[analysis.sweep.parameter]
+component = 0              # 0-based component index in [[emission.components]].
+name      = "pa_sigma_deg" # Parameter key to sweep (mean or sigma based on mode).
+
+start     = 0
+stop      = 45
+step      = 1
+log_steps = null  # Optional number of log-spaced points; null keeps linear start/stop/step.
+
+# ========================================================== 
+# OBSERVATION / NOISE MODEL
+# ========================================================== 
+
+[observation]
+sefd             = 30
+target_snr       = null
+baseline_correct = false # false or one of: median, mean, z, z_i
+buffer_fraction  = 0.1   # On/off-pulse gap = buffer_fraction * intrinsic envelope width.
+
+# ========================================================== 
+# PERFORMANCE
+# ========================================================== 
+
+[numerics]
+n_cpus          = 8
+nseed           = 1
+
+# ========================================================== 
+# OUTPUT
+# ========================================================== 
+
+[output]
+write     = true
+mode      = "full"
+directory = "output"

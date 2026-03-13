@@ -24,6 +24,7 @@ from itertools import product
 import numpy as np
 from tqdm import tqdm
 
+from fires.config.schema import parse_fires_config
 from fires.core.basicfns import (add_noise, boxcar_snr, compute_segments,
                                  correct_baseline, process_dspec,
                                  scale_dspec_to_target_snr,
@@ -36,79 +37,150 @@ from fires.utils.utils import dspecParams, simulated_frb
 logging.basicConfig(level=logging.INFO)
 
 
-def _parse_gauss_metadata(gauss_file):
-	"""Parse optional '#@key = value' metadata directives from gparams files."""
-	defaults = {
+def _normalise_master_amp_sampling(amp_cfg):
+	"""Convert master TOML amplitude_distribution block into internal sampling config."""
+	out = {
 		"dist": "normal",
-		"powerlaw_alpha": 3,
+		"powerlaw_alpha": 3.0,
 		"powerlaw_xmin_scale": 0.1,
 		"powerlaw_xmax_scale": 10.0,
 		"uniform_low_scale": 0.0,
 		"uniform_high_scale": 2.0,
 		"lognormal_sigma": None,
 	}
+	if not isinstance(amp_cfg, dict):
+		return out
 
-	def _parse_value(raw):
-		raw = raw.strip()
-		if not raw:
-			return raw
-		low = raw.lower()
-		if low in {"none", "null"}:
-			return None
-		try:
-			if any(ch in raw for ch in (".", "e", "E")):
-				return float(raw)
-			return int(raw)
-		except ValueError:
-			return raw
+	dist = str(amp_cfg.get("type", "normal")).strip().lower().replace("-", "_")
+	out["dist"] = dist
 
-	cfg = dict(defaults)
-	try:
-		with open(gauss_file, "r", encoding="utf-8") as fh:
-			for line in fh:
-				line = line.strip()
-				if not line.startswith("#@") or "=" not in line:
-					continue
-				payload = line[2:]
-				key, raw_val = payload.split("=", 1)
-				key = key.strip().lower()
-				raw_val = raw_val.split("#", 1)[0].strip()
-				val = _parse_value(raw_val)
+	if isinstance(amp_cfg.get("powerlaw"), dict):
+		pw = amp_cfg["powerlaw"]
+		out["powerlaw_alpha"] = float(pw.get("alpha", out["powerlaw_alpha"]))
+		out["powerlaw_xmin_scale"] = float(pw.get("xmin_scale", out["powerlaw_xmin_scale"]))
+		out["powerlaw_xmax_scale"] = float(pw.get("xmax_scale", out["powerlaw_xmax_scale"]))
 
-				if key == "amp_dist":
-					cfg["dist"] = str(val).strip().lower().replace("-", "_")
-				elif key == "amp_powerlaw_alpha":
-					cfg["powerlaw_alpha"] = float(val)
-				elif key == "amp_powerlaw_xmin_scale":
-					cfg["powerlaw_xmin_scale"] = float(val)
-				elif key == "amp_powerlaw_xmax_scale":
-					cfg["powerlaw_xmax_scale"] = float(val)
-				elif key == "amp_uniform_low_scale":
-					cfg["uniform_low_scale"] = float(val)
-				elif key == "amp_uniform_high_scale":
-					cfg["uniform_high_scale"] = float(val)
-				elif key == "amp_lognormal_sigma":
-					cfg["lognormal_sigma"] = None if val is None else float(val)
-	except OSError:
-		# Missing file handling is done by the main loader path.
-		pass
+	if isinstance(amp_cfg.get("uniform"), dict):
+		uu = amp_cfg["uniform"]
+		out["uniform_low_scale"] = float(uu.get("low_scale", out["uniform_low_scale"]))
+		out["uniform_high_scale"] = float(uu.get("high_scale", out["uniform_high_scale"]))
 
-	allowed = {"normal", "gaussian", "lognormal", "log_normal", "powerlaw", "power_law", "uniform"}
-	if cfg["dist"] not in allowed:
-		logging.warning("Unknown amp_dist '%s'; falling back to 'normal'.", cfg["dist"])
-		cfg["dist"] = "normal"
+	if isinstance(amp_cfg.get("lognormal"), dict):
+		ln = amp_cfg["lognormal"]
+		sigma = ln.get("sigma", None)
+		out["lognormal_sigma"] = None if sigma is None else float(sigma)
 
-	if cfg["powerlaw_xmin_scale"] <= 0:
-		logging.warning("amp_powerlaw_xmin_scale must be > 0; using default %.3f", defaults["powerlaw_xmin_scale"])
-		cfg["powerlaw_xmin_scale"] = defaults["powerlaw_xmin_scale"]
-	if cfg["powerlaw_xmax_scale"] <= cfg["powerlaw_xmin_scale"]:
-		logging.warning("amp_powerlaw_xmax_scale must exceed xmin scale; using default %.3f", defaults["powerlaw_xmax_scale"])
-		cfg["powerlaw_xmax_scale"] = defaults["powerlaw_xmax_scale"]
-	if cfg["uniform_high_scale"] < cfg["uniform_low_scale"]:
-		logging.warning("amp_uniform_high_scale < low_scale; swapping values.")
-		cfg["uniform_low_scale"], cfg["uniform_high_scale"] = cfg["uniform_high_scale"], cfg["uniform_low_scale"]
+	return out
 
-	return cfg
+
+def _master_to_internal(master_file):
+	"""Map fires.toml master schema into legacy internal structures."""
+	raw = load_params("fires", override_path=master_file)
+	master = parse_fires_config(raw)
+
+	grid = master.simulation.grid
+	sim_params = {
+		"f0": float(grid.f_start_MHz),
+		"f1": float(grid.f_end_MHz),
+		"f_res": float(grid.df_MHz),
+		"t0": float(grid.t_start_ms),
+		"t1": float(grid.t_end_ms),
+		"t_res": float(grid.dt_ms),
+		"scattering_index": float(master.propagation.scattering.index),
+		"reference_freq": float(grid.reference_freq_MHz),
+	}
+
+	components = master.emission.components
+	if not isinstance(components, list) or len(components) == 0:
+		raise ValueError("Master config must include at least one [[emission.components]] entry")
+
+	n_comp = len(components)
+	gauss_params = np.zeros((n_comp + 4, 16), dtype=float)
+
+	for i, comp in enumerate(components):
+		gauss_params[i, 0] = float(comp.t0_ms)
+		gauss_params[i, 1] = float(comp.width_ms)
+		gauss_params[i, 2] = float(comp.amplitude_Jy)
+		gauss_params[i, 3] = float(comp.spectral_index)
+		gauss_params[i, 4] = float(comp.tau_ms)
+		gauss_params[i, 5] = float(comp.dm)
+		gauss_params[i, 6] = float(comp.rm)
+		gauss_params[i, 7] = float(comp.pa_deg)
+		gauss_params[i, 8] = float(comp.lfrac)
+		gauss_params[i, 9] = float(comp.vfrac)
+		gauss_params[i, 10] = float(comp.dpa_deg_per_ms)
+		gauss_params[i, 11] = float(comp.band_centre_MHz)
+		gauss_params[i, 12] = float(comp.band_width_MHz)
+
+		gauss_params[i, 13] = float(comp.microshots.N)
+		gauss_params[i, 14] = 100.0 * float(comp.microshots.width_frac_low)
+		gauss_params[i, 15] = 100.0 * float(comp.microshots.width_frac_high)
+
+	scatter = components[0].microshot_scatter
+	stddev_row = -4
+	gauss_params[stddev_row, 0] = float(scatter.t0_sigma_ms)
+	gauss_params[stddev_row, 1] = float(scatter.width_sigma_ms)
+	gauss_params[stddev_row, 2] = float(scatter.amplitude_sigma)
+	gauss_params[stddev_row, 3] = float(scatter.spectral_index_sigma)
+	gauss_params[stddev_row, 4] = float(scatter.tau_sigma_ms)
+	gauss_params[stddev_row, 5] = float(scatter.dm_sigma)
+	gauss_params[stddev_row, 6] = float(scatter.rm_sigma)
+	gauss_params[stddev_row, 7] = float(scatter.pa_sigma_deg)
+	gauss_params[stddev_row, 8] = float(scatter.lfrac_sigma)
+	gauss_params[stddev_row, 9] = float(scatter.vfrac_sigma)
+	gauss_params[stddev_row, 10] = float(scatter.dpa_sigma)
+	gauss_params[stddev_row, 11] = float(scatter.band_centre_sigma)
+	gauss_params[stddev_row, 12] = float(scatter.band_width_sigma)
+
+	amp_sampling = _normalise_master_amp_sampling(vars(components[0].amplitude_distribution))
+
+	sweep_mode = "none"
+	master_logstep = None
+	sweep = master.analysis.sweep
+	if bool(sweep.enable):
+		mode = str(sweep.mode).strip().lower()
+		sweep_mode = mode if mode in ("none", "mean", "sd") else "none"
+		param = sweep.parameter
+		name = str(param.name).strip().lower()
+		start = float(param.start)
+		stop = float(param.stop)
+		step = float(param.step)
+		if param.log_steps is not None:
+			master_logstep = int(param.log_steps)
+
+		col_map = {
+			"t0": 0, "t0_ms": 0, "width": 1, "width_ms": 1, "a": 2, "amplitude": 2, "amplitude_jy": 2,
+			"spec_idx": 3, "spectral_index": 3,
+			"tau": 4, "tau_ms": 4, "dm": 5, "rm": 6,
+			"pa": 7, "pa_deg": 7, "lfrac": 8, "vfrac": 9, "dpa": 10, "dpa_deg_per_ms": 10,
+			"band_centre_mhz": 11, "band_centre": 11, "band_width_mhz": 12, "band_width": 12,
+			"sd_t0": 0, "t0_sigma_ms": 0, "sd_width": 1, "width_sigma_ms": 1, "sd_a": 2, "amplitude_sigma": 2,
+			"sd_spec_idx": 3, "spectral_index_sigma": 3, "sd_tau": 4, "tau_sigma_ms": 4,
+			"sd_dm": 5, "dm_sigma": 5, "sd_rm": 6, "rm_sigma": 6,
+			"sd_pa": 7, "pa_sigma_deg": 7, "sd_lfrac": 8, "lfrac_sigma": 8, "sd_vfrac": 9, "vfrac_sigma": 9,
+			"sd_dpa": 10, "dpa_sigma": 10,
+			"sd_band_centre_mhz": 11, "band_centre_sigma": 11,
+			"sd_band_width_mhz": 12, "band_width_sigma": 12,
+		}
+		if name in col_map:
+			col = col_map[name]
+			gauss_params[-3, col] = start
+			gauss_params[-2, col] = stop
+			gauss_params[-1, col] = step
+
+	scint = None
+	sc_cfg = master.propagation.scintillation
+	if bool(sc_cfg.enable):
+		scint = {
+			"t_s": float(sc_cfg.timescale_s),
+			"nu_s": float(sc_cfg.bandwidth_Hz),
+			"N_im": int(sc_cfg.N_images),
+			"th_lim": float(sc_cfg.theta_extent),
+			"field": bool(sc_cfg.return_field),
+			"derive_from_tau": bool(sc_cfg.derive_from_tau),
+		}
+
+	return sim_params, gauss_params, amp_sampling, scint, sweep_mode, master_logstep
 
 
 
@@ -140,7 +212,7 @@ def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baselin
 
 def _process_obs_task(task, plot_mode, target_snr=None, baseline_correct=None, obs_data=None, obs_params=None, gauss_file=None, sim_file=None, scint_file=None):
 	"""
-	Process a single task (combination of timescale and realisation).
+	Process a single task (combination of timescale and realisation) for real data.
 	"""
 	var, _ = task
 
@@ -159,7 +231,7 @@ def _process_obs_task(task, plot_mode, target_snr=None, baseline_correct=None, o
 	gdict = dspec_params_local.gdict
 	intrinsic_width_bins = gdict["width"][0] / t_res
 	if var > 0:
-		dspec = correct_baseline(intrinsic_width_bins, buffer_frac, baseline_correct, requires_multiple_frb, dspec_params_local)
+		dspec = correct_baseline(dspec, intrinsic_width_bins, buffer_frac, baseline_correct, requires_multiple_frb, dspec_params_local)
 
 	# Add noise
 	sefd = scale_dspec_to_target_snr("analytic", target_snr, dspec_params_local, dspec, freq_mhz, t_res, buffer_frac, sefd, requires_multiple_frb, time_ms)
@@ -328,11 +400,19 @@ def _slurm_chunk_xvals(xvals):
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
-				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None):
+				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None, master_file=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
-	sim_params = load_params("simparams", sim_file, "simulation")
+	if master_file is None:
+		raise ValueError("master_file is required. Legacy split configs are no longer supported.")
+
+	master_scint = None
+	sim_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep = _master_to_internal(master_file)
+	if (sweep_mode is None or sweep_mode == "none") and master_sweep_mode is not None:
+		sweep_mode = master_sweep_mode
+	if logstep is None and master_logstep is not None:
+		logstep = master_logstep
 
 	# Extract frequency and time parameters
 	f_start = float(sim_params['f0'])
@@ -349,9 +429,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 	freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
 	time_ms  = np.arange(t_start, t_end + t_res, t_res, dtype=float)
 
-	# Load Gaussian parameters
-	gauss_params = np.loadtxt(gauss_file)
-	amp_sampling = _parse_gauss_metadata(gauss_file)
+	# Gaussian parameters are supplied by master config mapping.
 
 	# Split structural rows
 	stddev_row   = -4   # Gaussian std dev (psn micro variation)
@@ -462,12 +540,12 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'step'     : sweep_step[sweep_col]  if sweep_col is not None else None
 	}
 
-	if scint_file is not None:
-		scint = load_params("scparams", scint_file, "scintillation")
+	if master_scint is not None:
+		scint = dict(master_scint)
 		if scint.get("derive_from_tau", False):
-			tau_ref = float(gdict["tau"][0])          
-			tau_s_ref  = 1e-3 * tau_ref                  
-			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)    
+			tau_ref = float(gdict["tau"][0])
+			tau_s_ref  = 1e-3 * tau_ref
+			nu_s_hz    = 1.0 / (2.0 * np.pi * tau_s_ref)
 			scint["nu_s"] = float(nu_s_hz)
 			logging.info(
 				f"Derived nu_s at reference {ref_freq:.1f} MHz: "
@@ -540,12 +618,18 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			frb_id, corrdspec, dspec_params, snr
 		)
 		if write:
-			tau = f"{tau[0]:.2f}"
+			tau_str = f"{tau[0]:.2f}"
 			if mode == 'psn':
-				out_file = (
-					f"{out_dir}{frb_id}_mode_{mode}_sc_{tau}_"
-					f"seed_{seed}_nseed_{nseed}_PA_{gdict['PA'][-1]:.2f}.pkl"
-				)
+				parts = [
+					frb_id,
+					f"mode_{mode}",
+					f"sc_{tau_str}",
+					f"seed_{seed}",
+				]
+				if nseed is not None:
+					parts.append(f"nseed_{nseed}")
+				parts.append(f"PA_{gdict['PA'][-1]:.2f}")
+				out_file = os.path.join(out_dir, "_".join(parts) + ".pkl")
 			with open(out_file, 'wb') as frb_file:
 				pkl.dump(frb_data, frb_file)
 		return frb_data, noise_spec, gdict, segments
@@ -567,7 +651,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		
 		elif obs_data != None:
 			# Load the observed data once to record original S/N and segments
-			if obs_data.isfile():
+			if os.path.isfile(obs_data):
 				logging.info(f"Loading observed data from {obs_data}")
 				with open(obs_data, 'rb') as f:
 						frb_dict = pkl.load(f)
@@ -579,8 +663,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			logging.info(f"Original data S/N: {original_snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")
 			
 			# Assume sweep is set for tau; validate
-			gdict_keys = list(gdict.keys())
-			if active_cols.size != 1 or gdict_keys[col_idx] != 'tau':
+			gdict_keys = [k for k in gdict.keys() if k != 'amp_sampling']
+			if active_cols.size != 1 or gdict_keys[sweep_col] != 'tau':
 				logging.error("For obs_data sweep, exactly one sweep column must be set for 'tau'.")
 				sys.exit(1)
 			
@@ -613,7 +697,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			frb_dict = {
 				"xname": xname,
 				"xvals": xvals,
-				"measures": measures,       
+				"measures": measures,
 				"V_params": V_params,
 				"exp_vars": exp_vars,
 				"dspec_params": dspec_params,
@@ -631,7 +715,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			
 				parts.append(f"mode_{mode}")
 			
-				# Add mean and stddev overrides
 				if mean_override_parts:
 					parts.extend(mean_override_parts)
 				if sd_override_parts:
@@ -648,7 +731,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			return frb_dict
 
 		else:
-			gdict_keys = list(gdict.keys())
+			gdict_keys = [k for k in gdict.keys() if k != 'amp_sampling']
 
 			xvals, col_idx, xname = _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys)
 
@@ -673,11 +756,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 			measures, V_params, snrs, exp_vars = _collect_results(results, xvals)
 
-
 			frb_dict = {
 				"xname": xname,
 				"xvals": xvals,
-				"measures": measures,       
+				"measures": measures,
 				"V_params": V_params,
 				"exp_vars": exp_vars,
 				"dspec_params": dspec_params,
@@ -687,26 +769,18 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 			if write:
 				sweep_idx = _array_id if _array_count > 1 else 0
-			
 				parts = [f"sweep_{sweep_idx}", f"n{nseed}", f"plot_{plot_mode.name}", f"xname_{xname}"]
-			
 				if len(xvals) > 0:
 					parts.append(f"xvals_{min(xvals):.2f}-{max(xvals):.2f}")
-			
 				parts.append(f"mode_{mode}")
-			
-				# Add mean and stddev overrides
 				if mean_override_parts:
 					parts.extend(mean_override_parts)
 				if sd_override_parts:
 					parts.extend(sd_override_parts)
-			
 				fname = "_".join(parts) + ".pkl"
 				fpath = os.path.join(out_dir, fname)
-			
 				with open(fpath, "wb") as f:
 					pkl.dump(frb_dict, f)
-			
 				logging.info(f"Saved results to {fpath}")
 
 			return frb_dict
