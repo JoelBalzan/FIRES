@@ -655,7 +655,7 @@ def psn_dspec(
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
 			#A_i        		  = np.random.normal(A[g], sd_A)
 			A_i = sample_powerlaw(
-			    alpha=3,
+			    alpha=sd_A,
 			    xmin=A[g] / 10,
 			    xmax=A[g] * 10
 			)
