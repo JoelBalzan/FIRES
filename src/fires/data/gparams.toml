@@ -25,8 +25,8 @@
 #	Columns:
 #	t0  		        - Arrival time of the Gaussian envelope in milliseconds =| Cannot be varied
 #	width		        - FWHM of the Gaussian envelope in milliseconds         =| arrival_time_microshot_i ~ N(t0,width/(2*sqrt(2log2))) 
-#	A	    	        - Amplitude of the Gaussian pulse (Jy)  =|                                                   =|
-# tau             - Scattering timescale in milliseconds   |                                                    |
+#	A	    	        - Amplitude of the Gaussian pulse (Jy)  =|  =| Can be varied normally/ log normally/ power law/ uniformly | see below table
+# tau             - Scattering timescale in milliseconds   |                                                   =|
 #	DM			        - Dispersion measure in pc/cm^3          | At reference frequency supplied in simparams.toml  |
 #	RM			        - Rotation measure in rad/m^2           =|                                                    |
 #	PA		          - Polarisation angle in degrees                                                               |
