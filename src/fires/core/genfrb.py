@@ -36,6 +36,81 @@ from fires.utils.utils import dspecParams, simulated_frb
 logging.basicConfig(level=logging.INFO)
 
 
+def _parse_gauss_metadata(gauss_file):
+	"""Parse optional '#@key = value' metadata directives from gparams files."""
+	defaults = {
+		"dist": "normal",
+		"powerlaw_alpha": 1.8,
+		"powerlaw_xmin_scale": 0.1,
+		"powerlaw_xmax_scale": 10.0,
+		"uniform_low_scale": 0.0,
+		"uniform_high_scale": 2.0,
+		"lognormal_sigma": None,
+	}
+
+	def _parse_value(raw):
+		raw = raw.strip()
+		if not raw:
+			return raw
+		low = raw.lower()
+		if low in {"none", "null"}:
+			return None
+		try:
+			if any(ch in raw for ch in (".", "e", "E")):
+				return float(raw)
+			return int(raw)
+		except ValueError:
+			return raw
+
+	cfg = dict(defaults)
+	try:
+		with open(gauss_file, "r", encoding="utf-8") as fh:
+			for line in fh:
+				line = line.strip()
+				if not line.startswith("#@") or "=" not in line:
+					continue
+				payload = line[2:]
+				key, raw_val = payload.split("=", 1)
+				key = key.strip().lower()
+				raw_val = raw_val.split("#", 1)[0].strip()
+				val = _parse_value(raw_val)
+
+				if key == "amp_dist":
+					cfg["dist"] = str(val).strip().lower().replace("-", "_")
+				elif key == "amp_powerlaw_alpha":
+					cfg["powerlaw_alpha"] = float(val)
+				elif key == "amp_powerlaw_xmin_scale":
+					cfg["powerlaw_xmin_scale"] = float(val)
+				elif key == "amp_powerlaw_xmax_scale":
+					cfg["powerlaw_xmax_scale"] = float(val)
+				elif key == "amp_uniform_low_scale":
+					cfg["uniform_low_scale"] = float(val)
+				elif key == "amp_uniform_high_scale":
+					cfg["uniform_high_scale"] = float(val)
+				elif key == "amp_lognormal_sigma":
+					cfg["lognormal_sigma"] = None if val is None else float(val)
+	except OSError:
+		# Missing file handling is done by the main loader path.
+		pass
+
+	allowed = {"normal", "gaussian", "lognormal", "log_normal", "powerlaw", "power_law", "uniform"}
+	if cfg["dist"] not in allowed:
+		logging.warning("Unknown amp_dist '%s'; falling back to 'normal'.", cfg["dist"])
+		cfg["dist"] = "normal"
+
+	if cfg["powerlaw_xmin_scale"] <= 0:
+		logging.warning("amp_powerlaw_xmin_scale must be > 0; using default %.3f", defaults["powerlaw_xmin_scale"])
+		cfg["powerlaw_xmin_scale"] = defaults["powerlaw_xmin_scale"]
+	if cfg["powerlaw_xmax_scale"] <= cfg["powerlaw_xmin_scale"]:
+		logging.warning("amp_powerlaw_xmax_scale must exceed xmin scale; using default %.3f", defaults["powerlaw_xmax_scale"])
+		cfg["powerlaw_xmax_scale"] = defaults["powerlaw_xmax_scale"]
+	if cfg["uniform_high_scale"] < cfg["uniform_low_scale"]:
+		logging.warning("amp_uniform_high_scale < low_scale; swapping values.")
+		cfg["uniform_low_scale"], cfg["uniform_high_scale"] = cfg["uniform_high_scale"], cfg["uniform_low_scale"]
+
+	return cfg
+
+
 
 
 def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baseline_correct=None):
@@ -276,6 +351,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 	# Load Gaussian parameters
 	gauss_params = np.loadtxt(gauss_file)
+	amp_sampling = _parse_gauss_metadata(gauss_file)
 
 	# Split structural rows
 	stddev_row   = -4   # Gaussian std dev (psn micro variation)
@@ -300,7 +376,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'band_width_mhz' : gauss_params[:stddev_row, 12],
 		'N'              : gauss_params[:stddev_row, 13],
 		'mg_width_low'   : gauss_params[:stddev_row, 14],
-		'mg_width_high'  : gauss_params[:stddev_row, 15]
+		'mg_width_high'  : gauss_params[:stddev_row, 15],
+		'amp_sampling'   : amp_sampling,
 	}
 
 	sd_dict = {
