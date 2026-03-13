@@ -1393,7 +1393,7 @@ def scale_dspec_to_target_snr(target_snr_mode, target_snr, dspec_params, dspec, 
 	return sefd
 
 
-def correct_baseline(intrinsic_width_bins, buffer_frac, baseline_correct, plot_multiple_frb, dspec_params):
+def correct_baseline(dspec, intrinsic_width_bins, buffer_frac, baseline_correct, plot_multiple_frb, dspec_params):
 	I_ts = np.nansum(dspec[0], axis=0)  # (nt,)
 	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
 		I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac

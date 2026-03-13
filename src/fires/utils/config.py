@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import os
 import re
 import shutil
@@ -24,9 +23,7 @@ DIRS = AppDirs(APP_NAME, APP_NAME)
 
 # Map logical kinds to candidate filenames (first existing wins)
 DEFAULT_FILES = {
-    "gparams"  : ("gparams.toml", "gparams.txt"),
-    "simparams": ("simparams.toml", "simparams.txt"),
-    "scparams" : ("scparams.toml", "scparams.txt"),  
+    "fires"    : ("fires.toml",),
     "plotparams": ("plotparams.toml", "plotparams.txt"),
 }
 
@@ -37,11 +34,11 @@ def user_config_dir() -> Path:
 def default_package_path(kind: str) -> Optional[Path]:
     """
     Return a packaged default file path for the given kind (if any).
-    Searches fires.data/ for the first candidate that exists.
+    Searches fires.config/ for the first candidate that exists.
     """
     for fname in DEFAULT_FILES[kind]:
         try:
-            with resources.as_file(resources.files("fires.data") / fname) as p:
+            with resources.as_file(resources.files("fires.config") / fname) as p:
                 if p.exists():
                     return p
         except FileNotFoundError:
