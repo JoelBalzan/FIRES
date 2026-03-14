@@ -114,6 +114,9 @@ high_scale = 2.0 # Upper bound = |amplitude_Jy| * high_scale.
 # ANALYSIS / SWEEP CONTROL
 # ========================================================== 
 
+[analysis]
+buffer_fraction = 0.1   # On/off-pulse gap = buffer_fraction * intrinsic envelope width.
+
 [analysis.sweep]
 enable = true
 mode   = "sd"   # none | mean | sd
