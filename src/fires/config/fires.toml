@@ -1,6 +1,6 @@
 [meta]
 name    = "FIRES"
-seed    = 12345
+seed    = 3
 version = 1
 
 # ========================================================== 
@@ -125,15 +125,15 @@ name      = "pa_sigma_deg" # Parameter key to sweep (mean or sigma based on mode
 start     = 0
 stop      = 45
 step      = 1
-log_steps = null  # Optional number of log-spaced points; null keeps linear start/stop/step.
+log_steps = false  # Optional number of log-spaced points; none keeps linear start/stop/step.
 
 # ========================================================== 
 # OBSERVATION / NOISE MODEL
 # ========================================================== 
 
 [observation]
-sefd             = 30
-target_snr       = null
+sefd             = 2
+target_snr       = 0
 baseline_correct = false # false or one of: median, mean, z, z_i
 buffer_fraction  = 0.1   # On/off-pulse gap = buffer_fraction * intrinsic envelope width.
 
@@ -150,6 +150,6 @@ nseed           = 1
 # ========================================================== 
 
 [output]
-write     = true
+write     = false
 mode      = "full"
 directory = "output"
