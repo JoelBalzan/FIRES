@@ -344,23 +344,12 @@ def main():
 		return
 
 
-	resolved_master = None
-	use_master = False
-	if args.config_dir:
-		cfg_path = Path(args.config_dir).expanduser().resolve()
-		if cfg_path.is_file() and cfg_path.name == "fires.toml":
-			resolved_master = cfg_path
-			use_master = True
-		elif cfg_path.is_dir():
-			cand = cfg_path / "fires.toml"
-			if cand.exists():
-				resolved_master = cand
-				use_master = True
-
-	if not use_master or resolved_master is None:
-		parser.error("Master config required: pass --config-dir <path-to-fires.toml or directory containing fires.toml>.")
+	# Resolve master config: prefer explicit --config-dir, else fall back to
+	# user config dir, then packaged defaults. `find_config_file` handles
+	# this search order and will ensure user defaults are present.
+	resolved_master = cfg.find_config_file("fires", config_dir=args.config_dir)
+	use_master = resolved_master is not None
 	master_cfg = None
-
 	try:
 		master_cfg = parse_fires_config(cfg.load_params("fires", override_path=resolved_master))
 		logging.info("Using master config: %s", resolved_master)
