@@ -234,8 +234,7 @@ Plotting:
 Analytical:
   --compare-windows FREQ:PHASE [..]  Multi-window overlay (single-run)
 
-Fitting / Overlay:
-  --chi2-fit
+Overlay:
   --obs-data <path>
   --obs-params <path>
 ```
