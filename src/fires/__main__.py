@@ -373,15 +373,11 @@ def main():
 			pass
 	nseed = int(master_cfg.numerics.nseed)
 	# Buffer fraction applies to both simulated and observational data.
-	# Prefer new location `analysis.buffer_fraction`, fall back to legacy `observation.buffer_fraction`.
 	buffer_frac = None
 	try:
 		buffer_frac = float(master_cfg.analysis.buffer_fraction)
 	except Exception:
-		try:
-			buffer_frac = float(master_cfg.observation.buffer_fraction)
-		except Exception:
-			buffer_frac = None
+		buffer_frac = None
 	sefd = float(master_cfg.observation.sefd)
 	target_snr = float(master_cfg.observation.target_snr) if master_cfg.observation.target_snr is not None else None
 	if target_snr is not None and target_snr <= 0:

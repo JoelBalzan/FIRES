@@ -362,7 +362,6 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
         sefd=float(obs_raw.get("sefd", 0.0)),
         target_snr=_parse_optional_positive_float(obs_raw.get("target_snr", None)),
         baseline_correct=(obs_raw.get("baseline_correct", None) if obs_raw.get("baseline_correct", None) not in (False, "false") else None),
-        buffer_fraction=float(obs_raw.get("buffer_fraction", 1.0)),
     )
 
     num_raw = raw.get("numerics", {})
