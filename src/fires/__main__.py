@@ -27,8 +27,7 @@ from fires.config.schema import parse_fires_config
 from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import plot_modes
 from fires.utils import config as cfg
-from fires.utils.utils import (LOG, chi2_fit, gaussian_model, init_logging,
-                               normalise_freq_window, normalise_phase_window)
+from fires.utils.utils import (LOG, init_logging, normalise_freq_window, normalise_phase_window)
 
 
 def main():
@@ -101,11 +100,6 @@ def main():
 		help=("Mode for generating pulses: 'psn'. Default is 'psn.'\n"
 			  "'psn' will generate a gaussian distribution of gaussian micro-shots."
 		   )
-	)
-	parser.add_argument(
-		"--chi2-fit",
-		action="store_true",
-		help="Enable chi-squared fitting on the final profiles (plot != analytical)."
 	)
 	parser.add_argument(
 		"--override-param",
@@ -476,21 +470,6 @@ def main():
 				logstep         = None,
 				baseline_correct = baseline_correct,
 			)
-			if args.chi2_fit:
-				logging.info("Performing chi-squared fitting on the final profiles... \n")
-				x_data = FRB.time_ms_array 
-				y_data = FRB.dynamic_spectrum[0].mean(axis=0)  
-				y_err = noisespec[0].mean(axis=0)  
-
-				initial_guess = [np.max(y_data), np.mean(x_data), np.std(x_data)]  
-				popt, chi2 = chi2_fit(x_data, y_data, y_err, gaussian_model, initial_guess)
-
-				if popt is not None:
-					print(f"Best-fit parameters: {popt}")
-					print(f"Chi-squared value: {chi2} \n")
-				else:
-					print("Chi-squared fitting failed. \n")
-
 		# Print simulation status
 		if args.sim_data is None:
 			print(f"Simulation completed. \n")

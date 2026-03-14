@@ -67,28 +67,6 @@ def init_logging(verbose: bool | None = None):
 
 LOG = logging.getLogger(LOG_NAME)
 
-def chi2_fit(x_data, y_data, y_err, model_func, initial_guess):
-    """
-    Perform chi-squared fitting on the data.
-
-    Args:
-        x_data (array): Independent variable (e.g., time or frequency).
-        y_data (array): Observed data (e.g., flux density).
-        y_err (array): Uncertainties in the observed data.
-        model_func (callable): Model function to fit.
-        initial_guess (array): Initial guess for the model parameters.
-
-    Returns:
-        tuple: Best-fit parameters and chi-squared value.
-    """
-    try:
-        popt, pcov = curve_fit(model_func, x_data, y_data, sigma=y_err, p0=initial_guess, absolute_sigma=True)
-        residuals = y_data - model_func(x_data, *popt)
-        chi2 = np.sum((residuals / y_err) ** 2)
-        return popt, chi2
-    except Exception as e:
-        print(f"Chi-squared fitting failed: {e}")
-        return None, None
 
 def gaussian_model(x, amp, mean, stddev):
     """
