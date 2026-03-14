@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fires"
 version = "0.1.0"
-description = "A package to simulate Fast Radio Bursts (FRBs) with scattering."
+description = "A package to simulate Fast Radio Bursts."
 authors = [{ name = "Joel Balzan", email = "jbalzan.astro@gmail.com" }]
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -14,12 +14,13 @@ keywords = ["FRB", "scattering", "simulations"]
 dependencies = [
   "matplotlib>=3.9.0",
   "numpy>=1.26.4",
-  "RM_Tools>=1.4.8",
+  "RM_Tools>=1.4.10",
   "scipy>=1.15.2",
   "tqdm>=4.67.1",
   "platformdirs>=3.0",
   'tomli>=2.0; python_version < "3.11"',
   "tomli-w>=1.0",
+  "setuptools<82.0.0"
 ]
 
 [project.urls]
@@ -36,5 +37,5 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fires.data" = ["*.toml", "*.txt"]
+"fires.config" = ["*.toml", "*.txt"]
 "fires.scint" = ["ScintillationMaker.so"]
