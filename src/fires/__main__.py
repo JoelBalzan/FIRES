@@ -361,6 +361,16 @@ def main():
 	write_output = bool(master_cfg.output.write)
 	seed = master_cfg.meta.seed
 	ncpu = int(master_cfg.numerics.n_cpus)
+	# Allow SLURM environment to override configured CPU count
+	_slurm_n = os.environ.get("SLURM_CPUS_PER_TASK") or os.environ.get("SLURM_CPUS_ON_NODE") or os.environ.get("SLURM_CPUS_PER_NODE")
+	if _slurm_n:
+		try:
+			_slurm_val = int(_slurm_n)
+			if _slurm_val > 0:
+				ncpu = _slurm_val
+				logging.info(f"Overriding n_cpus from environment: {ncpu}")
+		except Exception:
+			pass
 	nseed = int(master_cfg.numerics.nseed)
 	buffer_frac = float(master_cfg.observation.buffer_fraction)
 	sefd = float(master_cfg.observation.sefd)
