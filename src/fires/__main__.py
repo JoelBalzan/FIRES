@@ -30,6 +30,105 @@ from fires.utils import config as cfg
 from fires.utils.utils import (LOG, init_logging, normalise_freq_window, normalise_phase_window)
 
 
+def setup_logging(verbose: bool):
+	"""Initialize logging according to verbosity flag and return root logger."""
+	init_logging(verbose)
+	if verbose:
+		logging.basicConfig(level=logging.DEBUG, force=True)
+	else:
+		logging.basicConfig(level=logging.INFO, force=True)
+	logging.getLogger("PIL").setLevel(logging.WARNING)
+	logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
+	return logging.getLogger("FIRES")
+
+
+def parse_param_overrides(overrides):
+	"""Parse list of 'key=value' strings into mean and std override dicts.
+
+	Returns (param_overrides, param_std_overrides).
+	"""
+	param_overrides = {}
+	param_std_overrides = {}
+	if not overrides:
+		return {}, {}
+	for override in overrides:
+		if "=" not in override:
+			raise ValueError(f"Invalid override format: '{override}'. Expected 'param=value'.")
+		key, value = override.split("=", 1)
+		key = key.strip()
+		try:
+			val = float(value)
+		except ValueError:
+			raise ValueError(f"Invalid value for override '{key}': '{value}' (must be numeric).")
+		if key.startswith("sd_"):
+			param_std_overrides[key] = val
+		elif key.endswith("_sd"):
+			base_key = key.rsplit("_", 1)[0]
+			sd_key = f"sd_{base_key}"
+			param_std_overrides[sd_key] = val
+		else:
+			param_overrides[key] = val
+	return param_overrides, param_std_overrides
+
+
+def apply_plot_overrides(plot_config, overrides):
+	"""Apply plot overrides (list of key=value) into plot_config dict.
+
+	Returns modified plot_config (in-place modification as well).
+	"""
+	if not overrides:
+		return plot_config
+	for override in overrides:
+		if "=" not in override:
+			raise ValueError(f"Invalid plot override format: '{override}'. Expected 'param=value'.")
+		key, value = override.split("=", 1)
+		key = key.strip()
+		try:
+			if value.startswith('[') and value.endswith(']'):
+				import ast
+				val = ast.literal_eval(value)
+			elif value.lower() in ('true', 'false'):
+				val = value.lower() == 'true'
+			elif value.lower() in ('null', 'none'):
+				val = None
+			else:
+				try:
+					val = float(value)
+					if val.is_integer():
+						val = int(val)
+				except ValueError:
+					val = value
+		except Exception:
+			raise ValueError(f"Invalid value for plot override '{key}': '{value}'")
+
+		if '.' in key:
+			sections = key.split('.')
+			current = plot_config
+			for section in sections[:-1]:
+				if section not in current:
+					current[section] = {}
+				current = current[section]
+			current[sections[-1]] = val
+		else:
+			if 'general' not in plot_config:
+				plot_config['general'] = {}
+			plot_config['general'][key] = val
+	return plot_config
+
+
+def parse_compare_windows(specs):
+	"""Parse --compare-windows specs into list of (freq, phase) tuples."""
+	if not specs:
+		return None
+	pairs = []
+	for spec in specs:
+		if ':' not in spec:
+			raise ValueError(f"Invalid --compare-windows format: '{spec}'. Expected 'freq:phase'.")
+		freq, phase = spec.split(':', 1)
+		pairs.append((freq.strip(), phase.strip()))
+	return pairs if pairs else None
+
+
 def main():
 	parser = argparse.ArgumentParser(description="FIRES: The Fast, Intense Radio Emission Simulator. Simulate Fast Radio Bursts (FRBs) with scattering and polarisation effects",
 								  formatter_class=argparse.RawTextHelpFormatter)
@@ -232,15 +331,8 @@ def main():
 	# =====================================================================
 	args = parser.parse_args()
 
-	init_logging(args.verbose)
-	if args.verbose:
-		logging.basicConfig(level=logging.DEBUG, force=True)
-	else:
-		logging.basicConfig(level=logging.INFO, force=True)
-	LOG = logging.getLogger("FIRES")
+	LOG = setup_logging(args.verbose)
 	LOG.debug("Verbose logging enabled.")
-	logging.getLogger("PIL").setLevel(logging.WARNING)
-	logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
 
 
 	if args.init_config:
@@ -313,15 +405,10 @@ def main():
 	args.phase_window = normalise_phase_window(args.phase_window, target='dspec')
 
 
-	window_pairs = None
-	if args.compare_windows:
-		pairs = []
-		for spec in args.compare_windows:
-			if ':' not in spec:
-				parser.error(f"Invalid --compare-windows format: '{spec}'. Expected 'freq:phase'.")
-			freq, phase = spec.split(':', 1)
-			pairs.append((freq.strip(), phase.strip()))
-		window_pairs = pairs if pairs else None
+	try:
+		window_pairs = parse_compare_windows(args.compare_windows)
+	except ValueError as e:
+		parser.error(str(e))
 
 
 	if args.plot[0] not in plot_modes and args.plot[0] not in ("all", "None"):
@@ -338,74 +425,21 @@ def main():
 		logging.info(f"Output directory: '{data_directory}' \n")
   
 
-	param_overrides = {}
-	param_std_overrides = {}
-	if args.override_param:
-		for override in args.override_param:
-			if "=" not in override:
-				parser.error(f"Invalid override format: '{override}'. Expected 'param=value'.")
-			key, value = override.split("=", 1)
-			key = key.strip()
-			try:
-				val = float(value)
-			except ValueError:
-				parser.error(f"Invalid value for override '{key}': '{value}' (must be numeric).")
-			if key.startswith("sd_"):
-				param_std_overrides[key] = val
-			elif key.endswith("_sd"):
-				base_key = key.rsplit("_", 1)[0]
-				sd_key = f"sd_{base_key}"
-				param_std_overrides[sd_key] = val
-			else:
-				param_overrides[key] = val
-		logging.info(f"Parameter mean overrides: {param_overrides}")
+	try:
+		param_overrides, param_std_overrides = parse_param_overrides(args.override_param)
+		if param_overrides:
+			logging.info(f"Parameter mean overrides: {param_overrides}")
 		if param_std_overrides:
 			logging.info(f"Parameter std dev overrides: {param_std_overrides}")
-	all_param_overrides = {**param_overrides, **param_std_overrides}
+		all_param_overrides = {**param_overrides, **param_std_overrides}
+	except ValueError as e:
+		parser.error(str(e))
 
 
-	if args.override_plot:
-		for override in args.override_plot:
-			if "=" not in override:
-				parser.error(f"Invalid plot override format: '{override}'. Expected 'param=value'.")
-			key, value = override.split("=", 1)
-			key = key.strip()
-			
-			try:
-				# Handle lists like [10,8]
-				if value.startswith('[') and value.endswith(']'):
-					import ast
-					val = ast.literal_eval(value)  # Safer than eval
-				elif value.lower() in ('true', 'false'):
-					val = value.lower() == 'true'
-				elif value.lower() in ('null', 'none'):
-					val = None
-				else:
-					try:
-						val = float(value)
-						# Convert to int if it's a whole number
-						if val.is_integer():
-							val = int(val)
-					except ValueError:
-						val = value  # Keep as string
-			except Exception:
-				parser.error(f"Invalid value for plot override '{key}': '{value}'")
-			
-			# Set the override in the config
-			if '.' in key:
-				# Handle nested keys like "styling.font_size"
-				sections = key.split('.')
-				current = plot_config
-				for section in sections[:-1]:
-					if section not in current:
-						current[section] = {}
-					current = current[section]
-				current[sections[-1]] = val
-			else:
-				# Handle top-level or assume 'general' section
-				if 'general' not in plot_config:
-					plot_config['general'] = {}
-				plot_config['general'][key] = val
+	try:
+		plot_config = apply_plot_overrides(plot_config, args.override_plot)
+	except ValueError as e:
+		parser.error(str(e))
 
 	from fires.plotting.plotmodes import configure_matplotlib_from_config
 	configure_matplotlib_from_config(plot_config)
@@ -413,63 +447,42 @@ def main():
 
 	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
 	try:
+		# Build base kwargs for generate_frb and adjust per-mode to avoid duplicate call sites
+		base_kwargs = dict(
+			data            = args.sim_data,
+			frb_id          = args.frb_identifier,
+			sim_file        = None,
+			gauss_file      = None,
+			scint_file      = None,
+			master_file     = str(resolved_master) if use_master and resolved_master is not None else None,
+			out_dir         = args.output_dir,
+			write           = write_output,
+			mode            = args.mode,
+			seed            = seed,
+			nseed           = None,
+			sefd            = sefd,
+			n_cpus          = None,
+			plot_mode       = selected_plot_mode,
+			phase_window    = args.phase_window,
+			freq_window     = args.freq_window,
+			buffer_frac     = buffer_frac,
+			sweep_mode      = None,
+			target_snr      = target_snr,
+			obs_data        = args.obs_data,
+			obs_params      = args.obs_params,
+			param_overrides = all_param_overrides,
+			logstep         = None,
+			baseline_correct = baseline_correct,
+		)
+
 		if selected_plot_mode.requires_multiple_frb:
 			if args.sim_data is None:
 				logging.info(f"Processing with {ncpu} threads. \n")
-   
-			frb_dict = generate_frb(
-				data            = args.sim_data,
-				frb_id          = args.frb_identifier,
-				sim_file        = None,
-				gauss_file      = None,
-				scint_file      = None,
-				master_file     = str(resolved_master) if use_master and resolved_master is not None else None,
-				out_dir         = args.output_dir,
-				write           = write_output,
-				mode            = args.mode,
-				seed            = seed,
-				nseed           = nseed,
-				sefd            = sefd,
-				n_cpus          = ncpu,
-				plot_mode       = selected_plot_mode,
-				phase_window    = args.phase_window,
-				freq_window     = args.freq_window,
-				buffer_frac     = buffer_frac,
-				sweep_mode      = sweep_mode,
-				target_snr      = target_snr,
-				obs_data        = None,
-				obs_params      = None,
-				param_overrides = all_param_overrides,
-				logstep         = logstep,
-				baseline_correct = baseline_correct,
-				)
+			base_kwargs.update(dict(nseed=nseed, n_cpus=ncpu, sweep_mode=sweep_mode, obs_data=None, obs_params=None, logstep=logstep))
+			frb_dict = generate_frb(**base_kwargs)
 		else:
-			FRB, noisespec, gdict, segments = generate_frb(
-				data            = args.sim_data,
-				frb_id          = args.frb_identifier,
-				sim_file        = None,
-				gauss_file      = None,
-				scint_file      = None,
-				master_file     = str(resolved_master) if use_master and resolved_master is not None else None,
-				out_dir         = args.output_dir,
-				write           = write_output,
-				mode            = args.mode,
-				seed            = seed,
-				nseed           = None,
-				sefd            = sefd,
-				n_cpus          = None,
-				plot_mode       = selected_plot_mode,
-				phase_window    = args.phase_window,
-				freq_window     = args.freq_window,
-				buffer_frac     = buffer_frac,
-				sweep_mode      = None,
-				target_snr      = target_snr,
-				obs_data        = args.obs_data,
-				obs_params      = args.obs_params,
-				param_overrides = all_param_overrides,
-				logstep         = None,
-				baseline_correct = baseline_correct,
-			)
+			base_kwargs.update(dict(nseed=None, n_cpus=None, sweep_mode=None, obs_data=args.obs_data, obs_params=args.obs_params, logstep=None))
+			FRB, noisespec, gdict, segments = generate_frb(**base_kwargs)
 		# Print simulation status
 		if args.sim_data is None:
 			print(f"Simulation completed. \n")
