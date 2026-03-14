@@ -81,6 +81,9 @@ sigma = 0.3
 low_scale  = 0.0
 high_scale = 2.0
 
+[analysis]
+buffer_fraction = 1.0
+
 [analysis.sweep]
 enable = true
 mode   = "sd"
@@ -97,7 +100,6 @@ log_steps = false
 sefd             = 1.4
 target_snr       = false #110.0
 baseline_correct = false
-buffer_fraction  = 1.0
 
 [numerics]
 n_cpus = 12

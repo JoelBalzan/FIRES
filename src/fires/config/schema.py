@@ -147,6 +147,7 @@ class Sweep:
 @dataclass
 class Analysis:
     sweep: Sweep
+    buffer_fraction: float = 1.0
 
 
 ### TOP-LEVEL GROUPS ###
@@ -160,7 +161,6 @@ class Observation:
     sefd: float = 0.0
     target_snr: Optional[float] = None
     baseline_correct: Optional[str] = None
-    buffer_fraction: float = 1.0
 
 
 @dataclass
@@ -338,6 +338,7 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     an_raw = _require(raw, "analysis", "root")
     sweep_raw = _require(an_raw, "sweep", "analysis")
     sweep_param_raw = _require(sweep_raw, "parameter", "analysis.sweep")
+    # Build Analysis and include optional buffer_fraction (preferred location).
     analysis = Analysis(
         sweep=Sweep(
             enable=bool(_require(sweep_raw, "enable", "analysis.sweep")),
@@ -352,7 +353,8 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
                     int(sweep_param_raw["log_steps"]) if sweep_param_raw.get("log_steps", None) is not None else None
                 ),
             ),
-        )
+        ),
+        buffer_fraction=float(an_raw.get("buffer_fraction", raw.get("observation", {}).get("buffer_fraction", 1.0))),
     )
 
     obs_raw = raw.get("observation", {})
