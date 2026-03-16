@@ -315,49 +315,71 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 	except Exception as e:
 		logging.debug(f"Failed to normalise label: {e}")
 
-	# Merge gauss_file only for truly missing keys (not for present zeros)
+	# Common call-site mix-up: passing fires.toml as gauss_file.
+	# If gauss_file looks like a TOML config and sim_file is unset, treat it as sim_file.
+	if sim_file is None and isinstance(gauss_file, str) and gauss_file.lower().endswith('.toml'):
+		logging.info(
+			f"Interpreting gauss_file='{gauss_file}' as sim_file (TOML config detected)."
+		)
+		sim_file = gauss_file
+		gauss_file = None
+
+	# Merge gauss_file only for truly missing keys (not for present zeros).
+	# If a non-numeric file is provided (e.g. TOML/INI), skip merge gracefully.
 	sd_dict = None
 	if gauss_file is not None:
-		gauss_params = np.loadtxt(gauss_file)
-		stddev_row = -4  # fourth last row = std dev
-		mean_slice = gauss_params[:stddev_row, :]  # all mean rows (allow multi-component)
-		col_map = {
-			't0'            : 0,
-			'width'         : 1,
-			'A'             : 2,
-			'spec_idx'      : 3,
-			'tau'           : 4,
-			'DM'            : 5,
-			'RM'            : 6,
-			'PA'            : 7,
-			'lfrac'         : 8,
-			'vfrac'         : 9,
-			'dPA'           : 10,
-			'band_centre'   : 11,
-			'band_width'    : 12,
-			'N'             : 13,
-			'mg_width_low'  : 14,
-			'mg_width_high' : 15
-		}
-		for k,c in col_map.items():
-			if k not in gdict:
-				gdict[k] = mean_slice[:, c]
+		try:
+			gauss_params = np.loadtxt(gauss_file)
+			gauss_params = np.atleast_2d(gauss_params)
+			if gauss_params.shape[0] < 4 or gauss_params.shape[1] < 16:
+				raise ValueError(
+					f"Expected gauss parameter table with >=4 rows and >=16 cols, got {gauss_params.shape}"
+				)
 
-		sd_dict = {
-			'sd_t0'            : gauss_params[stddev_row, 0],
-			'sd_width'         : gauss_params[stddev_row, 1],
-			'sd_A'             : gauss_params[stddev_row, 2],
-			'sd_spec_idx'      : gauss_params[stddev_row, 3],
-			'sd_tau'           : gauss_params[stddev_row, 4],
-			'sd_DM'            : gauss_params[stddev_row, 5],
-			'sd_RM'            : gauss_params[stddev_row, 6],
-			'sd_PA'            : gauss_params[stddev_row, 7],
-			'sd_lfrac'         : gauss_params[stddev_row, 8],
-			'sd_vfrac'         : gauss_params[stddev_row, 9],
-			'sd_dPA'           : gauss_params[stddev_row,10],
-			'sd_band_centre'   : gauss_params[stddev_row,11],
-			'sd_band_width'    : gauss_params[stddev_row,12]
-		}
+			stddev_row = -4  # fourth last row = std dev
+			mean_slice = gauss_params[:stddev_row, :]  # all mean rows (allow multi-component)
+			col_map = {
+				't0'            : 0,
+				'width'         : 1,
+				'A'             : 2,
+				'spec_idx'      : 3,
+				'tau'           : 4,
+				'DM'            : 5,
+				'RM'            : 6,
+				'PA'            : 7,
+				'lfrac'         : 8,
+				'vfrac'         : 9,
+				'dPA'           : 10,
+				'band_centre'   : 11,
+				'band_width'    : 12,
+				'N'             : 13,
+				'mg_width_low'  : 14,
+				'mg_width_high' : 15
+			}
+			for k,c in col_map.items():
+				if k not in gdict:
+					gdict[k] = mean_slice[:, c]
+
+			sd_dict = {
+				'sd_t0'            : gauss_params[stddev_row, 0],
+				'sd_width'         : gauss_params[stddev_row, 1],
+				'sd_A'             : gauss_params[stddev_row, 2],
+				'sd_spec_idx'      : gauss_params[stddev_row, 3],
+				'sd_tau'           : gauss_params[stddev_row, 4],
+				'sd_DM'            : gauss_params[stddev_row, 5],
+				'sd_RM'            : gauss_params[stddev_row, 6],
+				'sd_PA'            : gauss_params[stddev_row, 7],
+				'sd_lfrac'         : gauss_params[stddev_row, 8],
+				'sd_vfrac'         : gauss_params[stddev_row, 9],
+				'sd_dPA'           : gauss_params[stddev_row,10],
+				'sd_band_centre'   : gauss_params[stddev_row,11],
+				'sd_band_width'    : gauss_params[stddev_row,12]
+			}
+		except Exception as e:
+			logging.warning(
+				f"Skipping gauss_file merge for '{gauss_file}': {e}. "
+				"Expected a numeric gauss parameter table."
+			)
 
 	# Mandatory keys (exact gparams names)
 	mandatory = [
@@ -369,15 +391,64 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 		if key not in gdict:
 			gdict[key] = np.array([0.0], dtype=float)
 
+	# Resolve simulation parameters from either legacy simparams format or fires.toml.
+	# Required canonical keys used below: f_res, t_res, scattering_index, reference_freq.
+	raw_sim = None
+	raw_fires = None
 	if sim_file is None:
-		sim_file = load_params("simparams", None, "simulation")
+		try:
+			raw_sim = load_params("simparams", None, "simulation")
+		except Exception:
+			raw_fires = load_params("fires", None, None)
 	else:
-		sim_file = load_params("simparams", sim_file, "simulation")
+		try:
+			raw_sim = load_params("simparams", sim_file, "simulation")
+		except Exception:
+			raw_sim = None
+		# Always try loading full fires config when a path is provided.
+		# This supports cases where sim_file is a fires.toml path.
+		try:
+			raw_fires = load_params("fires", sim_file, None)
+		except Exception:
+			raw_fires = None
 
-	f_res       = float(sim_file['f_res'])
-	t_res       = float(sim_file['t_res'])
-	scatter_idx = float(sim_file['scattering_index'])
-	ref_freq    = float(sim_file['reference_freq'])
+	canonical_sim = {}
+	if isinstance(raw_sim, dict):
+		canonical_sim.update(raw_sim)
+
+	# New schema: simulation.grid in fires.toml
+	if 'f_res' not in canonical_sim or 't_res' not in canonical_sim or 'reference_freq' not in canonical_sim:
+		grid = None
+		if isinstance(raw_sim, dict) and isinstance(raw_sim.get('grid'), dict):
+			grid = raw_sim.get('grid')
+		elif isinstance(raw_fires, dict):
+			sim_section = raw_fires.get('simulation', {})
+			if isinstance(sim_section, dict) and isinstance(sim_section.get('grid'), dict):
+				grid = sim_section.get('grid')
+		if isinstance(grid, dict):
+			canonical_sim.setdefault('f_res', grid.get('df_MHz'))
+			canonical_sim.setdefault('t_res', grid.get('dt_ms'))
+			canonical_sim.setdefault('reference_freq', grid.get('reference_freq_MHz'))
+
+	# New schema: propagation.scattering.index in fires.toml
+	if 'scattering_index' not in canonical_sim and isinstance(raw_fires, dict):
+		prop = raw_fires.get('propagation', {})
+		if isinstance(prop, dict):
+			sc = prop.get('scattering', {})
+			if isinstance(sc, dict):
+				canonical_sim['scattering_index'] = sc.get('index')
+
+	missing = [k for k in ('f_res', 't_res', 'scattering_index', 'reference_freq') if k not in canonical_sim or canonical_sim[k] is None]
+	if missing:
+		raise KeyError(
+			"Missing required simulation keys "
+			f"{missing}. Provide a legacy simparams file or a fires.toml with simulation.grid and propagation.scattering.index."
+		)
+
+	f_res       = float(canonical_sim['f_res'])
+	t_res       = float(canonical_sim['t_res'])
+	scatter_idx = float(canonical_sim['scattering_index'])
+	ref_freq    = float(canonical_sim['reference_freq'])
 
 	if scint_file is not None:
 		scint = load_params("scparams", scint_file, "scintillation")
