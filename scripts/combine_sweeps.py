@@ -25,7 +25,6 @@ from typing import List
 
 import numpy as np
 
-
 LOG = logging.getLogger("combine_sweeps")
 
 
@@ -44,7 +43,7 @@ def derive_name_from_files(file_list_names: List[str]) -> str | None:
     import re
     starts = []
     ends = []
-    N = None
+    mode_suffix = None
     core = None
     for nm in file_list_names:
         m = re.search(r'xvals_(-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)', nm)
@@ -54,9 +53,17 @@ def derive_name_from_files(file_list_names: List[str]) -> str | None:
                 ends.append(float(m.group(2)))
             except Exception:
                 continue
-        m2 = re.search(r'_mode_psn_N(\d+)\.pkl$', nm)
-        if m2 and N is None:
-            N = m2.group(1)
+        m2 = re.search(r'_mode_psn_(.+)\.pkl$', nm)
+        if m2:
+            sfx = m2.group(1)
+            if mode_suffix is None:
+                mode_suffix = sfx
+            elif mode_suffix != sfx:
+                # Keep only stable token overlap if fragment suffixes differ.
+                cur_tokens = [t for t in mode_suffix.split('_') if t]
+                new_tokens = [t for t in sfx.split('_') if t]
+                common = [t for t in cur_tokens if t in set(new_tokens)]
+                mode_suffix = '_'.join(common)
         m3 = re.match(r'^sweep_\d+_(?P<core>.+?xvals_)', nm)
         if m3 and core is None:
             core = m3.group('core')
@@ -71,9 +78,10 @@ def derive_name_from_files(file_list_names: List[str]) -> str | None:
         s = re.sub(r'_mode_psn_.*$', '', s)
         i = s.rfind('xvals_')
         core = s[:i+len('xvals_')] if i != -1 else s
-    if N is None:
-        N = ''
-    name = f"combined_{core}{start:.2f}-{end:.2f}_mode_psn_N{N}.pkl" if N else f"combined_{core}{start:.2f}-{end:.2f}_mode_psn.pkl"
+    if mode_suffix:
+        name = f"combined_{core}{start:.2f}-{end:.2f}_mode_psn_{mode_suffix}.pkl"
+    else:
+        name = f"combined_{core}{start:.2f}-{end:.2f}_mode_psn.pkl"
     name = name.replace('__', '_')
     return name
 
@@ -88,6 +96,24 @@ def combine_pickle(files: List[Path], out: Path):
     is present, it will write to `out` as a file.
     """
     import re
+
+    def files_for_group_key(group_key: str, all_files: List[Path]) -> List[Path]:
+        """Match grouped-loader keys to source files using token membership.
+
+        Group keys are often formatted like `N100+mg_width_high5+mg_width_low1`,
+        which do not appear as contiguous substrings in filenames.
+        """
+        if not group_key:
+            return []
+        tokens = [t for t in group_key.split("+") if t]
+        if not tokens:
+            return []
+        matched = []
+        for path in all_files:
+            name = path.name
+            if all(tok in name for tok in tokens):
+                matched.append(path)
+        return matched
 
     # Prefer loader implementation when available and files match expected pattern
     try:
@@ -122,10 +148,9 @@ def combine_pickle(files: List[Path], out: Path):
             out_path.mkdir(parents=True, exist_ok=True)
             written = []
             for key, val in merged.items():
-                # try to select filenames belonging to this group by matching key tokens
                 token = key.replace('=', '') if key else 'baseline'
-                group_files = [p.name for p in files if token in p.name]
-                derived = derive_name_from_files(group_files) if group_files else None
+                group_paths = files_for_group_key(token, files)
+                derived = derive_name_from_files([p.name for p in group_paths]) if group_paths else None
                 fname = out_path / (derived or f"{token}.pkl")
                 with fname.open('wb') as fh:
                     pickle.dump(val, fh)
