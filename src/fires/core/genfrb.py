@@ -204,7 +204,8 @@ def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baselin
 			xname=xname,
 			plot_multiple_frb=requires_multiple_frb,
 			target_snr=target_snr,
-			baseline_correct=baseline_correct
+			baseline_correct=baseline_correct,
+			diagnostics=False,
 		)
 
 	return var, measures, V_params, snr, exp_vars
@@ -396,6 +397,16 @@ def _slurm_chunk_xvals(xvals):
 			f"processing {len(xvals)} sweep values (idx {start_idx}:{min(end_idx, total)} of {total})."
 		)
 	return xvals, _array_id, _array_count
+
+
+def _pool_workers_and_chunksize(n_cpus, n_tasks):
+	"""Choose pool workers/chunksize to avoid oversubscription and reduce IPC overhead."""
+	tasks = max(1, int(n_tasks))
+	req_workers = int(n_cpus) if n_cpus is not None else 1
+	workers = max(1, min(req_workers, tasks))
+	# Submit work in moderate chunks; improves throughput for many short tasks.
+	chunksize = max(1, tasks // max(1, workers * 4))
+	return workers, chunksize
 
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
@@ -610,7 +621,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			plot_multiple_frb=False,
 			target_snr=target_snr,
 			dspec_params=dspec_params,
-			baseline_correct=baseline_correct
+			baseline_correct=baseline_correct,
+			diagnostics=True,
 		)
 
 		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
@@ -673,8 +685,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			xvals, _array_id, _array_count = _slurm_chunk_xvals(xvals)
 			
 			tasks = list(product(xvals, range(nseed)))
+			workers, chunksize = _pool_workers_and_chunksize(n_cpus, len(tasks))
 			
-			with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+			with ProcessPoolExecutor(max_workers=workers) as executor:
 				partial_func = functools.partial(
 					_process_obs_task,
 					plot_mode=plot_mode,
@@ -687,7 +700,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					scint_file=scint_file
 				)
 				results = list(tqdm(
-					executor.map(partial_func, tasks),
+					executor.map(partial_func, tasks, chunksize=chunksize),
 					total=len(tasks),
 					desc=f"Processing tau sweep on observed data"
 				))
@@ -738,8 +751,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			xvals, _array_id, _array_count = _slurm_chunk_xvals(xvals)
 
 			tasks = list(product(xvals, range(nseed)))
+			workers, chunksize = _pool_workers_and_chunksize(n_cpus, len(tasks))
 
-			with ProcessPoolExecutor(max_workers=n_cpus) as executor:
+			with ProcessPoolExecutor(max_workers=workers) as executor:
 				partial_func = functools.partial(
 					_process_task,
 					xname=xname,
@@ -749,7 +763,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 					baseline_correct=baseline_correct
 				)
 				results = list(tqdm(
-					executor.map(partial_func, tasks),
+					executor.map(partial_func, tasks, chunksize=chunksize),
 					total=len(tasks),
 					desc=f"Processing sweep of {xname} ({sweep_mode} mode)"
 				))

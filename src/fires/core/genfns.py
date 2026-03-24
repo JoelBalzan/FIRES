@@ -592,7 +592,8 @@ def psn_dspec(
 	xname=None,
 	target_snr=None,
 	baseline_correct: bool = True,
-	target_snr_mode: str = "analytic"  # NEW: 'analytic' | 'iter' | 'scale_intensity'
+	target_snr_mode: str = "analytic",  # NEW: 'analytic' | 'iter' | 'scale_intensity'
+	diagnostics: bool = False,
 ):
 	"""
 	Generate dynamic spectrum from microshots (polarised shot noise) with optional parameter sweeping.
@@ -787,8 +788,9 @@ def psn_dspec(
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
 
 	intrinsic_width_bins = gdict["width"][0] / time_res_ms
-	stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="pre-noise",
-								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+	if diagnostics and not plot_multiple_frb:
+		stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="pre-noise",
+									 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 
 	V_params = {}
 	for key, values in all_params.items():
@@ -827,8 +829,9 @@ def psn_dspec(
 			time_res_ms / 1000.0,
 			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
 		)
-		stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="post-noise",
-								 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+		if diagnostics and not plot_multiple_frb:
+			stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="post-noise",
+									 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
 	else:
 		snr = None
 	
@@ -888,7 +891,7 @@ def psn_dspec(
 
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
-	if sd_PA > 0 and N_tot > 1:
+	if diagnostics and (sd_PA > 0) and (N_tot > 1) and (not plot_multiple_frb):
 		actual_A_mean = np.mean(A)
 		actual_A_std = np.std(A)
 		actual_width_mean = np.mean(width)
@@ -944,5 +947,6 @@ def psn_dspec(
 		'exp_var_band_width_mhz' : None
 	}
 
-	return dspec, snr, V_params, exp_vars, compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
+	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
+	return dspec, snr, V_params, exp_vars, segments
 
