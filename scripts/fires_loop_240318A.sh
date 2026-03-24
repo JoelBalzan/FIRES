@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=16G
-#SBATCH --time=00:05:00
+#SBATCH --time=00:30:00
 #SBATCH --array=0-19
 
 source "/fred/oz313/processing/jbalzan/venv.sh"
@@ -20,7 +20,8 @@ CONFDIR="/fred/oz313/processing/jbalzan/packages/FIRES/examples/20240318A/"
 GPARAMS="${CONFDIR}/fires.toml"
 
 # --- Read sweep parameters from TOML ---
-SWEEP_INFO=$(python - "$GPARAMS" <<'PY'
+SWEEP_INFO=$(
+  python - "$GPARAMS" <<'PY'
 import sys
 from pathlib import Path
 try:
@@ -47,12 +48,16 @@ mapping = {
 }
 print(f"{mapping.get(nm,'UNKNOWN')}\t{start}\t{stop}\t{step}")
 PY
-) || { echo "ERROR: failed to parse sweep parameters from $GPARAMS"; exit 1; }
+) || {
+  echo "ERROR: failed to parse sweep parameters from $GPARAMS"
+  exit 1
+}
 
-IFS=$'\t' read -r VAR START STOP STEP <<< "$SWEEP_INFO"
+IFS=$'\t' read -r VAR START STOP STEP <<<"$SWEEP_INFO"
 
 if [[ -z "$VAR" || "$VAR" == "UNKNOWN" ]]; then
-  echo "ERROR: unrecognised sweep variable (raw: $SWEEP_INFO)"; exit 1
+  echo "ERROR: unrecognised sweep variable (raw: $SWEEP_INFO)"
+  exit 1
 fi
 echo "Sweep: $VAR  $START -> $STOP  step $STEP  |  array task $SLURM_ARRAY_TASK_ID"
 
@@ -60,7 +65,7 @@ echo "Sweep: $VAR  $START -> $STOP  step $STEP  |  array task $SLURM_ARRAY_TASK_
 # N is the microshot count (always included in path; only forwarded to fires if set).
 # All other params follow the same pattern: forward value and optional _sd variant.
 FIRES_PARAMS=(t0 width A spec_idx tau DM RM PA lfrac vfrac dPA band_centre band_width
-              mg_width_low mg_width_high)
+  mg_width_low mg_width_high)
 
 OVERRIDE_ARGS=()
 OVERRIDE_SUFFIX=""
@@ -86,7 +91,7 @@ if [[ -n "$N_VAL" ]]; then
   OVERRIDE_SUFFIX+="N${N_VAL}"
 fi
 
-OUTDIR="240318A/${PLOT}/${VAR}/start_${START}_stop_${STOP}_step_${STEP}/${OVERRIDE_SUFFIX}"
+OUTDIR="240318A/${PLOT}/${VAR}/start_${START}_stop_${STOP}_step_${STEP}/${OVERRIDE_SUFFIX}/A1-P3"
 mkdir -p "$OUTDIR"
 echo "Output dir: $OUTDIR"
 echo "Overrides:  ${OVERRIDE_ARGS[*]:-none}"
@@ -100,3 +105,4 @@ fires \
   --override-plot show_plots=false save_plots=false \
   ${OVERRIDE_ARGS[@]+"${OVERRIDE_ARGS[@]}"}
 # MAKE SURE TO SET --snr 110 IN CONFIG
+
