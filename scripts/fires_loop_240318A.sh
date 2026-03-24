@@ -24,7 +24,7 @@ try:
 except ImportError:
     import tomli as toml
 
-data = toml.loads(Path(sys.argv[1]).read_bytes())
+data = toml.loads(Path(sys.argv[1]).read_text())
 param = data.get('analysis', {}).get('sweep', {}).get('parameter', {})
 name  = str(param.get('name',  'UNKNOWN'))
 start = param.get('start', 0)
