@@ -770,10 +770,9 @@ def psn_dspec(
 			V_ft = I_ft * vfrac_i
 
 			if tau_eff > 0 and sd_tau > 0:
-				I_ft = scatter_dspec(I_ft, time_res_ms, tau_cms)
-				Q_ft = scatter_dspec(Q_ft, time_res_ms, tau_cms)
-				U_ft = scatter_dspec(U_ft, time_res_ms, tau_cms)
-				V_ft = scatter_dspec(V_ft, time_res_ms, tau_cms)
+				shot = np.stack([I_ft, Q_ft, U_ft, V_ft], axis=0)
+				shot = scatter_dspec(shot, time_res_ms, tau_cms)
+				I_ft, Q_ft, U_ft, V_ft = shot[0], shot[1], shot[2], shot[3]
 
 			dspec[0] += I_ft
 			dspec[1] += Q_ft
@@ -782,10 +781,7 @@ def psn_dspec(
 
 	if tau > 0 and sd_tau == 0:
 		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
-		dspec[0] = scatter_dspec(dspec[0], time_res_ms, tau_cms)
-		dspec[1] = scatter_dspec(dspec[1], time_res_ms, tau_cms)
-		dspec[2] = scatter_dspec(dspec[2], time_res_ms, tau_cms)
-		dspec[3] = scatter_dspec(dspec[3], time_res_ms, tau_cms)
+		dspec = scatter_dspec(dspec, time_res_ms, tau_cms)
 
 	if scint_dict is not None:
 		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)

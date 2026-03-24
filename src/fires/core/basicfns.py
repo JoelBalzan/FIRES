@@ -683,49 +683,71 @@ def boxcar_width(profile, frac=0.95):
  
 def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
 	"""
-	Vectorised one-sided exponential scattering for all channels via FFT.
+	Vectorised one-sided exponential scattering via FFT.
+	Accepts either a 2-D (n_chan, n_time) array or a 3-D (n_stokes, n_chan, n_time)
+	cube. When given 3-D input the IRF is computed once and reused across all
+	Stokes to avoid redundant FFT work.
 	"""
 	X = np.asarray(dspec, dtype=float)
-	if X.ndim != 2:
-		raise ValueError("I_dspec must be 2-D (n_chan, n_time)")
-	nc, nt = X.shape
+	if X.ndim == 2:
+		return _scatter_2d(X, time_res_ms, tau_cms, pad_factor)
+	elif X.ndim == 3:
+		return _scatter_4stokes(X, time_res_ms, tau_cms, pad_factor)
+	else:
+		raise ValueError(f"scatter_dspec: expected 2-D or 3-D input, got {X.ndim}-D")
 
-	# Prepare per-channel tau array
+
+def _scatter_2d(X, time_res_ms, tau_cms, pad_factor=5):
+	"""Core 2-D scatter (n_chan, n_time). Internal use."""
+	nc, nt = X.shape
 	if np.isscalar(tau_cms):
 		tau_arr = np.full(nc, float(tau_cms), dtype=float)
 	else:
 		tau_arr = np.asarray(tau_cms, dtype=float)
 		if tau_arr.shape[0] != nc:
 			raise ValueError("tau_cms length must match number of channels")
-
 	out = X.copy()
 	pos = np.isfinite(tau_arr) & (tau_arr > 0)
 	if not np.any(pos):
 		return out
+	FH, max_pad, L = _build_irf_fft(tau_arr[pos], time_res_ms, nt, pad_factor)
+	Xp = np.pad(X[pos], ((0, 0), (0, max_pad)), mode='constant')
+	FX = np.fft.rfft(Xp, n=L, axis=1)
+	out[pos] = np.fft.irfft(FX * FH, n=L, axis=1)[:, :nt]
+	return out
 
-	tau_pos = tau_arr[pos]
+
+def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5):
+	"""3-D scatter (n_stokes, n_chan, n_time); IRF FFT built once for all Stokes."""
+	_, nc, nt = X4.shape
+	if np.isscalar(tau_cms):
+		tau_arr = np.full(nc, float(tau_cms), dtype=float)
+	else:
+		tau_arr = np.asarray(tau_cms, dtype=float)
+		if tau_arr.shape[0] != nc:
+			raise ValueError("tau_cms length must match number of channels")
+	out = X4.copy()
+	pos = np.isfinite(tau_arr) & (tau_arr > 0)
+	if not np.any(pos):
+		return out
+	FH, max_pad, L = _build_irf_fft(tau_arr[pos], time_res_ms, nt, pad_factor)
+	for s in range(X4.shape[0]):
+		Xp = np.pad(X4[s][pos], ((0, 0), (0, max_pad)), mode='constant')
+		FX = np.fft.rfft(Xp, n=L, axis=1)
+		out[s][pos] = np.fft.irfft(FX * FH, n=L, axis=1)[:, :nt]
+	return out
+
+
+def _build_irf_fft(tau_pos, time_res_ms, nt, pad_factor):
+	"""Build normalised IRF matrix and compute its FFT. Returns (FH, max_pad, L)."""
 	n_pad_arr = np.ceil(pad_factor * tau_pos / float(time_res_ms)).astype(int)
 	max_pad = int(np.max(n_pad_arr))
 	L = nt + max_pad
-
-	t_idx = np.arange(max_pad + 1, dtype=float)  # 0..max_pad
-	t_ms = t_idx * float(time_res_ms)
-
-	# Build IRFs for all pos channels in one go, with zero past channel-specific pad
+	t_ms = np.arange(max_pad + 1, dtype=float) * float(time_res_ms)
 	irf = np.exp(-t_ms[None, :] / tau_pos[:, None])
-	mask = (t_idx[None, :] <= n_pad_arr[:, None])
-	irf *= mask
-	# Row-normalise (preserve total flux)
-	row_sum = irf.sum(axis=1, keepdims=True)
-	irf = np.divide(irf, np.maximum(row_sum, 1e-300), out=irf)
-
-	# Pad signals to L and FFT along time
-	Xp = np.pad(X[pos], ((0, 0), (0, max_pad)), mode='constant')  # (n_pos, L)
-	FX = np.fft.rfft(Xp, n=L, axis=1)
-	FH = np.fft.rfft(irf, n=L, axis=1)
-	Y = np.fft.irfft(FX * FH, n=L, axis=1)
-	out[pos] = Y[:, :nt]
-	return out
+	irf *= (np.arange(max_pad + 1)[None, :] <= n_pad_arr[:, None])
+	irf /= np.maximum(irf.sum(axis=1, keepdims=True), 1e-300)
+	return np.fft.rfft(irf, n=L, axis=1), max_pad, L
 
 
 def compute_required_sefd(dspec_params,
