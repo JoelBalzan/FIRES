@@ -34,7 +34,7 @@ model = "gaussian_microshot"
 [[emission.components]]
 t0_ms           = -0.15
 width_ms        = 0.06
-amplitude_Jy    = 0.19
+amplitude_Jy    = 1.0
 spectral_index  = 0.0
 tau_ms          = 0.128
 dm              = 0.0
@@ -67,12 +67,12 @@ band_centre_sigma    = 0.0
 band_width_sigma     = 0.0
 
 [emission.components.amplitude_distribution]
-type = "normal"
+type = "powerlaw"
 
 [emission.components.amplitude_distribution.powerlaw]
 alpha      = 3.0
-xmin_scale = 0.1
-xmax_scale = 10.0
+xmin_scale = 0.01
+xmax_scale = 1.0
 
 [emission.components.amplitude_distribution.lognormal]
 sigma = 0.3
@@ -94,11 +94,11 @@ name      = "pa_sigma_deg"
 start     = 0.0
 stop      = 45.0
 step      = 1.0
-log_steps = false
+#log_steps = false
 
 [observation]
-sefd             = 1.4
-target_snr       = false #110.0
+sefd             = 0 
+target_snr       = 110.0
 baseline_correct = false
 
 [numerics]
@@ -106,6 +106,6 @@ n_cpus = 12
 nseed  = 500
 
 [output]
-write     = false
+write     = true 
 mode      = "full"
 directory = "output"

@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16              # Number of CPUs per task
 #SBATCH --mem=16G                        # Memory allocation
-#SBATCH --time=00:30:00                 # Time limit
+#SBATCH --time=00:05:00                 # Time limit
 #SBATCH --array=0-19                    # Array job index (20 chunks)
 
 source "/fred/oz313/processing/jbalzan/venv.sh"
@@ -13,7 +13,7 @@ set -euo pipefail
 
 PLOT="l_frac" # or pa_var
 
-CONFDIR="/fred/oz313/processing/jbalzan/packages/FIRES/paper/240318A/"
+CONFDIR="/fred/oz313/processing/jbalzan/packages/FIRES/examples/20240318A/"
 GPARAMS="${CONFDIR}/fires.toml" # now read master fires.toml for sweep info
 
 # Auto-detect varied column (single non-zero in last row)
@@ -89,14 +89,9 @@ echo "Running chunk=${CHUNK} overrides: ${OVERRIDE_ARGS[*]} -> $OUTDIR"
 fires \
   -f "sweep_${CHUNK}" \
   -v \
-  --mode psn \
-  --seed 0 \
-  --nseed 500 \
-  --write \
   --plot ${PLOT} \
   --config-dir "$CONFDIR" \
   --output-dir "$OUTDIR" \
   --override-plot show_plots=false save_plots=false \
-  "${OVERRIDE_ARGS[@]}" \
-  #MAKE SURE TO SET --snr 110 IN CONFIG
-
+  "${OVERRIDE_ARGS[@]}"
+#MAKE SURE TO SET --snr 110 IN CONFIG
