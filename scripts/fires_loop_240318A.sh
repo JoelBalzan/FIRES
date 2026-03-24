@@ -91,7 +91,7 @@ if [[ -n "$N_VAL" ]]; then
   OVERRIDE_SUFFIX+="N${N_VAL}"
 fi
 
-OUTDIR="240318A/${PLOT}/${VAR}/start_${START}_stop_${STOP}_step_${STEP}/${OVERRIDE_SUFFIX}/A1-P3"
+OUTDIR="240318A/${PLOT}/${VAR}/start_${START}_stop_${STOP}_step_${STEP}/A1-P3/${OVERRIDE_SUFFIX}"
 mkdir -p "$OUTDIR"
 echo "Output dir: $OUTDIR"
 echo "Overrides:  ${OVERRIDE_ARGS[*]:-none}"
