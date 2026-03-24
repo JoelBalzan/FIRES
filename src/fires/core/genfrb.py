@@ -404,8 +404,8 @@ def _pool_workers_and_chunksize(n_cpus, n_tasks):
 	tasks = max(1, int(n_tasks))
 	req_workers = int(n_cpus) if n_cpus is not None else 1
 	workers = max(1, min(req_workers, tasks))
-	# Submit work in moderate chunks; improves throughput for many short tasks.
-	chunksize = max(1, tasks // max(1, workers * 4))
+	# Keep chunks small to avoid long initial stalls with ordered executor.map.
+	chunksize = max(1, min(4, tasks // max(1, workers * 16)))
 	return workers, chunksize
 
 
@@ -686,6 +686,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			
 			tasks = list(product(xvals, range(nseed)))
 			workers, chunksize = _pool_workers_and_chunksize(n_cpus, len(tasks))
+			logging.info(f"Process pool settings: workers={workers}, chunksize={chunksize}, tasks={len(tasks)}")
 			
 			with ProcessPoolExecutor(max_workers=workers) as executor:
 				partial_func = functools.partial(
@@ -752,6 +753,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 			tasks = list(product(xvals, range(nseed)))
 			workers, chunksize = _pool_workers_and_chunksize(n_cpus, len(tasks))
+			logging.info(f"Process pool settings: workers={workers}, chunksize={chunksize}, tasks={len(tasks)}")
 
 			with ProcessPoolExecutor(max_workers=workers) as executor:
 				partial_func = functools.partial(
