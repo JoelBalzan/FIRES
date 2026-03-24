@@ -1360,10 +1360,7 @@ def scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau, sc_idx, ref_freq_mhz):
 	dspec_scattered = dspec.copy()
 	time_res_ms = np.median(np.diff(time_ms))
 	tau_cms = tau * (freq_mhz / ref_freq_mhz) ** (-sc_idx)
-	for stokes_idx in range(dspec.shape[0]):  # Loop over I, Q, U, V
-		dspec_scattered[stokes_idx] = scatter_dspec(
-			dspec[stokes_idx], time_res_ms, tau_cms
-		)
+	dspec_scattered = scatter_dspec(dspec_scattered, time_res_ms, tau_cms)
 	return dspec_scattered
 
 
