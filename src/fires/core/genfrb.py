@@ -554,6 +554,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 	if master_scint is not None:
 		scint = dict(master_scint)
+		logging.info("Scintillation enabled from master config.")
 		if scint.get("derive_from_tau", False):
 			tau_ref = float(gdict["tau"][0])
 			tau_s_ref  = 1e-3 * tau_ref
@@ -565,6 +566,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			)
 	else:
 		scint = None
+		logging.info("Scintillation disabled in master config.")
 
 	# Create dynamic spectrum parameters
 	dspec_params = dspecParams(
