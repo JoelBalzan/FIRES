@@ -785,7 +785,10 @@ def psn_dspec(
 		dspec = scatter_dspec(dspec, time_res_ms, tau_cms)
 
 	if scint_dict is not None:
-		apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
+		scint_enabled = bool(scint_dict.get("enable", True))
+		has_scint_params = (scint_dict.get("t_s") is not None) and (scint_dict.get("nu_s") is not None)
+		if scint_enabled and has_scint_params:
+			apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
 
 	intrinsic_width_bins = gdict["width"][0] / time_res_ms
 	if diagnostics and not plot_multiple_frb:

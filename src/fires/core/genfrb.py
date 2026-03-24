@@ -172,6 +172,7 @@ def _master_to_internal(master_file):
 	sc_cfg = master.propagation.scintillation
 	if bool(sc_cfg.enable):
 		scint = {
+			"enable": bool(sc_cfg.enable),
 			"t_s": float(sc_cfg.timescale_s),
 			"nu_s": float(sc_cfg.bandwidth_Hz),
 			"N_im": int(sc_cfg.N_images),

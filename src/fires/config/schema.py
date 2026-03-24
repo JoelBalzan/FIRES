@@ -217,6 +217,23 @@ def _parse_optional_positive_float(value: Any) -> Optional[float]:
     return v if (v > 0) else None
 
 
+def _as_bool(value: Any, default: bool = False) -> bool:
+    """Parse booleans robustly, including string and numeric inputs."""
+    if value is None:
+        return bool(default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"1", "true", "yes", "on"}:
+            return True
+        if v in {"0", "false", "no", "off", "none", "null", ""}:
+            return False
+    return bool(value)
+
+
 def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     """Parse raw fires.toml dictionary into a strongly typed FiresConfig."""
     if not isinstance(raw, dict):
@@ -250,15 +267,15 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     propagation = Propagation(
         scattering=Scattering(index=float(_require(sc_raw, "index", "propagation.scattering"))),
         scintillation=Scintillation(
-            enable=bool(scint_raw.get("enable", True)),
+            enable=_as_bool(scint_raw.get("enable", True), default=True),
             timescale_s=float(scint_raw.get("timescale_s", 300.0)),
             bandwidth_Hz=float(scint_raw.get("bandwidth_Hz", 1.5e6)),
-            derive_from_tau=bool(scint_raw.get("derive_from_tau", False)),
+            derive_from_tau=_as_bool(scint_raw.get("derive_from_tau", False), default=False),
             N_images=int(scint_raw.get("N_images", 5000)),
             theta_extent=float(scint_raw.get("theta_extent", 3.0)),
-            return_field=bool(scint_raw.get("return_field", False)),
+            return_field=_as_bool(scint_raw.get("return_field", False), default=False),
             output=ScintillationOutput(
-                save_gain=bool(scint_output_raw.get("save_gain", False)),
+                save_gain=_as_bool(scint_output_raw.get("save_gain", False), default=False),
                 path=str(scint_output_raw.get("path", "scint_gain.npy")),
             ),
         ),
@@ -341,7 +358,7 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     # Build Analysis and include optional buffer_fraction (preferred location).
     analysis = Analysis(
         sweep=Sweep(
-            enable=bool(_require(sweep_raw, "enable", "analysis.sweep")),
+            enable=_as_bool(_require(sweep_raw, "enable", "analysis.sweep"), default=False),
             mode=str(_require(sweep_raw, "mode", "analysis.sweep")),
             parameter=SweepParameter(
                 component=int(_require(sweep_param_raw, "component", "analysis.sweep.parameter")),
@@ -361,7 +378,11 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     observation = Observation(
         sefd=float(obs_raw.get("sefd", 0.0)),
         target_snr=_parse_optional_positive_float(obs_raw.get("target_snr", None)),
-        baseline_correct=(obs_raw.get("baseline_correct", None) if obs_raw.get("baseline_correct", None) not in (False, "false") else None),
+        baseline_correct=(
+            obs_raw.get("baseline_correct", None)
+            if str(obs_raw.get("baseline_correct", None)).strip().lower() not in ("false", "none", "null")
+            else None
+        ),
     )
 
     num_raw = raw.get("numerics", {})
@@ -372,7 +393,7 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
 
     out_raw = raw.get("output", {})
     output = Output(
-        write=bool(out_raw.get("write", False)),
+        write=_as_bool(out_raw.get("write", False), default=False),
         mode=str(out_raw.get("mode", "full")),
         directory=str(out_raw.get("directory", "simfrbs")),
     )
