@@ -274,7 +274,6 @@ Please cite FIRES (this page and/or https://arxiv.org/abs/2601.19254) and Scinti
 
 ## Acknowledgements
 
-Acknowledgements
 This project is based on the work by Tehya Conroy and Apurba Bera.
 
 ## License
