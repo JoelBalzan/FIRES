@@ -75,7 +75,7 @@ fires --config-dir paper/191001/PA_sweep/L0.95 \
 
 ## Configuration System
 
-On first explicit initialization:
+On first explicit initialisation:
 ```bash
 fires --init-config
 ```
