@@ -2,13 +2,10 @@
 """Combine sweep output fragments and optionally remove the parts.
 
 Usage examples:
-  python bash/combine_sweeps.py --dir results/sweep_run --pattern "**/*part*.npz" -o combined.npz
-  python bash/combine_sweeps.py --glob "results/sweep_run/*.csv" --out combined.csv --keep
+  python bash/combine_sweeps.py --dir results/sweep_run --pattern "**/*part*.pkl" -o combined.pkl
+  python bash/combine_sweeps.py --glob "results/sweep_run/*.pkl" --out combined.pkl --keep
 
 The script tries to infer file type from extensions and will:
-- concatenate text/CSV files (preserving a single header)
-- concatenate `.npy` arrays
-- merge `.npz` archives by concatenating arrays with the same keys
 - for pickles, extend lists or concatenate array-like dict values
 
 After successful combine the source files are removed unless `--keep` is passed.
@@ -18,12 +15,10 @@ from __future__ import annotations
 import argparse
 import glob
 import logging
-import os
 import pickle
 from pathlib import Path
 from typing import List
 
-import numpy as np
 
 LOG = logging.getLogger("combine_sweeps")
 
