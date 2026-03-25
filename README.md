@@ -13,10 +13,12 @@ It is designed for experimentation with intrinsic + propagation effects and for 
 
 ## Installation
 
+Skip downloading example simulated data pack in examples/sim_data.tar.gz:
 ```bash
-# Skip downloading example simulated data pack in examples/sim_data.tar.gz:
 GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/JoelBalzan/FIRES.git
-# OR if you want the data pack:
+```
+OR if you want the data pack:
+```bash
 git clone https://github.com/JoelBalzan/FIRES.git
 ```
 
