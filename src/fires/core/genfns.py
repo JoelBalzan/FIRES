@@ -535,7 +535,7 @@ def sample_lognormal(mean, sigma, size=None):
     return np.random.lognormal(mean=mu, sigma=sigma, size=size)
 
 
-def _sample_amplitude(mean_amp, sd_amp, amp_sampling):
+def _sample_amplitude(mean_amp, sd_amp, amp_sampling, plot_multiple_frb=False):
 	"""Draw micro-shot amplitude according to configured distribution."""
 	global _AMP_DIST_LOGGED
 	dist = "normal"
@@ -552,7 +552,7 @@ def _sample_amplitude(mean_amp, sd_amp, amp_sampling):
 	mean_amp = float(mean_amp)
 	sd_amp = float(sd_amp)
 
-	if not _AMP_DIST_LOGGED:
+	if not _AMP_DIST_LOGGED and not plot_multiple_frb:
 		if dist == "normal":
 			logging.info("Amplitude distribution: normal (mean=%.6g, sd=%.6g)", mean_amp, sd_amp)
 		elif dist == "lognormal":
@@ -739,7 +739,7 @@ def psn_dspec(
 	for g in range(num_main_gauss):
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
-			A_i = _sample_amplitude(A[g], sd_A, amp_sampling)
+			A_i = _sample_amplitude(A[g], sd_A, amp_sampling, plot_multiple_frb)
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_i          = np.random.normal(tau[g], sd_tau)
