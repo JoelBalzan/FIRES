@@ -27,7 +27,8 @@ from fires.config.schema import parse_fires_config
 from fires.core.genfrb import generate_frb
 from fires.plotting.plotmodes import plot_modes
 from fires.utils import config as cfg
-from fires.utils.utils import (LOG, init_logging, normalise_freq_window, normalise_phase_window)
+from fires.utils.utils import (LOG, init_logging, normalise_freq_window,
+                               normalise_phase_window)
 
 
 def setup_logging(verbose: bool):
@@ -43,32 +44,85 @@ def setup_logging(verbose: bool):
 
 
 def parse_param_overrides(overrides):
-	"""Parse list of 'key=value' strings into mean and std override dicts.
+	"""Parse list of 'key=value' strings into mean, std, and config override dicts.
 
-	Returns (param_overrides, param_std_overrides).
+	Returns (emission_param_overrides, config_overrides).
 	"""
-	param_overrides = {}
-	param_std_overrides = {}
+	# Emission parameter keys that can be overridden via gdict/sd_dict
+	emission_keys = {
+		't0', 'width', 'A', 'spec_idx', 'tau', 'DM', 'RM', 'PA',
+		'lfrac', 'vfrac', 'dPA', 'band_centre_mhz', 'band_width_mhz',
+		'N', 'mg_width_low', 'mg_width_high', 'amp_sampling'
+	}
+	
+	emission_overrides = {}
+	config_overrides = {}
+	
 	if not overrides:
 		return {}, {}
+	
 	for override in overrides:
 		if "=" not in override:
-			raise ValueError(f"Invalid override format: '{override}'. Expected 'param=value'.")
+			raise ValueError(f"Invalid override format: '{override}'. Expected 'key=value'.")
 		key, value = override.split("=", 1)
 		key = key.strip()
-		try:
-			val = float(value)
-		except ValueError:
-			raise ValueError(f"Invalid value for override '{key}': '{value}' (must be numeric).")
+		
+		# Check if this is an emission parameter (handle both mean and std variants)
+		base_key = key
 		if key.startswith("sd_"):
-			param_std_overrides[key] = val
+			base_key = key[3:]
 		elif key.endswith("_sd"):
-			base_key = key.rsplit("_", 1)[0]
-			sd_key = f"sd_{base_key}"
-			param_std_overrides[sd_key] = val
+			base_key = key[:-3]
+		
+		# If it looks like an emission parameter, try numeric parse
+		if base_key in emission_keys or key.startswith("sd_") or key.endswith("_sd"):
+			try:
+				val = float(value)
+				emission_overrides[key] = val
+			except ValueError:
+				raise ValueError(f"Invalid value for emission override '{key}': '{value}' (must be numeric).")
 		else:
-			param_overrides[key] = val
-	return param_overrides, param_std_overrides
+			# Config override - parse type intelligently
+			config_overrides[key] = value
+	
+	return emission_overrides, config_overrides
+
+
+def apply_config_overrides(raw_config: dict, overrides: dict) -> None:
+	"""Apply dotted-key overrides to a nested config dictionary in-place.
+	
+	Examples:
+		apply_config_overrides(cfg, {"propagation.scintillation.enable": "true"})
+		apply_config_overrides(cfg, {"observation.sefd": "1.5"})
+	"""
+	for key_path, value_str in overrides.items():
+		keys = key_path.split(".")
+		current = raw_config
+		
+		# Navigate to the parent of the target
+		for k in keys[:-1]:
+			if k not in current:
+				current[k] = {}
+			current = current[k]
+		
+		# Coerce value to appropriate type
+		value_str = str(value_str).strip()
+		if value_str.lower() in ("true", "false"):
+			final_value = value_str.lower() == "true"
+		elif value_str.lower() in ("null", "none"):
+			final_value = None
+		else:
+			try:
+				if "." in value_str or "e" in value_str.lower():
+					final_value = float(value_str)
+				else:
+					final_value = int(value_str)
+			except ValueError:
+				# Keep as string if not numeric
+				final_value = value_str
+		
+		current[keys[-1]] = final_value
+		logging.info(f"Config override applied: {key_path} = {final_value}")
 
 
 def apply_plot_overrides(plot_config, overrides):
@@ -208,13 +262,17 @@ def main():
 		default=None,
 		metavar="PARAM=VALUE",
 		help=(
-			"Override emission/sweep parameters from fires.toml. Provide space-separated key=value pairs.\n"
-			"Examples:\n"
+			"Override any parameter from fires.toml. Use dot notation for nested keys. Provide space-separated key=value pairs.\n"
+			"Emission parameters (numeric):\n"
 			"  --override-param N=5 tau=0.5\n"
 			"  --override-param lfrac=0.8\n"
-			"  --override-param tau=0.5 tau_std=0.2\n"
-			"  --override-param N=5 --override-param mg_width_low=20 mg_width_high=40\n"
-			"Note: Use PARAM=VALUE to override the mean, and PARAM_sd=VALUE or sd_PARAM=VALUE to override the std dev."
+			"Config parameters (dotted paths):\n"
+			"  --override-param propagation.scintillation.enable=false\n"
+			"  --override-param propagation.scintillation.timescale_s=100\n"
+			"  --override-param observation.sefd=1.5\n"
+			"Mixed example:\n"
+			"  --override-param tau=0.5 propagation.scintillation.enable=false observation.sefd=1.2\n"
+			"Note: Boolean values can be specified as 'true'/'false', numeric values are auto-detected."
 		)
 	)
 
@@ -351,7 +409,18 @@ def main():
 	use_master = resolved_master is not None
 	master_cfg = None
 	try:
-		master_cfg = parse_fires_config(cfg.load_params("fires", override_path=resolved_master))
+		# Parse config overrides first
+		emission_param_overrides, config_overrides = parse_param_overrides(args.override_param)
+		
+		# Load raw config
+		raw_master_config = cfg.load_params("fires", override_path=resolved_master)
+		
+		# Apply config-level overrides to raw config before parsing
+		if config_overrides:
+			apply_config_overrides(raw_master_config, config_overrides)
+		
+		# Now parse the (potentially modified) config
+		master_cfg = parse_fires_config(raw_master_config)
 		logging.info("Using master config: %s", resolved_master)
 		if args.output_dir == "simfrbs/":
 			args.output_dir = str(master_cfg.output.directory)
@@ -430,12 +499,10 @@ def main():
   
 
 	try:
-		param_overrides, param_std_overrides = parse_param_overrides(args.override_param)
-		if param_overrides:
-			logging.info(f"Parameter mean overrides: {param_overrides}")
-		if param_std_overrides:
-			logging.info(f"Parameter std dev overrides: {param_std_overrides}")
-		all_param_overrides = {**param_overrides, **param_std_overrides}
+		# emission_param_overrides and config_overrides already parsed above
+		if emission_param_overrides:
+			logging.info(f"Emission parameter overrides: {emission_param_overrides}")
+		all_param_overrides = emission_param_overrides
 	except ValueError as e:
 		parser.error(str(e))
 
@@ -477,6 +544,7 @@ def main():
 			param_overrides = all_param_overrides,
 			logstep         = None,
 			baseline_correct = baseline_correct,
+			master_raw_config = raw_master_config,
 		)
 
 		if selected_plot_mode.requires_multiple_frb:
@@ -540,4 +608,4 @@ def main():
 
 
 if __name__ == "__main__":
-	sys.exit(main())
+	sys.exit(main())	

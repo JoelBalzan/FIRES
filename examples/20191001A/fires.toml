@@ -1,6 +1,6 @@
 [meta]
 name    = "paper_191001"
-seed    = 3
+seed    = 19
 version = 1
 
 [simulation.grid]
@@ -67,7 +67,7 @@ band_centre_sigma    = 0.0
 band_width_sigma     = 0.0
 
 [emission.components.amplitude_distribution]
-type = "normal"
+type = "powerlaw"
 
 [emission.components.amplitude_distribution.powerlaw]
 alpha      = 3.0
@@ -106,6 +106,6 @@ n_cpus = 12
 nseed  = 500
 
 [output]
-write     = true
+write     = false
 mode      = "full"
 directory = "output"

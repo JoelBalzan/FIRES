@@ -1,17 +1,5 @@
 #!/bin/bash
 
-fires -f 191001 -p lvpa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --seed 3 --sefd 1.2 --scint --override-param "tau=1.78" -o /home/joel/Documents/GitHub/FIRES/paper/191001/ 
-fires -f 191001_nn -p lvpa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --seed 3 --scint --override-param "tau=1.78" -o /home/joel/Documents/GitHub/FIRES/paper/191001/ 
-fires -f 191001_nn_ns -p lvpa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --seed 3 --override-param "tau=0" -o /home/joel/Documents/GitHub/FIRES/paper/191001/ 
-
-fires -f 191001_sd30 -p pa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --seed 3 --sefd 1.2 --scint --override-param "tau=1.78" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
-fires -f 191001_sd30nn -p pa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --seed 3 --scint --override-param "tau=1.78" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
-
-fires -f 191001_sd0 -p pa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --seed 3 --sefd 1.2 --scint --override-param "tau=1.78" "sd_PA=0" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
-fires -f 191001_sd0nn -p pa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --seed 3 --scint --override-param "tau=1.78" "sd_PA=0" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
-
-
-fires -f 191001_sd30nn_ns -p pa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v --phase-window first --seed 3 --override-param "tau=0" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
-fires -f 191001_sd30nn -p pa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v --phase-window first --seed 3 --scint --override-param "tau=1.78" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
-fires -f 191001_sd30 -p pa --ncpu 12 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v --phase-window first --seed 3 --sefd 1.2 --scint --override-param "tau=1.78" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
-fires -f 191001_htr -p pa --obs-data /mnt/Storage/craft_frb/191001 --config-dir ~/Documents/GitHub/FIRES/paper/191001/ -v  --phase-window first --override-param "tau=0" -o /home/joel/Documents/GitHub/FIRES/paper/191001/
+fires -f 191001_nn_ns -p lvpa --config-dir ~/Documents/GitHub/FIRES/examples/20191001A/ -v --override-param "tau=0" "propagation.scintillation.enable=false" "observation.sefd=0" "observation.target_snr=0"
+fires -f 191001_nn -p lvpa --config-dir ~/Documents/GitHub/FIRES/examples/20191001A/ -v --override-param  "observation.sefd=0" "observation.target_snr=0"
+fires -f 191001 -p lvpa --config-dir ~/Documents/GitHub/FIRES/examples/20191001A/ -v --override-param "observation.sefd=0" "observation.target_snr=194"

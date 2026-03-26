@@ -1,6 +1,6 @@
 [meta]
 name    = "paper_240318A"
-seed    = 0
+seed    = 26
 version = 1
 
 [simulation.grid]
@@ -40,7 +40,7 @@ tau_ms          = 0.128
 dm              = 0.0
 rm              = 0.0
 pa_deg          = 0.0
-lfrac           = 0.83
+lfrac           = 0.98
 vfrac           = -0.17
 dpa_deg_per_ms  = 0.0
 band_centre_MHz = 0.0
@@ -59,7 +59,7 @@ spectral_index_sigma = 0.0
 tau_sigma_ms         = 0.0
 dm_sigma             = 0.0
 rm_sigma             = 0.0
-pa_sigma_deg         = 10.0
+pa_sigma_deg         = 20.0
 lfrac_sigma          = 0.0
 vfrac_sigma          = 0.0
 dpa_sigma            = 0.0
@@ -106,6 +106,6 @@ n_cpus = 12
 nseed  = 500
 
 [output]
-write     = true 
+write     = false 
 mode      = "full"
 directory = "output"

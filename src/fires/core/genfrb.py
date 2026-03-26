@@ -19,6 +19,7 @@ import os
 import pickle as pkl
 import sys
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import asdict, is_dataclass
 from itertools import product
 
 import numpy as np
@@ -48,34 +49,46 @@ def _normalise_master_amp_sampling(amp_cfg):
 		"uniform_high_scale": 2.0,
 		"lognormal_sigma": None,
 	}
-	if not isinstance(amp_cfg, dict):
+	if amp_cfg is None:
+		return out
+
+	# Accept dicts and dataclasses from the typed schema.
+	if is_dataclass(amp_cfg):
+		amp_cfg = asdict(amp_cfg)
+	elif not isinstance(amp_cfg, dict):
 		return out
 
 	dist = str(amp_cfg.get("type", "normal")).strip().lower().replace("-", "_")
 	out["dist"] = dist
 
-	if isinstance(amp_cfg.get("powerlaw"), dict):
-		pw = amp_cfg["powerlaw"]
+	pw = amp_cfg.get("powerlaw")
+	if is_dataclass(pw):
+		pw = asdict(pw)
+	if isinstance(pw, dict):
 		out["powerlaw_alpha"] = float(pw.get("alpha", out["powerlaw_alpha"]))
 		out["powerlaw_xmin_scale"] = float(pw.get("xmin_scale", out["powerlaw_xmin_scale"]))
 		out["powerlaw_xmax_scale"] = float(pw.get("xmax_scale", out["powerlaw_xmax_scale"]))
 
-	if isinstance(amp_cfg.get("uniform"), dict):
-		uu = amp_cfg["uniform"]
+	uu = amp_cfg.get("uniform")
+	if is_dataclass(uu):
+		uu = asdict(uu)
+	if isinstance(uu, dict):
 		out["uniform_low_scale"] = float(uu.get("low_scale", out["uniform_low_scale"]))
 		out["uniform_high_scale"] = float(uu.get("high_scale", out["uniform_high_scale"]))
 
-	if isinstance(amp_cfg.get("lognormal"), dict):
-		ln = amp_cfg["lognormal"]
+	ln = amp_cfg.get("lognormal")
+	if is_dataclass(ln):
+		ln = asdict(ln)
+	if isinstance(ln, dict):
 		sigma = ln.get("sigma", None)
 		out["lognormal_sigma"] = None if sigma is None else float(sigma)
 
 	return out
 
 
-def _master_to_internal(master_file):
+def _master_to_internal(master_file, master_raw=None):
 	"""Map fires.toml master schema into legacy internal structures."""
-	raw = load_params("fires", override_path=master_file)
+	raw = master_raw if master_raw is not None else load_params("fires", override_path=master_file)
 	master = parse_fires_config(raw)
 
 	grid = master.simulation.grid
@@ -132,7 +145,7 @@ def _master_to_internal(master_file):
 	gauss_params[stddev_row, 11] = float(scatter.band_centre_sigma)
 	gauss_params[stddev_row, 12] = float(scatter.band_width_sigma)
 
-	amp_sampling = _normalise_master_amp_sampling(vars(components[0].amplitude_distribution))
+	amp_sampling = _normalise_master_amp_sampling(components[0].amplitude_distribution)
 
 	sweep_mode = "none"
 	master_logstep = None
@@ -412,7 +425,8 @@ def _pool_workers_and_chunksize(n_cpus, n_tasks):
 
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
-				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None, master_file=None):
+				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None, master_file=None,
+				master_raw_config=None):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -420,7 +434,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		raise ValueError("master_file is required. Legacy split configs are no longer supported.")
 
 	master_scint = None
-	sim_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep = _master_to_internal(master_file)
+	sim_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep = _master_to_internal(
+		master_file,
+		master_raw=master_raw_config,
+	)
 	if (sweep_mode is None or sweep_mode == "none") and master_sweep_mode is not None:
 		sweep_mode = master_sweep_mode
 	if logstep is None and master_logstep is not None:

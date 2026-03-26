@@ -30,6 +30,7 @@ from fires.utils.utils import gaussian_model, speed_of_light_cgs
 logging.basicConfig(level=logging.INFO)
 
 GAUSSIAN_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) 
+_AMP_DIST_LOGGED = False
 
 #    --------------------------	Functions ---------------------------
 
@@ -536,6 +537,7 @@ def sample_lognormal(mean, sigma, size=None):
 
 def _sample_amplitude(mean_amp, sd_amp, amp_sampling):
 	"""Draw micro-shot amplitude according to configured distribution."""
+	global _AMP_DIST_LOGGED
 	dist = "normal"
 	cfg = amp_sampling if isinstance(amp_sampling, dict) else {}
 	if cfg.get("dist") is not None:
@@ -549,6 +551,34 @@ def _sample_amplitude(mean_amp, sd_amp, amp_sampling):
 
 	mean_amp = float(mean_amp)
 	sd_amp = float(sd_amp)
+
+	if not _AMP_DIST_LOGGED:
+		if dist == "normal":
+			logging.info("Amplitude distribution: normal (mean=%.6g, sd=%.6g)", mean_amp, sd_amp)
+		elif dist == "lognormal":
+			sigma = cfg.get("lognormal_sigma")
+			sigma = float(sigma) if sigma is not None else sd_amp
+			logging.info("Amplitude distribution: lognormal (mean=%.6g, sigma=%.6g)", mean_amp, max(sigma, 0.0))
+		elif dist == "powerlaw":
+			alpha = float(cfg.get("powerlaw_alpha", 1.8))
+			xmin_scale = float(cfg.get("powerlaw_xmin_scale", 0.1))
+			xmax_scale = float(cfg.get("powerlaw_xmax_scale", 10.0))
+			logging.info(
+				"Amplitude distribution: powerlaw (alpha=%.6g, xmin_scale=%.6g, xmax_scale=%.6g)",
+				alpha,
+				xmin_scale,
+				xmax_scale,
+			)
+		elif dist == "uniform":
+			low_scale = float(cfg.get("uniform_low_scale", 0.0))
+			high_scale = float(cfg.get("uniform_high_scale", 2.0))
+			logging.info(
+				"Amplitude distribution: uniform (low_scale=%.6g, high_scale=%.6g, mean=%.6g)",
+				low_scale,
+				high_scale,
+				mean_amp,
+			)
+		_AMP_DIST_LOGGED = True
 
 	if dist == "normal":
 		return float(np.random.normal(mean_amp, sd_amp)) if sd_amp > 0 else mean_amp
