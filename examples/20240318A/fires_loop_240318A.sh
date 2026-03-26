@@ -36,7 +36,23 @@ start = param.get('start', 0)
 stop  = param.get('stop',  0)
 step  = param.get('step',  0)
 
-nm = name.lower().replace('sd_','').replace('_sigma','').replace('_deg','').replace('deg','')
+nm = name.lower().strip()
+if nm.startswith('meas_mean_'):
+  nm = nm[len('meas_mean_'):]
+if nm.startswith('meas_std_'):
+  nm = nm[len('meas_std_'):]
+if nm.startswith('meas_var_'):
+  nm = nm[len('meas_var_'):]
+if nm.startswith('mean_'):
+  nm = nm[len('mean_'):]
+if nm.endswith('_mean'):
+  nm = nm[:-len('_mean')]
+if nm.startswith('sd_'):
+  nm = nm[len('sd_'):]
+if nm.endswith('_sigma'):
+  nm = nm[:-len('_sigma')]
+nm = nm.replace('_deg_per_ms', '').replace('_deg', '').replace('deg', '')
+nm = nm.replace('_mhz', '').replace('_hz', '').replace('_ms', '')
 mapping = {
     't0':'t0', 'width':'width', 'a':'A', 'amplitude':'A', 'amplitude_jy':'A',
     'spec_idx':'spec_idx', 'spectral_index':'spec_idx',
