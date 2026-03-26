@@ -57,7 +57,7 @@ param_text        = None             # Show parameter values used, i.e., ["lfrac
 xshade = [
   { range = [0.001, 0.02], colour = "#D9B382", alpha = 0.18 },
   { range = [0.021, 0.5], colour = "#8FA7A1", alpha = 0.18 },
-  { range = [0.53, 40.0], colour = "#B9A0C9", alpha = 0.18 }
+  { range = [0.53, 60.0], colour = "#B9A0C9", alpha = 0.18 }
 ]              # Shade x-ranges: [[0, 1], [2, 3]] or [{range=[0,1], colour="red", alpha=0.2}, ...]
 xshade_colour    = "lightgray"       # Matplotlib colour for x-range shading
 xshade_alpha     = 0.25              # Transparency for shaded regions

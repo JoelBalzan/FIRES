@@ -54,13 +54,14 @@ if nm.endswith('_sigma'):
 nm = nm.replace('_deg_per_ms', '').replace('_deg', '').replace('deg', '')
 nm = nm.replace('_mhz', '').replace('_hz', '').replace('_ms', '')
 mapping = {
-    't0':'t0', 'width':'width', 'a':'A', 'amplitude':'A', 'amplitude_jy':'A',
-    'spec_idx':'spec_idx', 'spectral_index':'spec_idx',
-    'tau':'tau', 'dm':'DM', 'rm':'RM', 'pa':'PA', 'pa_deg':'PA',
-    'lfrac':'lfrac', 'vfrac':'vfrac', 'dpa':'dPA', 'dpa_deg_per_ms':'dPA',
-    'band_centre':'band_centre', 'band_centre_mhz':'band_centre',
-    'band_width':'band_width',   'band_width_mhz':'band_width',
-    'n':'N', 'mg_width_low':'mg_width_low', 'mg_width_high':'mg_width_high',
+  't0':'t0', 'width':'width', 'a':'A', 'amplitude':'A', 'amplitude_jy':'A',
+  'spec_idx':'spec_idx', 'spectral_index':'spec_idx',
+  'tau':'tau', 'dm':'DM', 'rm':'RM', 'pa':'PA', 'pa_deg':'PA',
+  'pa_sigma_deg':'pa_sigma_deg', 'sd_pa':'pa_sigma_deg', 'pa_sigma':'pa_sigma_deg',
+  'lfrac':'lfrac', 'vfrac':'vfrac', 'dpa':'dPA', 'dpa_deg_per_ms':'dPA',
+  'band_centre':'band_centre', 'band_centre_mhz':'band_centre',
+  'band_width':'band_width',   'band_width_mhz':'band_width',
+  'n':'N', 'mg_width_low':'mg_width_low', 'mg_width_high':'mg_width_high',
 }
 print(f"{mapping.get(nm,'UNKNOWN')}\t{start}\t{stop}\t{step}")
 PY
