@@ -233,6 +233,19 @@ def _as_bool(value: Any, default: bool = False) -> bool:
             return False
     return bool(value)
 
+def _parse_optional_positive_int(value: Any) -> Optional[int]:
+    """Return positive int value, or None for disabled/invalid entries."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and value.strip().lower() in {"none", "null", "false", "off", "0"}:
+        return None
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return None
+    return v if (v > 0) else None
 
 def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     """Parse raw fires.toml dictionary into a strongly typed FiresConfig."""
@@ -366,9 +379,7 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
                 start=float(_require(sweep_param_raw, "start", "analysis.sweep.parameter")),
                 stop=float(_require(sweep_param_raw, "stop", "analysis.sweep.parameter")),
                 step=float(_require(sweep_param_raw, "step", "analysis.sweep.parameter")),
-                log_steps=(
-                    int(sweep_param_raw["log_steps"]) if sweep_param_raw.get("log_steps", None) is not None else None
-                ),
+                log_steps=_parse_optional_positive_int(sweep_param_raw.get("log_steps", None)),
             ),
         ),
         buffer_fraction=float(an_raw.get("buffer_fraction", raw.get("observation", {}).get("buffer_fraction", 1.0))),
