@@ -18,7 +18,7 @@ index = -4.85
 [propagation.scintillation]
 enable          = true
 timescale_s     = 300
-bandwidth_Hz    = 1.5e6
+bandwidth_Hz    = 2.05e6
 derive_from_tau = false
 N_images        = 5000
 theta_extent    = 3.0
