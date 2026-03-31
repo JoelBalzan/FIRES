@@ -524,13 +524,13 @@ def plot_pa_li_scatter(
     mean_pa_rad = 0.5 * np.angle(np.nanmean(np.exp(1j * 2 * pa_rad)))
 
     # --- Compute ΔPA correctly (circular residual) ---
-    delta_pa = np.abs(0.5 * np.rad2deg(
+    delta_pa = 0.5 * np.rad2deg(
         np.angle(np.exp(1j * 2 * (pa_rad - mean_pa_rad)))
-    ))
+    )
 
     # --- Compute Δ(L/I) ---
     mean_li = np.nanmean(li)
-    delta_li = np.abs(li - mean_li)
+    delta_li = li - mean_li
 
     # --- Correlations ---
     try:
@@ -554,12 +554,25 @@ def plot_pa_li_scatter(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    ax.scatter(np.abs(delta_pa), delta_li, s=6, alpha=0.5)
+    # Use time as colour (only masked points)
+    t_plot = time_ms[mask]
 
-    ax.axhline(0, color='gray', lw=0.5)
-    ax.axvline(0, color='gray', lw=0.5)
+    sc = ax.scatter(
+        delta_pa,
+        delta_li,
+        c=t_plot,
+        s=8,
+        alpha=0.7
+    )
 
-    ax.set_xlabel(r'$|\Delta \mathrm{PA}|$ [deg]')
+    # Colorbar
+    cbar = plt.colorbar(sc, ax=ax)
+    cbar.set_label("Time [ms]")
+
+    ax.axhline(0, lw=0.5)
+    ax.axvline(0, lw=0.5)
+
+    ax.set_xlabel(r'$\Delta \mathrm{PA}$ [deg]')
     ax.set_ylabel(r'$\Delta (L/I)$')
 
     ax.set_title(
