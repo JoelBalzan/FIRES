@@ -311,7 +311,7 @@ def main():
 		"-p", "--plot",
 		nargs="+",
 		default=['lvpa'],
-		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac', 'pa'],
+		choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac', 'pa', 'pali'],
 		metavar="",
 			help=(
 			"Generate plots. Pass 'all' to generate all (non-analytical) plots, or specify one or more plot names separated by spaces:\n"
@@ -323,6 +323,7 @@ def main():
 			"Analytical Plots:\n"
 			"  'pa_var': Plot the variance of the polarisation angle (PA) vs. swept parameter.\n"
 			"  'l_frac': Plot the fraction of linear polarisation (L/I)/(L/I)_0 vs. swept parameter.\n"
+			"  'pali': Plot the polarisation angle (PA) vs. linear polarisation (L) vs. time.\n"
 			"Pass 'None' to disable all plots."
 		)
 	)

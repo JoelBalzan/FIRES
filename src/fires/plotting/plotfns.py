@@ -455,3 +455,124 @@ def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, e
 		fig.savefig(fpath, bbox_inches='tight', dpi=600)
 		logging.info("Saved figure to %s \n", fpath)
 
+
+def plot_pa_li_scatter(
+    fname,
+    outdir,
+    tsdata,
+    time_ms,
+    noise_stokes=None,
+    save=True,
+    figsize=None,
+    show_plots=False,
+    extension="png",
+    snr_cut=5.0,
+    use_onpulse=True,
+):
+    """
+    Scatter plot of:
+        x = PA - <PA>
+        y = (L/I) - <L/I>
+
+    Inputs:
+        - tsdata: object with .iquvt, .phits (rad), .ephits (rad), .Lts
+        - time_ms: time array
+        - noise_stokes: optional noise levels [I, Q, U, V]
+        - snr_cut: mask points below S/N threshold (in I)
+        - use_onpulse: restrict to on-pulse region
+    """
+
+    from scipy.stats import pearsonr, spearmanr
+
+    # --- Extract data ---
+    I, Q, U, V = tsdata.iquvt
+    L = tsdata.Lts
+
+    # --- Compute PA (deg, wrapped) ---
+    pa_deg = np.rad2deg(tsdata.phits)
+    pa_wrapped = wrap_pa_deg(pa_deg)
+
+    # --- Compute L/I safely ---
+    with np.errstate(divide='ignore', invalid='ignore'):
+        li = L / I
+    li[~np.isfinite(li)] = np.nan
+
+    # --- Masking ---
+    mask = np.isfinite(pa_wrapped) & np.isfinite(li)
+
+    # S/N cut
+    if noise_stokes is not None:
+        mask &= I > snr_cut * noise_stokes[0]
+
+    # On-pulse mask
+    if use_onpulse:
+        on_mask, _, _ = on_off_pulse_masks_from_profile(
+            I, intrinsic_width_bins=1, frac=0.95, buffer_frac=None
+        )
+        mask &= on_mask
+
+    if np.count_nonzero(mask) < 10:
+        logger.warning("Not enough valid points for PA–L/I scatter.")
+        return
+
+    # --- Apply mask ---
+    pa = pa_wrapped[mask]
+    li = li[mask]
+
+    # --- Compute mean PA properly (circular mean!) ---
+    pa_rad = np.deg2rad(pa)
+    mean_pa_rad = 0.5 * np.angle(np.nanmean(np.exp(1j * 2 * pa_rad)))
+
+    # --- Compute ΔPA correctly (circular residual) ---
+    delta_pa = np.abs(0.5 * np.rad2deg(
+        np.angle(np.exp(1j * 2 * (pa_rad - mean_pa_rad)))
+    ))
+
+    # --- Compute Δ(L/I) ---
+    mean_li = np.nanmean(li)
+    delta_li = np.abs(li - mean_li)
+
+    # --- Correlations ---
+    try:
+        pear_r, pear_p = pearsonr(delta_pa, delta_li)
+    except Exception:
+        pear_r, pear_p = np.nan, np.nan
+
+    try:
+        spear_r, spear_p = spearmanr(delta_pa, delta_li)
+    except Exception:
+        spear_r, spear_p = np.nan, np.nan
+
+    logger.info(
+        "PA–L/I correlation: Pearson r=%.3f (p=%.2e), Spearman r=%.3f (p=%.2e)",
+        pear_r, pear_p, spear_r, spear_p
+    )
+
+    # --- Plot ---
+    if figsize is None:
+        figsize = (5, 5)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    ax.scatter(np.abs(delta_pa), delta_li, s=6, alpha=0.5)
+
+    ax.axhline(0, color='gray', lw=0.5)
+    ax.axvline(0, color='gray', lw=0.5)
+
+    ax.set_xlabel(r'$|\Delta \mathrm{PA}|$ [deg]')
+    ax.set_ylabel(r'$\Delta (L/I)$')
+
+    ax.set_title(
+        f"Pearson r={pear_r:.2f}, Spearman r={spear_r:.2f}",
+        fontsize=9
+    )
+
+    ax.tick_params(direction="in", top=True, right=True)
+
+    if show_plots:
+        plt.show()
+
+    if save:
+        fpath = os.path.join(outdir, f"{fname}_pa_li_scatter.{extension}")
+        fig.savefig(fpath, bbox_inches='tight', dpi=600)
+        logger.info("Saved figure to %s \n", fpath)
