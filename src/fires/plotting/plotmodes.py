@@ -30,8 +30,9 @@ from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
                                         colours, draw_plot_text,
                                         get_plot_param, param_info_or_dynamic,
                                         param_map, text_with_offset)
-from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_pa_profile,
-                                    plot_stokes, plot_pa_li_scatter)
+from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds,
+                                    plot_pa_li_scatter, plot_pa_profile,
+                                    plot_stokes)
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -185,7 +186,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
-		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension,snr_cut=5.0,use_onpulse=True)
+		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension)
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 	elif mode == "lvpa":
@@ -199,7 +200,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	elif mode == "RM":
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "pali":
-		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension,snr_cut=5.0,use_onpulse=True)
+		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension)
 	else:
 		logging.warning(f"Invalid mode: {mode} \n")
 

@@ -20,8 +20,8 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
-								 pa_variance_deg2, print_global_stats,
-								 wrap_pa_deg)
+                                 pa_variance_deg2, print_global_stats,
+                                 wrap_pa_deg)
 from fires.plotting.plot_helper import draw_plot_text
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
@@ -466,7 +466,7 @@ def plot_pa_li_scatter(
 	figsize=None,
 	show_plots=False,
 	extension="png",
-	snr_cut=5.0,
+	snr_cut=2.0,
 	use_onpulse=True,
 ):
 	"""
@@ -482,7 +482,7 @@ def plot_pa_li_scatter(
 		- use_onpulse: restrict to on-pulse region
 	"""
 
-	from scipy.stats import pearsonr, spearmanr
+	from scipy.stats import pearsonr, rankdata, spearmanr
 
 	# --- Extract data ---
 	I, Q, U, V = tsdata.iquvt
@@ -547,31 +547,94 @@ def plot_pa_li_scatter(
 			)
 			peak_delta_li = peak_li - mean_li
 
-	# --- Correlations ---
+	# --- Correlations and test stack ---
+	def _safe_spearman_stat(xvals, yvals):
+		"""Return Spearman rho robustly across SciPy versions."""
+		try:
+			res = spearmanr(xvals, yvals)
+			if hasattr(res, "statistic"):
+				return float(res.statistic), float(res.pvalue)
+			return float(res[0]), float(res[1])
+		except Exception:
+			return np.nan, np.nan
+
+	def _partial_spearman_time(xvals, yvals, tvals):
+		"""Partial Spearman between x and y after linear control for time ranks."""
+		xr = rankdata(xvals)
+		yr = rankdata(yvals)
+		tr = rankdata(tvals)
+
+		A = np.column_stack((np.ones_like(tr), tr))
+		rx = xr - A @ np.linalg.lstsq(A, xr, rcond=None)[0]
+		ry = yr - A @ np.linalg.lstsq(A, yr, rcond=None)[0]
+		return pearsonr(rx, ry)
+
 	try:
 		pear_r, pear_p = pearsonr(delta_pa, delta_li)
 	except Exception:
 		pear_r, pear_p = np.nan, np.nan
 
+	spear_r, spear_p = _safe_spearman_stat(delta_pa, delta_li)
+
+	# Circular-shift permutation test for Spearman rho (preserves 1D time structure)
+	npts = delta_pa.size
+	n_perm = 2000
+	rng = np.random.default_rng(42)
+	perm_rhos = np.full(n_perm, np.nan, dtype=float)
+	if npts > 2 and np.isfinite(spear_r):
+		for ii in range(n_perm):
+			lag = int(rng.integers(1, npts))
+			y_shift = np.roll(delta_li, lag)
+			perm_rhos[ii], _ = _safe_spearman_stat(delta_pa, y_shift)
+		valid_perm = np.isfinite(perm_rhos)
+		n_valid_perm = int(np.count_nonzero(valid_perm))
+		if n_valid_perm > 0:
+			perm_p = (1.0 + np.count_nonzero(np.abs(perm_rhos[valid_perm]) >= np.abs(spear_r))) / (n_valid_perm + 1.0)
+		else:
+			perm_p = np.nan
+	else:
+		n_valid_perm = 0
+		perm_p = np.nan
+
+	# Bootstrap CI for Spearman rho
+	n_boot = 2000
+	boot_rhos = np.full(n_boot, np.nan, dtype=float)
+	if npts > 2:
+		for ii in range(n_boot):
+			idx = rng.integers(0, npts, size=npts)
+			boot_rhos[ii], _ = _safe_spearman_stat(delta_pa[idx], delta_li[idx])
+		valid_boot = boot_rhos[np.isfinite(boot_rhos)]
+		if valid_boot.size > 0:
+			spear_ci_lo, spear_ci_hi = np.percentile(valid_boot, [2.5, 97.5])
+		else:
+			spear_ci_lo, spear_ci_hi = np.nan, np.nan
+	else:
+		spear_ci_lo, spear_ci_hi = np.nan, np.nan
+
+	# Partial Spearman controlling for time
+	t_plot = time_ms[mask]
 	try:
-		spear_r, spear_p = spearmanr(delta_pa, delta_li)
+		partial_r, partial_p = _partial_spearman_time(delta_pa, delta_li, t_plot)
 	except Exception:
-		spear_r, spear_p = np.nan, np.nan
+		partial_r, partial_p = np.nan, np.nan
 
 	logger.info(
-		"PA–L/I correlation: Pearson r=%.3f (p=%.2e), Spearman r=%.3f (p=%.2e)",
+		"PA-L/I correlation: Pearson r=%.3f (p=%.2e), Spearman r=%.3f (p=%.2e)",
 		pear_r, pear_p, spear_r, spear_p
+	)
+	logger.info(
+		"PA-L/I test stack: Spearman perm p=%.2e (n_perm=%d, valid=%d), Spearman 95%% CI=[%.3f, %.3f], partial Spearman|time r=%.3f (p=%.2e)",
+		perm_p, n_perm, n_valid_perm, spear_ci_lo, spear_ci_hi, partial_r, partial_p
 	)
 
 	# --- Plot ---
 	if figsize is None:
-		figsize = (5, 5)
-
-	fig, ax = plt.subplots(figsize=figsize)
+		figsize = (8, 8)
 
 	# Use time as colour (only masked points)
-	t_plot = time_ms[mask]
 
+	# 2D PA-L/I scatter (existing output)
+	fig, ax = plt.subplots(figsize=figsize)
 	sc = ax.scatter(
 		delta_pa,
 		delta_li,
@@ -585,36 +648,99 @@ def plot_pa_li_scatter(
 			peak_delta_pa,
 			peak_delta_li,
 			marker='*',
-			s=80,
-			facecolor='none',
-			edgecolor='black',
+			s=150,
+			color='pink',
+			edgecolor='red',
 			linewidth=1.0,
 			zorder=5,
 			label='I peak'
 		)
-		ax.legend(loc='best', fontsize=8, frameon=False)
+		#ax.legend(loc='best', fontsize=14, frameon=False)
 
-	# Colorbar
 	cbar = plt.colorbar(sc, ax=ax, orientation='vertical')
 	cbar.set_label("Time [ms]")
 
 	ax.axhline(0, lw=0.5)
 	ax.axvline(0, lw=0.5)
-
-	ax.set_xlabel(r'$\Delta \mathrm{PA}$ [deg]')
-	ax.set_ylabel(r'$\Delta (L/I)$')
-
-	ax.set_title(
-		f"Pearson r={pear_r:.2f}, Spearman r={spear_r:.2f}",
-		fontsize=9
-	)
-
+	ax.set_xlabel(r'$\Delta \psi$ [deg]')
+	ax.set_ylabel(r'$\Delta \Pi_L$')
+	#ax.set_xlim(-25,25)
+	#ax.set_ylim(-0.6,0.6)
+	#ax.set_title(f"Pearson r={pear_r:.2f}, Spearman r={spear_r:.2f}",fontsize=9)
+	#stats_text = (
+	#	f"Spearman p={spear_p:.2e}\\n"
+	#	f"Perm p={perm_p:.2e} (n={n_valid_perm})\\n"
+	#	f"Spearman 95% CI=[{spear_ci_lo:.2f}, {spear_ci_hi:.2f}]\\n"
+	#	f"Partial Spearman|t={partial_r:.2f} (p={partial_p:.2e})"
+	#)
+	#ax.text(
+	#	0.03, 0.97, stats_text,
+	#	transform=ax.transAxes,
+	#	va='top', ha='left',
+	#	fontsize=8,
+	#	bbox=dict(boxstyle='round', facecolor='white', alpha=0.75, edgecolor='0.6')
+	#)
 	ax.tick_params(direction="in", top=True, right=True)
-
-	if show_plots:
-		plt.show()
 
 	if save:
 		fpath = os.path.join(outdir, f"{fname}_pa_li_scatter.{extension}")
 		fig.savefig(fpath, bbox_inches='tight', dpi=600)
 		logger.info("Saved figure to %s \n", fpath)
+
+	# Additional 3D PA-L/I-time scatter with time as an explicit axis
+	fig3d = plt.figure(figsize=figsize)
+	ax3d = fig3d.add_subplot(111, projection='3d')
+
+	sc3d = ax3d.scatter(
+		t_plot,
+		delta_pa,
+		delta_li,
+		c=t_plot,
+		s=8,
+		alpha=0.75
+	)
+
+	if np.isfinite(peak_delta_pa) and np.isfinite(peak_delta_li):
+		peak_time = time_ms[peak_idx] if peak_idx is not None else np.nan
+		if np.isfinite(peak_time):
+			ax3d.scatter(
+				peak_time,
+				peak_delta_pa,
+				peak_delta_li,
+				marker='*',
+				s=150,
+				color='pink',
+				edgecolor='red',
+				linewidth=1.0,
+				zorder=200,
+				label='I peak'
+			)
+			#ax3d.legend(loc='best', fontsize=14, frameon=False)
+
+	#cbar3d = plt.colorbar(sc3d, ax=ax3d, pad=0.08, orientation='horizontal')
+	#cbar3d.set_label("Time [ms]")
+
+	ax3d.set_xlabel("Time [ms]", labelpad=15)
+	ax3d.set_ylabel(r'$\Delta \psi$ [deg]', labelpad=10)
+	ax3d.set_zlabel(r'$\Delta \Pi_L$', labelpad=15)
+	ax3d.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+	ax3d.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+	ax3d.zaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+	#ax3d.set_title(f"PA-L/I-Time (Pearson r={pear_r:.2f}, Spearman r={spear_r:.2f})",fontsize=9)
+	# Emphasise time axis and use a view where both PA and L/I axes are visible.
+	try:
+		ax3d.set_box_aspect((1.45, 1.0, 1.0))
+	except Exception:
+		pass
+	ax3d.view_init(elev=24, azim=-58)
+	ax3d.tick_params(direction="in")
+
+	if save:
+		fpath3d = os.path.join(outdir, f"{fname}_pa_li_scatter_3d.{extension}")
+		# For mplot3d, tight bbox can clip z-axis labels; use explicit margins instead.
+		fig3d.subplots_adjust(left=0.06, right=0.88, bottom=0.08, top=0.97)
+		fig3d.savefig(fpath3d, dpi=600)
+		logger.info("Saved figure to %s \n", fpath3d)
+
+	if show_plots:
+		plt.show()
