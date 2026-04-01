@@ -20,8 +20,8 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, print_global_stats,
-                                 wrap_pa_deg)
+								 pa_variance_deg2, print_global_stats,
+								 wrap_pa_deg)
 from fires.plotting.plot_helper import draw_plot_text
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
@@ -457,135 +457,164 @@ def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, e
 
 
 def plot_pa_li_scatter(
-    fname,
-    outdir,
-    tsdata,
-    time_ms,
-    noise_stokes=None,
-    save=True,
-    figsize=None,
-    show_plots=False,
-    extension="png",
-    snr_cut=5.0,
-    use_onpulse=True,
+	fname,
+	outdir,
+	tsdata,
+	time_ms,
+	noise_stokes=None,
+	save=True,
+	figsize=None,
+	show_plots=False,
+	extension="png",
+	snr_cut=5.0,
+	use_onpulse=True,
 ):
-    """
-    Scatter plot of:
-        x = PA - <PA>
-        y = (L/I) - <L/I>
+	"""
+	Scatter plot of:
+		x = PA - <PA>
+		y = (L/I) - <L/I>
 
-    Inputs:
-        - tsdata: object with .iquvt, .phits (rad), .ephits (rad), .Lts
-        - time_ms: time array
-        - noise_stokes: optional noise levels [I, Q, U, V]
-        - snr_cut: mask points below S/N threshold (in I)
-        - use_onpulse: restrict to on-pulse region
-    """
+	Inputs:
+		- tsdata: object with .iquvt, .phits (rad), .ephits (rad), .Lts
+		- time_ms: time array
+		- noise_stokes: optional noise levels [I, Q, U, V]
+		- snr_cut: mask points below S/N threshold (in I)
+		- use_onpulse: restrict to on-pulse region
+	"""
 
-    from scipy.stats import pearsonr, spearmanr
+	from scipy.stats import pearsonr, spearmanr
 
-    # --- Extract data ---
-    I, Q, U, V = tsdata.iquvt
-    L = tsdata.Lts
+	# --- Extract data ---
+	I, Q, U, V = tsdata.iquvt
+	L = tsdata.Lts
 
-    # --- Compute PA (deg, wrapped) ---
-    pa_deg = np.rad2deg(tsdata.phits)
-    pa_wrapped = wrap_pa_deg(pa_deg)
+	# --- Compute PA (deg, wrapped) ---
+	pa_deg = np.rad2deg(tsdata.phits)
+	pa_wrapped = wrap_pa_deg(pa_deg)
 
-    # --- Compute L/I safely ---
-    with np.errstate(divide='ignore', invalid='ignore'):
-        li = L / I
-    li[~np.isfinite(li)] = np.nan
+	# --- Compute L/I safely ---
+	with np.errstate(divide='ignore', invalid='ignore'):
+		li = L / I
+	li[~np.isfinite(li)] = np.nan
 
-    # --- Masking ---
-    mask = np.isfinite(pa_wrapped) & np.isfinite(li)
+	# --- Masking ---
+	mask = np.isfinite(pa_wrapped) & np.isfinite(li)
 
-    # S/N cut
-    if noise_stokes is not None:
-        mask &= I > snr_cut * noise_stokes[0]
+	# S/N cut
+	if noise_stokes is not None:
+		mask &= I > snr_cut * noise_stokes[0]
 
-    # On-pulse mask
-    if use_onpulse:
-        on_mask, _, _ = on_off_pulse_masks_from_profile(
-            I, intrinsic_width_bins=1, frac=0.95, buffer_frac=None
-        )
-        mask &= on_mask
+	# On-pulse mask
+	if use_onpulse:
+		on_mask, _, _ = on_off_pulse_masks_from_profile(
+			I, intrinsic_width_bins=1, frac=0.95, buffer_frac=None
+		)
+		mask &= on_mask
 
-    if np.count_nonzero(mask) < 10:
-        logger.warning("Not enough valid points for PA–L/I scatter.")
-        return
+	if np.count_nonzero(mask) < 10:
+		logger.warning("Not enough valid points for PA–L/I scatter.")
+		return
 
-    # --- Apply mask ---
-    pa = pa_wrapped[mask]
-    li = li[mask]
+	# --- Apply mask ---
+	pa = pa_wrapped[mask]
+	li = li[mask]
 
-    # --- Compute mean PA properly (circular mean!) ---
-    pa_rad = np.deg2rad(pa)
-    mean_pa_rad = 0.5 * np.angle(np.nanmean(np.exp(1j * 2 * pa_rad)))
+	# --- Compute mean PA properly (circular mean!) ---
+	pa_rad = np.deg2rad(pa)
+	mean_pa_rad = 0.5 * np.angle(np.nanmean(np.exp(1j * 2 * pa_rad)))
 
-    # --- Compute ΔPA correctly (circular residual) ---
-    delta_pa = 0.5 * np.rad2deg(
-        np.angle(np.exp(1j * 2 * (pa_rad - mean_pa_rad)))
-    )
+	# --- Compute ΔPA correctly (circular residual) ---
+	delta_pa = 0.5 * np.rad2deg(
+		np.angle(np.exp(1j * 2 * (pa_rad - mean_pa_rad)))
+	)
 
-    # --- Compute Δ(L/I) ---
-    mean_li = np.nanmean(li)
-    delta_li = li - mean_li
+	# --- Compute Δ(L/I) ---
+	mean_li = np.nanmean(li)
+	delta_li = li - mean_li
 
-    # --- Correlations ---
-    try:
-        pear_r, pear_p = pearsonr(delta_pa, delta_li)
-    except Exception:
-        pear_r, pear_p = np.nan, np.nan
+	# Pulse-profile peak (max I) projected into this ΔPA–Δ(L/I) space
+	peak_idx = None
+	peak_delta_pa = np.nan
+	peak_delta_li = np.nan
+	if np.any(np.isfinite(I)):
+		peak_idx = int(np.nanargmax(I))
+		peak_pa = pa_wrapped[peak_idx]
+		peak_li = (L / I)[peak_idx] if np.isfinite(I[peak_idx]) and I[peak_idx] != 0 else np.nan
+		if np.isfinite(peak_pa) and np.isfinite(peak_li):
+			peak_pa_rad = np.deg2rad(peak_pa)
+			peak_delta_pa = 0.5 * np.rad2deg(
+				np.angle(np.exp(1j * 2 * (peak_pa_rad - mean_pa_rad)))
+			)
+			peak_delta_li = peak_li - mean_li
 
-    try:
-        spear_r, spear_p = spearmanr(delta_pa, delta_li)
-    except Exception:
-        spear_r, spear_p = np.nan, np.nan
+	# --- Correlations ---
+	try:
+		pear_r, pear_p = pearsonr(delta_pa, delta_li)
+	except Exception:
+		pear_r, pear_p = np.nan, np.nan
 
-    logger.info(
-        "PA–L/I correlation: Pearson r=%.3f (p=%.2e), Spearman r=%.3f (p=%.2e)",
-        pear_r, pear_p, spear_r, spear_p
-    )
+	try:
+		spear_r, spear_p = spearmanr(delta_pa, delta_li)
+	except Exception:
+		spear_r, spear_p = np.nan, np.nan
 
-    # --- Plot ---
-    if figsize is None:
-        figsize = (5, 5)
+	logger.info(
+		"PA–L/I correlation: Pearson r=%.3f (p=%.2e), Spearman r=%.3f (p=%.2e)",
+		pear_r, pear_p, spear_r, spear_p
+	)
 
-    fig, ax = plt.subplots(figsize=figsize)
+	# --- Plot ---
+	if figsize is None:
+		figsize = (5, 5)
 
-    # Use time as colour (only masked points)
-    t_plot = time_ms[mask]
+	fig, ax = plt.subplots(figsize=figsize)
 
-    sc = ax.scatter(
-        delta_pa,
-        delta_li,
-        c=t_plot,
-        s=8,
-        alpha=0.7
-    )
+	# Use time as colour (only masked points)
+	t_plot = time_ms[mask]
 
-    # Colorbar
-    cbar = plt.colorbar(sc, ax=ax)
-    cbar.set_label("Time [ms]")
+	sc = ax.scatter(
+		delta_pa,
+		delta_li,
+		c=t_plot,
+		s=8,
+		alpha=0.7
+	)
 
-    ax.axhline(0, lw=0.5)
-    ax.axvline(0, lw=0.5)
+	if np.isfinite(peak_delta_pa) and np.isfinite(peak_delta_li):
+		ax.scatter(
+			peak_delta_pa,
+			peak_delta_li,
+			marker='*',
+			s=80,
+			facecolor='none',
+			edgecolor='black',
+			linewidth=1.0,
+			zorder=5,
+			label='I peak'
+		)
+		ax.legend(loc='best', fontsize=8, frameon=False)
 
-    ax.set_xlabel(r'$\Delta \mathrm{PA}$ [deg]')
-    ax.set_ylabel(r'$\Delta (L/I)$')
+	# Colorbar
+	cbar = plt.colorbar(sc, ax=ax, orientation='vertical')
+	cbar.set_label("Time [ms]")
 
-    ax.set_title(
-        f"Pearson r={pear_r:.2f}, Spearman r={spear_r:.2f}",
-        fontsize=9
-    )
+	ax.axhline(0, lw=0.5)
+	ax.axvline(0, lw=0.5)
 
-    ax.tick_params(direction="in", top=True, right=True)
+	ax.set_xlabel(r'$\Delta \mathrm{PA}$ [deg]')
+	ax.set_ylabel(r'$\Delta (L/I)$')
 
-    if show_plots:
-        plt.show()
+	ax.set_title(
+		f"Pearson r={pear_r:.2f}, Spearman r={spear_r:.2f}",
+		fontsize=9
+	)
 
-    if save:
-        fpath = os.path.join(outdir, f"{fname}_pa_li_scatter.{extension}")
-        fig.savefig(fpath, bbox_inches='tight', dpi=600)
-        logger.info("Saved figure to %s \n", fpath)
+	ax.tick_params(direction="in", top=True, right=True)
+
+	if show_plots:
+		plt.show()
+
+	if save:
+		fpath = os.path.join(outdir, f"{fname}_pa_li_scatter.{extension}")
+		fig.savefig(fpath, bbox_inches='tight', dpi=600)
+		logger.info("Saved figure to %s \n", fpath)
