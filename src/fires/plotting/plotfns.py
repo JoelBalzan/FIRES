@@ -576,14 +576,15 @@ def plot_pa_li_scatter(
 
 	spear_r, spear_p = _safe_spearman_stat(delta_pa, delta_li)
 
-	# Circular-shift permutation test for Spearman rho (preserves 1D time structure)
+	# Circular-shift permutation test for Spearman rho (preserves 1D time structure).
+	# Use all unique non-zero circular lags exactly once: 1..(N-1).
 	npts = delta_pa.size
-	n_perm = 2000
 	rng = np.random.default_rng(42)
-	perm_rhos = np.full(n_perm, np.nan, dtype=float)
 	if npts > 2 and np.isfinite(spear_r):
-		for ii in range(n_perm):
-			lag = int(rng.integers(1, npts))
+		lags = np.arange(1, npts, dtype=int)
+		n_perm = int(lags.size)
+		perm_rhos = np.full(n_perm, np.nan, dtype=float)
+		for ii, lag in enumerate(lags):
 			y_shift = np.roll(delta_li, lag)
 			perm_rhos[ii], _ = _safe_spearman_stat(delta_pa, y_shift)
 		valid_perm = np.isfinite(perm_rhos)
@@ -593,11 +594,12 @@ def plot_pa_li_scatter(
 		else:
 			perm_p = np.nan
 	else:
+		n_perm = 0
 		n_valid_perm = 0
 		perm_p = np.nan
 
 	# Bootstrap CI for Spearman rho
-	n_boot = 2000
+	n_boot = 10000
 	boot_rhos = np.full(n_boot, np.nan, dtype=float)
 	if npts > 2:
 		for ii in range(n_boot):

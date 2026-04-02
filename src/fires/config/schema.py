@@ -32,11 +32,6 @@ class Scattering:
 
 ### SCINTILLATION ###
 @dataclass
-class ScintillationOutput:
-    save_gain: bool = False
-    path: str = "scint_gain.npy"
-
-@dataclass
 class Scintillation:
     enable: bool = True
     timescale_s: float = 300
@@ -46,8 +41,6 @@ class Scintillation:
     N_images: int = 5000
     theta_extent: float = 3.0
     return_field: bool = False
-
-    output: ScintillationOutput = field(default_factory=ScintillationOutput)
 
 @dataclass
 class Propagation:
@@ -276,7 +269,6 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     prop_raw = _require(raw, "propagation", "root")
     sc_raw = _require(prop_raw, "scattering", "propagation")
     scint_raw = _require(prop_raw, "scintillation", "propagation")
-    scint_output_raw = scint_raw.get("output", {})
     propagation = Propagation(
         scattering=Scattering(index=float(_require(sc_raw, "index", "propagation.scattering"))),
         scintillation=Scintillation(
@@ -287,10 +279,6 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
             N_images=int(scint_raw.get("N_images", 5000)),
             theta_extent=float(scint_raw.get("theta_extent", 3.0)),
             return_field=_as_bool(scint_raw.get("return_field", False), default=False),
-            output=ScintillationOutput(
-                save_gain=_as_bool(scint_output_raw.get("save_gain", False), default=False),
-                path=str(scint_output_raw.get("path", "scint_gain.npy")),
-            ),
         ),
     )
 

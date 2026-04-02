@@ -24,10 +24,6 @@ N_images        = 5000
 theta_extent    = 3.0
 return_field    = false
 
-[propagation.scintillation.output]
-save_gain = false
-path      = "scint_gain.npy"
-
 [emission]
 model = "gaussian_microshot"
 

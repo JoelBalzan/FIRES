@@ -35,10 +35,6 @@ N_images     = 5000  # Number of phasor/image terms in scintillation screen.
 theta_extent = 3.0   # Angular truncation control for screen synthesis.
 return_field = false # Return complex field (E) in addition to gain if enabled in code path.
 
-[propagation.scintillation.output]
-save_gain = false
-path      = "scint_gain.npy"
-
 # ========================================================== 
 # EMISSION MODEL
 # ========================================================== 
