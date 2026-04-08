@@ -1159,7 +1159,6 @@ def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', 
 	for xv in xvals:
 		x_dict = exp_vars.get(xv, {})
 		vals = x_dict.get(param_key, None)
-		print(vals)
 		v = first_non_none(vals)
 
 		if isinstance(v, (list, tuple, np.ndarray)) and len(v) >= 2:
