@@ -219,7 +219,7 @@ def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baselin
 			plot_multiple_frb=requires_multiple_frb,
 			target_snr=target_snr,
 			baseline_correct=baseline_correct,
-			diagnostics=False,
+			diagnostics=True,
 		)
 
 	return var, measures, V_params, snr, exp_vars

@@ -284,6 +284,8 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
 	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3))
+	axs[1].yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: rf"${y:.3f}$"))
+	
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 

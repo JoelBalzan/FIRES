@@ -957,8 +957,8 @@ def psn_dspec(
 
 		if not plot_multiple_frb:
 			print(f"tau={tau[0]:.2f}:"
-				  f"Expected(detailed)={exp_V_PA_deg2:.2f}, "
-				  f"Expected(basic)={exp_V_PA_deg2_basic:.2f}")
+				  f"Expected PA variance (detailed)={exp_V_PA_deg2:.2f}, "
+				  f"Expected PA variance (basic)={exp_V_PA_deg2_basic:.2f}")
 
 	else:
 		exp_V_PA_deg2 = None

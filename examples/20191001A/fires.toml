@@ -30,7 +30,7 @@ model = "gaussian_microshot"
 [[emission.components]]
 t0_ms           = -2.0
 width_ms        = 0.5
-amplitude_Jy    = 0.2
+amplitude_Jy    = 1.5
 spectral_index  = 0.0
 tau_ms          = 1.78
 dm              = 0.0

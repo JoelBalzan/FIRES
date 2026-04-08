@@ -1159,6 +1159,7 @@ def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', 
 	for xv in xvals:
 		x_dict = exp_vars.get(xv, {})
 		vals = x_dict.get(param_key, None)
+		print(vals)
 		v = first_non_none(vals)
 
 		if isinstance(v, (list, tuple, np.ndarray)) and len(v) >= 2:
@@ -1200,10 +1201,13 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 	# Only plot if there are finite expected values
 	has_exp1 = np.any(np.isfinite(exp1))
 	has_exp2 = exp2 is not None and np.any(np.isfinite(exp2))
-	#if has_exp1:
-		#ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
+
+	if has_exp1:
+		ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected1')
 	if has_exp2:
-		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected')
+		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected2')
+	else:
+		logging.info(f"No valid expected values found for '{param_key}' to plot.")
 
 
 def _parse_override_dict(override_str) -> dict:
@@ -2125,6 +2129,7 @@ def _plot_single_run_multi_window(
 		if param_key is not None:
 			x, _, _ = _weight_x_get_xname(frb_dict, weight_x_by=weight_x_by)
 			if get_plot_param(plot_config, 'analytical', 'plot_expected', True):
+				print(f"Plotting expected {plot_type} from {param_key}...")
 				_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=param_key, weight_y_by=weight_y_by)
 			
 	# Observational overlay
