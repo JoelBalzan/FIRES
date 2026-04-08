@@ -924,7 +924,7 @@ def psn_dspec(
 
 	N_tot = int(np.nansum(N))
 	exp_V_PA_deg2 = None
-	if diagnostics and (sd_PA > 0) and (N_tot > 1) and (not plot_multiple_frb):
+	if diagnostics and (sd_PA > 0) and (N_tot > 1):
 		actual_A_mean = np.mean(A)
 		actual_A_std = np.std(A)
 		actual_width_mean = np.mean(width)
