@@ -488,11 +488,19 @@ def main():
 	if args.plot[0] not in plot_modes and args.plot[0] not in ("all", "None"):
 			parser.error(f"Invalid plot mode: {args.plot[0]}")
 
+	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
 
 	global data_directory
 	data_directory = args.output_dir
 
 	save_plots = plot_config.get('general', {}).get('save_plots', False)
+	show_plots = plot_config.get('general', {}).get('show_plots', True)
+
+	# Guardrail for large/batch simulations: if plotting is fully disabled,
+	# force file output so simulation products are not silently discarded.
+	if selected_plot_mode.requires_multiple_frb and (not save_plots) and (not show_plots) and (not write_output):
+		write_output = True
+		logging.info("Batch run with save_plots/show_plots disabled: forcing output.write=True")
 
 	if write_output or save_plots:
 		os.makedirs(args.output_dir, exist_ok=True)
@@ -517,7 +525,6 @@ def main():
 	configure_matplotlib_from_config(plot_config)
 
 
-	selected_plot_mode = plot_modes[args.plot[0]] if args.plot[0] in plot_modes else plot_modes['lvpa']
 	try:
 		# Build base kwargs for generate_frb and adjust per-mode to avoid duplicate call sites
 		base_kwargs = dict(
@@ -560,7 +567,6 @@ def main():
 		if args.sim_data is None:
 			print(f"Simulation completed. \n")
 
-		show_plots = plot_config.get('general', {}).get('show_plots', True)
 		if args.plot != 'None' and (save_plots or show_plots):
 			for plot_mode in args.plot:
 				try:

@@ -94,7 +94,7 @@ log_steps = false
 
 [observation]
 sefd             = 1.2
-target_snr       = 174.0
+target_snr       = 194.0
 baseline_correct = false
 
 [numerics]

@@ -16,7 +16,7 @@ export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 PLOT="l_frac"
-CONFDIR="/fred/oz313/processing/jbalzan/packages/FIRES/examples/20191001/"
+CONFDIR="/fred/oz313/processing/jbalzan/packages/FIRES/examples/20191001A/"
 GPARAMS="${CONFDIR}/fires.toml"
 
 # --- Read sweep parameters from TOML ---
