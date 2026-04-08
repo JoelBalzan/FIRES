@@ -1201,10 +1201,10 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 	has_exp1 = np.any(np.isfinite(exp1))
 	has_exp2 = exp2 is not None and np.any(np.isfinite(exp2))
 
-	if has_exp1:
-		ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected1')
+	#if has_exp1:
+	#	ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
 	if has_exp2:
-		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected2')
+		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected')
 	else:
 		logging.info(f"No valid expected values found for '{param_key}' to plot.")
 
