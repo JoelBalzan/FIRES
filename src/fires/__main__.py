@@ -48,11 +48,61 @@ def parse_param_overrides(overrides):
 
 	Returns (emission_param_overrides, config_overrides).
 	"""
+	# Normalise user-facing aliases (TOML names and legacy names) to internal keys.
+	mean_aliases = {
+		't0': 't0', 't0_ms': 't0',
+		'width': 'width', 'width_ms': 'width',
+		'a': 'A', 'amplitude': 'A', 'amplitude_jy': 'A',
+		'spec_idx': 'spec_idx', 'spectral_index': 'spec_idx',
+		'tau': 'tau', 'tau_ms': 'tau',
+		'dm': 'DM', 'rm': 'RM',
+		'pa': 'PA', 'pa_deg': 'PA',
+		'lfrac': 'lfrac', 'vfrac': 'vfrac',
+		'dpa': 'dPA', 'dpa_deg_per_ms': 'dPA',
+		'band_centre': 'band_centre_mhz', 'band_centre_mhz': 'band_centre_mhz',
+		'band_width': 'band_width_mhz', 'band_width_mhz': 'band_width_mhz',
+		'n': 'N', 'microshots_n': 'N',
+		'mg_width_low': 'mg_width_low', 'width_frac_low': 'mg_width_low',
+		'mg_width_high': 'mg_width_high', 'width_frac_high': 'mg_width_high',
+		'amp_sampling': 'amp_sampling',
+	}
+
+	sd_aliases = {
+		'sd_t0': 'sd_t0', 't0_sigma_ms': 'sd_t0',
+		'sd_width': 'sd_width', 'width_sigma_ms': 'sd_width',
+		'sd_a': 'sd_A', 'amplitude_sigma': 'sd_A',
+		'sd_spec_idx': 'sd_spec_idx', 'spectral_index_sigma': 'sd_spec_idx',
+		'sd_tau': 'sd_tau', 'tau_sigma_ms': 'sd_tau',
+		'sd_dm': 'sd_DM', 'dm_sigma': 'sd_DM',
+		'sd_rm': 'sd_RM', 'rm_sigma': 'sd_RM',
+		'sd_pa': 'sd_PA', 'pa_sigma_deg': 'sd_PA',
+		'sd_lfrac': 'sd_lfrac', 'lfrac_sigma': 'sd_lfrac',
+		'sd_vfrac': 'sd_vfrac', 'vfrac_sigma': 'sd_vfrac',
+		'sd_dpa': 'sd_dPA', 'dpa_sigma': 'sd_dPA',
+		'sd_band_centre': 'sd_band_centre_mhz', 'sd_band_centre_mhz': 'sd_band_centre_mhz', 'band_centre_sigma': 'sd_band_centre_mhz',
+		'sd_band_width': 'sd_band_width_mhz', 'sd_band_width_mhz': 'sd_band_width_mhz', 'band_width_sigma': 'sd_band_width_mhz',
+	}
+
+	def canonical_emission_key(raw_key: str) -> str:
+		key_l = raw_key.strip().lower()
+		if key_l.startswith("sd_"):
+			return sd_aliases.get(key_l, raw_key)
+		if key_l.endswith("_sd"):
+			base = key_l[:-3]
+			if base in mean_aliases:
+				return f"sd_{mean_aliases[base]}"
+			return raw_key
+		if key_l in sd_aliases:
+			return sd_aliases[key_l]
+		return mean_aliases.get(key_l, raw_key)
+
 	# Emission parameter keys that can be overridden via gdict/sd_dict
 	emission_keys = {
 		't0', 'width', 'A', 'spec_idx', 'tau', 'DM', 'RM', 'PA',
 		'lfrac', 'vfrac', 'dPA', 'band_centre_mhz', 'band_width_mhz',
-		'N', 'mg_width_low', 'mg_width_high', 'amp_sampling'
+		'N', 'mg_width_low', 'mg_width_high', 'amp_sampling',
+		'sd_t0', 'sd_width', 'sd_A', 'sd_spec_idx', 'sd_tau', 'sd_DM', 'sd_RM',
+		'sd_PA', 'sd_lfrac', 'sd_vfrac', 'sd_dPA', 'sd_band_centre_mhz', 'sd_band_width_mhz',
 	}
 	
 	emission_overrides = {}
@@ -66,19 +116,18 @@ def parse_param_overrides(overrides):
 			raise ValueError(f"Invalid override format: '{override}'. Expected 'key=value'.")
 		key, value = override.split("=", 1)
 		key = key.strip()
+		canonical_key = canonical_emission_key(key)
 		
 		# Check if this is an emission parameter (handle both mean and std variants)
-		base_key = key
-		if key.startswith("sd_"):
-			base_key = key[3:]
-		elif key.endswith("_sd"):
-			base_key = key[:-3]
+		base_key = canonical_key
+		if canonical_key.startswith("sd_"):
+			base_key = canonical_key[3:]
 		
 		# If it looks like an emission parameter, try numeric parse
-		if base_key in emission_keys or key.startswith("sd_") or key.endswith("_sd"):
+		if canonical_key in emission_keys or base_key in emission_keys:
 			try:
 				val = float(value)
-				emission_overrides[key] = val
+				emission_overrides[canonical_key] = val
 			except ValueError:
 				raise ValueError(f"Invalid value for emission override '{key}': '{value}' (must be numeric).")
 		else:
