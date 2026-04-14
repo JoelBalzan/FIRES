@@ -44,8 +44,8 @@ band_width_MHz  = 0.0
 
 [emission.components.microshots]
 N               = 100
-width_frac_low  = 0.6
-width_frac_high = 0.80
+width_frac_low  = 0.05
+width_frac_high = 0.20
 
 [emission.components.microshot_scatter]
 t0_sigma_ms          = 0.0
