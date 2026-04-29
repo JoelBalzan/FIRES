@@ -158,6 +158,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
 	xlim = get_plot_param(plot_config, 'general', 'xlim', None)
 	ylim = get_plot_param(plot_config, 'general', 'ylim', None)
+	inset = get_plot_param(plot_config, 'general', 'inset', False)
 
 	show_onpulse = get_plot_param(plot_config, 'windows', 'show_onpulse', False)
 	show_offpulse = get_plot_param(plot_config, 'windows', 'show_offpulse', False)
@@ -181,7 +182,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	if mode == "all":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
-				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text)
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text, inset=inset)
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
@@ -192,7 +193,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	elif mode == "lvpa":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
-				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text)
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text, inset=inset)
 	elif mode == "pa":
 			plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 	elif mode == "dpa":

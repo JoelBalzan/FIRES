@@ -203,7 +203,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 #	----------------------------------------------------------------------------------------------------------
 
 def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
-					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None):
+					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None, inset=False):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
 		Inputs:
@@ -294,77 +294,78 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 
 
 	# Highlight on- and off-pulse regions if requested
-	gdict = dspec_params.gdict
-	inset_bounds = None
-	peak_idx = None
-	peak_time = None
-	left_time = None
-	init_width = gdict["width"][0] / dspec_params.time_res_ms
-	_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, init_width, frac=0.95, buffer_frac=buffer_frac)
-	if np.any(np.isfinite(I)):
-		peak_idx = int(np.nanargmax(I))
-		peak_time = time_ms[peak_idx]
-		left_time = time_ms[left-1]
-		if left <= peak_idx:
-			inset_bounds = (left, peak_idx)
-		else:
-			logging.warning("Cannot build PA leading-edge inset: on-pulse left edge is after I peak.")
-	else:
-		logging.warning("Cannot build PA leading-edge inset: I profile is all non-finite.")
-
-	if show_onpulse or show_offpulse:
-		if show_onpulse:
-			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
-		if show_offpulse:
-			axs[1].fill_between(
-			time_ms, 0, 1, where=off_mask,
-			color='lightcoral', alpha=0.15,
-			transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
-		)
-	
-	axs[1].tick_params(axis='x', direction='in', length=3)  
-	axs[1].set_xticklabels([])  
-
-	# Inset: PA profile over the leading edge (on-pulse first edge to I peak)
-	if inset_bounds is not None:
-		left_idx, peak_idx = inset_bounds
-		if peak_idx > left_idx:
-			inset_ax = axs[0].inset_axes([0.60, 0.11, 0.39, 0.33])
-			t_slice = slice(left_idx, peak_idx + 1)
-			t_inset = time_ms[t_slice]
-			pa_inset = phits[t_slice]
-			epa_inset = pa_err_deg[t_slice]
-			inset_ax.scatter(t_inset, pa_inset, c='black', s=7, zorder=3)
-			inset_ax.errorbar(
-				t_inset,
-				pa_inset,
-				yerr=epa_inset,
-				fmt='none',
-				ecolor='black',
-				elinewidth=0.5,
-				capsize=1,
-				zorder=2,
-			)
-			inset_ax.set_xlim(left_time, peak_time)
-			# Keep inset y-range tight around finite PA points in this interval.
-			finite_pa_inset = pa_inset[np.isfinite(pa_inset)]
-			if finite_pa_inset.size > 1:
-				ypad = max(3.0, 0.1 * (np.nanmax(finite_pa_inset) - np.nanmin(finite_pa_inset)))
-				inset_ax.set_ylim(np.nanmin(finite_pa_inset) - ypad, np.nanmax(finite_pa_inset) + ypad)
+	if inset:
+		gdict = dspec_params.gdict
+		inset_bounds = None
+		peak_idx = None
+		peak_time = None
+		left_time = None
+		init_width = gdict["width"][0] / dspec_params.time_res_ms
+		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, init_width, frac=0.95, buffer_frac=buffer_frac)
+		if np.any(np.isfinite(I)):
+			peak_idx = int(np.nanargmax(I))
+			peak_time = time_ms[peak_idx]
+			left_time = time_ms[left-1]
+			if left <= peak_idx:
+				inset_bounds = (left, peak_idx)
 			else:
-				inset_ax.set_ylim(-90, 90)
-			inset_ax.tick_params(axis='both', labelsize=12, direction='in', length=2)
-			inset_ax.tick_params(axis='y', pad=1)
-			inset_ax.tick_params(axis='x', pad=1)
-			#for label in inset_ax.get_xticklabels():
-			#	label.set_horizontalalignment('right')
-			for spine in inset_ax.spines.values():
-				spine.set_linewidth(0.7)
-
-			# Mark the inset region on the parent PA panel.
-			axs[0].axvspan(left_time, peak_time, color='gray', alpha=0.12, zorder=1)
-			axs[0].axvline(left_time, color='gray', ls='--', lw=0.6, zorder=1)
-			axs[0].axvline(peak_time, color='gray', ls='--', lw=0.6, zorder=1)
+				logging.warning("Cannot build PA leading-edge inset: on-pulse left edge is after I peak.")
+		else:
+			logging.warning("Cannot build PA leading-edge inset: I profile is all non-finite.")
+	
+		if show_onpulse or show_offpulse:
+			if show_onpulse:
+				axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
+			if show_offpulse:
+				axs[1].fill_between(
+				time_ms, 0, 1, where=off_mask,
+				color='lightcoral', alpha=0.15,
+				transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
+			)
+		
+		axs[1].tick_params(axis='x', direction='in', length=3)  
+		axs[1].set_xticklabels([])  
+	
+		# Inset: PA profile over the leading edge (on-pulse first edge to I peak)
+		if inset_bounds is not None:
+			left_idx, peak_idx = inset_bounds
+			if peak_idx > left_idx:
+				inset_ax = axs[0].inset_axes([0.60, 0.11, 0.39, 0.33])
+				t_slice = slice(left_idx, peak_idx + 1)
+				t_inset = time_ms[t_slice]
+				pa_inset = phits[t_slice]
+				epa_inset = pa_err_deg[t_slice]
+				inset_ax.scatter(t_inset, pa_inset, c='black', s=7, zorder=3)
+				inset_ax.errorbar(
+					t_inset,
+					pa_inset,
+					yerr=epa_inset,
+					fmt='none',
+					ecolor='black',
+					elinewidth=0.5,
+					capsize=1,
+					zorder=2,
+				)
+				inset_ax.set_xlim(left_time, peak_time)
+				# Keep inset y-range tight around finite PA points in this interval.
+				finite_pa_inset = pa_inset[np.isfinite(pa_inset)]
+				if finite_pa_inset.size > 1:
+					ypad = max(3.0, 0.1 * (np.nanmax(finite_pa_inset) - np.nanmin(finite_pa_inset)))
+					inset_ax.set_ylim(np.nanmin(finite_pa_inset) - ypad, np.nanmax(finite_pa_inset) + ypad)
+				else:
+					inset_ax.set_ylim(-90, 90)
+				inset_ax.tick_params(axis='both', labelsize=12, direction='in', length=2)
+				inset_ax.tick_params(axis='y', pad=1)
+				inset_ax.tick_params(axis='x', pad=1)
+				#for label in inset_ax.get_xticklabels():
+				#	label.set_horizontalalignment('right')
+				for spine in inset_ax.spines.values():
+					spine.set_linewidth(0.7)
+	
+				# Mark the inset region on the parent PA panel.
+				axs[0].axvspan(left_time, peak_time, color='gray', alpha=0.12, zorder=1)
+				axs[0].axvline(left_time, color='gray', ls='--', lw=0.6, zorder=1)
+				axs[0].axvline(peak_time, color='gray', ls='--', lw=0.6, zorder=1)
 
 	#mn = np.mean(dspec[0])
 	#std = np.std(dspec[0])

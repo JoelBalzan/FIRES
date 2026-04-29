@@ -19,6 +19,7 @@ legend_loc = "best"               # "best", "upper left", "outside right", "outs
 xlim       = None
 ylim       = None
 text       = None# ["\\boldsymbol{(b)}"] # Additional text to display. Options can be modified below
+inset      = false # PA inset for LVPA plot
 
 [general.text_style]
 enabled    = true          # master switch
