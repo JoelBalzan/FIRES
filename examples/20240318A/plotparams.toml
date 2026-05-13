@@ -16,6 +16,7 @@ show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
 legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
+show_spectrum = true              # Show FWHM spectrum panel in ILVPA plot
 xlim       = None
 ylim       = None
 text       = None# ["\\boldsymbol{(b)}"] # Additional text to display. Options can be modified below

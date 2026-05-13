@@ -203,7 +203,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 #	----------------------------------------------------------------------------------------------------------
 
 def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
-					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None, inset=False):
+					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None, inset=False, show_spectrum=True):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
 		Inputs:
@@ -255,12 +255,39 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
 	L = tsdata.Lts / 1e3  # Convert from Jy to kJy
+
+	# FWHM bounds around the I peak (in time bins)
+	fwhm_bounds = None
+	if np.any(np.isfinite(I)):
+		peak_idx = int(np.nanargmax(I))
+		peak_val = I[peak_idx]
+		if np.isfinite(peak_val) and peak_val > 0:
+			half_max = 0.5 * peak_val
+			left_idx = peak_idx
+			while left_idx > 0:
+				if not np.isfinite(I[left_idx]) or I[left_idx] <= half_max:
+					break
+				left_idx -= 1
+			right_idx = peak_idx
+			while right_idx < (I.size - 1):
+				if not np.isfinite(I[right_idx]) or I[right_idx] <= half_max:
+					break
+				right_idx += 1
+			if left_idx < peak_idx and right_idx > peak_idx:
+				fwhm_bounds = (left_idx, right_idx)
+		else:
+			logger.warning("Cannot estimate FWHM: non-finite or non-positive I peak.")
+	else:
+		logger.warning("Cannot estimate FWHM: I profile has no finite values.")
 	
 	if figsize is None:
 		figsize = (7, 9)
 	
 	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=figsize)
-	fig.subplots_adjust(hspace=0.)
+	if show_spectrum and fwhm_bounds is not None:
+		fig.subplots_adjust(hspace=0., right=0.86)
+	else:
+		fig.subplots_adjust(hspace=0., right=0.98)
 
 	# Plot polarisation angle
 	axs[0].scatter(time_ms, phits, c='black', s=2.5, zorder=8)
@@ -286,6 +313,10 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3))
 	#axs[1].yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: rf"${y:.2f}$"))
 	
+	if fwhm_bounds is not None:
+		fwhm_left, fwhm_right = fwhm_bounds
+		axs[1].axvspan(time_ms[fwhm_left], time_ms[fwhm_right], color='gold', alpha=0.18, zorder=0)
+
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 
@@ -380,6 +411,25 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[2].set_xlabel("Time [ms]")
 	axs[2].set_ylabel("Freq. [MHz]")
 	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+
+	# Side spectrum panel from the FWHM time window
+	if show_spectrum and fwhm_bounds is not None:
+		fwhm_left, fwhm_right = fwhm_bounds
+		spec_slice = slice(fwhm_left, fwhm_right + 1)
+		spec = np.nanmean(dspec[0][:, spec_slice], axis=1)
+		if np.any(np.isfinite(spec)):
+			ax_dspec = axs[2]
+			pos = ax_dspec.get_position()
+			pad = 0.01
+			spec_width = pos.width * 0.22
+			ax_spec = fig.add_axes([pos.x1 + pad, pos.y0, spec_width, pos.height])
+			ax_spec.plot(spec, freq_mhz, color='black', lw=0.8)
+			ax_spec.set_ylim(freq_mhz[0], freq_mhz[-1])
+			ax_spec.tick_params(axis='both', direction='in', length=3)
+			ax_spec.set_yticklabels([])
+			ax_spec.set_xlabel(r"$S$ [arb.]")
+		else:
+			logger.warning("Cannot plot FWHM spectrum: spectrum is all non-finite.")
 
 	if legend:
 		axs[1].legend(loc='upper right')
