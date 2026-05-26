@@ -11,16 +11,17 @@
 # General plotting options
 figsize    = None                # Default figure size [width, height] in inches, null for default
 extension  = "pdf"                # File extension for saved plots
-use_latex  = true                 # Use LaTeX for plot text rendering
+use_latex  = false                 # Use LaTeX for plot text rendering
 show_plots = true                 # Display plots on screen
 save_plots = true                 # Save plots to disk
 legend     = false                 # Show legends in plots
 legend_loc = "best"               # "best", "upper left", "outside right", "outside top"
-show_spectrum = true              # Show FWHM spectrum panel in ILVPA plot
+show_spectrum = false              # Show FWHM spectrum panel in ILVPA plot
 xlim       = None
 ylim       = None
 text       = None# ["\\boldsymbol{(b)}"] # Additional text to display. Options can be modified below
 inset      = false # PA inset for LVPA plot
+hide_y_axes = false
 
 [general.text_style]
 enabled    = true          # master switch
@@ -133,21 +134,37 @@ label_prefix     = ""          # optional text prepended to label
 
 [styling]
 # Matplotlib styling options
-pdf_fonttype    = 42
-ps_fonttype     = 42
-savefig_dpi     = 600
-font_size       = 16
-axes_labelsize  = 22
-axes_titlesize  = 22
-legend_fontsize = 20
-xtick_labelsize = 22
-ytick_labelsize = 22
-font_family     = "sans-serif"
-color_cycle     = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
-line_width      = 1
-marker_size     = 6
+figure_dpi          = 150
+pdf_fonttype        = 42
+ps_fonttype         = 42
+savefig_dpi         = 600
+font_size           = 11
+axes_labelsize      = 11
+axes_titlesize      = 11
+legend_fontsize     = 9
+xtick_labelsize     = 10
+ytick_labelsize     = 10
+font_family         = "serif"
+font_serif          = ["TeX Gyre Pagella"]
+mathtext_fontset    = "stix"
+color_cycle         = ["#648fff", "#785ef0", "#dc267f", "#fe6100", "#ffb000"]
+line_width          = 1.0
+marker_size         = 6
+axes_linewidth      = 0.8
+xtick_major_width   = 0.8
+ytick_major_width   = 0.8
+xtick_direction     = "in"
+ytick_direction     = "in"
+xtick_top           = true
+ytick_right         = true
+xtick_minor_visible = true
+ytick_minor_visible = true
+axes_axisbelow      = true
+constrained_layout  = true
+legend_frameon      = true
+legend_handlelength = 1.4
 
 [latex]
 # LaTeX-specific settings
-preamble          = "\\usepackage{amsmath}\\usepackage{amssymb}\\usepackage{siunitx}"
+preamble          = "\\usepackage{amsmath}\\usepackage{amssymb}\\usepackage{siunitx}\\usepackage{lmodern}"
 fallback_on_error = true

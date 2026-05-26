@@ -22,7 +22,8 @@ import numpy as np
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
                                  pa_variance_deg2, print_global_stats,
                                  wrap_pa_deg)
-from fires.plotting.plot_helper import draw_plot_text
+from fires.plotting.plot_helper import (draw_plot_text, pub_figsize,
+								 pub_grid_figsize, savefig_rasterized, get_plot_param)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 	chan_width_mhz = np.abs(fmhzarr[0] - fmhzarr[1])  # Calculate channel width in MHz
 	
 	if figsize is None:
-		figsize = (7, 9)
+		figsize = pub_grid_figsize(4, single_column=True)
 	Lts = np.sqrt(np.asarray(iquvt[1])**2 + np.asarray(iquvt[2])**2)
 
 	# On-pulse mask from I
@@ -111,8 +112,9 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + "_iquv." + extension), bbox_inches='tight', dpi=600)
-		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + "_iquv." + extension)))
+		out_path = os.path.join(outdir, fname + "_iquv." + extension)
+		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		logging.info("Saved figure to %s \n" % (out_path))
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -164,7 +166,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 	logging.info("Max (dPA/dt) = %.2f +/- %.2f deg/ms \n" % (dpadt[dpamax], edpadt[dpamax]))
 
 	if figsize is None:
-		figsize = (11, 8)
+		figsize = pub_grid_figsize(2, single_column=True)
 	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.15, 0.48, 0.83, 0.50])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
@@ -196,8 +198,9 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + "_dpa." + extension), bbox_inches='tight', dpi=600)
-		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + "_dpa." + extension)))
+		out_path = os.path.join(outdir, fname + "_dpa." + extension)
+		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		logging.info("Saved figure to %s \n" % (out_path))
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -281,13 +284,23 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 		logger.warning("Cannot estimate FWHM: I profile has no finite values.")
 	
 	if figsize is None:
-		figsize = (7, 9)
+		figsize = pub_grid_figsize(3, single_column=True)
 	
-	fig, axs = plt.subplots(nrows=3, ncols=1, height_ratios=[0.5, 0.5, 1], figsize=figsize)
+	fig, axs = plt.subplots(
+		nrows=3,
+		ncols=1,
+		sharex=True,
+		height_ratios=[0.5, 0.5, 1],
+		figsize=figsize,
+		gridspec_kw={"hspace": 0.0},
+	)
+	fig.set_constrained_layout(False)
 	if show_spectrum and fwhm_bounds is not None:
-		fig.subplots_adjust(hspace=0., right=0.86)
+		fig.subplots_adjust(hspace=0.0, right=0.86, top=0.98, bottom=0.08)
 	else:
-		fig.subplots_adjust(hspace=0., right=0.98)
+		fig.subplots_adjust(hspace=0.0, right=0.98, top=0.98, bottom=0.08)
+
+	hide_y_axes = bool(get_plot_param(plot_config, 'general', 'hide_y_axes', False))
 
 	# Plot polarisation angle
 	axs[0].scatter(time_ms, phits, c='black', s=2.5, zorder=8)
@@ -298,9 +311,13 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
 	axs[0].set_ylim(-90, 90)
 	axs[0].set_ylabel(r"$\psi$ [deg.]")
-	axs[0].set_xticklabels([])  # Hide x-tick labels for the first subplot
+	axs[0].tick_params(axis='x', labelbottom=False)
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
-	axs[0].tick_params(axis='x', direction='in', length=3)  # Make x-ticks stick up
+	axs[0].grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
+	#axs[0].tick_params(axis='x', direction='in', which='major', length=4)
+	#axs[0].tick_params(axis='x', direction='in', which='minor', length=2)
+	#axs[0].tick_params(axis='y', direction='in', which='major', length=4)
+	#axs[0].tick_params(axis='y', direction='in', which='minor', length=2)
 	draw_plot_text(axs[0], display_text, 'general', plot_config)
 	
 	# Plot the mean across all frequency channels (axis 0)
@@ -311,9 +328,12 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
 	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3))
+	axs[1].tick_params(axis='x', labelbottom=False)
+	#axs[1].tick_params(axis='y', labelcolor="white")
+	axs[1].grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
 	#axs[1].yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: rf"${y:.2f}$"))
 	
-	if fwhm_bounds is not None:
+	if fwhm_bounds is not None and show_spectrum:
 		fwhm_left, fwhm_right = fwhm_bounds
 		axs[1].axvspan(time_ms[fwhm_left], time_ms[fwhm_right], color='gold', alpha=0.18, zorder=0)
 
@@ -354,9 +374,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 				transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
 			)
 		
-		axs[1].tick_params(axis='x', direction='in', length=3)  
-		axs[1].set_xticklabels([])  
-	
 		# Inset: PA profile over the leading edge (on-pulse first edge to I peak)
 		if inset_bounds is not None:
 			left_idx, peak_idx = inset_bounds
@@ -411,6 +428,35 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[2].set_xlabel("Time [ms]")
 	axs[2].set_ylabel("Freq. [MHz]")
 	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+	# White in-ticks with readable labels on the dynamic spectrum.
+	axs[2].tick_params(axis='both', which='major', colors='white', labelcolor='black')
+	axs[2].tick_params(axis='both', which='minor', colors='white')
+	axs[2].tick_params(axis='x', labelbottom=True)
+	if hide_y_axes:
+		for ax in axs:
+			ax.yaxis.label.set_color('white')
+			ax.tick_params(axis='y', labelcolor='white')
+
+	def _nearest_time_idx(tval):
+		idx = int(np.searchsorted(time_ms, tval, side="left"))
+		if idx <= 0:
+			return 0
+		if idx >= time_ms.size:
+			return time_ms.size - 1
+		return idx
+
+	# Use time on x-axis and frequency on y-axis for guide lines.
+	t2 = time_ms[_nearest_time_idx(-2.41)]
+	t1 = time_ms[_nearest_time_idx(-1.89)]
+	t4 = time_ms[_nearest_time_idx(-1.09)]
+	t3 = time_ms[_nearest_time_idx(-1.20)]
+	#axs[2].plot([t1, t2], [freq_mhz[0], freq_mhz[-1]], color='white', ls='-', lw=1)
+	#axs[2].plot([t3, t4], [freq_mhz[0], freq_mhz[-1]], color='white', ls='-', lw=1)
+
+	#axs[2].axvline(time_ms[np.where(time_ms >= -4.05)[0][0]], color='white', ls='--', lw=2)
+	#axs[2].axvline(time_ms[np.where(time_ms >= -2.04)[0][0]], color='white', ls='--', lw=2)
+	#axs[2].axvline(time_ms[np.where(time_ms >= -1.13)[0][0]], color='white', ls='--', lw=2)
+	#axs[2].axvline(time_ms[np.where(time_ms >= 1.62)[0][0]], color='white', ls='--', lw=2)
 
 	# Side spectrum panel from the FWHM time window
 	if show_spectrum and fwhm_bounds is not None:
@@ -425,9 +471,16 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 			ax_spec = fig.add_axes([pos.x1 + pad, pos.y0, spec_width, pos.height])
 			ax_spec.plot(spec, freq_mhz, color='black', lw=0.8)
 			ax_spec.set_ylim(freq_mhz[0], freq_mhz[-1])
-			ax_spec.tick_params(axis='both', direction='in', length=3)
-			ax_spec.set_yticklabels([])
+			ax_spec.tick_params(axis='both', direction='in')
+			if hide_y_axes:
+				ax_spec.yaxis.label.set_color('white')
+				ax_spec.tick_params(axis='y', labelcolor='white')
+			else:
+				ax_spec.set_yticklabels([])
 			ax_spec.set_xlabel(r"$S$ [arb.]")
+			ax_spec.grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
+			if hide_y_axes:
+				ax_spec.set_ylabel("")
 		else:
 			logger.warning("Cannot plot FWHM spectrum: spectrum is all non-finite.")
 
@@ -438,8 +491,9 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 		plt.show()
 
 	if save==True:
-		fig.savefig(os.path.join(outdir, fname + f"_t_{tau[0]}" + "_ILVPA." + extension), bbox_inches='tight', dpi=600)
-		logging.info("Saved figure to %s \n" % (os.path.join(outdir, fname + f"_t_{tau[0]}" + "_ILVPA." + extension)))
+		out_path = os.path.join(outdir, fname + f"_t_{tau[0]}" + "_ILVPA." + extension)
+		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		logging.info("Saved figure to %s \n" % (out_path))
 
 
 	#	----------------------------------------------------------------------------------------------------------
@@ -476,7 +530,7 @@ def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, e
 	logging.info("Var(psi) = %.3f +/- %.3f deg^2", pa_var_deg2, epa_deg2)
 
 	if figsize is None:
-		figsize = (7, 3)
+		figsize = pub_figsize(single_column=True, height_ratio=0.45, min_height=2.6)
 
 	fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
 	fig.subplots_adjust(left=0.12, right=0.98, bottom=0.20, top=0.95)
@@ -505,7 +559,7 @@ def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, e
 
 	if save:
 		fpath = os.path.join(outdir, f"{fname}_pa.{extension}")
-		fig.savefig(fpath, bbox_inches='tight', dpi=600)
+		savefig_rasterized(fpath, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info("Saved figure to %s \n", fpath)
 
 
@@ -684,7 +738,7 @@ def plot_pa_li_scatter(
 
 	# --- Plot ---
 	if figsize is None:
-		figsize = (8, 8)
+		figsize = pub_figsize(single_column=True, height_ratio=1.0, min_height=4.8)
 
 	# Use time as colour (only masked points)
 
@@ -739,7 +793,7 @@ def plot_pa_li_scatter(
 
 	if save:
 		fpath = os.path.join(outdir, f"{fname}_pa_li_scatter.{extension}")
-		fig.savefig(fpath, bbox_inches='tight', dpi=600)
+		savefig_rasterized(fpath, dpi=600, bbox_inches='tight', fig=fig)
 		logger.info("Saved figure to %s \n", fpath)
 
 	# Additional 3D PA-L/I-time scatter with time as an explicit axis
@@ -794,7 +848,7 @@ def plot_pa_li_scatter(
 		fpath3d = os.path.join(outdir, f"{fname}_pa_li_scatter_3d.{extension}")
 		# For mplot3d, tight bbox can clip z-axis labels; use explicit margins instead.
 		fig3d.subplots_adjust(left=0.06, right=0.88, bottom=0.08, top=0.97)
-		fig3d.savefig(fpath3d, dpi=600)
+		savefig_rasterized(fpath3d, dpi=600, bbox_inches=None, fig=fig3d)
 		logger.info("Saved figure to %s \n", fpath3d)
 
 	if show_plots:

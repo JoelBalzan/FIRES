@@ -27,9 +27,10 @@ from fires.core.basicfns import (compute_segments, estimate_rm,
                                  on_off_pulse_masks_from_profile,
                                  pa_variance_deg2, process_dspec)
 from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
-                                        colours, draw_plot_text,
-                                        get_plot_param, param_info_or_dynamic,
-                                        param_map, text_with_offset)
+											colours, draw_plot_text,
+											get_plot_param, param_info_or_dynamic,
+											param_map, savefig_rasterized,
+											set_pub_style, text_with_offset)
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds,
                                     plot_pa_li_scatter, plot_pa_profile,
                                     plot_stokes)
@@ -62,6 +63,19 @@ def configure_matplotlib_from_config(plot_config=None, use_latex=None):
 	general = plot_config.get('general', {})
 	latex_config = plot_config.get('latex', {})
 	
+	# Determine LaTeX usage
+	latex_enabled = False
+	if use_latex is not None:
+		latex_enabled = bool(use_latex)
+	elif 'use_latex' in general:
+		latex_enabled = bool(general['use_latex'])
+	else:
+		# Fallback to environment variable
+		latex_enabled = bool(int(os.environ.get("FIRES_USE_LATEX", "0")))
+
+	# Start from publication defaults, then apply overrides from config.
+	set_pub_style(use_latex=latex_enabled)
+
 	# Build rcParams dict from config
 	rc = {}
 	
@@ -72,6 +86,8 @@ def configure_matplotlib_from_config(plot_config=None, use_latex=None):
 		rc['ps.fonttype'] = styling['ps_fonttype']
 	if 'savefig_dpi' in styling:
 		rc['savefig.dpi'] = styling['savefig_dpi']
+	if 'figure_dpi' in styling:
+		rc['figure.dpi'] = styling['figure_dpi']
 	if 'font_size' in styling:
 		rc['font.size'] = styling['font_size']
 	if 'axes_labelsize' in styling:
@@ -86,26 +102,44 @@ def configure_matplotlib_from_config(plot_config=None, use_latex=None):
 		rc['ytick.labelsize'] = styling['ytick_labelsize']
 	if 'font_family' in styling:
 		rc['font.family'] = styling['font_family']
+	if 'font_serif' in styling:
+		rc['font.serif'] = styling['font_serif']
+	if 'mathtext_fontset' in styling:
+		rc['mathtext.fontset'] = styling['mathtext_fontset']
 	if 'color_cycle' in styling:
 		rc['axes.prop_cycle'] = plt.cycler(color=styling['color_cycle'])
 	if 'line_width' in styling:
 		rc['lines.linewidth'] = styling['line_width']
 	if 'marker_size' in styling:
 		rc['lines.markersize'] = styling['marker_size']
-	
-	# Determine LaTeX usage
-	latex_enabled = False
-	if use_latex is not None:
-		latex_enabled = bool(use_latex)
-	elif 'use_latex' in general:
-		latex_enabled = bool(general['use_latex'])
-	else:
-		# Fallback to environment variable
-		latex_enabled = bool(int(os.environ.get("FIRES_USE_LATEX", "0")))
-	
-	rc['text.usetex'] = latex_enabled
-	
-	# Apply all rcParams
+	if 'axes_linewidth' in styling:
+		rc['axes.linewidth'] = styling['axes_linewidth']
+	if 'xtick_major_width' in styling:
+		rc['xtick.major.width'] = styling['xtick_major_width']
+	if 'ytick_major_width' in styling:
+		rc['ytick.major.width'] = styling['ytick_major_width']
+	if 'xtick_direction' in styling:
+		rc['xtick.direction'] = styling['xtick_direction']
+	if 'ytick_direction' in styling:
+		rc['ytick.direction'] = styling['ytick_direction']
+	if 'xtick_top' in styling:
+		rc['xtick.top'] = styling['xtick_top']
+	if 'ytick_right' in styling:
+		rc['ytick.right'] = styling['ytick_right']
+	if 'xtick_minor_visible' in styling:
+		rc['xtick.minor.visible'] = styling['xtick_minor_visible']
+	if 'ytick_minor_visible' in styling:
+		rc['ytick.minor.visible'] = styling['ytick_minor_visible']
+	if 'axes_axisbelow' in styling:
+		rc['axes.axisbelow'] = styling['axes_axisbelow']
+	if 'constrained_layout' in styling:
+		rc['figure.constrained_layout.use'] = styling['constrained_layout']
+	if 'legend_frameon' in styling:
+		rc['legend.frameon'] = styling['legend_frameon']
+	if 'legend_handlelength' in styling:
+		rc['legend.handlelength'] = styling['legend_handlelength']
+
+	# Apply all rcParams overrides
 	for k, v in rc.items():
 		plt.rcParams[k] = v
 	
@@ -152,7 +186,7 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	"""
 	# Extract what we need from plot_config
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
-	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	figsize = get_plot_param(plot_config, 'general', 'figsize', None)
 	show_plots = get_plot_param(plot_config, 'general', 'show_plots', True)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
 	legend = get_plot_param(plot_config, 'general', 'legend', True)
@@ -2853,7 +2887,7 @@ def plot_pa_var(
 	xshade_zorder = int(get_plot_param(plot_config, 'analytical', 'xshade_zorder', 0))
 
 	# Extract general config
-	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	figsize = get_plot_param(plot_config, 'general', 'figsize', None)
 	show = get_plot_param(plot_config, 'general', 'show_plots', True)
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
@@ -2899,7 +2933,7 @@ def plot_pa_var(
 			if save:
 				name = f"{fname}_{scale}_pa_var_window_comparison.{extension}"
 				name = os.path.join(out_dir, name)
-				fig.savefig(name, dpi=600)
+				savefig_rasterized(name, dpi=600, fig=fig)
 				logging.info(f"Saved figure to {name}\n")
 			return
 
@@ -3004,7 +3038,7 @@ def plot_pa_var(
 	if save:
 		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		fig.savefig(name, dpi=600, bbox_inches='tight')
+		savefig_rasterized(name, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info(f"Saved figure to {name}  \n")
 
 
@@ -3118,7 +3152,7 @@ def plot_lfrac(
 	xshade_zorder = int(get_plot_param(plot_config, 'analytical', 'xshade_zorder', 0))
 	
 	# Extract general config
-	figsize = get_plot_param(plot_config, 'general', 'figsize', [10, 9])
+	figsize = get_plot_param(plot_config, 'general', 'figsize', None)
 	show = get_plot_param(plot_config, 'general', 'show_plots', True)
 	save = get_plot_param(plot_config, 'general', 'save_plots', False)
 	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
@@ -3160,7 +3194,7 @@ def plot_lfrac(
 			if save:
 				name = f"{fname}_{scale}_l_frac_window_comparison.{extension}"
 				name = os.path.join(out_dir, name)
-				fig.savefig(name, dpi=600)
+				savefig_rasterized(name, dpi=600, fig=fig)
 				logging.info(f"Saved figure to {name}\n")
 			return
 
@@ -3263,7 +3297,7 @@ def plot_lfrac(
 	if save:
 		name = _make_plot_fname("l_frac", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		fig.savefig(name, dpi=600, bbox_inches='tight')
+		savefig_rasterized(name, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info(f"Saved figure to {name}  \n")
 
 
