@@ -502,6 +502,52 @@ def _resolve_polarisation(lfrac_i_raw, vfrac_i_raw):
 	return l * scale, v * scale
 
 
+def _rvm_pa_swing_deg(time_ms: np.ndarray, swing_cfg: dict) -> np.ndarray:
+	"""
+	Compute an RVM-like PA swing in degrees as a function of time.
+
+	The angle is evaluated with the standard rotating-vector model form:
+	psi(t) = psi0 + arctan2(sin(alpha) * sin(phi),
+	                        sin(zeta) * cos(alpha) - cos(zeta) * sin(alpha) * cos(phi))
+	where zeta = alpha + beta and phi = 2*pi*(t - phase0)/period.
+	"""
+	alpha_deg = float(swing_cfg.get("alpha_deg", 0.0))
+	beta_deg = float(swing_cfg.get("beta_deg", 0.0))
+	period_ms = float(swing_cfg.get("period_ms", 0.0))
+	phase0_ms = float(swing_cfg.get("phase0_ms", 0.0))
+	psi0_deg = float(swing_cfg.get("psi0_deg", 0.0))
+
+	if not np.isfinite(period_ms) or period_ms <= 0:
+		raise ValueError("RVM swing requires a positive 'period_ms' value.")
+
+	alpha = np.deg2rad(alpha_deg)
+	beta = np.deg2rad(beta_deg)
+	zeta = alpha + beta
+	phi = 2.0 * np.pi * (np.asarray(time_ms, dtype=float) - phase0_ms) / period_ms
+
+	numerator = np.sin(alpha) * np.sin(phi)
+	denominator = np.sin(zeta) * np.cos(alpha) - np.cos(zeta) * np.sin(alpha) * np.cos(phi)
+	swing_rad = np.arctan2(numerator, denominator)
+	return np.rad2deg(swing_rad) + psi0_deg
+
+
+def _apply_rvm_swing_to_dspec(dspec: np.ndarray, time_ms: np.ndarray, swing_cfg: dict) -> np.ndarray:
+	"""Rotate the summed Q/U dynamic spectrum by an RVM-like PA swing."""
+	if not bool(swing_cfg.get("enable", False)):
+		return dspec
+
+	pa_swing_deg = _rvm_pa_swing_deg(time_ms, swing_cfg)
+	pa_swing_rad = np.deg2rad(pa_swing_deg)
+	cos2 = np.cos(2.0 * pa_swing_rad)[None, :]
+	sin2 = np.sin(2.0 * pa_swing_rad)[None, :]
+
+	q_ft = np.array(dspec[1], copy=True)
+	u_ft = np.array(dspec[2], copy=True)
+	dspec[1] = q_ft * cos2 - u_ft * sin2
+	dspec[2] = q_ft * sin2 + u_ft * cos2
+	return dspec
+
+
 def sample_powerlaw(alpha, xmin, xmax, size=None):
     u = np.random.uniform(0, 1, size=size)
 
@@ -715,6 +761,7 @@ def psn_dspec(
 	sd_band_centre_mhz = sd_dict['sd_band_centre_mhz']
 	sd_band_width_mhz  = sd_dict['sd_band_width_mhz']
 	amp_sampling        = gdict.get('amp_sampling', {'dist': 'normal'})
+	pa_swing            = gdict.get('pa_swing', {'enable': False})
 	
 			
 	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
@@ -813,6 +860,17 @@ def psn_dspec(
 	if tau > 0 and sd_tau == 0:
 		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
 		dspec = scatter_dspec(dspec, time_res_ms, tau_cms)
+
+	if isinstance(pa_swing, dict) and bool(pa_swing.get('enable', False)):
+		dspec = _apply_rvm_swing_to_dspec(dspec, time_ms, pa_swing)
+		if not plot_multiple_frb:
+			logging.info(
+				"Applied RVM-like PA swing: enable=%s alpha=%.2f beta=%.2f period=%.2f ms",
+				pa_swing.get('enable', False),
+				float(pa_swing.get('alpha_deg', 0.0)),
+				float(pa_swing.get('beta_deg', 0.0)),
+				float(pa_swing.get('period_ms', 0.0)),
+			)
 
 	if scint_dict is not None:
 		scint_enabled = bool(scint_dict.get("enable", True))

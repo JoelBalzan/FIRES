@@ -106,6 +106,15 @@ def _master_to_internal(master_file, master_raw=None):
 	components = master.emission.components
 	if not isinstance(components, list) or len(components) == 0:
 		raise ValueError("Master config must include at least one [[emission.components]] entry")
+	rvm_raw = master.emission.rvm_swing
+	rvm_swing = {
+		"enable": bool(rvm_raw.enable),
+		"alpha_deg": float(rvm_raw.alpha_deg),
+		"beta_deg": float(rvm_raw.beta_deg),
+		"period_ms": float(rvm_raw.period_ms),
+		"phase0_ms": float(rvm_raw.phase0_ms),
+		"psi0_deg": float(rvm_raw.psi0_deg),
+	}
 
 	n_comp = len(components)
 	gauss_params = np.zeros((n_comp + 4, 16), dtype=float)
@@ -194,7 +203,7 @@ def _master_to_internal(master_file, master_raw=None):
 			"derive_from_tau": bool(sc_cfg.derive_from_tau),
 		}
 
-	return sim_params, gauss_params, amp_sampling, scint, sweep_mode, master_logstep
+	return sim_params, gauss_params, amp_sampling, scint, sweep_mode, master_logstep, rvm_swing
 
 
 
@@ -434,7 +443,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		raise ValueError("master_file is required. Legacy split configs are no longer supported.")
 
 	master_scint = None
-	sim_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep = _master_to_internal(
+	sim_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep, rvm_swing = _master_to_internal(
 		master_file,
 		master_raw=master_raw_config,
 	)
@@ -486,6 +495,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		'mg_width_high'  : gauss_params[:stddev_row, 15],
 		'amp_sampling'   : amp_sampling,
 	}
+	gdict['pa_swing'] = rvm_swing
 
 	sd_dict = {
 		'sd_t0'             : gauss_params[stddev_row, 0],
@@ -695,7 +705,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			logging.info(f"Original data S/N: {original_snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")
 			
 			# Assume sweep is set for tau; validate
-			gdict_keys = [k for k in gdict.keys() if k != 'amp_sampling']
+			gdict_keys = [k for k in gdict.keys() if k not in ('amp_sampling', 'pa_swing')]
 			if active_cols.size != 1 or gdict_keys[sweep_col] != 'tau':
 				logging.error("For obs_data sweep, exactly one sweep column must be set for 'tau'.")
 				sys.exit(1)
@@ -765,7 +775,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			return frb_dict
 
 		else:
-			gdict_keys = [k for k in gdict.keys() if k != 'amp_sampling']
+			gdict_keys = [k for k in gdict.keys() if k not in ('amp_sampling', 'pa_swing')]
 
 			xvals, col_idx, xname = _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys)
 

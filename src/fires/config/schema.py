@@ -42,6 +42,16 @@ class Scintillation:
     theta_extent: float = 3.0
     return_field: bool = False
 
+
+@dataclass
+class RVMSwing:
+    enable: bool = False
+    alpha_deg: float = 45.0
+    beta_deg: float = 5.0
+    period_ms: float = 1.0
+    phase0_ms: float = 0.0
+    psi0_deg: float = 0.0
+
 @dataclass
 class Propagation:
     scattering: Scattering
@@ -120,6 +130,7 @@ class GaussianComponent:
 class Emission:
     model: Literal["gaussian_microshot"]
     components: List[GaussianComponent]
+    rvm_swing: RVMSwing = field(default_factory=RVMSwing)
 
 ### SWEEP CONFIG ###
 @dataclass
@@ -165,7 +176,6 @@ class Numerics:
 @dataclass
 class Output:
     write: bool = False
-    mode: str = "full"
     directory: str = "simfrbs"
 
 
@@ -285,6 +295,7 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     em_raw = _require(raw, "emission", "root")
     raw_components = _as_component_list(_require(em_raw, "components", "emission"))
     components: List[GaussianComponent] = []
+    rvm_raw = em_raw.get("rvm_swing", {})
     for idx, comp in enumerate(raw_components):
         where = f"emission.components[{idx}]"
         micro_raw = _require(comp, "microshots", where)
@@ -351,6 +362,14 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     emission = Emission(
         model=str(_require(em_raw, "model", "emission")),
         components=components,
+        rvm_swing=RVMSwing(
+            enable=_as_bool(rvm_raw.get("enable", False), default=False),
+            alpha_deg=float(rvm_raw.get("alpha_deg", 45.0)),
+            beta_deg=float(rvm_raw.get("beta_deg", 5.0)),
+            period_ms=float(rvm_raw.get("period_ms", 1.0)),
+            phase0_ms=float(rvm_raw.get("phase0_ms", 0.0)),
+            psi0_deg=float(rvm_raw.get("psi0_deg", 0.0)),
+        ),
     )
 
     an_raw = _require(raw, "analysis", "root")
@@ -391,9 +410,9 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     )
 
     out_raw = raw.get("output", {})
+    # 'mode' field is deprecated/unused and removed from schema; ignore if present
     output = Output(
         write=_as_bool(out_raw.get("write", False), default=False),
-        mode=str(out_raw.get("mode", "full")),
         directory=str(out_raw.get("directory", "simfrbs")),
     )
 

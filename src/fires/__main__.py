@@ -289,6 +289,14 @@ def main():
 		action="store_true",
 		help="Enable verbose output."
 	)
+	# Provide a CLI flag to disable writing outputs. Default behaviour is to write.
+	parser.add_argument(
+		"--no-write",
+		dest="write_output",
+		action="store_false",
+		default=True,
+		help="Disable writing outputs to disk (default: write outputs)."
+	)
 
 	# =====================================================================
 	# Simulation Parameters
@@ -477,7 +485,16 @@ def main():
 	except Exception as e:
 		parser.error(f"Failed to load master config {resolved_master}: {e}")
 
-	write_output = bool(master_cfg.output.write)
+	# Determine whether to write outputs. CLI flag `--no-write` takes precedence.
+	write_output = bool(getattr(args, 'write_output', True))
+	# If the old config key is present, warn the user that it's deprecated and ignored.
+	try:
+		raw_out = raw_master_config.get('output', {}) if raw_master_config is not None else {}
+		if 'write' in raw_out:
+			logging.warning("Config key 'output.write' is deprecated; use --no-write to disable writing. Ignoring config value.")
+	except Exception:
+		# Non-fatal: continue with CLI flag value
+		pass
 	seed = master_cfg.meta.seed
 	ncpu = int(master_cfg.numerics.n_cpus)
 	# Allow SLURM environment to override configured CPU count
@@ -549,7 +566,7 @@ def main():
 	# force file output so simulation products are not silently discarded.
 	if selected_plot_mode.requires_multiple_frb and (not save_plots) and (not show_plots) and (not write_output):
 		write_output = True
-		logging.info("Batch run with save_plots/show_plots disabled: forcing output.write=True")
+		logging.info("Batch run with save_plots/show_plots disabled: forcing writing outputs to disk")
 
 	if write_output or save_plots:
 		os.makedirs(args.output_dir, exist_ok=True)

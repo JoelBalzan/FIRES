@@ -27,6 +27,14 @@ return_field    = false
 [emission]
 model = "gaussian_microshot"
 
+[emission.rvm_swing]
+enable    = false
+alpha_deg = 45.0  # Magnetic inclination angle.
+beta_deg  = 5.0   # Impact angle.
+period_ms = 1.0   # PA swing period in time units.
+phase0_ms = 0.0   # PA swing reference phase.
+psi0_deg  = 0.0   # Baseline PA offset.
+
 [[emission.components]]
 t0_ms           = -2.0
 width_ms        = 0.5
@@ -102,6 +110,4 @@ n_cpus = 12
 nseed  = 500
 
 [output]
-write     = false
-mode      = "full"
 directory = "output"

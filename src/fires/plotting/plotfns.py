@@ -313,6 +313,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[0].set_ylabel(r"$\psi$ [deg.]")
 	axs[0].tick_params(axis='x', labelbottom=False)
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+	#axs[0].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
 	axs[0].grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
 	#axs[0].tick_params(axis='x', direction='in', which='major', length=4)
 	#axs[0].tick_params(axis='x', direction='in', which='minor', length=2)
@@ -328,6 +329,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
 	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
 	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3))
+	#axs[1].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
 	axs[1].tick_params(axis='x', labelbottom=False)
 	#axs[1].tick_params(axis='y', labelcolor="white")
 	axs[1].grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
@@ -428,6 +430,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[2].set_xlabel("Time [ms]")
 	axs[2].set_ylabel("Freq. [MHz]")
 	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+	#axs[2].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
 	# White in-ticks with readable labels on the dynamic spectrum.
 	axs[2].tick_params(axis='both', which='major', colors='white', labelcolor='black')
 	axs[2].tick_params(axis='both', which='minor', colors='white')
