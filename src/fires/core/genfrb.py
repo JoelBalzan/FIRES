@@ -38,6 +38,32 @@ from fires.utils.utils import dspecParams, simulated_frb
 logging.basicConfig(level=logging.INFO)
 
 
+def _write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id):
+	"""Save a Stokes dynamic spectrum cube as out_{I,Q,U,V}.npy plus full cube and axes."""
+	if dspec is None:
+		return None
+	if dspec.ndim != 3 or dspec.shape[0] != 4:
+		raise ValueError("Expected dspec with shape (4, nfreq, ntime) to save Stokes cube.")
+
+	dspec_dir = os.path.join(out_dir, f"{frb_id}_dspec")
+	os.makedirs(dspec_dir, exist_ok=True)
+
+	for idx, stokes in enumerate(["I", "Q", "U", "V"]):
+		out_path = os.path.join(dspec_dir, f"out_{stokes}.npy")
+		np.save(out_path, dspec[idx])
+
+	full_path = os.path.join(dspec_dir, "dspec.npy")
+	np.save(full_path, dspec)
+
+	if freq_mhz is not None:
+		np.save(os.path.join(dspec_dir, "freq.npy"), freq_mhz)
+	if time_ms is not None:
+		np.save(os.path.join(dspec_dir, "time.npy"), time_ms)
+
+	logging.info("Saved Stokes dspec cube to %s", dspec_dir)
+	return dspec_dir
+
+
 def _normalise_master_amp_sampling(amp_cfg):
 	"""Convert master TOML amplitude_distribution block into internal sampling config."""
 	out = {
@@ -435,7 +461,7 @@ def _pool_workers_and_chunksize(n_cpus, n_tasks):
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
 				sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
 				logstep=None, target_snr=None, param_overrides=None, baseline_correct=None, master_file=None,
-				master_raw_config=None):
+				master_raw_config=None, save_dspec=False):
 	"""
 	Generate a simulated FRB with a dispersed and scattered dynamic spectrum.
 	"""
@@ -655,6 +681,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			diagnostics=True,
 		)
 
+		if save_dspec:
+			_write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id)
+
 		_, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 		frb_data = simulated_frb(
 			frb_id, corrdspec, dspec_params, snr
@@ -679,6 +708,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 
 
 	if plot_multiple_frb:
+		if save_dspec:
+			logging.warning("Stokes dspec saving is only supported for single FRB runs. Ignoring --save-dspec.")
 		if data != None:
 			files = [f for f in os.listdir(data) if f.endswith('.pkl')]
 			if len(files) > 1:

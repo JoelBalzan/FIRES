@@ -297,6 +297,13 @@ def main():
 		default=True,
 		help="Disable writing outputs to disk (default: write outputs)."
 	)
+	parser.add_argument(
+		"--sd", "--save-dspec", "--wd", "--write-dspec",
+		dest="save_dspec",
+		action="store_true",
+		default=False,
+		help="Save the Stokes dynamic spectrum cube (out_I/Q/U/V.npy, dspec.npy, plus freq/time arrays)."
+	)
 
 	# =====================================================================
 	# Simulation Parameters
@@ -602,6 +609,7 @@ def main():
 			master_file     = str(resolved_master) if use_master and resolved_master is not None else None,
 			out_dir         = args.output_dir,
 			write           = write_output,
+			save_dspec      = args.save_dspec,
 			mode            = args.mode,
 			seed            = seed,
 			nseed           = None,

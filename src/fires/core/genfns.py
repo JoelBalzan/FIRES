@@ -857,10 +857,6 @@ def psn_dspec(
 			dspec[2] += U_ft
 			dspec[3] += V_ft
 
-	if tau > 0 and sd_tau == 0:
-		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
-		dspec = scatter_dspec(dspec, time_res_ms, tau_cms)
-
 	if isinstance(pa_swing, dict) and bool(pa_swing.get('enable', False)):
 		dspec = _apply_rvm_swing_to_dspec(dspec, time_ms, pa_swing)
 		if not plot_multiple_frb:
@@ -871,6 +867,9 @@ def psn_dspec(
 				float(pa_swing.get('beta_deg', 0.0)),
 				float(pa_swing.get('period_ms', 0.0)),
 			)
+	if tau > 0 and sd_tau == 0:
+		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
+		dspec = scatter_dspec(dspec, time_res_ms, tau_cms)
 
 	if scint_dict is not None:
 		scint_enabled = bool(scint_dict.get("enable", True))
