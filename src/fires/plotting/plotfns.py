@@ -380,7 +380,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 		if inset_bounds is not None:
 			left_idx, peak_idx = inset_bounds
 			if peak_idx > left_idx:
-				inset_ax = axs[0].inset_axes([0.60, 0.11, 0.39, 0.33])
+				inset_ax = axs[0].inset_axes([0.57, 0.15, 0.39, 0.33])
 				t_slice = slice(left_idx, peak_idx + 1)
 				t_inset = time_ms[t_slice]
 				pa_inset = phits[t_slice]
@@ -404,9 +404,11 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 					inset_ax.set_ylim(np.nanmin(finite_pa_inset) - ypad, np.nanmax(finite_pa_inset) + ypad)
 				else:
 					inset_ax.set_ylim(-90, 90)
-				inset_ax.tick_params(axis='both', labelsize=12, direction='in', length=2)
+				inset_ax.tick_params(axis='both', labelsize=9, direction='in', length=3)
+				inset_ax.minorticks_off()
 				inset_ax.tick_params(axis='y', pad=1)
 				inset_ax.tick_params(axis='x', pad=1)
+				inset_ax.grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
 				#for label in inset_ax.get_xticklabels():
 				#	label.set_horizontalalignment('right')
 				for spine in inset_ax.spines.values():
