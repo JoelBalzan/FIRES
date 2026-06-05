@@ -260,15 +260,6 @@ Depending on options:
   - [FRB_20191001A_sweep.ipynb](examples/FRB_20191001A_sweep.ipynb)
 - Parameter files and supporting data used for the paper figures are in [paper/](paper/), with FRB-specific setups under [paper/191001](paper/191001) and [paper/240318A](paper/240318A). The example notebooks reference these configurations to reproduce the paper-style analyses.
 
-## Development
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-pytest   # (if tests added)
-```
-
 ## Compatibility
 
 FIRES has been tested on Linux with Python 3.12.
