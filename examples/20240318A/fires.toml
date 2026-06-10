@@ -15,6 +15,10 @@ reference_freq_MHz = 1000
 [propagation.scattering]
 index = -3.22
 
+[propagation.rm]
+RM = 0.0 # applied after RVM
+order = pre # order to apply with respect to scatter: pre | post
+
 [propagation.scintillation]
 enable          = true
 timescale_s     = 300

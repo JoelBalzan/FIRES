@@ -181,6 +181,7 @@ class dspecParams(NamedTuple):
     gdict          : dict
     sd_dict       : dict
     scint_dict     : dict
+    prop_dict      : dict
     freq_mhz       : np.ndarray
     freq_res_mhz   : float
     time_ms        : np.ndarray
@@ -188,7 +189,6 @@ class dspecParams(NamedTuple):
     seed           : int
     nseed          : int
     sefd           : float
-    sc_idx         : float
     ref_freq_mhz   : float
     phase_window   : str
     freq_window    : str

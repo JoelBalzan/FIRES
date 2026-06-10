@@ -22,7 +22,7 @@ from fires.core.basicfns import (add_noise, compute_segments, correct_baseline,
                                  estimate_noise_with_offpulse_mask,
                                  estimate_rm, on_off_pulse_masks_from_profile,
                                  rm_correct_dspec, scale_dspec_to_target_snr,
-                                 scatter_dspec, snr_onpulse,
+                                 scatter_dspec,
                                  stokes_consistency_diagnostics)
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
@@ -684,12 +684,12 @@ def psn_dspec(
 	gdict        = dspec_params.gdict
 	sd_dict      = dspec_params.sd_dict
 	scint_dict   = dspec_params.scint_dict
+	prop_dict	 = dspec_params.prop_dict
 	freq_mhz     = dspec_params.freq_mhz
 	time_ms      = dspec_params.time_ms
 	time_res_ms  = dspec_params.time_res_ms
 	seed         = dspec_params.seed
 	sefd         = dspec_params.sefd
-	sc_idx       = dspec_params.sc_idx
 	ref_freq_mhz = dspec_params.ref_freq_mhz
 	buffer_frac  = dspec_params.buffer_frac
 	sweep_mode   = dspec_params.sweep_mode
@@ -763,6 +763,7 @@ def psn_dspec(
 	amp_sampling        = gdict.get('amp_sampling', {'dist': 'normal'})
 	pa_swing            = gdict.get('pa_swing', {'enable': False})
 	
+	sc_idx = prop_dict['scattering_index']
 			
 	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
 
@@ -789,8 +790,8 @@ def psn_dspec(
 			A_i = _sample_amplitude(A[g], sd_A, amp_sampling, plot_multiple_frb)
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
-			tau_i          = np.random.normal(tau[g], sd_tau)
-			tau_eff = tau_i if tau_i > 0 else float(tau[g])
+			tau_i          	  = np.random.normal(tau[g], sd_tau)
+			tau_eff = tau_i if sd_tau > 0 else float(tau[g])
 			if tau_eff > 0:
 				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
 			else:
@@ -867,9 +868,23 @@ def psn_dspec(
 				float(pa_swing.get('beta_deg', 0.0)),
 				float(pa_swing.get('period_ms', 0.0)),
 			)
+
+	RM_global = prop_dict['RM']
+	RM_order = prop_dict['order']
+
+	if RM_global != 0.0 and RM_order == "pre":
+		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+		if not plot_multiple_frb:
+			logging.info("Applied global RM pre-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
+
 	if tau > 0 and sd_tau == 0:
 		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
 		dspec = scatter_dspec(dspec, time_res_ms, tau_cms)
+
+	if RM_global != 0.0 and RM_order == "post":
+		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+		if not plot_multiple_frb:
+			logging.info("Applied global RM post-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
 
 	if scint_dict is not None:
 		scint_enabled = bool(scint_dict.get("enable", True))
@@ -926,7 +941,7 @@ def psn_dspec(
 		snr = None
 	
 
-	if np.any(np.asarray(RM, dtype=float) != 0.0):
+	if np.any(np.asarray(RM, dtype=float) != 0.0) or RM_global != 0.0:
 		try:
 			# On/off mask from frequency-summed I
 			I_ts = np.nansum(dspec[0], axis=0)

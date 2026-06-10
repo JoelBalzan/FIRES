@@ -25,6 +25,10 @@ reference_freq_MHz = 1000  # Reference for spectral index and tau(nu) scaling.
 [propagation.scattering]
 index = -4.85  # Scattering law exponent: tau(nu) ~ (nu/nu_ref)^index.
 
+[propagation.rm]
+RM    = 0.0 # Rotation measure (rad m^-2) to apply after RVM
+order = pre # order to apply with respect to scatter: pre | post
+
 [propagation.scintillation]
 enable          = true
 timescale_s     = 300
@@ -61,7 +65,7 @@ amplitude_Jy    = 0.2
 spectral_index  = 0.0
 tau_ms          = 1.78  # Scattering timescale at reference_freq_MHz (ms).
 dm              = 0.0   # Dispersion measure (pc cm^-3).
-rm              = 0.0   # Rotation measure (rad m^-2).
+rm              = 0.0   # Rotation measure per microshot (rad m^-2).
 pa_deg          = 20
 lfrac           = 0.95  # Desired L/I.
 vfrac           = -0.05 # Desired V/I; code rescales (L/I,V/I) together if L^2+V^2 > 1.

@@ -30,6 +30,12 @@ class SimulationGrid:
 class Scattering:
     index: float
 
+### RM ###
+@dataclass
+class RM:
+    RM: float
+    order: str
+
 ### SCINTILLATION ###
 @dataclass
 class Scintillation:
@@ -55,6 +61,7 @@ class RVMSwing:
 @dataclass
 class Propagation:
     scattering: Scattering
+    RM: RM
     scintillation: Scintillation
 
 ### AMPLITUDE DISTRIBUTIONS ###
@@ -278,9 +285,14 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
 
     prop_raw = _require(raw, "propagation", "root")
     sc_raw = _require(prop_raw, "scattering", "propagation")
+    rm_raw = _require(prop_raw, "rm", "propagation")
     scint_raw = _require(prop_raw, "scintillation", "propagation")
     propagation = Propagation(
         scattering=Scattering(index=float(_require(sc_raw, "index", "propagation.scattering"))),
+        RM=RM(
+            RM=float(_require(rm_raw, "RM", "propagation.rm")),
+            order=str(_require(rm_raw, "order", "propagation.rm")),
+        ),
         scintillation=Scintillation(
             enable=_as_bool(scint_raw.get("enable", True), default=True),
             timescale_s=float(scint_raw.get("timescale_s", 300.0)),

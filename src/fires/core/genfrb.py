@@ -125,8 +125,13 @@ def _master_to_internal(master_file, master_raw=None):
 		"t0": float(grid.t_start_ms),
 		"t1": float(grid.t_end_ms),
 		"t_res": float(grid.dt_ms),
-		"scattering_index": float(master.propagation.scattering.index),
 		"reference_freq": float(grid.reference_freq_MHz),
+	}
+
+	prop_params = {
+		"scattering_index": float(master.propagation.scattering.index),
+		"RM": float(master.propagation.RM.RM),
+		"order": str(master.propagation.RM.order),
 	}
 
 	components = master.emission.components
@@ -229,7 +234,7 @@ def _master_to_internal(master_file, master_raw=None):
 			"derive_from_tau": bool(sc_cfg.derive_from_tau),
 		}
 
-	return sim_params, gauss_params, amp_sampling, scint, sweep_mode, master_logstep, rvm_swing
+	return sim_params, prop_params, gauss_params, amp_sampling, scint, sweep_mode, master_logstep, rvm_swing
 
 
 
@@ -469,7 +474,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		raise ValueError("master_file is required. Legacy split configs are no longer supported.")
 
 	master_scint = None
-	sim_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep, rvm_swing = _master_to_internal(
+	sim_params, prop_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep, rvm_swing = _master_to_internal(
 		master_file,
 		master_raw=master_raw_config,
 	)
@@ -479,15 +484,15 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		logstep = master_logstep
 
 	# Extract frequency and time parameters
-	f_start = float(sim_params['f0'])
-	f_end   = float(sim_params['f1'])
-	t_start = float(sim_params['t0'])
-	t_end   = float(sim_params['t1'])
-	f_res   = float(sim_params['f_res'])
-	t_res   = float(sim_params['t_res'])
+	f_start  = float(sim_params['f0'])
+	f_end    = float(sim_params['f1'])
+	t_start  = float(sim_params['t0'])
+	t_end    = float(sim_params['t1'])
+	f_res    = float(sim_params['f_res'])
+	t_res    = float(sim_params['t_res'])
+	ref_freq = float(sim_params['reference_freq'])
 
-	scatter_idx = float(sim_params['scattering_index'])
-	ref_freq 	= float(sim_params['reference_freq'])
+	scatter_idx = float(prop_params['scattering_index'])
 
 	# Generate frequency and time arrays
 	freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
@@ -626,6 +631,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		gdict           = gdict,
 		sd_dict         = sd_dict,
 		scint_dict      = scint,
+		prop_dict	    = prop_params,
 		freq_mhz        = freq_mhz,
 		freq_res_mhz    = f_res,
 		time_ms         = time_ms,
@@ -633,7 +639,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 		seed            = seed,
 		nseed           = nseed,
 		sefd            = sefd,
-		sc_idx          = scatter_idx,
 		ref_freq_mhz    = ref_freq,
 		phase_window    = phase_window,
 		freq_window     = freq_window,
@@ -665,7 +670,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
 			if tau[0] > 0:
 				dspec = scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau[0], scatter_idx, ref_freq)
 			if sefd > 0:
-				dspec, sigma_ch, snr = add_noise(
+				dspec, _, snr = add_noise(
 					dspec_params, dspec=dspec, sefd=sefd, f_res=f_res, t_res=t_res,
 					plot_multiple_frb=plot_multiple_frb, buffer_frac=buffer_frac
 				)

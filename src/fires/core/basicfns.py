@@ -141,7 +141,7 @@ def estimate_rm(dspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, sa
 
 def rm_correct_dspec(dspec, freq_mhz, rm0, ref_freq_mhz=None):
 	"""
-	Remove Faraday rotation from dynamic spectrum.
+	Remove (or add w/ -rm0) Faraday rotation from dynamic spectrum.
 	If ref_freq_mhz is provided, use its λ² as the reference (must match generation step);
 	else fall back to median λ².
 
