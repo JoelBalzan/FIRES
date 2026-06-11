@@ -14,6 +14,7 @@ reference_freq_MHz = 1000
 
 [propagation.scattering]
 index = -3.22
+screen = "thin" # thin | thick | uniform | https://ui.adsabs.harvard.edu/abs/1972MNRAS.157...55W/abstract 
 
 [propagation.rm]
 RM = 0.0 # applied after RVM

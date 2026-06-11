@@ -29,6 +29,7 @@ class SimulationGrid:
 @dataclass
 class Scattering:
     index: float
+    screen: Optional[str] = "thin"  
 
 ### RM ###
 @dataclass
@@ -288,7 +289,8 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     rm_raw = _require(prop_raw, "rm", "propagation")
     scint_raw = _require(prop_raw, "scintillation", "propagation")
     propagation = Propagation(
-        scattering=Scattering(index=float(_require(sc_raw, "index", "propagation.scattering"))),
+        scattering=Scattering(index=float(_require(sc_raw, "index", "propagation.scattering")),
+                            screen=str(sc_raw.get("screen", "thin"))),
         RM=RM(
             RM=float(_require(rm_raw, "RM", "propagation.rm")),
             order=str(_require(rm_raw, "order", "propagation.rm")),

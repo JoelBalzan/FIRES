@@ -764,6 +764,7 @@ def psn_dspec(
 	pa_swing            = gdict.get('pa_swing', {'enable': False})
 	
 	sc_idx = prop_dict['scattering_index']
+	sc_screen = prop_dict['scattering_screen']
 			
 	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
 
@@ -850,7 +851,7 @@ def psn_dspec(
 
 			if tau_eff > 0 and sd_tau > 0:
 				shot = np.stack([I_ft, Q_ft, U_ft, V_ft], axis=0)
-				shot = scatter_dspec(shot, time_res_ms, tau_cms)
+				shot = scatter_dspec(shot, time_res_ms, tau_cms, screen=sc_screen)
 				I_ft, Q_ft, U_ft, V_ft = shot[0], shot[1], shot[2], shot[3]
 
 			dspec[0] += I_ft
@@ -879,7 +880,7 @@ def psn_dspec(
 
 	if tau > 0 and sd_tau == 0:
 		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
-		dspec = scatter_dspec(dspec, time_res_ms, tau_cms)
+		dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=sc_screen)
 
 	if RM_global != 0.0 and RM_order == "post":
 		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)

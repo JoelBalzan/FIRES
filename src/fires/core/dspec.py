@@ -289,17 +289,17 @@ def scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau, sc_idx, ref_freq_mhz):
     return dspec_scattered
 
 
-def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5):
+def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5, screen="thin"):
     X = np.asarray(dspec, dtype=float)
     if X.ndim == 2:
-        return _scatter_2d(X, time_res_ms, tau_cms, pad_factor)
+        return _scatter_2d(X, time_res_ms, tau_cms, pad_factor, screen)
     elif X.ndim == 3:
-        return _scatter_4stokes(X, time_res_ms, tau_cms, pad_factor)
+        return _scatter_4stokes(X, time_res_ms, tau_cms, pad_factor, screen)
     else:
         raise ValueError(f"scatter_dspec: expected 2-D or 3-D input, got {X.ndim}-D")
 
 
-def _scatter_2d(X, time_res_ms, tau_cms, pad_factor=5):
+def _scatter_2d(X, time_res_ms, tau_cms, pad_factor=5, screen="thin"):
     nc, nt = X.shape
     if np.isscalar(tau_cms):
         tau_arr = np.full(nc, float(tau_cms), dtype=float)
@@ -311,14 +311,14 @@ def _scatter_2d(X, time_res_ms, tau_cms, pad_factor=5):
     pos = np.isfinite(tau_arr) & (tau_arr > 0)
     if not np.any(pos):
         return out
-    FH, max_pad, L = _build_irf_fft(tau_arr[pos], time_res_ms, nt, pad_factor)
+    FH, max_pad, L = _build_irf_fft(tau_arr[pos], time_res_ms, nt, pad_factor, screen)
     Xp = np.pad(X[pos], ((0, 0), (0, max_pad)), mode='constant')
     FX = np.fft.rfft(Xp, n=L, axis=1)
     out[pos] = np.fft.irfft(FX * FH, n=L, axis=1)[:, :nt]
     return out
 
 
-def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5):
+def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5, screen="thin"):
     _, nc, nt = X4.shape
     if np.isscalar(tau_cms):
         tau_arr = np.full(nc, float(tau_cms), dtype=float)
@@ -330,7 +330,7 @@ def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5):
     pos = np.isfinite(tau_arr) & (tau_arr > 0)
     if not np.any(pos):
         return out
-    FH, max_pad, L = _build_irf_fft(tau_arr[pos], time_res_ms, nt, pad_factor)
+    FH, max_pad, L = _build_irf_fft(tau_arr[pos], time_res_ms, nt, pad_factor, screen)
     for s in range(X4.shape[0]):
         Xp = np.pad(X4[s][pos], ((0, 0), (0, max_pad)), mode='constant')
         FX = np.fft.rfft(Xp, n=L, axis=1)
@@ -338,15 +338,41 @@ def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5):
     return out
 
 
-def _build_irf_fft(tau_pos, time_res_ms, nt, pad_factor):
+def _build_irf_fft(tau_pos, time_res_ms, nt, pad_factor, screen="thin"):
     n_pad_arr = np.ceil(pad_factor * tau_pos / float(time_res_ms)).astype(int)
     max_pad = int(np.max(n_pad_arr))
     L = nt + max_pad
-    t_ms = np.arange(max_pad + 1, dtype=float) * float(time_res_ms)
-    irf = np.exp(-t_ms[None, :] / tau_pos[:, None])
-    irf *= (np.arange(max_pad + 1)[None, :] <= n_pad_arr[:, None])
+
+    # t starts at time_res_ms (index 1) to avoid 1/t singularities in thick/uniform.
+    # Thin screen is unaffected since exp(0)=1 and the zero bin would just be
+    # absorbed into normalisation anyway.
+    t_ms = np.arange(1, max_pad + 2, dtype=float) * float(time_res_ms)  # shape (max_pad+1,)
+    tau = tau_pos[:, None]  # shape (nch, 1)
+    t   = t_ms[None, :]     # shape (1, max_pad+1)
+
+    if screen == "thin":
+        irf = np.exp(-t / tau)
+
+    elif screen == "thick":
+        # sqrt(pi * tau_s / (4 * t^3)) * exp(-pi^2 * tau_s / (16 * t))
+        irf = np.sqrt(np.pi * tau / (4.0 * t**3)) * np.exp(-(np.pi**2 * tau) / (16.0 * t))
+
+    elif screen == "uniform":
+        # sqrt(pi^5 * tau_s^3 / (8 * t^5)) * exp(-pi^2 * tau_s / (4 * t))
+        irf = np.sqrt(np.pi**5 * tau**3 / (8.0 * t**5)) * np.exp(-(np.pi**2 * tau) / (4.0 * t))
+
+    else:
+        raise ValueError(f"Unknown screen type '{screen}'. Choose 'thin', 'thick', or 'uniform'.")
+
+    # Apply the same per-channel truncation mask as the original
+    irf *= (np.arange(1, max_pad + 2)[None, :] <= n_pad_arr[:, None])
     irf /= np.maximum(irf.sum(axis=1, keepdims=True), 1e-300)
-    return np.fft.rfft(irf, n=L, axis=1), max_pad, L
+
+    # Pad to length L before FFT (irf has max_pad+1 samples, L = nt + max_pad)
+    irf_padded = np.zeros((len(tau_pos), L), dtype=float)
+    irf_padded[:, :max_pad + 1] = irf
+
+    return np.fft.rfft(irf_padded, n=L, axis=1), max_pad, L
 
 
 def stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label, plot_multiple_frb, snr_min=5.0):

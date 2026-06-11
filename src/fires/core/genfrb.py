@@ -89,6 +89,7 @@ def _master_to_internal(master_file, master_raw=None):
     }
     prop_params = {
         "scattering_index": float(master.propagation.scattering.index),
+        "scattering_screen": str(master.propagation.scattering.screen),
         "RM": float(master.propagation.RM.RM),
         "order": str(master.propagation.RM.order),
     }

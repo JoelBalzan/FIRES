@@ -24,6 +24,7 @@ reference_freq_MHz = 1000  # Reference for spectral index and tau(nu) scaling.
 
 [propagation.scattering]
 index = -4.85  # Scattering law exponent: tau(nu) ~ (nu/nu_ref)^index.
+screen = "thin" # thin | thick | uniform | https://ui.adsabs.harvard.edu/abs/1972MNRAS.157...55W/abstract 
 
 [propagation.rm]
 RM    = 0.0 # Rotation measure (rad m^-2) to apply after RVM
