@@ -18,12 +18,12 @@ import logging
 
 import numpy as np
 
-from fires.core.basicfns import (add_noise, compute_segments, correct_baseline,
-                                 estimate_noise_with_offpulse_mask,
-                                 estimate_rm, on_off_pulse_masks_from_profile,
-                                 rm_correct_dspec, scale_dspec_to_target_snr,
-                                 scatter_dspec,
-                                 stokes_consistency_diagnostics)
+from fires.core.dspec import (compute_segments, on_off_pulse_masks_from_profile,
+                               scatter_dspec, stokes_consistency_diagnostics)
+from fires.core.noise import (add_noise, correct_baseline,
+                               estimate_noise_with_offpulse_mask,
+                               scale_dspec_to_target_snr)
+from fires.core.rm import estimate_rm, rm_correct_dspec
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
 

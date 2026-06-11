@@ -12,7 +12,11 @@ from collections import defaultdict
 import numpy as np
 
 from fires.utils.config import load_params
+from fires.utils.params import COL_MAP
 from fires.utils.utils import dspecParams
+
+# Mean-only column map for loading observed data
+_MEAN_COL_MAP = {k: v for k, v in COL_MAP.items() if not k.startswith('sd_') and v < 16}
 
 logging.basicConfig(level=logging.INFO)
 
@@ -338,25 +342,7 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 
 			stddev_row = -4  # fourth last row = std dev
 			mean_slice = gauss_params[:stddev_row, :]  # all mean rows (allow multi-component)
-			col_map = {
-				't0'            : 0,
-				'width'         : 1,
-				'A'             : 2,
-				'spec_idx'      : 3,
-				'tau'           : 4,
-				'DM'            : 5,
-				'RM'            : 6,
-				'PA'            : 7,
-				'lfrac'         : 8,
-				'vfrac'         : 9,
-				'dPA'           : 10,
-				'band_centre'   : 11,
-				'band_width'    : 12,
-				'N'             : 13,
-				'mg_width_low'  : 14,
-				'mg_width_high' : 15
-			}
-			for k,c in col_map.items():
+			for k, c in _MEAN_COL_MAP.items():
 				if k not in gdict:
 					gdict[k] = mean_slice[:, c]
 

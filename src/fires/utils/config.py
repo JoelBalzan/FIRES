@@ -9,6 +9,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np
+
 from platformdirs import AppDirs
 
 try:                 # Python 3.11+
@@ -242,3 +244,63 @@ def edit_params(kind: str, config_dir: Optional[Path] = None) -> Path:
         raise FileNotFoundError(p)
     open_in_editor(p)
     return p
+
+
+def apply_config_overrides(raw_config: dict, overrides: dict) -> None:
+    import logging
+    for key_path, value_str in overrides.items():
+        keys = key_path.split(".")
+        current = raw_config
+        for k in keys[:-1]:
+            if k not in current:
+                current[k] = {}
+            current = current[k]
+        value_str = str(value_str).strip()
+        if value_str.lower() in ("true", "false"):
+            final_value = value_str.lower() == "true"
+        elif value_str.lower() in ("null", "none"):
+            final_value = None
+        else:
+            try:
+                if "." in value_str or "e" in value_str.lower():
+                    final_value = float(value_str)
+                else:
+                    final_value = int(value_str)
+            except ValueError:
+                final_value = value_str
+        current[keys[-1]] = final_value
+        logging.info(f"Config override applied: {key_path} = {final_value}")
+
+
+def apply_emission_overrides(gdict, sd_dict, param_overrides):
+    mean_override_parts = []
+    sd_override_parts = []
+    if not param_overrides:
+        return gdict, sd_dict, mean_override_parts, sd_override_parts
+    for key, value in param_overrides.items():
+        if key in gdict:
+            original_shape = gdict[key].shape
+            gdict[key] = np.full(original_shape, value, dtype=float)
+            logging.info(f"Override applied: {key} = {value} (shape: {original_shape})")
+        elif key in sd_dict:
+            sd_dict[key] = float(value)
+            logging.info(f"Override applied: {key} = {value} (std dev)")
+        else:
+            raise ValueError(f"Override key '{key}' not found in gdict or sd_dict.")
+        if key.startswith("sd_"):
+            base_key = key[3:].replace("_", "")
+            append_to = sd_override_parts
+        else:
+            base_key = key
+            append_to = mean_override_parts
+        if isinstance(value, (int, np.integer)):
+            append_to.append(f"sd{base_key}{value}" if append_to is sd_override_parts else f"{base_key}{value}")
+        elif isinstance(value, (float, np.floating)):
+            if value.is_integer():
+                append_to.append(f"sd{base_key}{int(value)}" if append_to is sd_override_parts else f"{base_key}{int(value)}")
+            else:
+                append_to.append(f"sd{base_key}{value:.2f}" if append_to is sd_override_parts else f"{base_key}{value:.2f}")
+        else:
+            prefix = "sd" if append_to is sd_override_parts else ""
+            append_to.append(f"{prefix}{base_key}{value}")
+    return gdict, sd_dict, mean_override_parts, sd_override_parts
