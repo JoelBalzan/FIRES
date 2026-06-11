@@ -792,7 +792,7 @@ def psn_dspec(
 			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
 			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
 			tau_i          	  = np.random.normal(tau[g], sd_tau)
-			tau_eff = tau_i if sd_tau > 0 else float(tau[g])
+			tau_eff = max(tau_i if sd_tau > 0 else float(tau[g]), 0.0)  # clamp unphysical draws
 			if tau_eff > 0:
 				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
 			else:
@@ -881,6 +881,8 @@ def psn_dspec(
 	if tau > 0 and sd_tau == 0:
 		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
 		dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=sc_screen)
+		logging.info("Applied global scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
+						tau, ref_freq_mhz, sc_idx, sc_screen)
 
 	if RM_global != 0.0 and RM_order == "post":
 		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
