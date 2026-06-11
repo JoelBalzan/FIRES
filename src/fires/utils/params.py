@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
+from typing import Optional
 
 # Canonical column mapping: parameter name/alias -> column index in gauss_params matrix
 COL_MAP = {
@@ -77,6 +79,72 @@ SD_ALIASES = {
     'sd_band_width': 'sd_band_width_mhz', 'sd_band_width_mhz': 'sd_band_width_mhz',
     'band_width_sigma': 'sd_band_width_mhz',
 }
+
+# Canonical ordering of gdict keys (matching legacy matrix column layout)
+GDICT_KEYS = [
+    't0', 'width', 'A', 'spec_idx', 'tau', 'DM', 'RM', 'PA',
+    'lfrac', 'vfrac', 'dPA', 'band_centre_mhz', 'band_width_mhz',
+    'N', 'mg_width_low', 'mg_width_high',
+]
+
+# Per-component mean parameters (replaces one row of gauss_params matrix)
+@dataclass
+class ComponentParams:
+    t0: float = 0.0
+    width: float = 1.0
+    A: float = 1.0
+    spec_idx: float = 0.0
+    tau: float = 0.0
+    DM: float = 0.0
+    RM: float = 0.0
+    PA: float = 0.0
+    lfrac: float = 0.0
+    vfrac: float = 0.0
+    dPA: float = 0.0
+    band_centre_mhz: float = 0.0
+    band_width_mhz: float = 0.0
+    N: float = 0.0
+    mg_width_low: float = 0.0
+    mg_width_high: float = 0.0
+
+# Per-parameter standard deviations (replaces the stddev row of gauss_params matrix)
+@dataclass
+class StdDevParams:
+    sd_t0: float = 0.0
+    sd_width: float = 0.0
+    sd_A: float = 0.0
+    sd_spec_idx: float = 0.0
+    sd_tau: float = 0.0
+    sd_DM: float = 0.0
+    sd_RM: float = 0.0
+    sd_PA: float = 0.0
+    sd_lfrac: float = 0.0
+    sd_vfrac: float = 0.0
+    sd_dPA: float = 0.0
+    sd_band_centre_mhz: float = 0.0
+    sd_band_width_mhz: float = 0.0
+
+
+@dataclass
+class SweepSpec:
+    param_name: str = ""
+    start: float = 0.0
+    stop: float = 0.0
+    step: float = 0.0
+    log_steps: Optional[int] = None
+
+    @property
+    def active(self) -> bool:
+        return bool(self.param_name)
+
+    @property
+    def is_sweep(self) -> bool:
+        return self.active and self.step != 0.0
+
+    @property
+    def is_single_point(self) -> bool:
+        return self.active and self.step == 0.0
+
 
 def canonical_emission_key(raw_key: str) -> str:
     key_l = raw_key.strip().lower()

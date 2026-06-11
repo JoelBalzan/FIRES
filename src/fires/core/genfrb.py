@@ -13,14 +13,16 @@ from tqdm import tqdm
 from fires.config.schema import parse_fires_config
 from fires.core.dspec import scatter_loaded_dspec
 from fires.core.genfns import psn_dspec
-from fires.core.basicfns import (add_noise, boxcar_snr, compute_segments,
+from fires.core.basicfns import (add_noise, compute_segments,
                                   correct_baseline, process_dspec,
                                   scale_dspec_to_target_snr, snr_onpulse)
 from fires.utils.config import load_params
 from fires.utils.io import (build_override_parts, build_single_output_path,
                              write_frb_dict, write_single_frb)
 from fires.utils.loaders import load_data, load_multiple_data_grouped
-from fires.utils.params import COL_MAP
+from fires.utils.params import (COL_MAP, GDICT_KEYS, ComponentParams,
+                                 StdDevParams, SweepSpec,
+                                 canonical_emission_key)
 from fires.utils.slurm import (pool_workers_and_chunksize, slurm_chunk_xvals)
 from fires.utils.utils import dspecParams, simulated_frb
 
@@ -102,45 +104,62 @@ def _master_to_internal(master_file, master_raw=None):
         "phase0_ms": float(rvm_raw.phase0_ms),
         "psi0_deg": float(rvm_raw.psi0_deg),
     }
-    n_comp = len(components)
-    gauss_params = np.zeros((n_comp + 4, 16), dtype=float)
-    mean_keys = ['t0_ms', 'width_ms', 'amplitude_Jy', 'spectral_index', 'tau_ms',
-                 'dm', 'rm', 'pa_deg', 'lfrac', 'vfrac', 'dpa_deg_per_ms',
-                 'band_centre_MHz', 'band_width_MHz']
-    micro_keys = ['N', 'width_frac_low', 'width_frac_high']
-    for i, comp in enumerate(components):
-        for j, key in enumerate(mean_keys):
-            gauss_params[i, j] = float(getattr(comp, key))
-        gauss_params[i, 13] = float(comp.microshots.N)
-        gauss_params[i, 14] = 100.0 * float(comp.microshots.width_frac_low)
-        gauss_params[i, 15] = 100.0 * float(comp.microshots.width_frac_high)
+    comp_list = []
+    for comp in components:
+        cp = ComponentParams(
+            t0=float(comp.t0_ms),
+            width=float(comp.width_ms),
+            A=float(comp.amplitude_Jy),
+            spec_idx=float(comp.spectral_index),
+            tau=float(comp.tau_ms),
+            DM=float(comp.dm),
+            RM=float(comp.rm),
+            PA=float(comp.pa_deg),
+            lfrac=float(comp.lfrac),
+            vfrac=float(comp.vfrac),
+            dPA=float(comp.dpa_deg_per_ms),
+            band_centre_mhz=float(comp.band_centre_MHz),
+            band_width_mhz=float(comp.band_width_MHz),
+            N=float(comp.microshots.N),
+            mg_width_low=100.0 * float(comp.microshots.width_frac_low),
+            mg_width_high=100.0 * float(comp.microshots.width_frac_high),
+        )
+        comp_list.append(cp)
     scatter = components[0].microshot_scatter
-    stddev_row = -4
-    sd_keys = ['t0_sigma_ms', 'width_sigma_ms', 'amplitude_sigma', 'spectral_index_sigma',
-               'tau_sigma_ms', 'dm_sigma', 'rm_sigma', 'pa_sigma_deg',
-               'lfrac_sigma', 'vfrac_sigma', 'dpa_sigma',
-               'band_centre_sigma', 'band_width_sigma']
-    for j, key in enumerate(sd_keys):
-        gauss_params[stddev_row, j] = float(getattr(scatter, key))
+    sd_params = StdDevParams(
+        sd_t0=float(scatter.t0_sigma_ms),
+        sd_width=float(scatter.width_sigma_ms),
+        sd_A=float(scatter.amplitude_sigma),
+        sd_spec_idx=float(scatter.spectral_index_sigma),
+        sd_tau=float(scatter.tau_sigma_ms),
+        sd_DM=float(scatter.dm_sigma),
+        sd_RM=float(scatter.rm_sigma),
+        sd_PA=float(scatter.pa_sigma_deg),
+        sd_lfrac=float(scatter.lfrac_sigma),
+        sd_vfrac=float(scatter.vfrac_sigma),
+        sd_dPA=float(scatter.dpa_sigma),
+        sd_band_centre_mhz=float(scatter.band_centre_sigma),
+        sd_band_width_mhz=float(scatter.band_width_sigma),
+    )
     amp_sampling = _normalise_master_amp_sampling(components[0].amplitude_distribution)
     sweep_mode = "none"
-    master_logstep = None
+    sweep_spec = SweepSpec()
     sweep = master.analysis.sweep
     if bool(sweep.enable):
         mode = str(sweep.mode).strip().lower()
         sweep_mode = mode if mode in ("none", "mean", "sd") else "none"
         param = sweep.parameter
-        name = str(param.name).strip().lower()
-        start = float(param.start)
-        stop = float(param.stop)
-        step = float(param.step)
-        if param.log_steps is not None:
-            master_logstep = int(param.log_steps)
-        if name in COL_MAP:
-            col = COL_MAP[name]
-            gauss_params[-3, col] = start
-            gauss_params[-2, col] = stop
-            gauss_params[-1, col] = step
+        raw_name = str(param.name).strip().lower()
+        canonical = canonical_emission_key(raw_name)
+        if canonical.startswith("sd_"):
+            canonical = canonical[3:]
+        if canonical in GDICT_KEYS or canonical in COL_MAP:
+            sweep_spec.param_name = canonical
+            sweep_spec.start = float(param.start)
+            sweep_spec.stop = float(param.stop)
+            sweep_spec.step = float(param.step)
+            if param.log_steps is not None:
+                sweep_spec.log_steps = int(param.log_steps)
     scint = None
     sc_cfg = master.propagation.scintillation
     if bool(sc_cfg.enable):
@@ -153,7 +172,7 @@ def _master_to_internal(master_file, master_raw=None):
             "field": bool(sc_cfg.return_field),
             "derive_from_tau": bool(sc_cfg.derive_from_tau),
         }
-    return sim_params, prop_params, gauss_params, amp_sampling, scint, sweep_mode, master_logstep, rvm_swing
+    return sim_params, prop_params, comp_list, sd_params, amp_sampling, scint, sweep_mode, sweep_spec, rvm_swing
 
 
 def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baseline_correct=None):
@@ -209,32 +228,22 @@ def _process_obs_task(task, plot_mode, target_snr=None, baseline_correct=None,
     return var, measures, V_params, snr, exp_vars
 
 
-def _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys):
+def _setup_sweep(sweep_spec, logstep, sweep_mode, plot_mode):
     if sweep_mode == "none":
         raise ValueError(
             f"Plot mode '{plot_mode.name}' requires a parameter sweep. "
-            "Use --sweep-mode mean or --sweep-mode sd and set exactly one non-zero step in gparams."
+            "Use --sweep-mode mean or --sweep-mode sd."
         )
-    has_sweep = not np.all(gauss_params[-1, :] == 0.0)
-    has_single_point = np.all(gauss_params[-1, :] == 0.0) and not np.all(gauss_params[-3, :] == 0.0)
-    if not has_sweep and not has_single_point:
-        logging.error("No sweep or single point defined. For sweep: set non-zero step. For single point: set start value with zero step.")
-        logging.info("Edit the last three rows (start/stop/step) of gparams for exactly one column.")
+    xname = sweep_spec.param_name
+    if not xname:
+        logging.error("No sweep parameter defined in config.")
         sys.exit(1)
-    if has_sweep:
-        active_cols = np.where(gauss_params[-1, :] != 0.0)[0]
-    else:
-        active_cols = np.where(gauss_params[-3, :] != 0.0)[0]
-    if active_cols.size == 0:
-        logging.error("No parameter column identified for sweep/single point.")
+    start = sweep_spec.start
+    stop = sweep_spec.stop
+    step = sweep_spec.step
+    if step == 0 and start == 0:
+        logging.error("Sweep parameter has zero step and zero start; nothing to sweep.")
         sys.exit(1)
-    if active_cols.size > 1:
-        logging.error("ERROR: More than one active column (multiple non-zero steps or starts).")
-        sys.exit(1)
-    col_idx = active_cols[0]
-    start = sweep_spec['start']
-    stop = sweep_spec['stop']
-    step = sweep_spec['step']
     if step == 0:
         xvals = np.array([start], dtype=float)
         logging.info(f"Using single point: {start} for realizations")
@@ -260,8 +269,7 @@ def _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict
                 end = start + n_steps * step
                 xvals = np.linspace(start, end, n_steps + 1)
             logging.info(f"Using linear sweep: {len(xvals)} points from {xvals[0]} to {xvals[-1]} (step={step})")
-    xname = gdict_keys[col_idx]
-    return xvals, col_idx, xname
+    return xvals, xname
 
 
 def _collect_results(results, xvals):
@@ -303,13 +311,13 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
     if master_file is None:
         raise ValueError("master_file is required. Legacy split configs are no longer supported.")
     master_scint = None
-    sim_params, prop_params, gauss_params, amp_sampling, master_scint, master_sweep_mode, master_logstep, rvm_swing = _master_to_internal(
+    sim_params, prop_params, comp_list, sd_params, amp_sampling, master_scint, master_sweep_mode, master_sweep_spec, rvm_swing = _master_to_internal(
         master_file, master_raw=master_raw_config,
     )
     if (sweep_mode is None or sweep_mode == "none") and master_sweep_mode is not None:
         sweep_mode = master_sweep_mode
-    if logstep is None and master_logstep is not None:
-        logstep = master_logstep
+    if logstep is None and master_sweep_spec.log_steps is not None:
+        logstep = master_sweep_spec.log_steps
     f_start  = float(sim_params['f0'])
     f_end    = float(sim_params['f1'])
     t_start  = float(sim_params['t0'])
@@ -320,45 +328,13 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
     scatter_idx = float(prop_params['scattering_index'])
     freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
     time_ms  = np.arange(t_start, t_end + t_res, t_res, dtype=float)
-    stddev_row = -4
-    start_row  = -3
-    stop_row   = -2
-    step_row   = -1
-    gdict = {
-        't0'             : gauss_params[:stddev_row, 0],
-        'width'      : gauss_params[:stddev_row, 1],
-        'A'              : gauss_params[:stddev_row, 2],
-        'spec_idx'       : gauss_params[:stddev_row, 3],
-        'tau'            : gauss_params[:stddev_row, 4],
-        'DM'             : gauss_params[:stddev_row, 5],
-        'RM'             : gauss_params[:stddev_row, 6],
-        'PA'             : gauss_params[:stddev_row, 7],
-        'lfrac'          : gauss_params[:stddev_row, 8],
-        'vfrac'          : gauss_params[:stddev_row, 9],
-        'dPA'            : gauss_params[:stddev_row, 10],
-        'band_centre_mhz': gauss_params[:stddev_row, 11],
-        'band_width_mhz' : gauss_params[:stddev_row, 12],
-        'N'              : gauss_params[:stddev_row, 13],
-        'mg_width_low'   : gauss_params[:stddev_row, 14],
-        'mg_width_high'  : gauss_params[:stddev_row, 15],
-        'amp_sampling'   : amp_sampling,
-    }
+    n_comp = len(comp_list)
+    gdict = {}
+    for key in GDICT_KEYS:
+        gdict[key] = np.array([getattr(c, key) for c in comp_list], dtype=float)
+    gdict['amp_sampling'] = amp_sampling
     gdict['pa_swing'] = rvm_swing
-    sd_dict = {
-        'sd_t0'             : gauss_params[stddev_row, 0],
-        'sd_width'        : gauss_params[stddev_row, 1],
-        'sd_A'              : gauss_params[stddev_row, 2],
-        'sd_spec_idx'       : gauss_params[stddev_row, 3],
-        'sd_tau'          : gauss_params[stddev_row, 4],
-        'sd_DM'             : gauss_params[stddev_row, 5],
-        'sd_RM'             : gauss_params[stddev_row, 6],
-        'sd_PA'             : gauss_params[stddev_row, 7],
-        'sd_lfrac'          : gauss_params[stddev_row, 8],
-        'sd_vfrac'          : gauss_params[stddev_row, 9],
-        'sd_dPA'            : gauss_params[stddev_row, 10],
-        'sd_band_centre_mhz': gauss_params[stddev_row, 11],
-        'sd_band_width_mhz' : gauss_params[stddev_row, 12],
-    }
+    sd_dict = {key: getattr(sd_params, key) for key in sd_params.__dataclass_fields__}
     mean_override_parts, sd_override_parts = build_override_parts(param_overrides, gdict, sd_dict)
     if param_overrides:
         for key, value in param_overrides.items():
@@ -371,24 +347,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                 logging.info(f"Override applied: {key} = {value} (std dev)")
             else:
                 raise ValueError(f"Override key '{key}' not found in gdict or sd_dict.")
-    sweep_start = gauss_params[start_row]
-    sweep_stop  = gauss_params[stop_row]
-    sweep_step  = gauss_params[step_row]
-    active_cols = np.where(sweep_step != 0.0)[0]
-    if plot_mode.requires_multiple_frb and data is None:
-        if active_cols.size == 0:
-            logging.error("No sweep defined (all step = 0) but multi-FRB plot requested.")
-            sys.exit(1)
-        if active_cols.size > 1:
-            logging.error("ERROR: More than one sweep column (multiple non-zero steps).")
-            sys.exit(1)
-    sweep_col = active_cols[0] if active_cols.size == 1 else None
-    sweep_spec = {
-        'col_index': sweep_col,
-        'start'    : sweep_start[sweep_col] if sweep_col is not None else None,
-        'stop'     : sweep_stop[sweep_col]  if sweep_col is not None else None,
-        'step'     : sweep_step[sweep_col]  if sweep_col is not None else None,
-    }
+    sweep_spec = master_sweep_spec
+    if plot_mode.requires_multiple_frb and data is None and not sweep_spec.active:
+        logging.error("No sweep defined in config but multi-FRB plot requested.")
+        sys.exit(1)
     if master_scint is not None:
         scint = dict(master_scint)
         logging.info("Scintillation enabled from master config.")
@@ -412,10 +374,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
         buffer_frac=buffer_frac, sweep_mode=sweep_mode,
     )
     tau = gdict['tau']
-    if len(np.where(gauss_params[-1, :] != 0.0)[0]) > 1:
-        logging.warning("More than one value in the last row of gauss_params is not 0.")
-        logging.info("Please ensure that only one value is non-zero in the last row.")
-        sys.exit(1)
     if np.any(gdict['lfrac'] + gdict['vfrac']) > 1.0:
         logging.warning("Linear and circular polarisation fractions sum to more than 1.0.")
     plot_multiple_frb = plot_mode.requires_multiple_frb
@@ -464,7 +422,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                 logging.error(f"No .pkl files found in {data}.")
                 sys.exit(1)
             return frb_dict
-        gdict_keys = [k for k in gdict.keys() if k not in ('amp_sampling', 'pa_swing')]
         if obs_data is not None:
             if os.path.isfile(obs_data):
                 logging.info(f"Loading observed data from {obs_data}")
@@ -477,11 +434,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
             I_time = np.nansum(dspec[0], axis=0)
             original_snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
             logging.info(f"Original data S/N: {original_snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")
-            gdict_keys = [k for k in gdict.keys() if k not in ('amp_sampling', 'pa_swing')]
-            if active_cols.size != 1 or gdict_keys[sweep_col] != 'tau':
-                logging.error("For obs_data sweep, exactly one sweep column must be set for 'tau'.")
+            if sweep_spec.param_name != 'tau' or not sweep_spec.is_sweep:
+                logging.error("For obs_data sweep, exactly one sweep parameter must be 'tau' with non-zero step.")
                 sys.exit(1)
-            xvals, col_idx, xname = _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys)
+            xvals, xname = _setup_sweep(sweep_spec, logstep, sweep_mode, plot_mode)
             xvals, _array_id, _array_count = slurm_chunk_xvals(xvals)
             partial_func = functools.partial(
                 _process_obs_task, plot_mode=plot_mode, target_snr=original_snr,
@@ -493,7 +449,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                 desc=f"Processing tau sweep on observed data"
             )
         else:
-            xvals, col_idx, xname = _setup_sweep(gauss_params, logstep, sweep_spec, sweep_mode, plot_mode, gdict_keys)
+            xvals, xname = _setup_sweep(sweep_spec, logstep, sweep_mode, plot_mode)
             xvals, _array_id, _array_count = slurm_chunk_xvals(xvals)
             partial_func = functools.partial(
                 _process_task, xname=xname, plot_mode=plot_mode,
