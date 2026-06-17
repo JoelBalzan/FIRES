@@ -20,8 +20,8 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
-                                 pa_variance_deg2, print_global_stats,
-                                 wrap_pa_deg)
+								 pa_variance_deg2, print_global_stats,
+								 wrap_pa_deg)
 from fires.plotting.plot_helper import (draw_plot_text, pub_figsize,
 								 pub_grid_figsize, savefig_rasterized, get_plot_param)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -234,28 +234,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	# Print global stats to log
 	print_global_stats(segments["global"], logger=True)
 
-
-	pa_rad = tsdata.phits
-	pa_deg = np.rad2deg(pa_rad)
-	finite_pa = pa_rad[np.isfinite(pa_rad)]
-	
-	if finite_pa.size == 0:
-		logging.warning("All PA values are NaN or non-finite. Cannot compute variance.")
-		pa_var_deg2 = np.nan
-	else:
-		pa_var_deg2 = pa_variance_deg2(finite_pa)
-	
-	pa_deg = np.rad2deg(pa_rad)
-
-	phits = wrap_pa_deg(pa_deg)
-	pa_err_rad = tsdata.ephits 
-	finite_pa_err = pa_err_rad[np.isfinite(pa_err_rad)]
-	if finite_pa_err.size == 0:
-		epa_deg2 = np.nan
-	else:
-		epa_deg2 = pa_variance_deg2(finite_pa_err) 
-	pa_err_deg = np.rad2deg(pa_err_rad)
-
 	I, Q, U, V = tsdata.iquvt / 1e3  # Convert from Jy to kJy
 	L = tsdata.Lts / 1e3  # Convert from Jy to kJy
 
@@ -302,23 +280,70 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 
 	hide_y_axes = bool(get_plot_param(plot_config, 'general', 'hide_y_axes', False))
 
-	# Plot polarisation angle
-	axs[0].scatter(time_ms, phits, c='black', s=2.5, zorder=8)
-	axs[0].errorbar(time_ms, pa_deg, yerr=pa_err_deg, fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=7)
- 
-	#axs[0].plot(time_ms, phits, c='black', lw=0.5, zorder=8)
-	#axs[0].fill_between(time_ms, phits - dphits, phits + dphits, color='gray', alpha=0.3, label='Error')
+	# -------------------------
+	# Polarisation angle (PA)
+	# -------------------------
+	
+	pa_rad = tsdata.phits
+	pa_err_rad = tsdata.ephits
+	
+	# Convert to degrees
+	pa_deg = np.rad2deg(pa_rad)
+	pa_err_deg = np.rad2deg(pa_err_rad)
+	
+	# Finite-safe PA variance (rad space is usually preferred, keep as-is)
+	finite_pa = pa_rad[np.isfinite(pa_rad)]
+	if finite_pa.size == 0:
+		logging.warning("All PA values are NaN or non-finite. Cannot compute variance.")
+		pa_var_deg2 = np.nan
+	else:
+		pa_var_deg2 = pa_variance_deg2(finite_pa)
+	
+	# Error variance (deg space as in your original logic)
+	finite_pa_err = pa_err_rad[np.isfinite(pa_err_rad)]
+	if finite_pa_err.size == 0:
+		epa_deg2 = np.nan
+	else:
+		epa_deg2 = pa_variance_deg2(finite_pa_err)
+	
+	# Clean mask: must have finite PA AND finite error AND pass threshold
+	mask_pa = (
+		np.isfinite(pa_deg) &
+		np.isfinite(pa_err_deg) &
+		(pa_err_deg < 5)
+	)
+	
+	# Wrapped PA (actually use it for plotting stability if needed)
+	phits = wrap_pa_deg(pa_deg)
+	
+	# -------------------------
+	# Plot
+	# -------------------------
+	axs[0].scatter(
+		time_ms[mask_pa],
+		phits[mask_pa],
+		c='black',
+		s=2.5,
+		zorder=8,
+	)
+	axs[0].errorbar(
+		time_ms[mask_pa],
+		phits[mask_pa],
+		yerr=pa_err_deg[mask_pa],
+		fmt='none',
+		ecolor='black',
+		elinewidth=0.5,
+		capsize=1,
+		zorder=7
+	)
+	
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
-	axs[0].set_ylim(-90, 90)
+	axs[0].set_ylim(np.min(phits[mask_pa])-10, np.max(phits[mask_pa])+10)
 	axs[0].set_ylabel(r"$\psi$ [deg.]")
 	axs[0].tick_params(axis='x', labelbottom=False)
-	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
-	#axs[0].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3, prune='both'))
 	axs[0].grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
-	#axs[0].tick_params(axis='x', direction='in', which='major', length=4)
-	#axs[0].tick_params(axis='x', direction='in', which='minor', length=2)
-	#axs[0].tick_params(axis='y', direction='in', which='major', length=4)
-	#axs[0].tick_params(axis='y', direction='in', which='minor', length=2)
+	
 	draw_plot_text(axs[0], display_text, 'general', plot_config)
 	
 	# Plot the mean across all frequency channels (axis 0)
@@ -328,8 +353,8 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	#axs[1].plot(time_ms, Q, markersize=2, label='Q', color='Green')
 	#axs[1].plot(time_ms, U, markersize=2, label='U', color='Orange')
 	axs[1].plot(time_ms, V, markersize=1, label='V', color='Blue')
-	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3))
-	#axs[1].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3, prune='both'))
+	axs[1].xaxis.set_major_locator(ticker.MaxNLocator(nbins=7, prune='both'))
 	axs[1].tick_params(axis='x', labelbottom=False)
 	#axs[1].tick_params(axis='y', labelcolor="white")
 	axs[1].grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
@@ -431,8 +456,8 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
   		extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 	axs[2].set_xlabel("Time [ms]")
 	axs[2].set_ylabel("Freq. [MHz]")
-	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
-	#axs[2].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+	axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+	axs[2].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
 	# White in-ticks with readable labels on the dynamic spectrum.
 	axs[2].tick_params(axis='both', which='major', colors='white', labelcolor='black')
 	axs[2].tick_params(axis='both', which='minor', colors='white')

@@ -18,7 +18,7 @@ screen = "thin" # thin | thick | uniform | https://ui.adsabs.harvard.edu/abs/197
 
 [propagation.rm]
 RM = 0.0 # applied after RVM
-order = pre # order to apply with respect to scatter: pre | post
+order = "pre" # order to apply with respect to scatter: pre | post
 
 [propagation.scintillation]
 enable          = true

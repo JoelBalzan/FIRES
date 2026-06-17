@@ -447,10 +447,18 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 	else:
 		scint = None
 
+	prop_dict = {
+	    "scattering_index": scatter_idx,
+        "scattering_screen": None,
+        "RM": None,
+        "order": None,
+	}
+
 	dspec_params = dspecParams(
 		gdict        = gdict,
 		sd_dict      = sd_dict,
 		scint_dict   = scint,
+		prop_dict    = prop_dict,
 		freq_mhz     = freq_mhz,
 		freq_res_mhz = f_res,
 		time_ms      = time_ms,
@@ -458,7 +466,6 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 		seed         = None,
 		nseed        = None,
 		sefd         = None,
-		sc_idx       = scatter_idx,
 		ref_freq_mhz = ref_freq,
 		phase_window = None,
 		freq_window  = None,

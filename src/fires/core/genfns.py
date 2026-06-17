@@ -873,6 +873,7 @@ def psn_dspec(
 	RM_global = prop_dict['RM']
 	RM_order = prop_dict['order']
 
+	# ADD GLOBAL RM PRE-SCATTERING (if specified)
 	if RM_global != 0.0 and RM_order == "pre":
 		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
 		if not plot_multiple_frb:
@@ -883,7 +884,7 @@ def psn_dspec(
 		dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=sc_screen)
 		logging.info("Applied global scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
 						tau, ref_freq_mhz, sc_idx, sc_screen)
-
+	# ADD GLOBAL RM POST-SCATTERING (if specified)
 	if RM_global != 0.0 and RM_order == "post":
 		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
 		if not plot_multiple_frb:
