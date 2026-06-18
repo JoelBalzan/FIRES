@@ -27,7 +27,7 @@ from fires.core.basicfns import (compute_segments, estimate_rm,
                                  on_off_pulse_masks_from_profile,
                                  pa_variance_deg2, process_dspec)
 from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
-											colours, draw_plot_text,
+											colours, draw_plot_text, get_pub_col,
 											get_plot_param, param_info_or_dynamic,
 											param_map, savefig_rasterized, pub_figsize,
 											set_pub_style, text_with_offset)
@@ -2897,7 +2897,7 @@ def plot_pa_var(
 
 	yname = r"\mathbb{V}(\psi)"
 	if figsize is None:
-		figsize = pub_figsize(single_column=True, height_ratio=1.0, min_height=4.8)
+		figsize = pub_figsize(ncol=get_pub_col())
 
 	if compare_windows is not None:
 		if _is_multi_run_dict(frb_dict):

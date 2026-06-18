@@ -22,8 +22,9 @@ import numpy as np
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
 								 pa_variance_deg2, print_global_stats,
 								 wrap_pa_deg)
-from fires.plotting.plot_helper import (draw_plot_text, pub_figsize,
-								 pub_grid_figsize, savefig_rasterized, get_plot_param)
+from fires.plotting.plot_helper import (draw_plot_text, get_pub_col,
+								 pub_figsize, pub_grid_figsize,
+								 savefig_rasterized, get_plot_param)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 	chan_width_mhz = np.abs(fmhzarr[0] - fmhzarr[1])  # Calculate channel width in MHz
 	
 	if figsize is None:
-		figsize = pub_grid_figsize(4, single_column=True)
+		figsize = pub_grid_figsize(4, ncol=get_pub_col())
 	Lts = np.sqrt(np.asarray(iquvt[1])**2 + np.asarray(iquvt[2])**2)
 
 	# On-pulse mask from I
@@ -166,7 +167,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 	logging.info("Max (dPA/dt) = %.2f +/- %.2f deg/ms \n" % (dpadt[dpamax], edpadt[dpamax]))
 
 	if figsize is None:
-		figsize = pub_grid_figsize(2, single_column=True)
+		figsize = pub_grid_figsize(2, ncol=get_pub_col())
 	fig = plt.figure(figsize=(figsize[0], figsize[1]))
 	ax = fig.add_axes([0.15, 0.48, 0.83, 0.50])
 	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
@@ -260,9 +261,9 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 			logger.warning("Cannot estimate FWHM: non-finite or non-positive I peak.")
 	else:
 		logger.warning("Cannot estimate FWHM: I profile has no finite values.")
-	
+
 	if figsize is None:
-		figsize = pub_grid_figsize(3, single_column=True)
+		figsize = pub_grid_figsize(3, ncol=get_pub_col())
 	
 	fig, axs = plt.subplots(
 		nrows=3,
@@ -560,7 +561,7 @@ def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, e
 	logging.info("Var(psi) = %.3f +/- %.3f deg^2", pa_var_deg2, epa_deg2)
 
 	if figsize is None:
-		figsize = pub_figsize(single_column=True, height_ratio=0.45, min_height=2.6)
+		figsize = pub_figsize(ncol=get_pub_col())
 
 	fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
 	fig.subplots_adjust(left=0.12, right=0.98, bottom=0.20, top=0.95)
@@ -768,7 +769,7 @@ def plot_pa_li_scatter(
 
 	# --- Plot ---
 	if figsize is None:
-		figsize = pub_figsize(single_column=True, height_ratio=1.0, min_height=4.8)
+		figsize = pub_figsize(ncol=get_pub_col())
 
 	# Use time as colour (only masked points)
 

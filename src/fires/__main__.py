@@ -238,6 +238,10 @@ def main():
         help="Override plotting parameters. Provide space-separated key=value pairs."
     )
     parser.add_argument(
+        "--pub-col", type=float, default=2, metavar="N",
+        help="Number of equal figures per row (1, 2, 3, ...). Figure width = FULL_PAGE_WIDTH_IN / N."
+    )
+    parser.add_argument(
         "--compare-windows", type=str, nargs="+", metavar="FREQ:PHASE",
         help="Compare multiple freq/phase windows from a SINGLE run on same plot."
     )
@@ -371,6 +375,9 @@ def main():
     except ValueError as e:
         parser.error(str(e))
 
+    from fires.plotting.plot_helper import set_pub_col
+    if args.pub_col is not None:
+        set_pub_col(args.pub_col)
     from fires.plotting.plotmodes import configure_matplotlib_from_config
     configure_matplotlib_from_config(plot_config)
 

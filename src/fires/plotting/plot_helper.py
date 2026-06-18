@@ -12,8 +12,20 @@ from cycler import cycler
 from fires.utils.params import param_info
 
 #	--------------------------	Publication defaults	---------------------------
-SINGLE_COLUMN_WIDTH_IN = 4.8
-TWO_COLUMN_WIDTH_IN = 7.1
+# pub-col N means "1 of N figures per row", so width = FULL_PAGE_WIDTH_IN / N.
+FULL_PAGE_WIDTH_IN = 6.3
+
+ASPECT_RATIO = 1.414  # sqrt(2) for A4-like aspect ratio
+
+_current_pub_col: Optional[int] = None
+
+def get_pub_col() -> Optional[int]:
+    return _current_pub_col
+
+
+def set_pub_col(n: Optional[int]) -> None:
+    global _current_pub_col
+    _current_pub_col = n
 
 
 class ColorManager:
@@ -46,96 +58,86 @@ IBM_PALETTE = [
 colour_manager = ColorManager(IBM_PALETTE)
 
 
-def pub_width(single_column=True):
-	return SINGLE_COLUMN_WIDTH_IN if single_column else TWO_COLUMN_WIDTH_IN
+def pub_width(
+    *,
+    ncol: Optional[float] = None,
+) -> float:
+    if ncol is None:
+        return FULL_PAGE_WIDTH_IN
+    n = max(ncol, 1)
+    return FULL_PAGE_WIDTH_IN / n
 
 
 def pub_figsize(
-	*,
-	single_column=True,
-	height_ratio=0.62,
-	min_height=3.0,
-):
-	width = pub_width(single_column)
-	height = max(min_height, width * height_ratio)
-	return width, height
+    *,
+    ncol: Optional[float] = None,
+) -> tuple[float, float]:
+    effective_ncol = ncol if ncol is not None else _current_pub_col
+    width = pub_width(ncol=effective_ncol)
+    height = width * ASPECT_RATIO
+    return width, height
 
 
 def pub_grid_figsize(
-	n_rows,
-	*,
-	single_column=False,
-	row_height=2.5,
-	width_scale=1.0,
-	min_height=4.0,
-):
-	width = pub_width(single_column) * width_scale
-	height = max(min_height, n_rows * row_height)
-	return width, height
+    n_rows: int,
+    *,
+    ncol: Optional[float] = None,
+    width_scale: float = 1.0,
+) -> tuple[float, float]:
+    width = pub_width(ncol=ncol) * width_scale
+    height = width * ASPECT_RATIO
+    return width, height
 
 
 def set_pub_style(use_latex=False):
-	fig_w, fig_h = pub_figsize()
+    fig_w, fig_h = pub_figsize(ncol=_current_pub_col)
 
-	rc = {
-		"figure.figsize": (fig_w, fig_h),
-		"figure.dpi": 150,
-		"savefig.dpi": 600,
+    rc = {
+        "figure.figsize": (fig_w, fig_h),
+        "figure.dpi": 150,
+        "savefig.dpi": 600,
 
-		# Fonts
-		"font.family": "serif",
-		"font.serif": ["TeX Gyre Pagella"],
-		"mathtext.fontset": "stix",
+        # Fonts
+        "font.family": "serif",
+        "font.serif": ["TeX Gyre Pagella"],
+        "mathtext.fontset": "stix",
 
-		# Font sizes
-		"font.size": 11,
-		"axes.labelsize": 11,
-		"axes.titlesize": 11,
-		"xtick.labelsize": 10,
-		"ytick.labelsize": 10,
-		"legend.fontsize": 9,
+        # Lines/ticks
+        "xtick.direction": "in",
+        "ytick.direction": "in",
+        "xtick.top": True,
+        "ytick.right": True,
 
-		# Lines/ticks
-		"axes.linewidth": 0.8,
-		"lines.linewidth": 1.5,
-		"xtick.major.width": 0.8,
-		"ytick.major.width": 0.8,
-		"xtick.direction": "in",
-		"ytick.direction": "in",
-		"xtick.top": True,
-		"ytick.right": True,
+        # Minor ticks
+        "xtick.minor.visible": True,
+        "ytick.minor.visible": True,
 
-		# Minor ticks
-		"xtick.minor.visible": True,
-		"ytick.minor.visible": True,
+        # Layout
+        "axes.axisbelow": True,
+        "figure.constrained_layout.use": True,
 
-		# Layout
-		"axes.axisbelow": True,
-		"figure.constrained_layout.use": True,
+        # Legend
+        "legend.frameon": True,
 
-		# Legend
-		"legend.frameon": True,
-		"legend.handlelength": 1.4,
+        # Colours
+        "axes.prop_cycle": cycler(color=IBM_PALETTE),
 
-		# Colours
-		"axes.prop_cycle": cycler(color=IBM_PALETTE),
+        # Vector embedding
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
 
-		# Vector embedding
-		"pdf.fonttype": 42,
-		"ps.fonttype": 42,
+        # TeX
+        "text.usetex": use_latex,
+    }
 
-		# TeX
-		"text.usetex": use_latex,
-	}
-
-	if use_latex:
-		rc["text.latex.preamble"] = r"""
+    if use_latex:
+        rc["text.latex.preamble"] = r"""
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{lmodern}
 """
 
-	mpl.rcParams.update(rc)
+    mpl.rcParams.update(rc)
 
 
 def savefig_rasterized(
