@@ -224,7 +224,7 @@ def main():
     )
     parser.add_argument(
         "-p", "--plot", nargs="+", default=['lvpa'],
-        choices=['all', 'None', 'iquv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac', 'pa', 'pali'],
+        choices=['all', 'None', 'iquv', 'lv', 'lvpa', 'dpa', 'RM', 'pa_var', 'l_frac', 'pa', 'pali'],
         metavar="",
         help="Generate plots. Pass 'all' to generate all plots, or specify one or more plot names."
     )

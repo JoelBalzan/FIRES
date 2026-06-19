@@ -206,6 +206,159 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 #	----------------------------------------------------------------------------------------------------------
 
+def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
+			legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None, show_spectrum=True):
+	"""
+	Plot I, L, V and dynamic spectrum (no PA panel).
+	"""
+	# Select the requested phase/freq windows (fall back to total/all)
+	phase_win = getattr(dspec_params, "phase_window", None)
+	freq_win  = getattr(dspec_params, "freq_window", None)
+	phase_key = normalise_phase_window(phase_win, "segments") if phase_win else "total"
+	freq_key  = normalise_freq_window(freq_win, "segments") if freq_win else "all"
+
+	# Pull the values that will be used elsewhere (e.g. overlays/labels)
+	vpsi = segments["phase"].get(phase_key, {}).get("Vpsi", np.nan)
+	lfrac = segments["phase"].get(phase_key, {}).get("Lfrac", np.nan)
+	vfrac = segments["phase"].get(phase_key, {}).get("Vfrac", np.nan)
+	logging.info("Var(psi) [%s]: %.3f deg^2  | L/I=%.3f  V/I=%.3f", phase_key, vpsi, lfrac, vfrac)
+	print_global_stats(segments["global"], logger=True)
+
+	I, Q, U, V = tsdata.iquvt / 1e3
+	L = tsdata.Lts / 1e3
+
+	# FWHM bounds around the I peak (in time bins)
+	fwhm_bounds = None
+	if np.any(np.isfinite(I)):
+		peak_idx = int(np.nanargmax(I))
+		peak_val = I[peak_idx]
+		if np.isfinite(peak_val) and peak_val > 0:
+			half_max = 0.5 * peak_val
+			left_idx = peak_idx
+			while left_idx > 0:
+				if not np.isfinite(I[left_idx]) or I[left_idx] <= half_max:
+					break
+				left_idx -= 1
+			right_idx = peak_idx
+			while right_idx < (I.size - 1):
+				if not np.isfinite(I[right_idx]) or I[right_idx] <= half_max:
+					break
+				right_idx += 1
+			if left_idx < peak_idx and right_idx > peak_idx:
+				fwhm_bounds = (left_idx, right_idx)
+		else:
+			logger.warning("Cannot estimate FWHM: non-finite or non-positive I peak.")
+	else:
+		logger.warning("Cannot estimate FWHM: I profile has no finite values.")
+
+	if figsize is None:
+		figsize = pub_grid_figsize(2, ncol=get_pub_col())
+
+	fig, axs = plt.subplots(
+		nrows=2,
+		ncols=1,
+		sharex=True,
+		height_ratios=[0.6, 1],
+		figsize=figsize,
+		gridspec_kw={"hspace": 0.0},
+	)
+	fig.set_constrained_layout(False)
+	if show_spectrum and fwhm_bounds is not None:
+		fig.subplots_adjust(hspace=0.0, right=0.86, top=0.98, bottom=0.08)
+	else:
+		fig.subplots_adjust(hspace=0.0, right=0.98, top=0.98, bottom=0.08)
+
+	hide_y_axes = bool(get_plot_param(plot_config, 'general', 'hide_y_axes', False))
+
+	# Plot the mean across all frequency channels (axis 0)
+	axs[0].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
+	axs[0].plot(time_ms, I, label='I', color='Black', linewidth=0.8)
+	axs[0].plot(time_ms, L, label='L', color='Red', linewidth=0.8)
+	axs[0].plot(time_ms, V, label='V', color='Blue', linewidth=0.8)
+	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3, prune='both'))
+	axs[0].xaxis.set_major_locator(ticker.MaxNLocator(nbins=7, prune='both'))
+	axs[0].tick_params(axis='x', labelbottom=False)
+	axs[0].grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
+
+	if fwhm_bounds is not None and show_spectrum:
+		fwhm_left, fwhm_right = fwhm_bounds
+		axs[0].axvspan(time_ms[fwhm_left], time_ms[fwhm_right], color='gold', alpha=0.18, zorder=0)
+
+	axs[0].set_xlim(time_ms[0], time_ms[-1])
+	axs[0].set_ylabel(r"$S$ [arb.]")
+
+	draw_plot_text(axs[0], display_text, 'general', plot_config)
+
+	# Highlight on- and off-pulse regions if requested
+	if show_onpulse or show_offpulse:
+		gdict = dspec_params.gdict
+		init_width = gdict["width"][0] / dspec_params.time_res_ms
+		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, init_width, frac=0.95, buffer_frac=buffer_frac)
+		if show_onpulse:
+			axs[0].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
+		if show_offpulse:
+			axs[0].fill_between(
+				time_ms, 0, 1, where=off_mask,
+				color='lightcoral', alpha=0.15,
+				transform=axs[0].get_xaxis_transform(), zorder=0, label='Off-pulse'
+			)
+
+	# Dynamic spectrum (axis 1)
+	vmin = np.nanpercentile(dspec[0], 1)
+	vmax = np.nanpercentile(dspec[0], 99)
+	axs[1].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
+		vmin=vmin, vmax=vmax,
+		extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
+	axs[1].set_xlabel("Time [ms]")
+	axs[1].set_ylabel("Freq. [MHz]")
+	axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+	axs[1].xaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+	axs[1].tick_params(axis='both', which='major', colors='white', labelcolor='black')
+	axs[1].tick_params(axis='both', which='minor', colors='white')
+	axs[1].tick_params(axis='x', labelbottom=True)
+	if hide_y_axes:
+		for ax in axs:
+			ax.yaxis.label.set_color('white')
+			ax.tick_params(axis='y', labelcolor='white')
+
+	# Side spectrum panel from the FWHM time window
+	if show_spectrum and fwhm_bounds is not None:
+		fwhm_left, fwhm_right = fwhm_bounds
+		spec_slice = slice(fwhm_left, fwhm_right + 1)
+		spec = np.nanmean(dspec[0][:, spec_slice], axis=1)
+		if np.any(np.isfinite(spec)):
+			ax_dspec = axs[1]
+			pos = ax_dspec.get_position()
+			pad = 0.01
+			spec_width = pos.width * 0.22
+			ax_spec = fig.add_axes([pos.x1 + pad, pos.y0, spec_width, pos.height])
+			ax_spec.plot(spec, freq_mhz, color='black', lw=0.8)
+			ax_spec.set_ylim(freq_mhz[0], freq_mhz[-1])
+			ax_spec.tick_params(axis='both', direction='in')
+			if hide_y_axes:
+				ax_spec.yaxis.label.set_color('white')
+				ax_spec.tick_params(axis='y', labelcolor='white')
+			else:
+				ax_spec.set_yticklabels([])
+			ax_spec.set_xlabel(r"$S$ [arb.]")
+			ax_spec.grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
+			if hide_y_axes:
+				ax_spec.set_ylabel("")
+		else:
+			logger.warning("Cannot plot FWHM spectrum: spectrum is all non-finite.")
+
+	if legend:
+		axs[0].legend(loc='upper right')
+
+	if show_plots:
+		plt.show()
+
+	if save:
+		out_path = os.path.join(outdir, fname + f"_t_{tau[0]}" + "_LV." + extension)
+		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		logging.info("Saved figure to %s \n" % (out_path))
+
+
 def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
 					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None, inset=False, show_spectrum=True):
 	"""

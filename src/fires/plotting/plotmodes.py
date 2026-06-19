@@ -31,7 +31,7 @@ from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
 											get_plot_param, param_info_or_dynamic,
 											param_map, savefig_rasterized, pub_figsize,
 											set_pub_style, text_with_offset)
-from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds,
+from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_lv,
                                     plot_pa_li_scatter, plot_pa_profile,
                                     plot_stokes)
 from fires.utils.loaders import load_data
@@ -225,6 +225,10 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension)
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
+	elif mode == "lv":
+		plot_lv(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir,
+				ts_data, figsize, tau, show_plots, extension,
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text, show_spectrum=show_spectrum)
 	elif mode == "lvpa":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
@@ -3637,10 +3641,17 @@ pali = PlotMode(
 	requires_multiple_frb=False
 )
 
+lv = PlotMode(
+	name="lv",
+	plot_func=basic_plots,
+	requires_multiple_frb=False
+)
+
 plot_modes = {
 	"pa_var": pa_var,
 	"l_frac": l_frac,
 	"iquv"  : iquv,
+	"lv"    : lv,
 	"lvpa"  : lvpa,
 	"dpa"   : dpa,
 	"RM"    : RM,
