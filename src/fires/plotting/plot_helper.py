@@ -13,7 +13,7 @@ from fires.utils.params import param_info
 
 #	--------------------------	Publication defaults	---------------------------
 # pub-col N means "1 of N figures per row", so width = FULL_PAGE_WIDTH_IN / N.
-FULL_PAGE_WIDTH_IN = 6.3
+FULL_PAGE_WIDTH_IN = 8.5
 
 ASPECT_RATIO = 1.414  # sqrt(2) for A4-like aspect ratio
 
