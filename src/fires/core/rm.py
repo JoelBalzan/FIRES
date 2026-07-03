@@ -30,13 +30,20 @@ def rm_synth(freq_ghz, iquv, diquv, outdir, save, show_plots):
     return res
 
 
+def _clamp_noise(noise, floor=1e-15):
+    noise = np.asarray(noise, dtype=float)
+    noise[~np.isfinite(noise)] = floor
+    noise[noise <= 0.0] = floor
+    return noise
+
+
 def estimate_rm(dspec, freq_mhz, time_ms, noisespec, phi_range, dphi, outdir, save, show_plots):
     left, right = boxcar_width(np.nansum(dspec[0], axis=0), frac=0.95)
     ispec   = np.nansum(dspec[0, :, left:right], axis=1)
     vspec   = np.nansum(dspec[3, :, left:right], axis=1)
     qspec0  = np.nansum(dspec[1, :, left:right], axis=1)
     uspec0  = np.nansum(dspec[2, :, left:right], axis=1)
-    noispec = noisespec / np.sqrt(float(right + 1 - left))
+    noispec = _clamp_noise(noisespec) / np.sqrt(float(right + 1 - left))
     iquv  = (ispec, qspec0, uspec0, vspec)
     eiquv = (noispec[0], noispec[1], noispec[2], noispec[3])
     res_rmtool = rm_synth(freq_mhz / 1.0e3, iquv, eiquv, outdir, save, show_plots)

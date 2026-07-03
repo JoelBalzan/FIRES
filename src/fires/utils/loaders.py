@@ -280,8 +280,8 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 			"Creating default array."
 		)
 		time_ms = np.arange(dspec.shape[2], dtype=float)
-	logging.info("Time resolution: %.3f ms" % (time_ms[1]-time_ms[0]))
-	logging.info("Frequency resolution: %.3f MHz" % np.median(np.diff(freq_mhz.astype(float))))
+	logging.info("Time resolution: %.6f ms" % (time_ms[1]-time_ms[0]))
+	logging.info("Frequency resolution: %.6f MHz" % np.median(np.diff(freq_mhz.astype(float))))
 	
 	gdict = {}
 	if obs_params_path is None:

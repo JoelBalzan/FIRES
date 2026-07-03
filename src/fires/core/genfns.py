@@ -945,7 +945,7 @@ def psn_dspec(
 		snr = None
 	
 
-	if np.any(np.asarray(RM, dtype=float) != 0.0) or RM_global != 0.0:
+	if np.any(np.asarray(RM, dtype=float) != 0.0) or np.any(np.asarray(sd_rm, dtype=float) != 0.0)  or RM_global != 0.0:
 		try:
 			# On/off mask from frequency-summed I
 			I_ts = np.nansum(dspec[0], axis=0)
