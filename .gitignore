@@ -30,3 +30,4 @@ output/
 *.lprof
 *.mprof
 .vscode/
+.idea/
