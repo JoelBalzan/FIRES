@@ -200,10 +200,6 @@ Set `observation.baseline_correct` in `fires.toml`:
 Configure under `[propagation.scintillation]` in `fires.toml`.
 Gain is applied multiplicatively to all Stokes prior to noise.
 
-## Chi-squared Fitting
-
---chi2-fit applies a Gaussian chi-squared fit to the final Stokes I profile (time-collapsed, simple initial guess).
-
 ## Observational Overlay
 
 Provide measured dynamic spectrum for analytical comparison:
@@ -224,6 +220,7 @@ Core I/O:
   -d, --sim-data <path>        Existing simulation data (use instead of generating)
   -o, --output-dir <dir>       Output directory (default simfrbs/)
   -v, --verbose                Verbose logging
+  --sd, --save-dspec           Save the Stokes dynamic spectrum cube.
 
 Generation:
   -m, --mode psn               Micro-shot ensemble (only mode at present)
@@ -278,7 +275,7 @@ FIRES has been tested on Linux with Python 3.12.
 Scintillation routines adapted from:
 Sprenger T. (2025). ScintillationMaker. https://github.com/SprengerT/ScintillationMaker (commit e33a4ca).
 
-Please cite FIRES (this page and/or https://arxiv.org/abs/2601.19254) and ScintillationMaker if scintillation functionality is used.
+Please cite FIRES ([this paper](https://doi.org/10.1017/pasa.2026.10208)) and ScintillationMaker if scintillation functionality is used.
 
 ## Acknowledgements
 
