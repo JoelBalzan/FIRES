@@ -33,7 +33,7 @@ from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
 											set_pub_style, text_with_offset)
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_lv,
                                     plot_pa_li_scatter, plot_pa_profile,
-                                    plot_stokes)
+                                    plot_pads, plot_stokes)
 from fires.utils.loaders import load_data
 from fires.utils.params import base_param_name, is_measured_key
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
@@ -223,6 +223,8 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension)
+		plot_pads(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, figsize, show_plots, extension,
+		          plot_config=plot_config, display_text=display_text)
 	elif mode == "iquv":
 		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
 	elif mode == "lv":
@@ -241,6 +243,9 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 	elif mode == "pali":
 		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension)
+	elif mode == "pads":
+		plot_pads(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, figsize, show_plots, extension,
+		          plot_config=plot_config, display_text=display_text)
 	else:
 		logging.warning(f"Invalid mode: {mode} \n")
 
@@ -3647,6 +3652,12 @@ lv = PlotMode(
 	requires_multiple_frb=False
 )
 
+pads = PlotMode(
+	name="pads",
+	plot_func=basic_plots,
+	requires_multiple_frb=False
+)
+
 plot_modes = {
 	"pa_var": pa_var,
 	"l_frac": l_frac,
@@ -3656,5 +3667,6 @@ plot_modes = {
 	"dpa"   : dpa,
 	"RM"    : RM,
 	"pa"    : pa,
-	"pali"  : pali
+	"pali"  : pali,
+	"pads"  : pads
 }

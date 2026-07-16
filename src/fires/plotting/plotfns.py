@@ -1037,3 +1037,58 @@ def plot_pa_li_scatter(
 
 	if show_plots:
 		plt.show()
+
+
+def plot_pads(dspec, freq_mhz, time_ms, save, fname, outdir, figsize, show_plots, extension,
+              plot_config=None, display_text=None):
+    """
+    Plot the full polarisation-angle (PA) dynamic spectrum.
+    PA(freq, time) = 0.5 * arctan2(U, Q) for each pixel, displayed as a 2D
+    colour map with a cyclic colour bar.
+    """
+    Q = dspec[1]
+    U = dspec[2]
+    with np.errstate(invalid='ignore', divide='ignore'):
+        pa_rad = 0.5 * np.arctan2(U, Q)
+    pa_deg = np.rad2deg(pa_rad)
+
+    finite_mask = np.isfinite(pa_deg)
+    if not np.any(finite_mask):
+        logger.error("All PA values are non-finite. Nothing to plot.")
+        return
+
+    vmin = np.nanpercentile(pa_deg, 2)
+    vmax = np.nanpercentile(pa_deg, 98)
+    if not np.isfinite(vmin):
+        vmin = -90
+    if not np.isfinite(vmax):
+        vmax = 90
+
+    if figsize is None:
+        figsize = pub_figsize(ncol=get_pub_col())
+
+    fig, ax = plt.subplots(figsize=figsize)
+    fig.subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.95)
+
+    im = ax.imshow(pa_deg, aspect='auto', interpolation='none', origin='lower',
+                   cmap='twilight_shifted',
+                   vmin=vmin, vmax=vmax,
+                   extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
+
+    cbar = fig.colorbar(im, ax=ax, pad=0.02)
+    cbar.set_label(r"$\psi$ [deg.]")
+
+    ax.set_xlabel("Time [ms]")
+    ax.set_ylabel("Freq. [MHz]")
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+
+    draw_plot_text(ax, display_text, 'general', plot_config)
+
+    if show_plots:
+        plt.show()
+
+    if save:
+        out_path = os.path.join(outdir, fname + "_PA_dynspec." + extension)
+        savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+        logger.info("Saved figure to %s \n" % (out_path))

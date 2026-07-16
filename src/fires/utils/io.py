@@ -14,6 +14,10 @@ def write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id):
         raise ValueError("Expected dspec with shape (4, nfreq, ntime) to save Stokes cube.")
     dspec_dir = os.path.join(out_dir, f"{frb_id}_dspec")
     os.makedirs(dspec_dir, exist_ok=True)
+    # Save frequency in descending order (high→low) and flip dspec to match
+    if freq_mhz is not None and len(freq_mhz) > 1 and freq_mhz[0] < freq_mhz[-1]:
+        freq_mhz = freq_mhz[::-1].copy()
+        dspec = dspec[:, ::-1, :].copy()
     for idx, stokes in enumerate(["I", "Q", "U", "V"]):
         out_path = os.path.join(dspec_dir, f"out_{stokes}.npy")
         np.save(out_path, dspec[idx])
