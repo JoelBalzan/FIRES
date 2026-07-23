@@ -20,11 +20,11 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from fires.core.basicfns import (on_off_pulse_masks_from_profile,
-								 pa_variance_deg2, print_global_stats,
-								 wrap_pa_deg)
-from fires.plotting.plot_helper import (draw_plot_text, get_pub_col,
-								 pub_figsize, pub_grid_figsize,
-								 savefig_rasterized, get_plot_param)
+                                 pa_variance_deg2, print_global_stats,
+                                 wrap_pa_deg)
+from fires.plotting.plot_helper import (draw_plot_text, get_plot_param,
+                                        get_pub_col, pub_figsize,
+                                        pub_grid_figsize, savefig_rasterized)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logger = logging.getLogger(__name__)
@@ -273,8 +273,8 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 	# Plot the mean across all frequency channels (axis 0)
 	axs[0].hlines(0, time_ms[0], time_ms[-1], color='Gray', lw=0.5)
 	axs[0].plot(time_ms, I, label='I', color='Black', linewidth=0.8)
-	axs[0].plot(time_ms, L, label='L', color='Red', linewidth=0.8)
-	axs[0].plot(time_ms, V, label='V', color='Blue', linewidth=0.8)
+	axs[0].plot(time_ms, L, label='L', color='Red', linewidth=0.5, alpha=0.8)
+	axs[0].plot(time_ms, V, label='V', color='Blue', linewidth=0.5, alpha=0.8)
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3, prune='both'))
 	axs[0].xaxis.set_major_locator(ticker.MaxNLocator(nbins=7, prune='both'))
 	axs[0].tick_params(axis='x', labelbottom=False)
@@ -286,6 +286,25 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
 	axs[0].set_ylabel(r"$S$ [arb.]")
+	axs[0].set_yticklabels([])
+
+	if fname=="FRB_190611_htr":
+		axs[0].axvspan(time_ms[56], time_ms[68], color='#ffb000', alpha=0.15, zorder=0)
+		axs[0].axvspan(time_ms[127], time_ms[147], color='#785ef0', alpha=0.15, zorder=0)
+		axs[0].text(1.1*time_ms[56], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+		axs[0].text(0.3*time_ms[147], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+
+	if fname=="FRB_210407_htr":
+		axs[0].axvspan(time_ms[151], time_ms[378], color='#ffb000', alpha=0.15, zorder=0)
+		axs[0].axvspan(time_ms[381], time_ms[623], color='#785ef0', alpha=0.15, zorder=0)
+		axs[0].text(0.9*time_ms[151], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+		axs[0].text(1.1*time_ms[381], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+
+	if fname=="FRB_250607_htr":
+		axs[0].axvspan(time_ms[321], time_ms[482], color='#ffb000', alpha=0.15, zorder=0)
+		axs[0].axvspan(time_ms[491], time_ms[880], color='#785ef0', alpha=0.15, zorder=0)
+		axs[0].text(0.9*time_ms[321], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+		axs[0].text(0.2*time_ms[880], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
 
 	draw_plot_text(axs[0], display_text, 'general', plot_config)
 

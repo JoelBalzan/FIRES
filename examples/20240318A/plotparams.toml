@@ -37,7 +37,7 @@ zorder     = 5
 
 [windows]
 # Window visualization options
-show_onpulse  = true             # Highlight on-pulse region
+show_onpulse  = false             # Highlight on-pulse region
 show_offpulse = false             # Highlight off-pulse region
 
 

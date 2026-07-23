@@ -843,7 +843,13 @@ def psn_dspec(
 				I_ft = _roll_rows(I_ft, shifts)
 
 			pol_angle_arr = PA_i + (time_ms - t0_i) * dPA_i
-			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM_i, freq_mhz[:, None], ref_freq_mhz)
+			# Mean RM applied with ref-freq offset (preserves PA at ref_freq)
+			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM[g], freq_mhz[:, None], ref_freq_mhz)
+			# Per-microshot RM scatter applied without ref-freq offset (Burn-law depolarisation)
+			rm_scatter = RM_i - RM[g]
+			if rm_scatter != 0.0:
+				lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz[:, None]) ** 2
+				faraday_angles += rm_scatter * lambda_sq
 
 			Q_ft = I_ft * lfrac_i * np.cos(2 * faraday_angles)
 			U_ft = I_ft * lfrac_i * np.sin(2 * faraday_angles)

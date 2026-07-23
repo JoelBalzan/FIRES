@@ -291,7 +291,7 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 		logging.info(f"Loading parameters from {os.path.basename(obs_params_path)}")
 		gdict = get_parameters(obs_params_path)
 	else:
-		logging.warning(f"Parameters file not found: {obs_params_path}")
+		logging.info(f"Parameters file not found: {obs_params_path} (optional for real data)")
 		gdict = {}
 	# Derive a better label if missing or default
 	try:
