@@ -229,7 +229,7 @@ Tested on Linux with Python 3.12.
 
 ## Citation
 
-If you use FIRES in your work, please cite [this paper](https://ui.adsabs.harvard.edu/abs/2026PASA...43...74B/abstract).
+If you use FIRES in your work, please cite <https://ui.adsabs.harvard.edu/abs/2026PASA...43...74B/abstract>.
 
 Scintillation routines adapted from [ScintillationMaker](https://github.com/SprengerT/ScintillationMaker) (Sprenger 2025).
 
@@ -240,3 +240,7 @@ Based on the work of Tehya Conroy and Apurba Bera.
 ## License
 
 See [LICENSE](LICENSE) for details.
+
+## Contact
+
+If you have any questions please feel free to sent me an email at <joel.balzan@icrar.org>.
