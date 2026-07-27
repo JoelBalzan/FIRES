@@ -12,8 +12,19 @@ FIRES simulates polarised Fast Radio Burst (FRB) dynamic spectra using a micro-s
 
 ## Quickstart
 
+Skip downloading the simulated data pack in `examples/sim_data.tar.gz`:
+
+```bash
+GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/JoelBalzan/FIRES.git
+```
+
+Or if you want the data pack:
+
 ```bash
 git clone https://github.com/JoelBalzan/FIRES.git
+```
+
+```bash
 cd FIRES
 python -m venv .venv
 source .venv/bin/activate
@@ -23,6 +34,8 @@ pip install -e .
 fires --init-config
 
 # Run with default config
+fires --plot lvpa
+# or
 fires --config-dir ~/.config/fires --plot lvpa
 
 # Run with an example config
@@ -216,14 +229,7 @@ Tested on Linux with Python 3.12.
 
 ## Citation
 
-```bibtex
-@article{FIRES,
-  title   = {FIRES: A Fast Radio Burst Simulation Pipeline},
-  journal = {Publications of the Astronomical Society of Australia},
-  year    = {2026},
-  doi     = {10.1017/pasa.2026.10208}
-}
-```
+If you use FIRES in your work, please cite [this paper](https://ui.adsabs.harvard.edu/abs/2026PASA...43...74B/abstract).
 
 Scintillation routines adapted from [ScintillationMaker](https://github.com/SprengerT/ScintillationMaker) (Sprenger 2025).
 
