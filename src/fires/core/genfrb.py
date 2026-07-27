@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from fires.config.schema import parse_fires_config
 from fires.core.dspec import scatter_loaded_dspec
-from fires.core.genfns import psn_dspec
+from fires.core.genfns import fold_dspec, psn_dspec
 from fires.core.basicfns import (add_noise, compute_segments,
                                   correct_baseline, process_dspec,
                                   scale_dspec_to_target_snr, snr_onpulse)
@@ -173,24 +173,39 @@ def _master_to_internal(master_file, master_raw=None):
             "field": bool(sc_cfg.return_field),
             "derive_from_tau": bool(sc_cfg.derive_from_tau),
         }
-    return sim_params, prop_params, comp_list, sd_params, amp_sampling, scint, sweep_mode, sweep_spec, rvm_swing
+    emission_model = str(master.emission.model).strip().lower()
+    fold_params = {"nfold": int(master.emission.fold.nfold)} if emission_model == "fold" else None
+    return sim_params, prop_params, comp_list, sd_params, amp_sampling, scint, sweep_mode, sweep_spec, rvm_swing, emission_model, fold_params
 
 
-def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baseline_correct=None):
+def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baseline_correct=None,
+                  emission_model="psn", fold_params=None):
     var, realisation = task
     base_seed = dspec_params.seed
     current_seed = (base_seed + realisation) if base_seed is not None else None
     local_params = dspec_params._replace(seed=current_seed)
     requires_multiple_frb = plot_mode.requires_multiple_frb
-    _, snr, V_params, exp_vars, measures = psn_dspec(
-        dspec_params=local_params,
-        variation_parameter=var,
-        xname=xname,
-        plot_multiple_frb=requires_multiple_frb,
-        target_snr=target_snr,
-        baseline_correct=baseline_correct,
-        diagnostics=True,
-    )
+    if emission_model == "fold":
+        _, snr, V_params, exp_vars, measures = fold_dspec(
+            dspec_params=local_params,
+            variation_parameter=var,
+            xname=xname,
+            plot_multiple_frb=requires_multiple_frb,
+            target_snr=target_snr,
+            baseline_correct=baseline_correct,
+            diagnostics=True,
+            fold_params=fold_params,
+        )
+    else:
+        _, snr, V_params, exp_vars, measures = psn_dspec(
+            dspec_params=local_params,
+            variation_parameter=var,
+            xname=xname,
+            plot_multiple_frb=requires_multiple_frb,
+            target_snr=target_snr,
+            baseline_correct=baseline_correct,
+            diagnostics=True,
+        )
     return var, measures, V_params, snr, exp_vars
 
 
@@ -312,7 +327,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
     if master_file is None:
         raise ValueError("master_file is required. Legacy split configs are no longer supported.")
     master_scint = None
-    sim_params, prop_params, comp_list, sd_params, amp_sampling, master_scint, master_sweep_mode, master_sweep_spec, rvm_swing = _master_to_internal(
+    sim_params, prop_params, comp_list, sd_params, amp_sampling, master_scint, master_sweep_mode, master_sweep_spec, rvm_swing, emission_model, fold_params = _master_to_internal(
         master_file, master_raw=master_raw_config,
     )
     if (sweep_mode is None or sweep_mode == "none") and master_sweep_mode is not None:
@@ -396,11 +411,18 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
             segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params,
                                         buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
         else:
-            dspec, snr, _, _, segments = psn_dspec(
-                xname=None, plot_multiple_frb=False,
-                target_snr=target_snr, dspec_params=dspec_params,
-                baseline_correct=baseline_correct, diagnostics=True,
-            )
+            if emission_model == "fold":
+                dspec, snr, _, _, segments = fold_dspec(
+                    xname=None, target_snr=target_snr, dspec_params=dspec_params,
+                    baseline_correct=baseline_correct, diagnostics=True,
+                    fold_params=fold_params,
+                )
+            else:
+                dspec, snr, _, _, segments = psn_dspec(
+                    xname=None, plot_multiple_frb=False,
+                    target_snr=target_snr, dspec_params=dspec_params,
+                    baseline_correct=baseline_correct, diagnostics=True,
+                )
         if save_dspec:
             _write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id)
         _, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac,
@@ -456,6 +478,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                 _process_task, xname=xname, plot_mode=plot_mode,
                 target_snr=target_snr, dspec_params=dspec_params,
                 baseline_correct=baseline_correct,
+                emission_model=emission_model, fold_params=fold_params,
             )
             measures, V_params, snrs, exp_vars = _run_sweep_parallel(
                 xvals, nseed, n_cpus, partial_func,

@@ -1,165 +1,196 @@
 [meta]
-name    = "FIRES"
-seed    = 3
-version = 1
+name    = "FIRES"  # Run identifier used in output filenames and log headers.
+seed    = 3        # RNG seed for reproducibility. Set to an integer for deterministic results; omit or null for random.
+version = 1        # Config schema version (reserved for internal migration).
 
-# ========================================================== 
-# SIMULATION GRID 
-# ========================================================== 
+# ==========================================================
+# SIMULATION GRID
+# ==========================================================
 
 [simulation.grid]
-f_start_MHz = 751.5
-f_end_MHz   = 900.5
-df_MHz      = 1.0
+f_start_MHz = 751.5    # Start of the frequency band (MHz).
+f_end_MHz   = 900.5    # End of the frequency band (MHz).
+df_MHz      = 1.0      # Frequency channel width (MHz); determines n_freq = floor((f_end - f_start) / df) + 1.
 
-t_start_ms = -6.4327
-t_end_ms   = 10.61
-dt_ms      = 0.0230
+t_start_ms = -6.4327   # Start time relative to the grid reference time (ms).
+t_end_ms   = 10.61     # End time relative to the grid reference time (ms).
+dt_ms      = 0.0230    # Time bin width (ms); determines n_time = floor((t_end - t_start) / dt) + 1.
 
-reference_freq_MHz = 1000  # Reference for spectral index and tau(nu) scaling.
+reference_freq_MHz = 1000   # Reference frequency for spectral-index scaling I(nu) ~ nu^alpha and the scattering law tau(nu) ~ nu^index.
 
-# ========================================================== 
+# ==========================================================
 # PROPAGATION PHYSICS
-# ========================================================== 
+# ==========================================================
 
 [propagation.scattering]
-index = -4.85  # Scattering law exponent: tau(nu) ~ (nu/nu_ref)^index.
-screen = "thin" # thin | thick | uniform | https://ui.adsabs.harvard.edu/abs/1972MNRAS.157...55W/abstract 
+index = -4.85    # Scattering law exponent: tau(nu) = tau(nu_ref) * (nu / nu_ref)^index.
+                 # Typical values: -4 (Kolmogorov medium), -4.4 (NE2001), -3.22 (some FRB fits).
+screen = "thin"  # Scattering screen geometry: "thin" | "thick" | "uniform".
+                 # See Williamson (1972) https://ui.adsabs.harvard.edu/abs/1972MNRAS.157...55W/
 
 [propagation.rm]
-RM    = 0.0 # Rotation measure (rad m^-2) to apply after RVM
-order = "pre" # order to apply with respect to scatter: pre | post
+RM    = 0.0      # Global rotation measure (rad m^-2) applied to the full dynamic spectrum.
+order = "pre"    # When to apply RM: "pre" = before scattering, "post" = after scattering.
 
 [propagation.scintillation]
-enable          = true
-timescale_s     = 300
-bandwidth_Hz    = 1.5e6
-derive_from_tau = false  # If true: nu_s is derived from tau_ms at reference_freq_MHz.
+enable          = false        # Enable diffractive scintillation modulation across the full band.
+timescale_s     = 300         # Scintillation timescale (seconds). Frequency-dependent intensity modulation varies on this scale.
+bandwidth_Hz    = 1.5e6       # Scintillation bandwidth (Hz). Coherence bandwidth of the scintillation pattern.
+derive_from_tau = false       # If true, ignore bandwidth_Hz and derive nu_s = 1 / (2 pi tau) at reference_freq_MHz.
 
-N_images     = 5000  # Number of phasor/image terms in scintillation screen.
-theta_extent = 3.0   # Angular truncation control for screen synthesis.
-return_field = false # Return complex field (E) in addition to gain if enabled in code path.
+N_images     = 5000           # Number of phasor / image terms synthesised in the scattering screen.
+theta_extent = 3.0            # Angular truncation parameter for the screen point-source response.
+return_field = false          # If true, return the complex electric field in addition to the intensity gain.
 
-# ========================================================== 
+# ==========================================================
 # EMISSION MODEL
-# ========================================================== 
+# ==========================================================
 
 [emission]
-model = "gaussian_microshot"
+model = "fold"  # Emission model: "psn" (standard polarised shot-noise) or "fold" (pulsar-fold mode).
+               # "psn"  --- generate microshots from Gaussian components and coherently sum into 4-Stokes dspec.
+               # "fold" --- run the psn model nfold times with independent seeds and average the output dspecs,
+               #            preserving signal and reducing noise as sqrt(nfold).
+
+[emission.fold]
+nfold = 10  # Number of independent realisations to stack when model = "fold". Ignored for model = "psn".
 
 [emission.rvm_swing]
-enable    = false
-alpha_deg = 45.0  # Magnetic inclination angle.
-beta_deg  = 5.0   # Impact angle.
-period_ms = 1.0   # PA swing period in time units.
-phase0_ms = 0.0   # PA swing reference phase.
-psi0_deg  = 0.0   # Baseline PA offset.
+enable    = false              # Enable rotating-vector-model (RVM) PA swing applied to the summed dspec.
+alpha_deg = 45.0               # Magnetic inclination angle (deg): angle between magnetic axis and rotation axis.
+beta_deg  = 5.0                # Impact angle (deg): minimum angle between line of sight and magnetic axis.
+period_ms = 1.0                # Rotational period of the PA swing (ms). Determines phi(t) = 2 pi (t - phase0) / period.
+phase0_ms = 0.0                # Reference phase offset (ms) for the RVM swing curve.
+psi0_deg  = 0.0                # Constant PA offset (deg) added to the RVM swing output.
 
 # ----------------------------------------------------------
 # Gaussian envelope components
 # ----------------------------------------------------------
 
 [[emission.components]]
-t0_ms           = -2.0
-width_ms        = 0.5
-amplitude_Jy    = 0.2
-spectral_index  = 0.0
-tau_ms          = 1.78  # Scattering timescale at reference_freq_MHz (ms).
-dm              = 0.0   # Dispersion measure (pc cm^-3).
-rm              = 0.0   # Rotation measure per microshot (rad m^-2).
-pa_deg          = 20
-lfrac           = 0.95  # Desired L/I.
-vfrac           = -0.05 # Desired V/I; code rescales (L/I,V/I) together if L^2+V^2 > 1.
-dpa_deg_per_ms  = 0.0
-band_centre_MHz = 0.0
-band_width_MHz  = 0.0
+t0_ms           = -2.0     # Component centroid arrival time (ms). Microshot arrival times are drawn from N(t0, width/FWHM_factor).
+width_ms        = 0.5      # Gaussian envelope FWHM (ms) of the component. Defines the macro-pulse width that contains the microshots.
+amplitude_Jy    = 0.2      # Mean amplitude (Jy) of individual microshots. Actual per-microshot amplitudes are drawn from
+                           # the amplitude_distribution centred on this value.
+spectral_index  = 0.0      # Power-law spectral index: I(nu) ~ (nu / nu_ref)^spectral_index. Applied per microshot.
+tau_ms          = 1.78     # Global scattering timescale (ms) at reference_freq_MHz. When sd_tau = 0, this single
+                           # value is convolved with the full dspec. When sd_tau > 0, each microshot gets its own tau_i.
+dm              = 0.0      # Dispersion measure (pc cm^-3). Frequency-dependent delay: Delta_t = 4.15 ms * DM * (nu^-2 - nu_ref^-2).
+rm              = 0.0      # Rotation measure per microshot (rad m^-2). Applied to individual microshot PA with
+                           # ref-frequency offset: chi = chi0 + RM * (lambda^2 - lambda_ref^2).
+pa_deg          = 20       # Mean polarisation position angle (deg) of the component. Per-microshot PA_i ~ N(pa_deg, pa_sigma_deg).
+lfrac           = 0.95     # Desired linear polarisation fraction L/I. Together with vfrac defines the polarisation state;
+                           # the pair is rescaled to satisfy sqrt(L^2 + V^2) <= I.
+vfrac           = -0.05    # Desired circular polarisation fraction V/I. Negative = left-hand circular (IEEE convention).
+dpa_deg_per_ms  = 0.0      # Intra-microshot PA sweep rate (deg/ms). Adds a time-dependent PA ramp across each microshot.
+band_centre_MHz = 0.0      # Centre frequency of an optional Gaussian bandpass filter (MHz). 0 means use the grid centre.
+band_width_MHz  = 0.0      # FWHM of the Gaussian bandpass filter (MHz). 0 means no bandpass filter is applied.
 
+
+# ----------------------------------------------------------
 # Microshot population
+# ----------------------------------------------------------
 
 [emission.components.microshots]
-N               = 100
-width_frac_low  = 0.05  # Microshot FWHM fraction of component width (lower bound).
-width_frac_high = 0.20  # Microshot FWHM fraction of component width (upper bound).
+N               = 100              # Number of microshots drawn for this component.
+width_frac_low  = 0.05             # Lower bound of microshot FWHM as a fraction of the component width
+                                   # (e.g., 0.05 = 5 % of width_ms). Actual width_i ~ Uniform(width * frac_low, width * frac_high).
+width_frac_high = 0.20             # Upper bound of microshot FWHM as a fraction of the component width.
 
 # ----------------------------------------------------------
 # Microshot statistical variations
+# Per-microshot Gaussian scatter (standard deviation) about each component mean.
+# A non-zero sigma causes the corresponding microshot parameter to be drawn from
+# N(mean, sigma), producing statistical scatter across the microshot population.
 # ----------------------------------------------------------
 
 [emission.components.microshot_scatter]
-t0_sigma_ms          = 0.0  # Per-microshot Gaussian scatter (std dev) around component mean.
-width_sigma_ms       = 0.0
-amplitude_sigma      = 0.0
-spectral_index_sigma = 0.0
-tau_sigma_ms         = 0.0
-dm_sigma             = 0.0
-rm_sigma             = 0.0
-pa_sigma_deg         = 30
-lfrac_sigma          = 0.0
-vfrac_sigma          = 0.0
-dpa_sigma            = 0.0
-band_centre_sigma    = 0.0
-band_width_sigma     = 0.0
+t0_sigma_ms          = 0.0   # Scatter in microshot arrival time (ms).
+width_sigma_ms       = 0.0   # Scatter in microshot FWHM (ms).
+amplitude_sigma      = 0.0   # Scatter in microshot amplitude (Jy). Only used when amplitude_distribution.type = "normal".
+spectral_index_sigma = 0.0   # Scatter in spectral index.
+tau_sigma_ms         = 0.0   # Scatter in scattering timescale (ms). When > 0, each microshot gets its own tau_i,
+                             # and per-microshot scattering is applied individually instead of globally.
+dm_sigma             = 0.0   # Scatter in dispersion measure (pc cm^-3).
+rm_sigma             = 0.0   # Scatter in rotation measure (rad m^-2). Drives Burn-law depolarisation across microshots.
+pa_sigma_deg         = 30    # Scatter in polarisation position angle (deg). The primary control for PA variance and
+                             # depolarisation: larger sd_PA causes more PA scatter, reducing L/I and increasing V(PA).
+lfrac_sigma          = 0.0   # Scatter in L/I fraction.
+vfrac_sigma          = 0.0   # Scatter in V/I fraction.
+dpa_sigma            = 0.0   # Scatter in intra-microshot PA sweep rate (deg/ms).
+band_centre_sigma    = 0.0   # Scatter in bandpass centre frequency (MHz).
+band_width_sigma     = 0.0   # Scatter in bandpass FWHM (MHz).
 
 # ----------------------------------------------------------
 # Amplitude distribution
+# Controls how microshot amplitudes are sampled about the component mean.
 # ----------------------------------------------------------
 
 [emission.components.amplitude_distribution]
-type = "powerlaw"  # normal | lognormal | powerlaw | uniform
+type = "powerlaw"  # One of: "normal", "lognormal", "powerlaw", "uniform".
 
 [emission.components.amplitude_distribution.powerlaw]
-alpha      = 3    # p(A) ~ A^-alpha.
-xmin_scale = 0.1  # Lower bound = amplitude_Jy * xmin_scale.
-xmax_scale = 10.0 # Upper bound = amplitude_Jy * xmax_scale.
+alpha      = 3    # Power-law exponent: p(A) ~ A^(-alpha). Active when type = "powerlaw".
+xmin_scale = 0.1  # Lower truncation bound = amplitude_Jy * xmin_scale.
+xmax_scale = 10.0 # Upper truncation bound = amplitude_Jy * xmax_scale.
 
 [emission.components.amplitude_distribution.lognormal]
-sigma = 0.3  # Log-space sigma used when type = "lognormal".
+sigma = 0.3  # Log-space standard deviation. Active when type = "lognormal".
 
 [emission.components.amplitude_distribution.uniform]
-low_scale  = 0.0 # Lower bound = |amplitude_Jy| * low_scale.
-high_scale = 2.0 # Upper bound = |amplitude_Jy| * high_scale.
+low_scale  = 0.0 # Lower bound of uniform draw = |amplitude_Jy| * low_scale. Active when type = "uniform".
+high_scale = 2.0 # Upper bound of uniform draw = |amplitude_Jy| * high_scale.
 
-# ========================================================== 
+# ==========================================================
 # ANALYSIS / SWEEP CONTROL
-# ========================================================== 
+# ==========================================================
 
 [analysis]
-buffer_fraction = 0.1   # On/off-pulse gap = buffer_fraction * intrinsic envelope width.
+buffer_fraction = 0.1   # Fractional guard gap between on-pulse and off-pulse windows.
+                         # The gap width = buffer_fraction * intrinsic envelope FWHM.
 
 [analysis.sweep]
-enable = true
-mode   = "sd"   # none | mean | sd
+enable = true   # Enable parameter sweep. When true, generates nseed realisations per sweep point.
+                # Required for analytic multi-FRB plot modes (lvpa, pa_var, etc.).
+mode   = "sd"   # Sweep mode: "mean" (vary the component mean of the named parameter),
+                #             "sd"   (vary the microshot standard deviation of the named parameter),
+                #             "none" (no sweep).
 
 [analysis.sweep.parameter]
-component = 0              # 0-based component index in [[emission.components]].
-name      = "pa_sigma_deg" # Parameter key to sweep (mean or sigma based on mode).
+component = 0              # 0-based index of the [[emission.components]] entry to sweep.
+name      = "pa_sigma_deg" # Canonical parameter key to sweep. When mode = "mean", this is a mean parameter
+                           # (e.g., "pa_deg"); when mode = "sd", prefix with "sd_" (e.g., "sd_pa_deg").
+start     = 0              # Sweep start value.
+stop      = 45             # Sweep end value (inclusive for linear step).
+step      = 1              # Linear step size. Ignored if log_steps is set.
+log_steps = false          # If set to a positive integer N, override linear step with N log-spaced points.
 
-start     = 0
-stop      = 45
-step      = 1
-log_steps = false  # Optional number of log-spaced points; none keeps linear start/stop/step.
-
-# ========================================================== 
+# ==========================================================
 # OBSERVATION / NOISE MODEL
-# ========================================================== 
+# ==========================================================
 
 [observation]
-sefd             = 2
-target_snr       = 0
-baseline_correct = false # false or one of: median, mean, z, z_i
-buffer_fraction  = 0.1   # On/off-pulse gap = buffer_fraction * intrinsic envelope width.
+sefd             = 0      # System Equivalent Flux Density (Jy). Injected as Gaussian white noise with
+                          # sigma = SEFD / sqrt(df * dt). Set to 0 for a noiseless simulation.
+target_snr       = 150      # If > 0, the dspec is scaled to achieve this integrated S/N before noise addition.
+                          # 0 or negative means no target scaling (use raw physical flux).
+baseline_correct = false  # Baseline removal method: false (none), "median", "mean", "z", "z_i".
+                          # Subtracts per-channel baseline estimated from the off-pulse window.
 
-# ========================================================== 
+# ==========================================================
 # PERFORMANCE
-# ========================================================== 
+# ==========================================================
 
 [numerics]
-n_cpus          = 8
-nseed           = 1
+n_cpus = 8      # Number of worker processes for parallel sweep execution. Falls back to SLURM_CPUS_PER_TASK if set.
+nseed  = 1      # Number of random realisations (independent seeds) per sweep point when analysis.sweep is enabled.
+                # More realisations improve statistical estimates of PA variance, L/I, etc.
+                # See Fig. 2/3 https://ui.adsabs.harvard.edu/abs/2026PASA...43...74B/abstract
 
-# ========================================================== 
+# ==========================================================
 # OUTPUT
-# ========================================================== 
+# ==========================================================
 
 [output]
-directory = "output"
+directory = "output"  # Root output directory. Simulation products (pickle files, plots, Stokes cubes) are written here.
+                      # Can be overridden with --output-dir on the command line.

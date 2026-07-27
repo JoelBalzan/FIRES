@@ -18,11 +18,12 @@ import logging
 
 import numpy as np
 
-from fires.core.dspec import (compute_segments, on_off_pulse_masks_from_profile,
-                               scatter_dspec, stokes_consistency_diagnostics)
+from fires.core.dspec import (compute_segments,
+							  on_off_pulse_masks_from_profile, scatter_dspec,
+							  stokes_consistency_diagnostics)
 from fires.core.noise import (add_noise, correct_baseline,
-                               estimate_noise_with_offpulse_mask,
-                               scale_dspec_to_target_snr)
+							  estimate_noise_with_offpulse_mask,
+							  scale_dspec_to_target_snr)
 from fires.core.rm import estimate_rm, rm_correct_dspec
 from fires.scint.lib_ScintillationMaker import simulate_scintillation
 from fires.utils.utils import gaussian_model, speed_of_light_cgs
@@ -508,7 +509,7 @@ def _rvm_pa_swing_deg(time_ms: np.ndarray, swing_cfg: dict) -> np.ndarray:
 
 	The angle is evaluated with the standard rotating-vector model form:
 	psi(t) = psi0 + arctan2(sin(alpha) * sin(phi),
-	                        sin(zeta) * cos(alpha) - cos(zeta) * sin(alpha) * cos(phi))
+							sin(zeta) * cos(alpha) - cos(zeta) * sin(alpha) * cos(phi))
 	where zeta = alpha + beta and phi = 2*pi*(t - phase0)/period.
 	"""
 	alpha_deg = float(swing_cfg.get("alpha_deg", 0.0))
@@ -549,36 +550,36 @@ def _apply_rvm_swing_to_dspec(dspec: np.ndarray, time_ms: np.ndarray, swing_cfg:
 
 
 def sample_powerlaw(alpha, xmin, xmax, size=None):
-    u = np.random.uniform(0, 1, size=size)
+	u = np.random.uniform(0, 1, size=size)
 
-    if alpha == 1:
-        return xmin * (xmax / xmin) ** u
+	if alpha == 1:
+		return xmin * (xmax / xmin) ** u
 
-    pow = 1 - alpha
-    return (xmin**pow + u * (xmax**pow - xmin**pow)) ** (1 / pow)
+	pow = 1 - alpha
+	return (xmin**pow + u * (xmax**pow - xmin**pow)) ** (1 / pow)
 
 
 def sample_lognormal(mean, sigma, size=None):
-    """
-    Draw samples from a log-normal distribution.
+	"""
+	Draw samples from a log-normal distribution.
 
-    Parameters
-    ----------
-    mean : float
-        Mean amplitude in linear space (approximate).
-    sigma : float
-        Log-space standard deviation.
-    size : int or tuple, optional
-        Number of samples.
+	Parameters
+	----------
+	mean : float
+		Mean amplitude in linear space (approximate).
+	sigma : float
+		Log-space standard deviation.
+	size : int or tuple, optional
+		Number of samples.
 
-    Returns
-    -------
-    ndarray or float
-        Log-normal random samples.
-    """
+	Returns
+	-------
+	ndarray or float
+		Log-normal random samples.
+	"""
 
-    mu = np.log(mean) - 0.5 * sigma**2
-    return np.random.lognormal(mean=mu, sigma=sigma, size=size)
+	mu = np.log(mean) - 0.5 * sigma**2
+	return np.random.lognormal(mean=mu, sigma=sigma, size=size)
 
 
 def _sample_amplitude(mean_amp, sd_amp, amp_sampling, plot_multiple_frb=False):
@@ -888,8 +889,9 @@ def psn_dspec(
 	if tau > 0 and sd_tau == 0:
 		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
 		dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=sc_screen)
-		logging.info("Applied global scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
-						tau, ref_freq_mhz, sc_idx, sc_screen)
+		if not plot_multiple_frb:
+			logging.info("Applied global scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
+							tau, ref_freq_mhz, sc_idx, sc_screen)
 	# ADD GLOBAL RM POST-SCATTERING (if specified)
 	if RM_global != 0.0 and RM_order == "post":
 		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
@@ -1064,4 +1066,61 @@ def psn_dspec(
 
 	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 	return dspec, snr, V_params, exp_vars, segments
+
+
+def fold_dspec(
+	dspec_params,
+	variation_parameter=None,
+	xname=None,
+	target_snr=None,
+	baseline_correct: bool = True,
+	target_snr_mode: str = "analytic",
+	diagnostics: bool = False,
+	fold_params: dict | None = None,
+):
+	from tqdm import tqdm
+
+	nfold = int(fold_params.get("nfold", 10)) if fold_params else 10
+	base_seed = dspec_params.seed
+
+	if not hasattr(fold_dspec, "_fold_logged"):
+		logging.info("FOLD mode enabled: stacking %d independent PSN realisations", nfold)
+		fold_dspec._fold_logged = True
+
+	folded = None
+	all_snrs = []
+	last_V_params = {}
+	last_exp_vars = {}
+	print(target_snr)
+
+	for i in tqdm(range(nfold), desc="Folding", unit="fold", leave=False):
+		current_seed = (base_seed * nfold + i) if base_seed is not None else None
+		local_params = dspec_params._replace(seed=current_seed)
+
+		dspec, snr, V_params, exp_vars, _ = psn_dspec(
+			dspec_params=local_params,
+			variation_parameter=variation_parameter,
+			xname=xname,
+			plot_multiple_frb=True,
+			target_snr=target_snr,
+			baseline_correct=baseline_correct,
+			target_snr_mode=target_snr_mode,
+			diagnostics=False,
+		)
+
+		if folded is None:
+			folded = np.zeros_like(dspec)
+
+		folded += dspec
+		all_snrs.append(snr)
+		last_V_params = V_params
+		last_exp_vars = exp_vars
+
+	folded /= nfold
+
+	snr_mean = float(np.nanmean([s for s in all_snrs if s is not None])) if any(s is not None for s in all_snrs) else None
+
+	segments = compute_segments(folded, dspec_params.freq_mhz, dspec_params.time_ms, dspec_params, dspec_params.buffer_frac, skip_rm=True, remove_pa_trend=True)
+
+	return folded, snr_mean, last_V_params, last_exp_vars, segments
 

@@ -30,7 +30,7 @@ theta_extent    = 3.0
 return_field    = false
 
 [emission]
-model = "gaussian_microshot"
+model = "psn"
 
 [emission.rvm_swing]
 enable    = false

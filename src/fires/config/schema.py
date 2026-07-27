@@ -133,12 +133,18 @@ class GaussianComponent:
     microshot_scatter: MicroshotScatter
     amplitude_distribution: AmplitudeDistribution
 
+### FOLD CONFIG ###
+@dataclass
+class Fold:
+    nfold: int = 10
+
 ### EMISSION MODEL ###
 @dataclass
 class Emission:
-    model: Literal["gaussian_microshot"]
+    model: Literal["psn", "fold"]
     components: List[GaussianComponent]
     rvm_swing: RVMSwing = field(default_factory=RVMSwing)
+    fold: Fold = field(default_factory=Fold)
 
 ### SWEEP CONFIG ###
 @dataclass
@@ -373,6 +379,7 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
             )
         )
 
+    fold_raw = em_raw.get("fold", {})
     emission = Emission(
         model=str(_require(em_raw, "model", "emission")),
         components=components,
@@ -383,6 +390,9 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
             period_ms=float(rvm_raw.get("period_ms", 1.0)),
             phase0_ms=float(rvm_raw.get("phase0_ms", 0.0)),
             psi0_deg=float(rvm_raw.get("psi0_deg", 0.0)),
+        ),
+        fold=Fold(
+            nfold=int(fold_raw.get("nfold", 10)),
         ),
     )
 
