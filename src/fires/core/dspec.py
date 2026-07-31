@@ -444,6 +444,7 @@ def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False, rem
             res_rmtool = estimate_rm(dspec, freq_mhz, time_ms, noisespec,
                                      phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=True)
             measured_rm = float(res_rmtool[0])
+            measured_rm_err = float(res_rmtool[1])
             def _int_Lfrac(candidate):
                 I_ts = np.nansum(candidate[0], axis=0)
                 Q_ts = np.nansum(candidate[1], axis=0)
@@ -466,8 +467,8 @@ def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False, rem
                     corrdspec = cand_neg
                     chosen_sign = '-'
                     Lfrac_best = Lfrac_neg
-                logging.info("Measured RM = %.2f rad/m2; applied derotation to 2=0 (sign=%s); L/I=%.3f",
-                             measured_rm, chosen_sign, Lfrac_best)
+                logging.info("Measured RM = %.2f ± %.2f rad/m2; applied derotation to 2=0 (sign=%s); L/I=%.3f",
+                             measured_rm, measured_rm_err, chosen_sign, Lfrac_best)
                 I_ts = np.nansum(corrdspec[0], axis=0)
                 left_chk, right_chk = boxcar_width(I_ts, frac=0.95)
                 Qint = np.nansum(corrdspec[1,:,left_chk:right_chk+1], axis=1)

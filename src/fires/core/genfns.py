@@ -968,6 +968,7 @@ def psn_dspec(
 				phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=False
 			)
 			measured_rm = float(res_rmtool[0])
+			measured_rm_err = float(res_rmtool[1])
 
 			def _int_Lfrac(cube):
 				I = np.nansum(cube[0], axis=0)
@@ -989,8 +990,8 @@ def psn_dspec(
 				chosen_sign = '+' if Lpos >= Lneg else '-'
 				Lbest = max(Lpos, Lneg)
 				if not plot_multiple_frb:
-					logging.info("Measured RM = %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
-							 measured_rm, ref_freq_mhz, chosen_sign, Lbest)
+					logging.info("Measured RM = %.2f ± %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
+							 measured_rm, measured_rm_err, ref_freq_mhz, chosen_sign, Lbest)
 			else:
 				logging.info("Measured RM not significant; skipping RM correction")
 		except Exception as e:
