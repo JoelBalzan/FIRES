@@ -306,6 +306,8 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 		axs[0].text(0.9*time_ms[321], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
 		axs[0].text(0.2*time_ms[880], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
 
+		
+
 	draw_plot_text(axs[0], display_text, 'general', plot_config)
 
 	# Highlight on- and off-pulse regions if requested
@@ -365,6 +367,79 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 				ax_spec.set_ylabel("")
 		else:
 			logger.warning("Cannot plot FWHM spectrum: spectrum is all non-finite.")
+
+	# C_1 dynamic-spectrum inset with time/frequency scrunching (FRB 250607)
+	if fname == "FRB_250607_htr":
+		c1_left, c1_right = 270, 482
+		t_slice = slice(c1_left, c1_right + 1)
+		c1_dspec = dspec[0][:, t_slice]
+		c1_time = time_ms[t_slice]
+	
+		# Scrunching controls
+		t_scrunch = 4   # Time scrunch factor
+		f_scrunch = 16   # Frequency scrunch factor
+	
+		# --- Time scrunch ---
+		if t_scrunch > 1:
+			n_t = (c1_dspec.shape[1] // t_scrunch) * t_scrunch
+			c1_dspec = c1_dspec[:, :n_t]
+			c1_time = c1_time[:n_t]
+	
+			c1_dspec = c1_dspec.reshape(
+				c1_dspec.shape[0], -1, t_scrunch
+			).mean(axis=2)
+			c1_time = c1_time.reshape(-1, t_scrunch).mean(axis=1)
+	
+		# --- Frequency scrunch ---
+		if f_scrunch > 1:
+			n_f = (c1_dspec.shape[0] // f_scrunch) * f_scrunch
+			c1_dspec = c1_dspec[:n_f, :]
+	
+			c1_dspec = c1_dspec.reshape(
+				-1, f_scrunch, c1_dspec.shape[1]
+			).mean(axis=1)
+	
+			freq_inset = freq_mhz[:n_f].reshape(-1, f_scrunch).mean(axis=1)
+		else:
+			freq_inset = freq_mhz
+	
+		vmin_c = np.nanpercentile(c1_dspec, 1)
+		vmax_c = np.nanpercentile(c1_dspec, 99)
+	
+		inset_ax = axs[1].inset_axes([0.05, 0.55, 0.20, 0.40])
+
+		inset_ax.imshow(
+		    c1_dspec,
+		    aspect='auto',
+		    interpolation='none',
+		    origin='lower',
+		    cmap='plasma',
+		    vmin=vmin_c,
+		    vmax=vmax_c,
+		    extent=[
+		        c1_time[0], c1_time[-1],
+		        freq_inset[0], freq_inset[-1]
+		    ]
+		)
+
+		
+		# Remove axis labels
+		inset_ax.set_xlabel('')
+		inset_ax.set_ylabel('')
+
+		inset_ax.tick_params(
+		    axis='both',
+		    labelsize=6,
+		    colors='white',
+		    labelcolor='black',
+		    direction='in'
+		)
+
+		inset_ax.xaxis.set_major_locator(ticker.MaxNLocator(3, prune='both'))
+		inset_ax.yaxis.set_major_locator(ticker.MaxNLocator(3, prune='both'))
+
+		inset_ax.set_xticks([])
+		inset_ax.set_yticks([])
 
 	if legend:
 		axs[0].legend(loc='upper right')
@@ -544,7 +619,20 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	axs[1].set_ylabel(r"$S$ [arb.]")
 
 
-	# Highlight on- and off-pulse regions if requested
+	# Highlight on- and off-pulse regions if requested (independent of inset)
+	if show_onpulse or show_offpulse:
+		gdict = dspec_params.gdict
+		init_width = gdict["width"][0] / dspec_params.time_res_ms
+		_, off_mask, (left, right) = on_off_pulse_masks_from_profile(I, init_width, frac=0.95, buffer_frac=buffer_frac)
+		if show_onpulse:
+			axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
+		if show_offpulse:
+			axs[1].fill_between(
+			time_ms, 0, 1, where=off_mask,
+			color='lightcoral', alpha=0.15,
+			transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
+		)
+
 	if inset:
 		gdict = dspec_params.gdict
 		inset_bounds = None
@@ -563,16 +651,6 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 				logging.warning("Cannot build PA leading-edge inset: on-pulse left edge is after I peak.")
 		else:
 			logging.warning("Cannot build PA leading-edge inset: I profile is all non-finite.")
-	
-		if show_onpulse or show_offpulse:
-			if show_onpulse:
-				axs[1].axvspan(time_ms[left], time_ms[right], color='lightblue', alpha=0.35, zorder=0)
-			if show_offpulse:
-				axs[1].fill_between(
-				time_ms, 0, 1, where=off_mask,
-				color='lightcoral', alpha=0.15,
-				transform=axs[1].get_xaxis_transform(), zorder=0, label='Off-pulse'
-			)
 		
 		# Inset: PA profile over the leading edge (on-pulse first edge to I peak)
 		if inset_bounds is not None:
@@ -1059,55 +1137,55 @@ def plot_pa_li_scatter(
 
 
 def plot_pads(dspec, freq_mhz, time_ms, save, fname, outdir, figsize, show_plots, extension,
-              plot_config=None, display_text=None):
-    """
-    Plot the full polarisation-angle (PA) dynamic spectrum.
-    PA(freq, time) = 0.5 * arctan2(U, Q) for each pixel, displayed as a 2D
-    colour map with a cyclic colour bar.
-    """
-    Q = dspec[1]
-    U = dspec[2]
-    with np.errstate(invalid='ignore', divide='ignore'):
-        pa_rad = 0.5 * np.arctan2(U, Q)
-    pa_deg = np.rad2deg(pa_rad)
+			  plot_config=None, display_text=None):
+	"""
+	Plot the full polarisation-angle (PA) dynamic spectrum.
+	PA(freq, time) = 0.5 * arctan2(U, Q) for each pixel, displayed as a 2D
+	colour map with a cyclic colour bar.
+	"""
+	Q = dspec[1]
+	U = dspec[2]
+	with np.errstate(invalid='ignore', divide='ignore'):
+		pa_rad = 0.5 * np.arctan2(U, Q)
+	pa_deg = np.rad2deg(pa_rad)
 
-    finite_mask = np.isfinite(pa_deg)
-    if not np.any(finite_mask):
-        logger.error("All PA values are non-finite. Nothing to plot.")
-        return
+	finite_mask = np.isfinite(pa_deg)
+	if not np.any(finite_mask):
+		logger.error("All PA values are non-finite. Nothing to plot.")
+		return
 
-    vmin = np.nanpercentile(pa_deg, 2)
-    vmax = np.nanpercentile(pa_deg, 98)
-    if not np.isfinite(vmin):
-        vmin = -90
-    if not np.isfinite(vmax):
-        vmax = 90
+	vmin = np.nanpercentile(pa_deg, 2)
+	vmax = np.nanpercentile(pa_deg, 98)
+	if not np.isfinite(vmin):
+		vmin = -90
+	if not np.isfinite(vmax):
+		vmax = 90
 
-    if figsize is None:
-        figsize = pub_figsize(ncol=get_pub_col())
+	if figsize is None:
+		figsize = pub_figsize(ncol=get_pub_col())
 
-    fig, ax = plt.subplots(figsize=figsize)
-    fig.subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.95)
+	fig, ax = plt.subplots(figsize=figsize)
+	fig.subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.95)
 
-    im = ax.imshow(pa_deg, aspect='auto', interpolation='none', origin='lower',
-                   cmap='twilight_shifted',
-                   vmin=vmin, vmax=vmax,
-                   extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
+	im = ax.imshow(pa_deg, aspect='auto', interpolation='none', origin='lower',
+				   cmap='twilight_shifted',
+				   vmin=vmin, vmax=vmax,
+				   extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 
-    cbar = fig.colorbar(im, ax=ax, pad=0.02)
-    cbar.set_label(r"$\psi$ [deg.]")
+	cbar = fig.colorbar(im, ax=ax, pad=0.02)
+	cbar.set_label(r"$\psi$ [deg.]")
 
-    ax.set_xlabel("Time [ms]")
-    ax.set_ylabel("Freq. [MHz]")
-    ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+	ax.set_xlabel("Time [ms]")
+	ax.set_ylabel("Freq. [MHz]")
+	ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+	ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
 
-    draw_plot_text(ax, display_text, 'general', plot_config)
+	draw_plot_text(ax, display_text, 'general', plot_config)
 
-    if show_plots:
-        plt.show()
+	if show_plots:
+		plt.show()
 
-    if save:
-        out_path = os.path.join(outdir, fname + "_PA_dynspec." + extension)
-        savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
-        logger.info("Saved figure to %s \n" % (out_path))
+	if save:
+		out_path = os.path.join(outdir, fname + "_PA_dynspec." + extension)
+		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		logger.info("Saved figure to %s \n" % (out_path))

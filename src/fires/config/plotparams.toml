@@ -20,6 +20,8 @@ show_spectrum = false              # Show FWHM spectrum panel in ILVPA plot
 xlim       = None
 ylim       = None
 text       = None # Additional text to display. Options can be modified below
+inset      = true # PA inset for LVPA plot
+hide_y_axes = false
 
 [general.text_style]
 enabled    = true          # master switch
