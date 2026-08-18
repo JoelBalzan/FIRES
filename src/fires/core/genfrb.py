@@ -19,7 +19,7 @@ from fires.core.basicfns import (add_noise, compute_segments,
 from fires.utils.config import load_params
 from fires.utils.io import (build_override_parts, build_single_output_path,
                              write_frb_dict, write_single_frb)
-from fires.utils.loaders import load_data, load_multiple_data_grouped
+from fires.utils.loaders import load_data, load_multiple_data_grouped, scrunch_dspec
 from fires.utils.params import (COL_MAP, GDICT_KEYS, ComponentParams,
                                  StdDevParams, SweepSpec,
                                  canonical_emission_key)
@@ -211,11 +211,15 @@ def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baselin
 
 def _process_obs_task(task, plot_mode, target_snr=None, baseline_correct=None,
                       obs_data=None, obs_params=None, gauss_file=None,
-                      sim_file=None, scint_file=None):
+                      sim_file=None, scint_file=None, t_scrunch=1, f_scrunch=1):
     var, _ = task
     requires_multiple_frb = plot_mode.requires_multiple_frb
     dspec, freq_mhz, time_ms, dspec_params_local = load_data(
         obs_data, obs_params, gauss_file, sim_file, scint_file
+    )
+    dspec, freq_mhz, time_ms, dspec_params_local = scrunch_dspec(
+        dspec, freq_mhz, time_ms, dspec_params_local,
+        t_scrunch=t_scrunch, f_scrunch=f_scrunch,
     )
     scatter_idx = dspec_params_local.sc_idx
     ref_freq = dspec_params_local.ref_freq_mhz
@@ -323,7 +327,7 @@ def _run_sweep_parallel(xvals, nseed, n_cpus, task_func, desc):
 def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gauss_file, scint_file,
                 sefd, n_cpus, plot_mode, phase_window, freq_window, buffer_frac, sweep_mode, obs_data, obs_params,
                 logstep=None, target_snr=None, param_overrides=None, baseline_correct=None, master_file=None,
-                master_raw_config=None, save_dspec=False):
+                master_raw_config=None, save_dspec=False, tscrunch=1, fscrunch=1):
     if master_file is None:
         raise ValueError("master_file is required. Legacy split configs are no longer supported.")
     master_scint = None
@@ -398,6 +402,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
             dspec, freq_mhz, time_ms, dspec_params = load_data(
                 obs_data, obs_params, gauss_file, sim_file, scint_file
             )
+            dspec, freq_mhz, time_ms, dspec_params = scrunch_dspec(
+                dspec, freq_mhz, time_ms, dspec_params,
+                t_scrunch=tscrunch, f_scrunch=fscrunch,
+            )
             I_time = np.nansum(dspec[0], axis=0)
             snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
             logging.info(f"Loaded data S/N: {snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")
@@ -454,6 +462,10 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
             dspec, freq_mhz, time_ms, dspec_params = load_data(
                 obs_data, obs_params, gauss_file, sim_file, scint_file
             )
+            dspec, freq_mhz, time_ms, dspec_params = scrunch_dspec(
+                dspec, freq_mhz, time_ms, dspec_params,
+                t_scrunch=tscrunch, f_scrunch=fscrunch,
+            )
             I_time = np.nansum(dspec[0], axis=0)
             original_snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
             logging.info(f"Original data S/N: {original_snr:.2f}, on-pulse window: {left}-{right} ({time_ms[left]:.2f}-{time_ms[right]:.2f} ms)")
@@ -466,6 +478,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                 _process_obs_task, plot_mode=plot_mode, target_snr=original_snr,
                 baseline_correct=baseline_correct, obs_data=obs_data, obs_params=obs_params,
                 gauss_file=gauss_file, sim_file=sim_file, scint_file=scint_file,
+                t_scrunch=tscrunch, f_scrunch=fscrunch,
             )
             measures, V_params, snrs, exp_vars = _run_sweep_parallel(
                 xvals, nseed, n_cpus, partial_func,

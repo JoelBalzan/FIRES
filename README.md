@@ -208,6 +208,8 @@ Analytical:
   --compare-windows FREQ:PHASE [FREQ:PHASE ...]
   --obs-data <path>                Observed dspec for overlay
   --obs-params <path>              Observed parameters
+  -ts N, --tscrunch N              Average input observed data over time  (factor N)
+  -fs N, --fscrunch N              Average input observed data over frequency (factor N)
 ```
 
 ---

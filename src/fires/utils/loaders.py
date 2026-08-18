@@ -482,6 +482,73 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 	return dspec, freq_mhz, time_ms, dspec_params
 
 
+def scrunch_dspec(dspec, freq_mhz, time_ms, dspec_params=None, t_scrunch=1, f_scrunch=1):
+    """
+    Average (scrunch) a Stokes dynamic spectrum in time and/or frequency.
+
+    Preprocessing step for input data: averages blocks of adjacent bins,
+    degrading resolution by the integer factors given.
+
+    Parameters
+    ----------
+    dspec : np.ndarray
+        Dynamic spectrum of shape [4, nfreq, ntime] (Stokes I/Q/U/V).
+    freq_mhz : np.ndarray
+        Frequency axis (MHz).
+    time_ms : np.ndarray
+        Time axis (ms).
+    dspec_params : dspecParams, optional
+        If given, returned with freq_mhz/time_ms and resolutions updated
+        (resolution scales up by the scrunch factor).
+    t_scrunch : int
+        Time scrunch factor (>= 1; 1 disables time scrunching).
+    f_scrunch : int
+        Frequency scrunch factor (>= 1; 1 disables frequency scrunching).
+
+    Returns
+    -------
+    tuple
+        (dspec, freq_mhz, time_ms, dspec_params) after scrunching.
+    """
+    t_scrunch = max(int(t_scrunch if t_scrunch is not None else 1), 1)
+    f_scrunch = max(int(f_scrunch if f_scrunch is not None else 1), 1)
+
+    if t_scrunch > 1:
+        n_t = (dspec.shape[2] // t_scrunch) * t_scrunch
+        if n_t > 0:
+            dspec = np.nanmean(
+                dspec[:, :, :n_t].reshape(
+                    dspec.shape[0], dspec.shape[1], -1, t_scrunch
+                ), axis=3
+            )
+            time_ms = time_ms[:n_t].reshape(-1, t_scrunch).mean(axis=1)
+            logging.info(
+                f"Time scrunched by factor {t_scrunch}: n_t={n_t} -> {dspec.shape[2]} bins"
+            )
+
+    if f_scrunch > 1:
+        n_f = (dspec.shape[1] // f_scrunch) * f_scrunch
+        if n_f > 0:
+            dspec = np.nanmean(
+                dspec[:, :n_f, :].reshape(
+                    dspec.shape[0], -1, f_scrunch, dspec.shape[2]
+                ), axis=2
+            )
+            freq_mhz = freq_mhz[:n_f].reshape(-1, f_scrunch).mean(axis=1)
+            logging.info(
+                f"Frequency scrunched by factor {f_scrunch}: n_f={n_f} -> {dspec.shape[1]} channels"
+            )
+
+    if dspec_params is not None:
+        dspec_params = dspec_params._replace(
+            freq_mhz=freq_mhz,
+            freq_res_mhz=dspec_params.freq_res_mhz * f_scrunch,
+            time_ms=time_ms,
+            time_res_ms=dspec_params.time_res_ms * t_scrunch,
+        )
+    return dspec, freq_mhz, time_ms, dspec_params
+
+
 def load_multiple_data_grouped(data):
 	"""
 	Group simulation outputs by override parameters (e.g., N, tau, lfrac).

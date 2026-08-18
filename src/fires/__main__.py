@@ -250,6 +250,16 @@ def main():
         help="Path to observational FRB data to overlay on analytic plots."
     )
     parser.add_argument(
+        "-ts", "--tscrunch", type=int, default=1, metavar="N",
+        help="Average (scrunch) input observed data over time by a factor of N "
+             "(default: 1 = no time scrunching)."
+    )
+    parser.add_argument(
+        "-fs", "--fscrunch", type=int, default=1, metavar="N",
+        help="Average (scrunch) input observed data over frequency by a factor of N "
+             "(default: 1 = no frequency scrunching)."
+    )
+    parser.add_argument(
         "--obs-params", type=str, default=None, metavar="",
         help="Path to parameters file for observational data."
     )
@@ -399,6 +409,7 @@ def main():
             target_snr=target_snr, obs_data=args.obs_data, obs_params=args.obs_params,
             param_overrides=all_param_overrides, logstep=None,
             baseline_correct=baseline_correct, master_raw_config=raw_master_config,
+            tscrunch=args.tscrunch, fscrunch=args.fscrunch,
         )
         if selected_plot_mode.requires_multiple_frb:
             if args.sim_data is None:
