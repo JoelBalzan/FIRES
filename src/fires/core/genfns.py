@@ -785,8 +785,10 @@ def psn_dspec(
 		'band_width_mhz_i' : []
 	}
 
-	num_main_gauss = len(t0) 
+	num_main_gauss = len(t0)
+	comp_dsps = []
 	for g in range(num_main_gauss):
+		comp_dspec = np.zeros_like(dspec)
 		for _ in range(int(N[g])):
 			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
 			A_i = _sample_amplitude(A[g], sd_A, amp_sampling, plot_multiple_frb)
@@ -861,13 +863,16 @@ def psn_dspec(
 				shot = scatter_dspec(shot, time_res_ms, tau_cms, screen=sc_screen)
 				I_ft, Q_ft, U_ft, V_ft = shot[0], shot[1], shot[2], shot[3]
 
-			dspec[0] += I_ft
-			dspec[1] += Q_ft
-			dspec[2] += U_ft
-			dspec[3] += V_ft
+			comp_dspec[0] += I_ft
+			comp_dspec[1] += Q_ft
+			comp_dspec[2] += U_ft
+			comp_dspec[3] += V_ft
+
+		comp_dsps.append(comp_dspec)
 
 	if isinstance(pa_swing, dict) and bool(pa_swing.get('enable', False)):
-		dspec = _apply_rvm_swing_to_dspec(dspec, time_ms, pa_swing)
+		for g_b in range(len(comp_dsps)):
+			comp_dsps[g_b] = _apply_rvm_swing_to_dspec(comp_dsps[g_b], time_ms, pa_swing)
 		if not plot_multiple_frb:
 			logging.info(
 				"Applied RVM-like PA swing: enable=%s alpha=%.2f beta=%.2f period=%.2f ms",
@@ -882,16 +887,23 @@ def psn_dspec(
 
 	# ADD GLOBAL RM PRE-SCATTERING (if specified)
 	if RM_global != 0.0 and RM_order == "pre":
-		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+		for g_b in range(len(comp_dsps)):
+			comp_dsps[g_b] = rm_correct_dspec(comp_dsps[g_b], freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
 		if not plot_multiple_frb:
 			logging.info("Applied global RM pre-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
 
-	if tau > 0 and sd_tau == 0:
-		tau_cms = tau * (freq_mhz / ref_freq_mhz) ** sc_idx
-		dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=sc_screen)
-		if not plot_multiple_frb:
-			logging.info("Applied global scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
-							tau, ref_freq_mhz, sc_idx, sc_screen)
+	# Envelope scattering applied per component so each keeps its own tau
+	if sd_tau == 0:
+		for g_b, buf in enumerate(comp_dsps):
+			if float(tau[g_b]) > 0:
+				tau_cms = float(tau[g_b]) * (freq_mhz / ref_freq_mhz) ** sc_idx
+				comp_dsps[g_b] = scatter_dspec(buf, time_res_ms, tau_cms, screen=sc_screen)
+				if not plot_multiple_frb:
+					logging.info("Applied component %d scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
+									g_b, float(tau[g_b]), ref_freq_mhz, sc_idx, sc_screen)
+
+	for buf in comp_dsps:
+		dspec += buf
 	# ADD GLOBAL RM POST-SCATTERING (if specified)
 	if RM_global != 0.0 and RM_order == "post":
 		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
