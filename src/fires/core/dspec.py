@@ -168,8 +168,6 @@ def _timeseries_from_corr(corrdspec, dspec_params, buffer_frac, remove_pa_trend=
 
 
 def compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=0.1, skip_rm=False, remove_pa_trend=False):
-    from fires.core.rm import rm_correct_dspec
-    from fires.core.noise import estimate_noise_with_offpulse_mask
     gdict = dspec_params.gdict
     tsdata_full, corr_dspec, _, _ = process_dspec(
         dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=skip_rm,
