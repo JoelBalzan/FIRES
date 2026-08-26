@@ -1,8 +1,6 @@
 import logging
 
 import numpy as np
-from scipy.ndimage import gaussian_filter1d
-from scipy.stats import circvar
 
 from fires.core.rm import estimate_rm, rm_correct_dspec, rm_synth
 from fires.core.dspec import (compute_segments, format_global_stats,
