@@ -24,7 +24,7 @@ from fires.core.basicfns import (on_off_pulse_masks_from_profile,
                                  wrap_pa_deg)
 from fires.plotting.plot_helper import (draw_plot_text, get_plot_param,
                                         get_pub_col, pub_figsize,
-                                        pub_grid_figsize, savefig_rasterized)
+                                        pub_grid_figsize, savefig)
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, sho
 
 	if save==True:
 		out_path = os.path.join(outdir, fname + "_iquv." + extension)
-		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(out_path, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info("Saved figure to %s \n" % (out_path))
 
 
@@ -200,7 +200,7 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 
 	if save==True:
 		out_path = os.path.join(outdir, fname + "_dpa." + extension)
-		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(out_path, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info("Saved figure to %s \n" % (out_path))
 
 
@@ -449,7 +449,7 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 
 	if save:
 		out_path = os.path.join(outdir, fname + f"_t_{tau[0]}" + "_LV." + extension)
-		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(out_path, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info("Saved figure to %s \n" % (out_path))
 
 
@@ -773,7 +773,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 
 	if save==True:
 		out_path = os.path.join(outdir, fname + f"_t_{tau[0]}" + "_ILVPA." + extension)
-		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(out_path, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info("Saved figure to %s \n" % (out_path))
 
 
@@ -840,7 +840,7 @@ def plot_pa_profile(fname, outdir, tsdata, time_ms, save, figsize, show_plots, e
 
 	if save:
 		fpath = os.path.join(outdir, f"{fname}_pa.{extension}")
-		savefig_rasterized(fpath, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(fpath, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info("Saved figure to %s \n", fpath)
 
 
@@ -1074,7 +1074,7 @@ def plot_pa_li_scatter(
 
 	if save:
 		fpath = os.path.join(outdir, f"{fname}_pa_li_scatter.{extension}")
-		savefig_rasterized(fpath, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(fpath, dpi=600, bbox_inches='tight', fig=fig)
 		logger.info("Saved figure to %s \n", fpath)
 
 	# Additional 3D PA-L/I-time scatter with time as an explicit axis
@@ -1129,7 +1129,7 @@ def plot_pa_li_scatter(
 		fpath3d = os.path.join(outdir, f"{fname}_pa_li_scatter_3d.{extension}")
 		# For mplot3d, tight bbox can clip z-axis labels; use explicit margins instead.
 		fig3d.subplots_adjust(left=0.06, right=0.88, bottom=0.08, top=0.97)
-		savefig_rasterized(fpath3d, dpi=600, bbox_inches=None, fig=fig3d)
+		savefig(fpath3d, dpi=600, bbox_inches=None, fig=fig3d)
 		logger.info("Saved figure to %s \n", fpath3d)
 
 	if show_plots:
@@ -1187,5 +1187,5 @@ def plot_pads(dspec, freq_mhz, time_ms, save, fname, outdir, figsize, show_plots
 
 	if save:
 		out_path = os.path.join(outdir, fname + "_PA_dynspec." + extension)
-		savefig_rasterized(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(out_path, dpi=600, bbox_inches='tight', fig=fig)
 		logger.info("Saved figure to %s \n" % (out_path))

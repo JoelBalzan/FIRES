@@ -27,10 +27,11 @@ from fires.core.basicfns import (compute_segments, estimate_rm,
                                  on_off_pulse_masks_from_profile,
                                  pa_variance_deg2, process_dspec)
 from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
-											colours, draw_plot_text, get_pub_col,
-											get_plot_param, param_info_or_dynamic,
-											param_map, savefig_rasterized, pub_figsize,
-											set_pub_style, text_with_offset)
+                                        colours, draw_plot_text,
+                                        get_plot_param, get_pub_col,
+                                        param_info_or_dynamic, param_map,
+                                        pub_figsize, savefig, set_pub_style,
+                                        text_with_offset)
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_lv,
                                     plot_pa_li_scatter, plot_pa_profile,
                                     plot_pads, plot_stokes)
@@ -2942,7 +2943,7 @@ def plot_pa_var(
 			if save:
 				name = f"{fname}_{scale}_pa_var_window_comparison.{extension}"
 				name = os.path.join(out_dir, name)
-				savefig_rasterized(name, dpi=600, fig=fig)
+				savefig(name, dpi=600, fig=fig)
 				logging.info(f"Saved figure to {name}\n")
 			return
 
@@ -3047,7 +3048,7 @@ def plot_pa_var(
 	if save:
 		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		savefig_rasterized(name, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(name, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info(f"Saved figure to {name}  \n")
 
 
@@ -3203,7 +3204,7 @@ def plot_lfrac(
 			if save:
 				name = f"{fname}_{scale}_l_frac_window_comparison.{extension}"
 				name = os.path.join(out_dir, name)
-				savefig_rasterized(name, dpi=600, fig=fig)
+				savefig(name, dpi=600, fig=fig)
 				logging.info(f"Saved figure to {name}\n")
 			return
 
@@ -3306,7 +3307,7 @@ def plot_lfrac(
 	if save:
 		name = _make_plot_fname("l_frac", scale, fname, freq_window, phase_window)
 		name = os.path.join(out_dir, name + f".{extension}")
-		savefig_rasterized(name, dpi=600, bbox_inches='tight', fig=fig)
+		savefig(name, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info(f"Saved figure to {name}  \n")
 
 

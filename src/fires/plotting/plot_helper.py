@@ -140,23 +140,13 @@ def set_pub_style(use_latex=False):
     mpl.rcParams.update(rc)
 
 
-def savefig_rasterized(
-	save_path: str,
-	dpi: int = 300,
-	bbox_inches: Optional[str] = "tight",
-	fig: Optional[plt.Figure] = None,
-) -> None:
-	"""Save figure with artists rasterized to keep vector outputs lightweight."""
-	out_fig = fig if fig is not None else plt.gcf()
-	for ax in out_fig.axes:
-		for artist in ax.get_children():
-			if hasattr(artist, "set_rasterized"):
-				with contextlib.suppress(Exception):
-					artist.set_rasterized(True)
-	if bbox_inches is None:
-		out_fig.savefig(save_path, dpi=dpi)
-	else:
-		out_fig.savefig(save_path, dpi=dpi, bbox_inches=bbox_inches)
+def savefig(save_path: str,
+                       dpi: int = 600,
+                       bbox_inches: str = "tight",
+                       fig: Optional[plt.Figure] = None) -> None:
+    """Save figure as-is (vector) at the requested dpi, without rasterization."""
+    out_fig = fig if fig is not None else plt.gcf()
+    out_fig.savefig(save_path, dpi=dpi, bbox_inches=bbox_inches)
 
 #	--------------------------	Colour maps	---------------------------
 #colour blind friendly: https://gist.github.com/thriveth/8560036
