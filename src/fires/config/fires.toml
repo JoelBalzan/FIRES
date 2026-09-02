@@ -32,6 +32,13 @@ screen = "thin"  # Scattering screen geometry: "thin" | "thick" | "uniform".
 RM    = 0.0      # Global rotation measure (rad m^-2) applied to the full dynamic spectrum.
 order = "pre"    # When to apply RM: "pre" = before scattering, "post" = after scattering.
 
+[propagation.derotate]
+enable = true    # Auto-detect the RM (RM synthesis) after noise injection and de-rotate
+                 # the dspec to maximise L/I. The RM is always measured and logged;
+                 # set enable = false to keep the injected RM in the raw output
+                 # (e.g. to inspect a deliberately applied global/chain RM) while
+                 # still printing the measured value.
+
 # [propagation.chain]  -- TEST MODE: ordered list of scattering + RM screens.
 # Define this section to take full manual control over the propagation screens.
 # When present it OVERRIDES the [propagation.scattering] and [propagation.rm]

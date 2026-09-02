@@ -936,6 +936,7 @@ def psn_dspec(
 	RM_global = prop_dict['RM']
 	RM_order = prop_dict['order']
 	chain_steps = prop_dict.get('chain')  # ordered screen chain; None => legacy scattering/RM
+	derotate = bool(prop_dict.get('derotate', True))  # global auto-detect + derotation switch
 
 	# When a chain is configured it takes precedence over the legacy
 	# scattering/rm sections: all screens are applied in the chain order below.
@@ -1027,6 +1028,7 @@ def psn_dspec(
 	
 
 	if np.any(np.asarray(RM, dtype=float) != 0.0) or np.any(np.asarray(sd_rm, dtype=float) != 0.0)  or RM_global != 0.0:
+		# Always attempt to measure RM; application of the derotation is optional.
 		try:
 			# On/off mask from frequency-summed I
 			I_ts = np.nansum(dspec[0], axis=0)
@@ -1043,32 +1045,37 @@ def psn_dspec(
 			measured_rm = float(res_rmtool[0])
 			measured_rm_err = float(res_rmtool[1])
 
-			def _int_Lfrac(cube):
-				I = np.nansum(cube[0], axis=0)
-				Q = np.nansum(cube[1], axis=0)
-				U = np.nansum(cube[2], axis=0)
-				on_mask, _, _ = on_off_pulse_masks_from_profile(
-					I, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
-				)
-				I_int = float(np.nansum(I[on_mask]))
-				L_int = float(np.nansum(np.sqrt(Q[on_mask]**2 + U[on_mask]**2)))
-				return (L_int / I_int) if I_int > 0 else 0.0
+			if derotate:
+				def _int_Lfrac(cube):
+					I = np.nansum(cube[0], axis=0)
+					Q = np.nansum(cube[1], axis=0)
+					U = np.nansum(cube[2], axis=0)
+					on_mask, _, _ = on_off_pulse_masks_from_profile(
+						I, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+					)
+					I_int = float(np.nansum(I[on_mask]))
+					L_int = float(np.nansum(np.sqrt(Q[on_mask]**2 + U[on_mask]**2)))
+					return (L_int / I_int) if I_int > 0 else 0.0
 
-			if np.isfinite(measured_rm) and np.abs(measured_rm) > 0.0:
-				cand_pos = rm_correct_dspec(dspec, freq_mhz, +measured_rm, ref_freq_mhz=ref_freq_mhz)
-				cand_neg = rm_correct_dspec(dspec, freq_mhz, -measured_rm, ref_freq_mhz=ref_freq_mhz)
-				Lpos = _int_Lfrac(cand_pos)
-				Lneg = _int_Lfrac(cand_neg)
-				dspec = cand_pos if Lpos >= Lneg else cand_neg
-				chosen_sign = '+' if Lpos >= Lneg else '-'
-				Lbest = max(Lpos, Lneg)
-				if not plot_multiple_frb:
-					logging.info("Measured RM = %.2f ± %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
-							 measured_rm, measured_rm_err, ref_freq_mhz, chosen_sign, Lbest)
+				if np.isfinite(measured_rm) and np.abs(measured_rm) > 0.0:
+					cand_pos = rm_correct_dspec(dspec, freq_mhz, +measured_rm, ref_freq_mhz=ref_freq_mhz)
+					cand_neg = rm_correct_dspec(dspec, freq_mhz, -measured_rm, ref_freq_mhz=ref_freq_mhz)
+					Lpos = _int_Lfrac(cand_pos)
+					Lneg = _int_Lfrac(cand_neg)
+					dspec = cand_pos if Lpos >= Lneg else cand_neg
+					chosen_sign = '+' if Lpos >= Lneg else '-'
+					Lbest = max(Lpos, Lneg)
+					if not plot_multiple_frb:
+						logging.info("Measured RM = %.2f ± %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
+								 measured_rm, measured_rm_err, ref_freq_mhz, chosen_sign, Lbest)
+				else:
+					logging.info("Measured RM not significant; skipping RM correction")
 			else:
-				logging.info("Measured RM not significant; skipping RM correction")
+				if not plot_multiple_frb:
+					logging.info("Measured RM = %.2f ± %.2f rad/m2; derotation disabled by config, leaving dspec unchanged.",
+							 measured_rm, measured_rm_err)
 		except Exception as e:
-			logging.warning("RM measurement/derotation in psn_dspec failed (%s). Proceeding without derotation.", str(e))
+			logging.warning("RM measurement in psn_dspec failed (%s). Proceeding without RM correction.", str(e))
 
 	# Off-pulse baseline correction (per Stokes, per frequency channel)
 	if baseline_correct is not None:

@@ -11,6 +11,7 @@ This document describes every section and parameter in `fires.toml`, the master 
 - [`[propagation.scattering]`](#propagationscattering)
 - [`[propagation.rm]`](#propagationrm)
 - [`[propagation.chain]`](#propagationchain)
+- [`[propagation.derotate]`](#propagationderotate)
 - [`[propagation.scintillation]`](#propagationscintillation)
 - [`[emission]`](#emission)
 - [`[emission.fold]`](#emissionfold)
@@ -138,6 +139,25 @@ steps = [
 ```
 
 **Where it flows:** Parsed into `propagation.chain` (schema.py), converted to a runtime list by `_chain_to_internal()` (genfrb.py) into `prop_dict["chain"]`, and applied to the summed dspec by `apply_chain()` in genfns.py. All steps are linear operations (scattering convolution, RM rotation), so applying the chain to the summed dspec is equivalent to applying it per-component.
+
+---
+
+## `[propagation.derotate]`
+
+Global switch controlling the automatic **RM detection + derotation** performed after noise injection. By default FIRES measures the RM of the simulated burst (via RM synthesis) and de-rotates it to maximize linear polarisation `L/I` — which effectively removes any injected RM from the output.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enable` | bool | `true` | If `false`, the derotation rotation is **not** applied to the dspec, so any deliberately injected RM (e.g. from `[propagation.rm]` or a chain `rm` step) is preserved in the raw dynamic spectrum. The RM is **still measured and printed** either way. |
+
+```toml
+[propagation.derotate]
+enable = false
+```
+
+RM is always measured (via RM synthesis) and logged; `enable` only controls whether the measured RM is then de-rotated out to zero position angle. Turning it off is particularly useful for **test mode** workflows where you inject a specific global/chain RM and want to inspect the rotated spectrum as-is, while still seeing the measured value in the log.
+
+**Where it flows:** Parsed into `propagation.derotate.enable`, stored in `prop_dict["derotate"]`, and consulted by the derotation blocks in `psn_dspec()` (genfns.py) and `process_dspec()` (dspec.py).
 
 ---
 

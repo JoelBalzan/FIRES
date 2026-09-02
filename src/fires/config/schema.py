@@ -37,6 +37,11 @@ class RM:
     RM: float
     order: str
 
+### DEROTATE ###
+@dataclass
+class Derotate:
+    enable: bool = True
+
 ### CHAIN (ordered list of screens)
 @dataclass
 class ChainStep:
@@ -78,6 +83,7 @@ class Propagation:
     RM: RM
     scintillation: Scintillation
     chain: Optional[Chain] = None
+    derotate: Derotate = field(default_factory=Derotate)
 
 ### AMPLITUDE DISTRIBUTIONS ###
 @dataclass
@@ -372,6 +378,9 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
             return_field=_as_bool(scint_raw.get("return_field", False), default=False),
         ),
         chain=_parse_chain(prop_raw),
+        derotate=Derotate(
+            enable=_as_bool(prop_raw.get("derotate", {}).get("enable", True), default=True),
+        ),
     )
 
     em_raw = _require(raw, "emission", "root")

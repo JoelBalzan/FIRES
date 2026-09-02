@@ -121,6 +121,7 @@ def _master_to_internal(master_file, master_raw=None):
         "RM": float(master.propagation.RM.RM),
         "order": str(master.propagation.RM.order),
         "chain": _chain_to_internal(master.propagation.chain),
+        "derotate": bool(master.propagation.derotate.enable),
     }
     components = master.emission.components
     if not isinstance(components, list) or len(components) == 0:

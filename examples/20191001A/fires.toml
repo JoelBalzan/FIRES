@@ -20,6 +20,9 @@ screen = "thin" # thin | thick | uniform | https://ui.adsabs.harvard.edu/abs/197
 RM = 0.0 # applied after RVM
 order = "pre" # order to apply with respect to scatter: pre | post
 
+[propagation.derotate]
+enable = true
+
 [propagation.scintillation]
 enable          = true
 timescale_s     = 300

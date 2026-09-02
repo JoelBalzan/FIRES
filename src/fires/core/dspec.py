@@ -428,8 +428,12 @@ def process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=False, rem
 	gdict = dspec_params.gdict
 	RM = gdict["RM"]
 	ref_freq_mhz = dspec_params.ref_freq_mhz
-	if skip_rm or np.all(RM == 0.0):
+	prop_dict = getattr(dspec_params, "prop_dict", {}) or {}
+	derotate = bool(prop_dict.get("derotate", True))
+	if skip_rm or (not derotate) or np.all(RM == 0.0):
 		corrdspec = dspec.copy()
+		if (not skip_rm) and (not derotate) and np.any(RM != 0.0):
+			logging.info("RM derotation disabled by config (propagation.derotate.enable = false).")
 	else:
 		try:
 			n_time = dspec.shape[2]
