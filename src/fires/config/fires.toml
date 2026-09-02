@@ -32,6 +32,26 @@ screen = "thin"  # Scattering screen geometry: "thin" | "thick" | "uniform".
 RM    = 0.0      # Global rotation measure (rad m^-2) applied to the full dynamic spectrum.
 order = "pre"    # When to apply RM: "pre" = before scattering, "post" = after scattering.
 
+# [propagation.chain]  -- TEST MODE: ordered list of scattering + RM screens.
+# Define this section to take full manual control over the propagation screens.
+# When present it OVERRIDES the [propagation.scattering] and [propagation.rm]
+# sections above. Each step is an inline table with type "scatter" or "rm".
+# They are applied sequentially to the summed dynamic spectrum exactly in the
+# order you list them. You can mix N scatter screens and M RM screens freely.
+#
+# Uncomment and edit to use:
+#
+# [propagation.chain]
+# steps = [
+#   { type = "rm",      RM = 100.0 },
+#   { type = "scatter", screen = "thin", index = -4.2, tau_ms = 1.25 },
+#   { type = "rm",      RM = -50.0 },
+# ]
+#   scatter:  convolve each channel with a screen kernel. tau(f) = tau_ms * (f/nu_ref)^index.
+#             screen: "thin" | "thick" | "uniform"  (see Williamson 1972).
+#   rm:       Faraday-rotate Q/U by -2*RM*(lambda^2 - lambda_ref^2).
+
+
 [propagation.scintillation]
 enable          = false        # Enable diffractive scintillation modulation across the full band.
 timescale_s     = 300         # Scintillation timescale (seconds). Frequency-dependent intensity modulation varies on this scale.

@@ -46,6 +46,57 @@ def _apply_faraday_rotation(pol_angle_arr, RM, freq_mhz, ref_freq_mhz):
 	return chi0 + RM * (lambda_sq - lambda_ref_sq)
 
 
+def apply_chain(dspec, chain_steps, freq_mhz, time_res_ms, ref_freq_mhz):
+	"""
+	Apply an ordered list of propagation screens (scatter + RM) sequentially.
+
+	chain_steps is a list of dicts ('scatter' or 'rm') as produced by
+	_chain_to_internal in genfrb.py. Operations are applied to the whole
+	(4, nf, nt) dspec in the given order:
+
+	  scatter:  convolve each frequency channel with the selected screen kernel.
+	               tau(f) = tau_ms * (freq / ref_freq) ** index
+	  rm:       rotate Q/U by -2 * RM * (lambda^2 - lambda_ref^2).
+
+	All operations are linear in the Stokes sum, so applying the chain to the
+	summed dspec is equivalent to per-component application.
+	"""
+	if not chain_steps:
+		return dspec
+	dspec = np.asarray(dspec, dtype=float).copy()
+	for step in chain_steps:
+		stype = str(step.get("type", "")).strip().lower()
+		if stype == "scatter":
+			screen = str(step.get("screen", "thin"))
+			index = float(step.get("index", -4.0))
+			tau_ms = float(step.get("tau_ms", 0.0))
+			if tau_ms > 0:
+				tau_cms = tau_ms * (freq_mhz / float(ref_freq_mhz)) ** index
+				dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=screen)
+		elif stype == "rm":
+			rm_val = float(step.get("RM", 0.0))
+			if rm_val != 0.0:
+				dspec = rm_correct_dspec(dspec, freq_mhz, -rm_val, ref_freq_mhz=ref_freq_mhz)
+		else:
+			raise ValueError(f"Unknown chain step type '{stype}': choose 'scatter' or 'rm'")
+	return dspec
+
+
+def _log_chain(chain_steps, ref_freq_mhz):
+	"""Log the ordered chain of screens for a single-FRB run."""
+	parts = []
+	for i, step in enumerate(chain_steps):
+		stype = str(step.get("type", ""))
+		if stype == "scatter":
+			parts.append(
+				f"[{i}] scatter(screen={step.get('screen')}, tau_ms={step.get('tau_ms')}, "
+				f"index={step.get('index')})"
+			)
+		else:
+			parts.append(f"[{i}] rm(RM={step.get('RM')})")
+	logging.info("Applied ordered screen chain (ref=%.1f MHz): %s", ref_freq_mhz, " -> ".join(parts))
+
+
 def _calculate_dispersion_delay(DM, freq, ref_freq):
 	return 4.15 * DM * ((1.0e3 / freq) ** 2 - (1.0e3 / ref_freq) ** 2)
 
@@ -884,31 +935,41 @@ def psn_dspec(
 
 	RM_global = prop_dict['RM']
 	RM_order = prop_dict['order']
+	chain_steps = prop_dict.get('chain')  # ordered screen chain; None => legacy scattering/RM
 
-	# ADD GLOBAL RM PRE-SCATTERING (if specified)
-	if RM_global != 0.0 and RM_order == "pre":
-		for g_b in range(len(comp_dsps)):
-			comp_dsps[g_b] = rm_correct_dspec(comp_dsps[g_b], freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
-		if not plot_multiple_frb:
-			logging.info("Applied global RM pre-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
+	# When a chain is configured it takes precedence over the legacy
+	# scattering/rm sections: all screens are applied in the chain order below.
+	if chain_steps is None:
+		# ADD GLOBAL RM PRE-SCATTERING (if specified)
+		if RM_global != 0.0 and RM_order == "pre":
+			for g_b in range(len(comp_dsps)):
+				comp_dsps[g_b] = rm_correct_dspec(comp_dsps[g_b], freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+			if not plot_multiple_frb:
+				logging.info("Applied global RM pre-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
 
-	# Envelope scattering applied per component so each keeps its own tau
-	if sd_tau == 0:
-		for g_b, buf in enumerate(comp_dsps):
-			if float(tau[g_b]) > 0:
-				tau_cms = float(tau[g_b]) * (freq_mhz / ref_freq_mhz) ** sc_idx
-				comp_dsps[g_b] = scatter_dspec(buf, time_res_ms, tau_cms, screen=sc_screen)
-				if not plot_multiple_frb:
-					logging.info("Applied component %d scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
-									g_b, float(tau[g_b]), ref_freq_mhz, sc_idx, sc_screen)
+		# Envelope scattering applied per component so each keeps its own tau
+		if sd_tau == 0:
+			for g_b, buf in enumerate(comp_dsps):
+				if float(tau[g_b]) > 0:
+					tau_cms = float(tau[g_b]) * (freq_mhz / ref_freq_mhz) ** sc_idx
+					comp_dsps[g_b] = scatter_dspec(buf, time_res_ms, tau_cms, screen=sc_screen)
+					if not plot_multiple_frb:
+						logging.info("Applied component %d scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
+										g_b, float(tau[g_b]), ref_freq_mhz, sc_idx, sc_screen)
 
 	for buf in comp_dsps:
 		dspec += buf
-	# ADD GLOBAL RM POST-SCATTERING (if specified)
-	if RM_global != 0.0 and RM_order == "post":
-		dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+	if chain_steps is None:
+		# ADD GLOBAL RM POST-SCATTERING (if specified)
+		if RM_global != 0.0 and RM_order == "post":
+			dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+			if not plot_multiple_frb:
+				logging.info("Applied global RM post-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
+	else:
+		# Test mode: apply the ordered chain of scattering/RM screens to the sum.
+		dspec = apply_chain(dspec, chain_steps, freq_mhz, time_res_ms, ref_freq_mhz)
 		if not plot_multiple_frb:
-			logging.info("Applied global RM post-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
+			_log_chain(chain_steps, ref_freq_mhz)
 
 	if scint_dict is not None:
 		scint_enabled = bool(scint_dict.get("enable", True))

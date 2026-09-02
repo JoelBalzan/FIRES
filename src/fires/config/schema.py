@@ -37,6 +37,19 @@ class RM:
     RM: float
     order: str
 
+### CHAIN (ordered list of screens)
+@dataclass
+class ChainStep:
+    type: Literal["scatter", "rm"]
+    screen: Optional[str] = "thin"
+    index: Optional[float] = None
+    tau_ms: Optional[float] = None
+    RM: Optional[float] = None
+
+@dataclass
+class Chain:
+    steps: List[ChainStep]
+
 ### SCINTILLATION ###
 @dataclass
 class Scintillation:
@@ -64,6 +77,7 @@ class Propagation:
     scattering: Scattering
     RM: RM
     scintillation: Scintillation
+    chain: Optional[Chain] = None
 
 ### AMPLITUDE DISTRIBUTIONS ###
 @dataclass
@@ -264,6 +278,53 @@ def _parse_optional_positive_int(value: Any) -> Optional[int]:
         return None
     return v if (v > 0) else None
 
+
+def _parse_chain(prop_raw: Dict[str, Any]) -> Optional[Chain]:
+    """Parse the optional [propagation.chain] ordered list of screens.
+
+    Each step is an inline table with ``type`` either ``"scatter"`` or ``"rm"``:
+
+    .. code-block:: toml
+
+        [propagation.chain]
+        steps = [
+            { type = "scatter", screen = "thin",  index = -4.0, tau_ms = 1.0 },
+            { type = "rm",      RM = 100.0 },
+            { type = "scatter", screen = "thick", index = -3.2, tau_ms = 0.5 },
+        ]
+
+    Returns None when ``[propagation.chain]`` is absent or empty, in which case the
+    legacy ``scattering`` / ``rm`` sections are used.
+    """
+    chain_raw = prop_raw.get("chain")
+    if not isinstance(chain_raw, dict):
+        return None
+    steps_raw = chain_raw.get("steps", [])
+    if not isinstance(steps_raw, list) or len(steps_raw) == 0:
+        return None
+
+    steps: List[ChainStep] = []
+    for idx, stp in enumerate(steps_raw):
+        where = f"propagation.chain.steps[{idx}]"
+        if not isinstance(stp, dict):
+            raise ValueError(f"'{where}' must be an inline table")
+        stype = str(stp.get("type", "")).strip().lower()
+        if stype == "scatter":
+            steps.append(ChainStep(
+                type="scatter",
+                screen=str(stp.get("screen", "thin")),
+                index=float(stp.get("index", -4.0)),
+                tau_ms=float(_require(stp, "tau_ms", where)),
+            ))
+        elif stype == "rm":
+            steps.append(ChainStep(
+                type="rm",
+                RM=float(_require(stp, "RM", where)),
+            ))
+        else:
+            raise ValueError(f"'{where}' has unknown type '{stype}': choose 'scatter' or 'rm'")
+    return Chain(steps=steps)
+
 def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     """Parse raw fires.toml dictionary into a strongly typed FiresConfig."""
     if not isinstance(raw, dict):
@@ -310,6 +371,7 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
             theta_extent=float(scint_raw.get("theta_extent", 3.0)),
             return_field=_as_bool(scint_raw.get("return_field", False), default=False),
         ),
+        chain=_parse_chain(prop_raw),
     )
 
     em_raw = _require(raw, "emission", "root")

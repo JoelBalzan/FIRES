@@ -10,6 +10,7 @@ This document describes every section and parameter in `fires.toml`, the master 
 - [`[simulation.grid]`](#simulationgrid)
 - [`[propagation.scattering]`](#propagationscattering)
 - [`[propagation.rm]`](#propagationrm)
+- [`[propagation.chain]`](#propagationchain)
 - [`[propagation.scintillation]`](#propagationscintillation)
 - [`[emission]`](#emission)
 - [`[emission.fold]`](#emissionfold)
@@ -95,6 +96,48 @@ Global Faraday rotation applied to the full dynamic spectrum.
 **Where it flows:** Stored in `prop_dict["RM"]` and `prop_dict["order"]`. Applied in `psn_dspec()` (genfns.py:883-897) via `rm_correct_dspec()`.
 
 **Note:** This is *global* RM applied to the summed dspec. There is also a *per-microshot* RM (`rm` in `[[emission.components]]`) applied individually to each microshot before summing, enabling Burn-law depolarisation.
+
+**Note:** If [`[propagation.chain]`](#propagationchain) is configured, it takes precedence over `[propagation.scattering]` and `[propagation.rm]` and this section is ignored.
+
+---
+
+## `[propagation.chain]`
+
+**Test mode** — an ordered list of scattering and RM screens applied sequentially. This gives full manual control over the exact sequence of propagation screens and overrides both [`[propagation.scattering]`](#propagationscattering) and [`[propagation.rm]`](#propagationrm) when present. Use it to interleave *N* scattering screens and *M* RM screens in any order.
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `steps` | array of inline tables | Ordered list of screen steps, each either `type = "scatter"` or `type = "rm"`. |
+
+### Scatter step
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `type` | string | — | `"scatter"`. |
+| `screen` | string | `"thin"` | Screen geometry: `"thin"`, `"thick"`, or `"uniform"`. |
+| `index` | float | `-4.0` | Scattering law exponent: `tau(f) = tau_ms * (f / nu_ref)^index`. |
+| `tau_ms` | float | — (required) | Scattering timescale (ms) at the reference frequency. Convolves each channel with the screen kernel. |
+
+### RM step
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `type` | string | `"rm"`. |
+| `RM` | float | — (required) | Rotation measure (rad m^-2). Rotates Q/U via `chi = chi0 - 2*RM*(lambda^2 - lambda_ref^2)`. |
+
+**Example:** scatter → rotate → scatter → rotate:
+
+```toml
+[propagation.chain]
+steps = [
+    { type = "scatter", screen = "thin",  index = -4.0, tau_ms = 1.0 },
+    { type = "rm",      RM = 100.0 },
+    { type = "scatter", screen = "thick", index = -3.2, tau_ms = 0.5 },
+    { type = "rm",      RM = -50.0 },
+]
+```
+
+**Where it flows:** Parsed into `propagation.chain` (schema.py), converted to a runtime list by `_chain_to_internal()` (genfrb.py) into `prop_dict["chain"]`, and applied to the summed dspec by `apply_chain()` in genfns.py. All steps are linear operations (scattering convolution, RM rotation), so applying the chain to the summed dspec is equivalent to applying it per-component.
 
 ---
 

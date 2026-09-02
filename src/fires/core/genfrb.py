@@ -74,6 +74,34 @@ def _normalise_master_amp_sampling(amp_cfg):
     return out
 
 
+def _chain_to_internal(chain):
+    """Convert an optional Chain dataclass (ordered screen list) to a runtime list of dicts.
+
+    Returns None when no chain is configured, in which case the legacy
+    ``scattering`` / ``rm`` sections are used in psn_dspec.
+    """
+    if chain is None or not getattr(chain, "steps", None):
+        return None
+    steps = []
+    for s in chain.steps:
+        stype = str(s.type).strip().lower()
+        if stype == "scatter":
+            steps.append({
+                "type": "scatter",
+                "screen": str(s.screen),
+                "index": float(s.index),
+                "tau_ms": float(s.tau_ms),
+            })
+        elif stype == "rm":
+            steps.append({
+                "type": "rm",
+                "RM": float(s.RM),
+            })
+        else:
+            raise ValueError(f"Unknown chain step type '{stype}': choose 'scatter' or 'rm'")
+    return steps
+
+
 def _master_to_internal(master_file, master_raw=None):
     raw = master_raw if master_raw is not None else load_params("fires", override_path=master_file)
     master = parse_fires_config(raw)
@@ -92,6 +120,7 @@ def _master_to_internal(master_file, master_raw=None):
         "scattering_screen": str(master.propagation.scattering.screen),
         "RM": float(master.propagation.RM.RM),
         "order": str(master.propagation.RM.order),
+        "chain": _chain_to_internal(master.propagation.chain),
     }
     components = master.emission.components
     if not isinstance(components, list) or len(components) == 0:
