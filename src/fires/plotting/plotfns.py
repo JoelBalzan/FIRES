@@ -587,6 +587,7 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	
 	axs[0].set_xlim(time_ms[0], time_ms[-1])
 	axs[0].set_ylim(np.min(phits[mask_pa])-10, np.max(phits[mask_pa])+10)
+	#axs[0].set_ylim(-45, 45)
 	axs[0].set_ylabel(r"$\psi$ [deg.]")
 	axs[0].tick_params(axis='x', labelbottom=False)
 	axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=3, prune='both'))
@@ -616,26 +617,25 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 
 	axs[1].set_xlim(time_ms[0], time_ms[-1])
 
-	# Set fixed unit label with math italic S
 	axs[1].set_ylabel(r"$S$ [arb.]")
 
-	if fname=="FRB_190611_htr":
-		axs[1].axvspan(time_ms[56], time_ms[68], color='#ffb000', alpha=0.15, zorder=0)
-		axs[1].axvspan(time_ms[127], time_ms[147], color='#785ef0', alpha=0.15, zorder=0)
-		axs[1].text(1.1*time_ms[56], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
-		axs[1].text(0.3*time_ms[147], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
-
-	if fname=="FRB_210407_htr":
-		axs[1].axvspan(time_ms[151//4], time_ms[378//4], color='#ffb000', alpha=0.15, zorder=0)
-		axs[1].axvspan(time_ms[381//4], time_ms[623//4], color='#785ef0', alpha=0.15, zorder=0)
-		axs[1].text(0.9*time_ms[151//4], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
-		axs[1].text(1.1*time_ms[381//4], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
-
-	if fname=="FRB_250607_htr":
-		axs[1].axvspan(time_ms[321], time_ms[482], color='#ffb000', alpha=0.15, zorder=0)
-		axs[1].axvspan(time_ms[491], time_ms[880], color='#785ef0', alpha=0.15, zorder=0)
-		axs[1].text(0.9*time_ms[321], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
-		axs[1].text(0.2*time_ms[880], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
+	#if fname=="FRB_190611_htr":
+	#	axs[1].axvspan(time_ms[56], time_ms[68], color='#ffb000', alpha=0.15, zorder=0)
+	#	axs[1].axvspan(time_ms[127], time_ms[147], color='#785ef0', alpha=0.15, zorder=0)
+	#	axs[1].text(1.1*time_ms[56], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
+	#	axs[1].text(0.3*time_ms[147], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
+#
+	#if fname=="FRB_210407_htr":
+	#	axs[1].axvspan(time_ms[151//4], time_ms[378//4], color='#ffb000', alpha=0.15, zorder=0)
+	#	axs[1].axvspan(time_ms[381//4], time_ms[623//4], color='#785ef0', alpha=0.15, zorder=0)
+	#	axs[1].text(0.9*time_ms[151//4], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
+	#	axs[1].text(1.1*time_ms[381//4], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
+#
+	#if fname=="FRB_250607_htr":
+	#	axs[1].axvspan(time_ms[321], time_ms[482], color='#ffb000', alpha=0.15, zorder=0)
+	#	axs[1].axvspan(time_ms[491], time_ms[880], color='#785ef0', alpha=0.15, zorder=0)
+	#	axs[1].text(0.9*time_ms[321], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
+	#	axs[1].text(0.2*time_ms[880], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[1].transData)
 
 
 	# Highlight on- and off-pulse regions if requested (independent of inset)
