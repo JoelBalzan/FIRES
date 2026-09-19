@@ -161,7 +161,7 @@ class Fold:
 ### EMISSION MODEL ###
 @dataclass
 class Emission:
-    model: Literal["psn", "fold"]
+    model: Literal["psn", "fold", "efield"]
     components: List[GaussianComponent]
     rvm_swing: RVMSwing = field(default_factory=RVMSwing)
     fold: Fold = field(default_factory=Fold)

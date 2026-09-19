@@ -183,11 +183,12 @@ Diffractive scintillation applied as a multiplicative gain field across the dyna
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `model` | string | `"psn"` | Emission model selector. `"psn"` — standard polarised shot-noise model; `"fold"` — pulsar-fold mode that stacks `nfold` independent PSN realisations. |
+| `model` | string | `"psn"` | Emission model selector. `"psn"` — standard polarised shot-noise model; `"fold"` — pulsar-fold mode that stacks `nfold` independent PSN realisations; `"efield"` — same microshot population as `"psn"`, but the instantaneous Stokes parameters are realised from stochastic complex electric fields drawn from the coherency matrix of the mean Stokes state (four-dof intensity statistics, see below). |
 
 **Dispatch logic (genfrb.py):**
 - `model = "psn"`: calls `psn_dspec()` directly.
 - `model = "fold"`: calls `fold_dspec()` which loops over `nfold` calls to `psn_dspec()` with staggered seeds and averages the output dspecs.
+- `model = "efield"`: calls `efield_dspec()`. It uses the identical microshot parameter draws as `psn_dspec`, but for each (time, frequency) sample the mean Stokes state `(I, Q, U, V)` is used to build the 2x2 coherency matrix `J = 1/2 [[I+Q, U-iV], [U+iV, I-Q]]` and a pair of independent standard complex Gaussian fields `(Ex, Ey)` with covariance `J` is drawn. The instantaneous Stokes parameters are then `I = |Ex|^2+|Ey|^2`, `Q = |Ex|^2-|Ey|^2`, `U = 2 Re(Ex Ey*)`, `V = -2 Im(Ex Ey*)`. Farady rotation enters as a phase of the coherency off-diagonal (an E-field phase transform) and dispersion is applied to the mean envelope before drawing (statistically identical to shifting the generated fields). Downstream handling (component sum, global/chain RM, scintillation, target S/N, SEFD noise, RM measurement/derotation, baseline correction, segments) matches `"psn"` exactly. For an unpolarised mean state, `I/<I>` follows `chi2_4 / 4` (`std/mean = 1/sqrt(2)`); fully polarised emission carries the 2-dof single-mode statistics. See `fires/core/efield.py`.
 
 ---
 

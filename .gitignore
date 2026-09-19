@@ -7,6 +7,9 @@ env/
 src/*.egg-info/
 src/*.eggs/
 
+# tests
+tests/
+
 # Distribution/build artifacts
 build/
 dist/

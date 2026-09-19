@@ -21,6 +21,7 @@ import numpy as np
 from fires.core.dspec import (compute_segments,
 							  on_off_pulse_masks_from_profile, scatter_dspec,
 							  stokes_consistency_diagnostics)
+from fires.core.efield import efield_from_mean_stokes
 from fires.core.noise import (add_noise, correct_baseline,
 							  estimate_noise_with_offpulse_mask,
 							  scale_dspec_to_target_snr)
@@ -1109,6 +1110,455 @@ def psn_dspec(
 
 		# Compute on-pulse mask as in your code
 		#plot_Neff_vs_time(time_ms, N_eff_t_diag)
+
+		exp_V_PA_deg2_basic = _expected_pa_variance_basic(
+			width=float(np.nanmean(width)),
+			mg_width_low=float(np.nanmean(mg_width_low)),
+			mg_width_high=float(np.nanmean(mg_width_high)),
+			tau=float(tau) if np.ndim(tau) == 0 else float(tau[0]),
+			sigma_deg=float(sd_PA),
+			N=N_tot,
+			time_res_ms=time_res_ms
+		)
+
+		if not plot_multiple_frb:
+			print(f"tau={tau[0]:.2f}:"
+				  f"Expected PA variance (detailed)={exp_V_PA_deg2:.2f}, "
+				  f"Expected PA variance (basic)={exp_V_PA_deg2_basic:.2f}")
+
+	else:
+		exp_V_PA_deg2 = None
+		exp_V_PA_deg2_basic = None
+
+	exp_vars = {
+		'exp_var_t0'             : None,
+		'exp_var_A'       		 : None,
+		'exp_var_width'       : None,
+		'exp_var_spec_idx'       : None,
+		'exp_var_tau'         : None,
+		'exp_var_PA'             : [exp_V_PA_deg2, exp_V_PA_deg2_basic],
+		'exp_var_DM'             : None,
+		'exp_var_RM'             : None,
+		'exp_var_lfrac'          : None,
+		'exp_var_vfrac'          : None,
+		'exp_var_dPA'            : None,
+		'exp_var_band_centre_mhz': None,
+		'exp_var_band_width_mhz' : None
+	}
+
+	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
+	return dspec, snr, V_params, exp_vars, segments
+
+
+def efield_dspec(
+	dspec_params,
+	plot_multiple_frb,
+	variation_parameter=None,
+	xname=None,
+	target_snr=None,
+	baseline_correct: bool = True,
+	target_snr_mode: str = "analytic",  # 'analytic' | 'iter' | 'scale_intensity'
+	diagnostics: bool = False,
+):
+	"""
+	Generate a dynamic spectrum realised through stochastic complex electric fields.
+
+	This mode ("efield") shares the microshot population model of ``psn_dspec``:
+	the same Gaussian components, microshot parameter draws, power-law amplitude
+	distribution and per-microshot scatters are used to build the *expected*
+	intrinsic intensity envelope and mean polarisation state of each microshot.
+	Instead of directly constructing Stokes I,Q,U,V from those deterministic
+	profiles, the mean Stokes state is used to assemble a 2x2 coherency matrix
+	per (frequency, time) sample, from which a pair of independent standard
+	complex Gaussian fields (Ex, Ey) are drawn.  The instantaneous I,Q,U,V are
+	then computed from the fields, so the polarisation fluctuations are
+	statistically consistent (four-dof intensity statistics in the unpolarised
+	Nyquist-sampled limit).  See ``fires.core.efield`` for details.
+
+	Dispersion: the existing integer-bin DM delay is applied to the mean
+	intensity envelope before the stochastic fields are drawn.  Because the
+	field amplitude scales as sqrt(mean intensity), shifting the envelope and
+	then drawing is statistically identical to drawing the intrinsic fields and
+	shifting Ex/Ey identically for each channel; this preserves the existing
+	reference-frequency convention and integer-bin implementation.
+
+	Faraday rotation: the existing mean RM (with reference-frequency offset) and
+	per-microshot RM scatter are applied to the mean PA, which sets the complex
+	phase of the coherency matrix off-diagonal elements.  Generating the fields
+	from that coherency matrix therefore implements Faraday rotation as a phase
+	transformation of the E-field polarisation components, and the ensemble-mean
+	PA behaviour agrees with ``psn_dspec`` by construction.
+
+	All downstream handling (component sum, global/chain RM, scintillation,
+	target S/N scaling, SEFD noise, RM measurement, baseline correction and
+	segments) matches ``psn_dspec`` exactly.
+	"""
+
+	gdict        = dspec_params.gdict
+	sd_dict      = dspec_params.sd_dict
+	scint_dict   = dspec_params.scint_dict
+	prop_dict	 = dspec_params.prop_dict
+	freq_mhz     = dspec_params.freq_mhz
+	time_ms      = dspec_params.time_ms
+	time_res_ms  = dspec_params.time_res_ms
+	seed         = dspec_params.seed
+	sefd         = dspec_params.sefd
+	ref_freq_mhz = dspec_params.ref_freq_mhz
+	buffer_frac  = dspec_params.buffer_frac
+	sweep_mode   = dspec_params.sweep_mode
+
+	seed = _init_seed(seed, plot_multiple_frb)
+
+	gdict = {
+		k: (dict(v) if isinstance(v, dict) else np.array(v, copy=True))
+		for k, v in gdict.items()
+	}
+	sd_dict = {k: np.array(v, copy=True) for k, v in sd_dict.items()}
+
+	is_mean_sweep = (sweep_mode == "mean")
+	is_variance_sweep = (sweep_mode == "sd")
+
+	if variation_parameter is not None and xname is not None and sweep_mode != "none":
+		if is_variance_sweep:
+			var_key = f"sd_{xname}"
+			if var_key not in sd_dict:
+				raise ValueError(f"Variance key '{var_key}' not found for standard deviation sweep.\n",
+									f"Ensure {xname} exists in gparams.toml and can be varied.")
+			arr = np.array(sd_dict[var_key], copy=True)
+			if arr.ndim == 0:
+				arr = np.array([arr], dtype=float)
+			arr[0] = float(variation_parameter)
+			sd_dict[var_key] = arr
+		elif is_mean_sweep:
+			if xname not in gdict:
+				raise ValueError(f"Base parameter '{xname}' not found in gdict for mean sweep.\n",
+									f"Ensure {xname} exists in gparams.toml.")
+			base = np.array(gdict[xname], copy=True)
+			if base.ndim == 0:
+				gdict[xname] = float(variation_parameter)
+			else:
+				gdict[xname] = np.full_like(base, float(variation_parameter), dtype=float)
+
+	if is_mean_sweep:
+		sd_dict = _disable_micro_variance_for_swept_base(sd_dict, xname)
+
+	t0              = gdict['t0']
+	width       	= gdict['width']
+	A               = gdict['A']
+	spec_idx        = gdict['spec_idx']
+	tau 	   		= gdict['tau']
+	PA              = gdict['PA']
+	DM              = gdict['DM']
+	RM              = gdict['RM']
+	lfrac           = gdict['lfrac']
+	vfrac           = gdict['vfrac']
+	dPA             = gdict['dPA']
+	band_centre_mhz = gdict['band_centre_mhz']
+	band_width_mhz  = gdict['band_width_mhz']
+	N		    	= gdict['N']
+	mg_width_low    = gdict['mg_width_low']
+	mg_width_high   = gdict['mg_width_high']
+
+	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
+
+	sd_A               = sd_dict['sd_A']
+	sd_spec_idx        = sd_dict['sd_spec_idx']
+	sd_tau             = sd_dict['sd_tau']
+	sd_PA              = sd_dict['sd_PA']
+	sd_dm              = sd_dict['sd_DM']
+	sd_rm              = sd_dict['sd_RM']
+	sd_lfrac           = sd_dict['sd_lfrac']
+	sd_vfrac           = sd_dict['sd_vfrac']
+	sd_dPA             = sd_dict['sd_dPA']
+	sd_band_centre_mhz = sd_dict['sd_band_centre_mhz']
+	sd_band_width_mhz  = sd_dict['sd_band_width_mhz']
+	amp_sampling        = gdict.get('amp_sampling', {'dist': 'normal'})
+	pa_swing            = gdict.get('pa_swing', {'enable': False})
+
+	sc_idx = prop_dict['scattering_index']
+	sc_screen = prop_dict['scattering_screen']
+
+	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)
+
+	all_params = {
+		't0_i'             : [],
+		'A_i'              : [],
+		'mg_width_i'       : [],
+		'spec_idx_i'       : [],
+		'tau_i'            : [],
+		'PA_i'             : [],
+		'DM_i'             : [],
+		'RM_i'             : [],
+		'lfrac_i'          : [],
+		'vfrac_i'          : [],
+		'dPA_i'            : [],
+		'band_centre_mhz_i': [],
+		'band_width_mhz_i' : []
+	}
+
+	num_main_gauss = len(t0)
+	comp_dsps = []
+	for g in range(num_main_gauss):
+		comp_dspec = np.zeros_like(dspec)
+		for _ in range(int(N[g])):
+			# ---- Microshot population: identical parameter draws to psn_dspec.
+			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
+			A_i = _sample_amplitude(A[g], sd_A, amp_sampling, plot_multiple_frb)
+			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
+			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
+			tau_i          	  = np.random.normal(tau[g], sd_tau)
+			tau_eff = max(tau_i if sd_tau > 0 else float(tau[g]), 0.0)
+			if tau_eff > 0:
+				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
+			else:
+				tau_cms = None
+
+			PA_i              = np.random.normal(PA[g], sd_PA)
+			DM_i              = np.random.normal(DM[g], sd_dm)
+			RM_i              = np.random.normal(RM[g], sd_rm)
+			lfrac_raw = np.random.normal(lfrac[g], sd_lfrac)
+			vfrac_raw = np.random.normal(vfrac[g], sd_vfrac)
+			lfrac_i, vfrac_i = _resolve_polarisation(lfrac_raw, vfrac_raw)
+
+			dPA_i             = np.random.normal(dPA[g], sd_dPA)
+			band_centre_mhz_i = np.random.normal(band_centre_mhz[g], sd_band_centre_mhz)
+			band_width_mhz_i  = np.random.normal(band_width_mhz[g], sd_band_width_mhz)
+
+			# Record parameters (same keys as psn so sweep/analysis machinery works)
+			all_params['t0_i'].append(t0_i)
+			all_params['A_i'].append(A_i)
+			all_params['mg_width_i'].append(mg_width_i)
+			all_params['spec_idx_i'].append(spec_idx_i)
+			all_params['tau_i'].append(tau_i)
+			all_params['PA_i'].append(PA_i)
+			all_params['DM_i'].append(DM_i)
+			all_params['RM_i'].append(RM_i)
+			all_params['lfrac_i'].append(lfrac_i)
+			all_params['vfrac_i'].append(vfrac_i)
+			all_params['dPA_i'].append(dPA_i)
+			all_params['band_centre_mhz_i'].append(band_centre_mhz_i)
+			all_params['band_width_mhz_i'].append(band_width_mhz_i)
+
+			# ---- Mean intensity envelope: identical construction to psn.
+			norm_amp = A_i * (freq_mhz / ref_freq_mhz) ** spec_idx_i
+			if band_width_mhz[g] != 0.:
+				centre_freq = band_centre_mhz_i if band_centre_mhz_i != 0. else np.median(freq_mhz)
+				bw_sigma = band_width_mhz_i / GAUSSIAN_FWHM_FACTOR
+				if bw_sigma > 0:
+					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
+					norm_amp *= spectral_profile
+
+			base_gauss = gaussian_model(time_ms, 1.0, t0_i, mg_width_i / GAUSSIAN_FWHM_FACTOR)
+			I_ft = norm_amp[:, None] * base_gauss[None, :]
+
+			# DM: preserve the integer-bin delay on the mean envelope (equivalent,
+			# statistically, to shifting the generated fields identically per channel).
+			if DM_i != 0:
+				shifts = np.round(_calculate_dispersion_delay(DM_i, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
+				I_ft = _roll_rows(I_ft, shifts)
+
+			# ---- Desired mean polarisation state (identical PA model to psn).
+			pol_angle_arr = PA_i + (time_ms - t0_i) * dPA_i
+			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM[g], freq_mhz[:, None], ref_freq_mhz)
+			rm_scatter = RM_i - RM[g]
+			if rm_scatter != 0.0:
+				lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz[:, None]) ** 2
+				faraday_angles += rm_scatter * lambda_sq
+
+			Q_mean = I_ft * lfrac_i * np.cos(2 * faraday_angles)
+			U_mean = I_ft * lfrac_i * np.sin(2 * faraday_angles)
+			V_mean = I_ft * vfrac_i
+
+			# ---- Realise the mean Stokes state through stochastic complex E-fields.
+			# Faraday rotation is encoded as the complex phase of the coherency
+			# matrix (a phase transformation of Ex/Ey), so the mean PA behaviour
+			# matches psn exactly.
+			I_ft, Q_ft, U_ft, V_ft = efield_from_mean_stokes(I_ft, Q_mean, U_mean, V_mean)
+
+			if tau_eff > 0 and sd_tau > 0:
+				shot = np.stack([I_ft, Q_ft, U_ft, V_ft], axis=0)
+				shot = scatter_dspec(shot, time_res_ms, tau_cms, screen=sc_screen)
+				I_ft, Q_ft, U_ft, V_ft = shot[0], shot[1], shot[2], shot[3]
+
+			comp_dspec[0] += I_ft
+			comp_dspec[1] += Q_ft
+			comp_dspec[2] += U_ft
+			comp_dspec[3] += V_ft
+
+		comp_dsps.append(comp_dspec)
+
+	if isinstance(pa_swing, dict) and bool(pa_swing.get('enable', False)):
+		for g_b in range(len(comp_dsps)):
+			comp_dsps[g_b] = _apply_rvm_swing_to_dspec(comp_dsps[g_b], time_ms, pa_swing)
+		if not plot_multiple_frb:
+			logging.info(
+				"Applied RVM-like PA swing: enable=%s alpha=%.2f beta=%.2f period=%.2f ms",
+				pa_swing.get('enable', False),
+				float(pa_swing.get('alpha_deg', 0.0)),
+				float(pa_swing.get('beta_deg', 0.0)),
+				float(pa_swing.get('period_ms', 0.0)),
+			)
+
+	RM_global = prop_dict['RM']
+	RM_order = prop_dict['order']
+	chain_steps = prop_dict.get('chain')
+	derotate = bool(prop_dict.get('derotate', True))
+
+	if chain_steps is None:
+		if RM_global != 0.0 and RM_order == "pre":
+			for g_b in range(len(comp_dsps)):
+				comp_dsps[g_b] = rm_correct_dspec(comp_dsps[g_b], freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+			if not plot_multiple_frb:
+				logging.info("Applied global RM pre-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
+
+		if sd_tau == 0:
+			for g_b, buf in enumerate(comp_dsps):
+				if float(tau[g_b]) > 0:
+					tau_cms = float(tau[g_b]) * (freq_mhz / ref_freq_mhz) ** sc_idx
+					comp_dsps[g_b] = scatter_dspec(buf, time_res_ms, tau_cms, screen=sc_screen)
+					if not plot_multiple_frb:
+						logging.info("Applied component %d scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
+										g_b, float(tau[g_b]), ref_freq_mhz, sc_idx, sc_screen)
+
+	for buf in comp_dsps:
+		dspec += buf
+	if chain_steps is None:
+		if RM_global != 0.0 and RM_order == "post":
+			dspec = rm_correct_dspec(dspec, freq_mhz, -RM_global, ref_freq_mhz=ref_freq_mhz)
+			if not plot_multiple_frb:
+				logging.info("Applied global RM post-scattering: RM=%.2f rad/m2 (ref=%.1f MHz)", RM_global, ref_freq_mhz)
+	else:
+		dspec = apply_chain(dspec, chain_steps, freq_mhz, time_res_ms, ref_freq_mhz)
+		if not plot_multiple_frb:
+			_log_chain(chain_steps, ref_freq_mhz)
+
+	if scint_dict is not None:
+		scint_enabled = bool(scint_dict.get("enable", True))
+		has_scint_params = (scint_dict.get("t_s") is not None) and (scint_dict.get("nu_s") is not None)
+		if scint_enabled and has_scint_params:
+			apply_scintillation(dspec, freq_mhz, time_ms, scint_dict, ref_freq_mhz, plot_multiple_frb=plot_multiple_frb)
+
+	intrinsic_width_bins = gdict["width"][0] / time_res_ms
+	if diagnostics and not plot_multiple_frb:
+		stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="pre-noise",
+									 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+
+	V_params = {}
+	for key, values in all_params.items():
+		arr = np.asarray(values, dtype=float)
+		var = float(np.nanvar(arr)) if arr.size else np.nan
+		V_params[f"meas_var_{key}"] = var
+
+	use_target_snr = False
+	try:
+		if target_snr is not None:
+			tsnr = float(target_snr)
+			if np.isfinite(tsnr) and tsnr > 0:
+				use_target_snr = True
+	except (TypeError, ValueError):
+		use_target_snr = False
+
+	if use_target_snr:
+		sefd = scale_dspec_to_target_snr(
+			target_snr_mode,
+			float(target_snr),
+			dspec_params,
+			dspec,
+			freq_mhz,
+			time_res_ms,
+			buffer_frac,
+			sefd,
+			plot_multiple_frb,
+			time_ms,
+		)
+
+	if sefd > 0:
+		dspec, _, snr = add_noise(dspec_params,
+			dspec, sefd,
+			(freq_mhz[1] - freq_mhz[0]) * 1e6,
+			time_res_ms / 1000.0,
+			plot_multiple_frb, buffer_frac=buffer_frac, n_pol=2
+		)
+		if diagnostics and not plot_multiple_frb:
+			stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label="post-noise",
+									 plot_multiple_frb=plot_multiple_frb, snr_min=5.0)
+	else:
+		snr = None
+
+	if np.any(np.asarray(RM, dtype=float) != 0.0) or np.any(np.asarray(sd_rm, dtype=float) != 0.0)  or RM_global != 0.0:
+		try:
+			I_ts = np.nansum(dspec[0], axis=0)
+			intrinsic_width_bins = gdict["width"][0] / time_res_ms
+			_, offpulse_mask, _ = on_off_pulse_masks_from_profile(
+				I_ts, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+			)
+			_, noisespec = estimate_noise_with_offpulse_mask(dspec, offpulse_mask, robust=True)
+
+			res_rmtool = estimate_rm(
+				dspec, freq_mhz, time_ms, noisespec,
+				phi_range=1.0e3, dphi=1.0, outdir='.', save=False, show_plots=False
+			)
+			measured_rm = float(res_rmtool[0])
+			measured_rm_err = float(res_rmtool[1])
+
+			if derotate:
+				def _int_Lfrac(cube):
+					I = np.nansum(cube[0], axis=0)
+					Q = np.nansum(cube[1], axis=0)
+					U = np.nansum(cube[2], axis=0)
+					on_mask, _, _ = on_off_pulse_masks_from_profile(
+						I, intrinsic_width_bins=intrinsic_width_bins, frac=0.95, buffer_frac=buffer_frac
+					)
+					I_int = float(np.nansum(I[on_mask]))
+					L_int = float(np.nansum(np.sqrt(Q[on_mask]**2 + U[on_mask]**2)))
+					return (L_int / I_int) if I_int > 0 else 0.0
+
+				if np.isfinite(measured_rm) and np.abs(measured_rm) > 0.0:
+					cand_pos = rm_correct_dspec(dspec, freq_mhz, +measured_rm, ref_freq_mhz=ref_freq_mhz)
+					cand_neg = rm_correct_dspec(dspec, freq_mhz, -measured_rm, ref_freq_mhz=ref_freq_mhz)
+					Lpos = _int_Lfrac(cand_pos)
+					Lneg = _int_Lfrac(cand_neg)
+					dspec = cand_pos if Lpos >= Lneg else cand_neg
+					chosen_sign = '+' if Lpos >= Lneg else '-'
+					Lbest = max(Lpos, Lneg)
+					if not plot_multiple_frb:
+						logging.info("Measured RM = %.2f ± %.2f rad/m2; applied derotation (ref=%.1f MHz, sign=%s); L/I=%.3f",
+								 measured_rm, measured_rm_err, ref_freq_mhz, chosen_sign, Lbest)
+				else:
+					logging.info("Measured RM not significant; skipping RM correction")
+			else:
+				if not plot_multiple_frb:
+					logging.info("Measured RM = %.2f ± %.2f rad/m2; derotation disabled by config, leaving dspec unchanged.",
+							 measured_rm, measured_rm_err)
+		except Exception as e:
+			logging.warning("RM measurement in efield_dspec failed (%s). Proceeding without RM correction.", str(e))
+
+	if baseline_correct is not None:
+		try:
+			dspec = correct_baseline(dspec, intrinsic_width_bins, buffer_frac, baseline_correct, plot_multiple_frb, dspec_params)
+
+		except Exception as e:
+			logging.warning("Baseline correction failed; continuing without it (%s).", str(e))
+
+	N_tot = int(np.nansum(N))
+	exp_V_PA_deg2 = None
+	if diagnostics and (sd_PA > 0) and (N_tot > 1):
+		actual_A_mean = np.mean(A)
+		actual_A_std = np.std(A)
+		actual_width_mean = np.mean(width)
+		actual_tau_mean = np.mean(tau)
+		exp_V_PA_deg2, _, _, _, N_eff_diag = _expected_pa_variance(
+			tau=actual_tau_mean,
+			sigma_deg=float(sd_PA),
+			N=N_tot,
+			width=actual_width_mean,
+			A=actual_A_mean,
+			A_sd=actual_A_std,
+			time_ms=time_ms,
+			mg_width_low=float(mg_width_low) if np.ndim(mg_width_low) == 0 else float(mg_width_low[0]),
+			mg_width_high=float(mg_width_high) if np.ndim(mg_width_high) == 0 else float(mg_width_high[0]),
+			n_width_samples=100,
+		)
 
 		exp_V_PA_deg2_basic = _expected_pa_variance_basic(
 			width=float(np.nanmean(width)),

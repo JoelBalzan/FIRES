@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from fires.config.schema import parse_fires_config
 from fires.core.dspec import scatter_loaded_dspec
-from fires.core.genfns import fold_dspec, psn_dspec
+from fires.core.genfns import efield_dspec, fold_dspec, psn_dspec
 from fires.core.basicfns import (add_noise, compute_segments,
                                   correct_baseline, process_dspec,
                                   scale_dspec_to_target_snr, snr_onpulse)
@@ -225,6 +225,16 @@ def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baselin
             baseline_correct=baseline_correct,
             diagnostics=True,
             fold_params=fold_params,
+        )
+    elif emission_model == "efield":
+        _, snr, V_params, exp_vars, measures = efield_dspec(
+            dspec_params=local_params,
+            variation_parameter=var,
+            xname=xname,
+            plot_multiple_frb=requires_multiple_frb,
+            target_snr=target_snr,
+            baseline_correct=baseline_correct,
+            diagnostics=True,
         )
     else:
         _, snr, V_params, exp_vars, measures = psn_dspec(
@@ -454,6 +464,12 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                     xname=None, target_snr=target_snr, dspec_params=dspec_params,
                     baseline_correct=baseline_correct, diagnostics=True,
                     fold_params=fold_params,
+                )
+            elif emission_model == "efield":
+                dspec, snr, _, _, segments = efield_dspec(
+                    xname=None, plot_multiple_frb=False,
+                    target_snr=target_snr, dspec_params=dspec_params,
+                    baseline_correct=baseline_correct, diagnostics=True,
                 )
             else:
                 dspec, snr, _, _, segments = psn_dspec(

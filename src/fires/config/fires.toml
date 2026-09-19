@@ -74,10 +74,14 @@ return_field = false          # If true, return the complex electric field in ad
 # ==========================================================
 
 [emission]
-model = "fold"  # Emission model: "psn" (standard polarised shot-noise) or "fold" (pulsar-fold mode).
-               # "psn"  --- generate microshots from Gaussian components and coherently sum into 4-Stokes dspec.
-               # "fold" --- run the psn model nfold times with independent seeds and average the output dspecs,
-               #            preserving signal and reducing noise as sqrt(nfold).
+model = "efield"  # Emission model: "psn" (standard polarised shot-noise), "fold" (pulsar-fold mode) or "efield"
+               #               (stochastic complex electric-field realisation of the same microshot population).
+               # "psn"    --- generate microshots from Gaussian components and coherently sum into 4-Stokes dspec.
+               # "fold"   --- run the psn model nfold times with independent seeds and average the output dspecs,
+               #              preserving signal and reducing noise as sqrt(nfold).
+               # "efield" --- same microshot draws as "psn", but instantaneous I,Q,U,V are computed from stochastic
+               #              complex E-fields drawn from the coherency matrix of the mean Stokes state, giving
+               #              chi2_4/4 intensity statistics (std/mean = 1/sqrt(2)) for unpolarised emission.
 
 [emission.fold]
 nfold = 10  # Number of independent realisations to stack when model = "fold". Ignored for model = "psn".
@@ -100,7 +104,7 @@ width_ms        = 0.5      # Gaussian envelope FWHM (ms) of the component. Defin
 amplitude_Jy    = 0.2      # Mean amplitude (Jy) of individual microshots. Actual per-microshot amplitudes are drawn from
                            # the amplitude_distribution centred on this value.
 spectral_index  = 0.0      # Power-law spectral index: I(nu) ~ (nu / nu_ref)^spectral_index. Applied per microshot.
-tau_ms          = 1.78     # Global scattering timescale (ms) at reference_freq_MHz. When sd_tau = 0, this single
+tau_ms          = 0     # Global scattering timescale (ms) at reference_freq_MHz. When sd_tau = 0, this single
                            # value is convolved with the full dspec. When sd_tau > 0, each microshot gets its own tau_i.
 dm              = 0.0      # Dispersion measure (pc cm^-3). Frequency-dependent delay: Delta_t = 4.15 ms * DM * (nu^-2 - nu_ref^-2).
 rm              = 0.0      # Rotation measure per microshot (rad m^-2). Applied to individual microshot PA with
