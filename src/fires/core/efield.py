@@ -44,19 +44,23 @@
 #
 #     I = <I> * chi2_4 / 4 ,   <I / <I>> = 1 ,   std/mean = 1/sqrt(2).
 #
-# The stochastic draws are independent for every time sample and frequency
-# channel (Nyquist-sampled complex-field interpretation); no temporal or
-# frequency correlation is introduced here.
+# The draw is made once, on the summed mean Stokes dynamic spectrum (after all
+# microshots, dispersion, scattering, RM and scintillation have acted on the
+# mean state), independently for every time sample and frequency channel
+# (Nyquist-sampled interpretation).  Overlapping microshots therefore do not
+# average the noise down.  A pixel of bandwidth dnu and duration dt holds
+# nsamp = dnu*dt independent field samples, so its self-noise is the average over
+# nsamp draws (std/mean = 1/sqrt(2*nsamp) for unpolarised emission); see
+# ``efield_from_mean_stokes``.  Pixels finer than Nyquist (nsamp < 1) are treated
+# as nsamp = 1.
 # -----------------------------------------------------------------------------
 
 
 import numpy as np
 from scipy import stats
 
-# Square-root threshold below which a state is treated as unpolarised.  The
-# polarised eigenbasis becomes numerically degenerate as the polarisation
-# fraction p -> 0.
-_POL_FRAC_EPS = 1e-12
+# Samples with mean intensity below this fraction of the peak are left at zero field.
+_I_REL_EPS = 1e-12
 
 
 def stokes_from_efield(Ex, Ey):
@@ -101,109 +105,92 @@ def coherency_from_stokes(I, Q, U, V):
     return J
 
 
-def generate_efield_from_stokes(I, Q, U, V, rng=None):
-    """Draw stochastic complex fields (Ex, Ey) from a desired mean Stokes state.
+def _sqrt_coherency(I, Q, U, V, rng):
+    """Hermitian square root L (n, 2, 2) of J for the active samples (L L^dag = J).
 
-    The arrays I, Q, U, V give the desired *mean* Stokes parameters at each
-    sample (e.g. shape (n_freq, n_time)).  For every sample an independent
-    standard complex Gaussian pair is drawn, and the field is set via the
-    coherency-matrix factorisation J = L L^dag so that
-
-        <I> = I0 ,  <Q> = Q0 ,  <U> = U0 ,  <V> = V0
-
-    over an ensemble of realisations.  The realisation is implemented with the
-    closed-form eigen-decomposition of the 2x2 coherency matrix:
-
-        J = I [ (1+p)/2 e e^dag  +  (1-p)/2 e_perp e_perp^dag ]
-
-    with total polarisation fraction p = sqrt(Q^2+U^2+V^2)/I and a normalised
-    pure-state Jones vector e matching the polarised component.  The unpolarised
-    (quantum) component contributes a rank-2 identity term; together they give
-    the correct statistics for both fully and partially polarised emission.
-
-    Parameters
-    ----------
-    I, Q, U, V : array_like
-        Desired mean Stokes parameters (broadcastable to a common shape).
-    rng : np.random.Generator or None
-        If provided, used for the Gaussian draws; otherwise the global
-        ``np.random`` state is used (consistent with the rest of FIRES).
-
-    Returns
-    -------
-    (Ex, Ey) : tuple of ndarray
-        Complex field components of the given shape.
+    J = I[(1+p)/2 e e^dag + (1-p)/2 e_perp e_perp^dag], p = |P|/I (clipped to 1),
+    e = (cos t, sin t e^{i phi}), e_perp = (-conj(ey), conj(ex)).
     """
-    I = np.asarray(I, dtype=float)
-    Q = np.asarray(Q, dtype=float)
-    U = np.asarray(U, dtype=float)
-    V = np.asarray(V, dtype=float)
-    shape = np.broadcast_shapes(I.shape, Q.shape, U.shape, V.shape)
-    I = np.broadcast_to(I, shape)
-    Q = np.broadcast_to(Q, shape)
-    U = np.broadcast_to(U, shape)
-    V = np.broadcast_to(V, shape)
+    P = np.sqrt(Q ** 2 + U ** 2 + V ** 2)
+    p = np.minimum(P / I, 1.0)            # unphysical P > I is clipped to fully polarised
+    pol = P > 0.0
+    Pn = np.where(pol, P, 1.0)
+    qhat, uhat, vhat = Q / Pn, U / Pn, V / Pn   # unit Stokes direction (normalised by |P|)
+    ex = np.where(pol, np.sqrt(np.maximum((1.0 + qhat) / 2.0, 0.0)), 1.0)
+    ey = np.where(pol, np.sqrt(np.maximum((1.0 - qhat) / 2.0, 0.0)) * np.exp(1j * np.arctan2(vhat, uhat)), 0.0)
+    e = np.stack([ex, ey], axis=-1)
+    ep = np.stack([-np.conj(ey), np.conj(ex)], axis=-1)
+    s = np.sqrt(I)
+    c1 = (s * np.sqrt((1.0 + p) / 2.0))[:, None, None]
+    c2 = (s * np.sqrt((1.0 - p) / 2.0))[:, None, None]
+    return c1 * e[:, :, None] * np.conj(e)[:, None, :] + c2 * ep[:, :, None] * np.conj(ep)[:, None, :]
 
-    if rng is None:
-        # Standard complex Gaussian: E[|z|^2] = 1, E[z^2] = 0.
-        zx = (np.random.standard_normal(shape) + 1j * np.random.standard_normal(shape)) / np.sqrt(2.0)
-        zy = (np.random.standard_normal(shape) + 1j * np.random.standard_normal(shape)) / np.sqrt(2.0)
-    else:
-        zx = (rng.standard_normal(shape) + 1j * rng.standard_normal(shape)) / np.sqrt(2.0)
-        zy = (rng.standard_normal(shape) + 1j * rng.standard_normal(shape)) / np.sqrt(2.0)
 
-    Ipos = np.maximum(I, 0.0)
+def _active(I):
+    # Samples with mean intensity below a tiny fraction of the peak are left at zero.
+    return I > _I_REL_EPS * max(float(np.max(I, initial=0.0)), 0.0)
 
-    # Total polarisation fraction (clipped to the physical limit I^2 >= P^2).
-    with np.errstate(divide="ignore", invalid="ignore"):
-        p = np.sqrt(Q ** 2 + U ** 2 + V ** 2) / np.maximum(Ipos, 1e-300)
-    p = np.clip(p, 0.0, 1.0)
 
-    # Fully / partially polarised branch: J = I[(1+p)/2 e e^dag + (1-p)/2 e_perp e_perp^dag].
-    # For a pure state with Stokes direction (q, u, v) = (Q, U, V)/(p I):
-    #   e = (cos(theta), sin(theta) exp(i phi)) with
-    #   cos(2 theta) = q,  sin(2 theta) = sqrt(u^2 + v^2),  phi = atan2(v, u).
-    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-        denom = np.maximum(Ipos * p, 1e-300)
-        qhat = Q / denom
-        uhat = U / denom
-        vhat = V / denom
+def _cn(draw, n):
+    """Standard complex normal, E|z|^2 = 1."""
+    return (draw.standard_normal(n) + 1j * draw.standard_normal(n)) / np.sqrt(2.0)
 
-        sin2t = np.sqrt(np.maximum(uhat ** 2 + vhat ** 2, 0.0))
-        cos_t = np.sqrt(np.maximum((1.0 + qhat) / 2.0, 0.0))
-        sin_t = np.sqrt(np.maximum((1.0 - qhat) / 2.0, 0.0))
-        phi = np.arctan2(vhat, uhat)
 
-        ex = cos_t
-        ey = sin_t * np.exp(1j * phi)
+def generate_efield_from_stokes(I, Q, U, V, rng=None):
+    """Draw one stochastic complex field pair (Ex, Ey) per sample, E = L z, z ~ CN(0, 1).
 
-        c1 = np.sqrt((1.0 + p) / 2.0)
-        c2 = np.sqrt((1.0 - p) / 2.0)
-
-        # z projected on the pure eigenmode and its orthogonal complement.
-        a1 = np.conj(ex) * zx + np.conj(ey) * zy             # e^dag z
-        a2 = -ey * zx + ex * zy                              # e_perp^dag z, e_perp = (-ey*, ex*)
-
-        Ex = np.sqrt(Ipos) * (c1 * ex * a1 + c2 * (-np.conj(ey)) * a2)
-        Ey = np.sqrt(Ipos) * (c1 * ey * a1 + c2 * (np.conj(ex)) * a2)
-
-    # Unpolarised (or vanishing-intensity) branch: J = (I/2) Id.
-    iso = (p < _POL_FRAC_EPS) | (Ipos <= 0.0)
-    if np.any(iso):
-        Ex = np.where(iso, np.sqrt(Ipos / 2.0) * zx, Ex)
-        Ey = np.where(iso, np.sqrt(Ipos / 2.0) * zy, Ey)
-
+    I, Q, U, V are the desired *mean* Stokes parameters (broadcastable).  Samples with
+    non-positive mean intensity get zero field.  Uses the global ``np.random`` state
+    unless ``rng`` is given.  Returns complex arrays of the broadcast shape.
+    """
+    I, Q, U, V = np.broadcast_arrays(*(np.asarray(x, dtype=float) for x in (I, Q, U, V)))
+    draw = rng if rng is not None else np.random
+    Ex = np.zeros(I.shape, dtype=complex)
+    Ey = np.zeros(I.shape, dtype=complex)
+    act = _active(I)
+    n = int(act.sum())
+    if n:
+        L = _sqrt_coherency(I[act], Q[act], U[act], V[act], draw)
+        z = np.stack([_cn(draw, n), _cn(draw, n)], axis=-1)
+        E = np.einsum("nij,nj->ni", L, z)
+        Ex[act], Ey[act] = E[:, 0], E[:, 1]
     return Ex, Ey
 
 
-def efield_from_mean_stokes(I, Q, U, V, rng=None):
-    """Generate (Ex, Ey) and return (I, Q, U, V), the instantaneous Stokes.
+def efield_from_mean_stokes(I, Q, U, V, nsamp=1.0, rng=None):
+    """Realised Stokes (I, Q, U, V) of a pixel averaging ``nsamp`` independent field samples.
 
-    Convenience wrapper around :func:`generate_efield_from_stokes` and
-    :func:`stokes_from_efield` for use by the efield emission mode.
+    A pixel of bandwidth dnu and duration dt contains ``nsamp = dnu * dt`` independent
+    (Nyquist) complex-field samples.  The averaged coherency is
+    ``J_hat = L W L^dag`` with ``W ~ ComplexWishart(2, nsamp) / nsamp``, drawn exactly in
+    O(1) per pixel by the Bartlett decomposition (non-integer nsamp = effective dof).
+    ``nsamp = 1`` reproduces a single field draw (chi2_4/4 for unpolarised emission);
+    fluctuations shrink as 1/sqrt(nsamp).  ``nsamp < 1`` (oversampled, correlated
+    pixels) is clamped to 1: that correlation is not modelled.
     """
-    Ex, Ey = generate_efield_from_stokes(I, Q, U, V, rng=rng)
-    return stokes_from_efield(Ex, Ey)
+    I, Q, U, V = np.broadcast_arrays(*(np.asarray(x, dtype=float) for x in (I, Q, U, V)))
+    draw = np.random
+    M = max(float(nsamp), 1.0)
+    out = np.zeros((4,) + I.shape)
+    act = _active(I)
+    n = int(act.sum())
+    if n == 0:
+        return tuple(out)
+    L = _sqrt_coherency(I[act], Q[act], U[act], V[act], draw)
+    a2 = draw.gamma(M, size=n)               # |A00|^2 ~ Gamma(M)
+    b2 = draw.gamma(M - 1.0, size=n) if M > 1.0 else np.zeros(n)   # |A11|^2 ~ Gamma(M-1)
+    c = _cn(draw, n)
+    W = np.empty((n, 2, 2), dtype=complex)
+    W[:, 0, 0] = a2
+    W[:, 0, 1] = np.sqrt(a2) * np.conj(c)
+    W[:, 1, 0] = np.sqrt(a2) * c
+    W[:, 1, 1] = np.abs(c) ** 2 + b2
+    J = np.einsum("nij,njk,nlk->nil", L, W / M, np.conj(L))
+    out[0][act] = (J[:, 0, 0] + J[:, 1, 1]).real
+    out[1][act] = (J[:, 0, 0] - J[:, 1, 1]).real
+    out[2][act] = 2.0 * J[:, 0, 1].real
+    out[3][act] = -2.0 * J[:, 0, 1].imag
+    return tuple(out)
 
 
 def efield_chi2_statistics(samples, mean=None):
