@@ -29,6 +29,36 @@ from fires.utils.utils import dspecParams, simulated_frb
 logging.basicConfig(level=logging.INFO)
 
 
+def channel_centres(f_start, f_end, df):
+    """
+    Centre frequencies of the channels that tile the band from f_start to f_end.
+
+    f_start and f_end are the band edges, so the band holds (f_end - f_start) / df channels,
+    centred on f_start + (i + 1/2) df. For example, a CRAFT band of 751.5 to 1087.5 MHz at
+    df = 1 MHz gives 336 channels centred on 752, 753, ..., 1087 MHz.
+
+    Parameters
+    ----------
+    f_start, f_end : float
+        Lower and upper edges of the band (MHz).
+    df : float
+        Channel width (MHz); f_end - f_start must be a whole number of channels.
+
+    Returns
+    -------
+    np.ndarray
+        Channel centre frequencies (MHz), ascending.
+    """
+    n = (f_end - f_start) / df
+    n_chan = int(round(n))
+    if n_chan < 1 or abs(n - n_chan) > 1e-6:
+        raise ValueError(
+            f"simulation.grid: f_end_MHz - f_start_MHz = {f_end - f_start:g} MHz must be a positive whole "
+            f"number of channels of df_MHz = {df:g} MHz (f_start_MHz and f_end_MHz are the band edges)."
+        )
+    return f_start + df * (np.arange(n_chan) + 0.5)
+
+
 def _write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id):
     from fires.utils.io import write_stokes_cube
     return write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id)
@@ -386,7 +416,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
     t_res    = float(sim_params['t_res'])
     ref_freq = float(sim_params['reference_freq'])
     scatter_idx = float(prop_params['scattering_index'])
-    freq_mhz = np.arange(f_start, f_end + f_res, f_res, dtype=float)
+    freq_mhz = channel_centres(f_start, f_end, f_res)  # f_start, f_end are the band edges
     time_ms  = np.arange(t_start, t_end + t_res, t_res, dtype=float)
     n_comp = len(comp_list)
     gdict = {}

@@ -8,9 +8,10 @@ version = 1        # Config schema version (reserved for internal migration).
 # ==========================================================
 
 [simulation.grid]
-f_start_MHz = 751.5    # Start of the frequency band (MHz).
-f_end_MHz   = 900.5    # End of the frequency band (MHz).
-df_MHz      = 1.0      # Frequency channel width (MHz); determines n_freq = floor((f_end - f_start) / df) + 1.
+f_start_MHz = 751.5    # Lower edge of the frequency band (MHz).
+f_end_MHz   = 900.5    # Upper edge of the frequency band (MHz).
+df_MHz      = 1.0      # Frequency channel width (MHz); n_freq = (f_end - f_start) / df channels (must be whole),
+                       # centred on f_start + (i + 1/2) df. E.g. CRAFT 751.5-1087.5 at 1 MHz: 336 channels, 752 ... 1087.
 
 t_start_ms = -6.4327   # Start time relative to the grid reference time (ms).
 t_end_ms   = 10.61     # End time relative to the grid reference time (ms).
