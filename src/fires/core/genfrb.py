@@ -121,6 +121,7 @@ def _chain_to_internal(chain):
                 "screen": str(s.screen),
                 "index": float(s.index),
                 "tau_ms": float(s.tau_ms),
+                "drm_dt": float(getattr(s, "drm_dt", 0.0) or 0.0),
             })
         elif stype == "rm":
             steps.append({
@@ -148,6 +149,7 @@ def _master_to_internal(master_file, master_raw=None):
     prop_params = {
         "scattering_index": float(master.propagation.scattering.index),
         "scattering_screen": str(master.propagation.scattering.screen),
+        "scattering_drm_dt": float(getattr(master.propagation.scattering, "drm_dt", 0.0) or 0.0),
         "RM": float(master.propagation.RM.RM),
         "order": str(master.propagation.RM.order),
         "chain": _chain_to_internal(master.propagation.chain),

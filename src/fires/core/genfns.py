@@ -71,9 +71,11 @@ def apply_chain(dspec, chain_steps, freq_mhz, time_res_ms, ref_freq_mhz):
 			screen = str(step.get("screen", "thin"))
 			index = float(step.get("index", -4.0))
 			tau_ms = float(step.get("tau_ms", 0.0))
+			drm_dt = float(step.get("drm_dt", 0.0) or 0.0)
 			if tau_ms > 0:
 				tau_cms = tau_ms * (freq_mhz / float(ref_freq_mhz)) ** index
-				dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=screen)
+				dspec = scatter_dspec(dspec, time_res_ms, tau_cms, screen=screen,
+									  drm_dt=drm_dt, freq_mhz=freq_mhz)
 		elif stype == "rm":
 			rm_val = float(step.get("RM", 0.0))
 			if rm_val != 0.0:
@@ -91,7 +93,7 @@ def _log_chain(chain_steps, ref_freq_mhz):
 		if stype == "scatter":
 			parts.append(
 				f"[{i}] scatter(screen={step.get('screen')}, tau_ms={step.get('tau_ms')}, "
-				f"index={step.get('index')})"
+				f"index={step.get('index')}, drm_dt={step.get('drm_dt', 0.0)})"
 			)
 		else:
 			parts.append(f"[{i}] rm(RM={step.get('RM')})")
@@ -819,6 +821,7 @@ def psn_dspec(
 	
 	sc_idx = prop_dict['scattering_index']
 	sc_screen = prop_dict['scattering_screen']
+	sc_drm_dt = float(prop_dict.get('scattering_drm_dt', 0.0) or 0.0)
 			
 	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
 
@@ -913,7 +916,8 @@ def psn_dspec(
 
 			if tau_eff > 0 and sd_tau > 0:
 				shot = np.stack([I_ft, Q_ft, U_ft, V_ft], axis=0)
-				shot = scatter_dspec(shot, time_res_ms, tau_cms, screen=sc_screen)
+				shot = scatter_dspec(shot, time_res_ms, tau_cms, screen=sc_screen,
+									 drm_dt=sc_drm_dt, freq_mhz=freq_mhz)
 				I_ft, Q_ft, U_ft, V_ft = shot[0], shot[1], shot[2], shot[3]
 
 			comp_dspec[0] += I_ft
@@ -955,10 +959,11 @@ def psn_dspec(
 			for g_b, buf in enumerate(comp_dsps):
 				if float(tau[g_b]) > 0:
 					tau_cms = float(tau[g_b]) * (freq_mhz / ref_freq_mhz) ** sc_idx
-					comp_dsps[g_b] = scatter_dspec(buf, time_res_ms, tau_cms, screen=sc_screen)
+					comp_dsps[g_b] = scatter_dspec(buf, time_res_ms, tau_cms, screen=sc_screen,
+												   drm_dt=sc_drm_dt, freq_mhz=freq_mhz)
 					if not plot_multiple_frb:
-						logging.info("Applied component %d scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s)",
-										g_b, float(tau[g_b]), ref_freq_mhz, sc_idx, sc_screen)
+						logging.info("Applied component %d scattering with tau=%.2f ms at %.1f MHz (index=%.2f, screen=%s, dRM/dt_delay=%.3g rad/m2/ms)",
+										g_b, float(tau[g_b]), ref_freq_mhz, sc_idx, sc_screen, sc_drm_dt)
 
 	for buf in comp_dsps:
 		dspec += buf

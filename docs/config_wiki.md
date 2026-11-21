@@ -71,6 +71,7 @@ Controls the temporal scattering (pulse broadening) model.
 |-----|------|---------|-------------|
 | `index` | float | `-4.85` | Scattering law exponent: `tau(nu) = tau(nu_ref) * (nu / nu_ref)^index`. Typical ISM values are -4 (Kolmogorov) to -4.4 (NE2001). Some FRB fits yield -3.22. |
 | `screen` | string | `"thin"` | Scattering screen geometry: `"thin"`, `"thick"`, or `"uniform"`. Affects the shape of the broadening kernel. See Williamson (1972) MNRAS 157, 55. |
+| `drm_dt` | float | `0.0` | RM gradient with scattering delay (rad m$^{-2}$ per ms). Radiation arriving with delay $t_d$ acquires an extra Faraday rotation ${\rm RM}(t_d) = $ `drm_dt` $\times t_d$, modelling a magnetised screen whose RM varies across the scattered image. Implemented by convolving $Q+iU$ with $h(t_d)\,e^{2i\,\mathrm{drm\_dt}\,t_d\lambda^2}$ (absolute $\lambda^2$, so the PA at $\lambda=0$ is unchanged), while $I$ and $V$ use $h(t_d)$. Also accepted on `scatter` steps of `[propagation.chain]`. |
 
 **Where it flows:** Stored in `prop_dict["scattering_index"]` and `prop_dict["scattering_screen"]`. Used in `scatter_dspec()` (dspec.py) which convolves each frequency channel with an exponential kernel `h(t) = (1/tau) * exp(-t/tau)`. The per-channel tau is computed as:
 

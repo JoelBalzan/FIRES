@@ -28,6 +28,10 @@ index = -4.85    # Scattering law exponent: tau(nu) = tau(nu_ref) * (nu / nu_ref
                  # Typical values: -4 (Kolmogorov medium), -4.4 (NE2001), -3.22 (some FRB fits).
 screen = "thin"  # Scattering screen geometry: "thin" | "thick" | "uniform".
                  # See Williamson (1972) https://ui.adsabs.harvard.edu/abs/1972MNRAS.157...55W/
+drm_dt = 0.0     # RM gradient with scattering delay (rad m^-2 per ms of delay). Radiation
+                 # delayed by t_d acquires RM(t_d) = drm_dt * t_d (magnetised screen whose RM
+                 # varies across the scattered image). 0 disables. Also accepted per chain
+                 # scatter step: { type = "scatter", ..., drm_dt = -0.8 }.
 
 [propagation.rm]
 RM    = 0.0      # Global rotation measure (rad m^-2) applied to the full dynamic spectrum.

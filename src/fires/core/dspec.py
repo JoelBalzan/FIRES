@@ -287,12 +287,22 @@ def scatter_loaded_dspec(dspec, freq_mhz, time_ms, tau, sc_idx, ref_freq_mhz):
 	return dspec_scattered
 
 
-def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5, screen="thin"):
+def scatter_dspec(dspec, time_res_ms, tau_cms, pad_factor=5, screen="thin", drm_dt=0.0, freq_mhz=None):
+	"""Convolve each channel with the scattering kernel.
+
+	drm_dt : float
+		Rotation-measure gradient with scattering delay (rad m^-2 per ms of delay).
+		Radiation arriving with delay t_d acquires an extra Faraday rotation
+		RM(t_d) = drm_dt * t_d, i.e. Q + iU is convolved with the complex kernel
+		h(t_d) exp(2i drm_dt t_d lambda^2), while I and V use h(t_d). This models a
+		magnetised screen whose RM varies across the scattered image. Requires
+		freq_mhz and a 3-D (4, nf, nt) Stokes input; ignored for 2-D input.
+	"""
 	X = np.asarray(dspec, dtype=float)
 	if X.ndim == 2:
 		return _scatter_2d(X, time_res_ms, tau_cms, pad_factor, screen)
 	elif X.ndim == 3:
-		return _scatter_4stokes(X, time_res_ms, tau_cms, pad_factor, screen)
+		return _scatter_4stokes(X, time_res_ms, tau_cms, pad_factor, screen, drm_dt=drm_dt, freq_mhz=freq_mhz)
 	else:
 		raise ValueError(f"scatter_dspec: expected 2-D or 3-D input, got {X.ndim}-D")
 
@@ -316,7 +326,7 @@ def _scatter_2d(X, time_res_ms, tau_cms, pad_factor=5, screen="thin"):
 	return out
 
 
-def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5, screen="thin"):
+def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5, screen="thin", drm_dt=0.0, freq_mhz=None):
 	_, nc, nt = X4.shape
 	if np.isscalar(tau_cms):
 		tau_arr = np.full(nc, float(tau_cms), dtype=float)
@@ -328,15 +338,38 @@ def _scatter_4stokes(X4, time_res_ms, tau_cms, pad_factor=5, screen="thin"):
 	pos = np.isfinite(tau_arr) & (tau_arr > 0)
 	if not np.any(pos):
 		return out
+	use_drm = (drm_dt is not None) and (float(drm_dt) != 0.0)
+	if use_drm and freq_mhz is None:
+		raise ValueError("scatter_dspec: drm_dt != 0 requires freq_mhz")
 	FH, max_pad, L = _build_irf_fft(tau_arr[pos], time_res_ms, nt, pad_factor, screen)
-	for s in range(X4.shape[0]):
+	stokes_real = (0, 3) if use_drm else range(X4.shape[0])
+	for s in stokes_real:
 		Xp = np.pad(X4[s][pos], ((0, 0), (0, max_pad)), mode='constant')
 		FX = np.fft.rfft(Xp, n=L, axis=1)
 		out[s][pos] = np.fft.irfft(FX * FH, n=L, axis=1)[:, :nt]
+	if use_drm:
+		# Delay-dependent Faraday rotation: complex kernel h(t_d) exp(2i drm_dt t_d lambda^2)
+		irf, t_ms, max_pad, L = _build_irf(tau_arr[pos], time_res_ms, nt, pad_factor, screen)
+		lam2 = (299.792458 / np.asarray(freq_mhz, dtype=float)[pos]) ** 2
+		kern = np.zeros((irf.shape[0], L), dtype=complex)
+		kern[:, :max_pad + 1] = irf * np.exp(2j * float(drm_dt) * t_ms[None, :] * lam2[:, None])
+		P = np.zeros((irf.shape[0], L), dtype=complex)
+		P[:, :nt] = X4[1][pos] + 1j * X4[2][pos]
+		Ps = np.fft.ifft(np.fft.fft(P, axis=1) * np.fft.fft(kern, axis=1), axis=1)[:, :nt]
+		out[1][pos], out[2][pos] = Ps.real, Ps.imag
 	return out
 
 
 def _build_irf_fft(tau_pos, time_res_ms, nt, pad_factor, screen="thin"):
+	irf, _, max_pad, L = _build_irf(tau_pos, time_res_ms, nt, pad_factor, screen)
+	# Pad to length L before FFT (irf has max_pad+1 samples, L = nt + max_pad)
+	irf_padded = np.zeros((len(tau_pos), L), dtype=float)
+	irf_padded[:, :max_pad + 1] = irf
+	return np.fft.rfft(irf_padded, n=L, axis=1), max_pad, L
+
+
+def _build_irf(tau_pos, time_res_ms, nt, pad_factor, screen="thin"):
+	"""Normalised time-domain kernel (nch, max_pad+1), its delays t_ms, max_pad and L."""
 	n_pad_arr = np.ceil(pad_factor * tau_pos / float(time_res_ms)).astype(int)
 	max_pad = int(np.max(n_pad_arr))
 	L = nt + max_pad
@@ -365,12 +398,7 @@ def _build_irf_fft(tau_pos, time_res_ms, nt, pad_factor, screen="thin"):
 	# Apply the same per-channel truncation mask as the original
 	irf *= (np.arange(1, max_pad + 2)[None, :] <= n_pad_arr[:, None])
 	irf /= np.maximum(irf.sum(axis=1, keepdims=True), 1e-300)
-
-	# Pad to length L before FFT (irf has max_pad+1 samples, L = nt + max_pad)
-	irf_padded = np.zeros((len(tau_pos), L), dtype=float)
-	irf_padded[:, :max_pad + 1] = irf
-
-	return np.fft.rfft(irf_padded, n=L, axis=1), max_pad, L
+	return irf, t_ms, max_pad, L
 
 
 def stokes_consistency_diagnostics(dspec, buffer_frac, intrinsic_width_bins, label, plot_multiple_frb, snr_min=5.0):
