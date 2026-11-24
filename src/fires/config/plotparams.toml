@@ -22,6 +22,14 @@ ylim       = None
 text       = None # Additional text to display. Options can be modified below
 inset      = true # PA inset for LVPA plot
 hide_y_axes = false
+t_scrunch  = 1   # Scrunch factor for the main dynamic spectrum in time
+f_scrunch  = 1   # Scrunch factor for the main dynamic spectrum in frequency
+dspec_scale = "linear"           # "linear", "asinh", or "log"
+dspec_lower_percentile = 1       # Lower percentile for automatic dynamic-spectrum limits
+dspec_upper_percentile = 99      # Upper percentile for automatic dynamic-spectrum limits
+dspec_vmin = None                # Optional fixed lower limit
+dspec_vmax = None                # Optional fixed upper limit
+dspec_linear_width = None        # Optional asinh transition width; null uses 1% of the range
 
 [general.text_style]
 enabled    = true          # master switch

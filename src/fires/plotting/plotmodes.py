@@ -34,8 +34,9 @@ from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
                                         text_with_offset)
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_lv,
                                     plot_pa_li_scatter, plot_pa_profile,
-                                    plot_pads, plot_stokes)
+                                    plot_pads, plot_qu, plot_stokes)
 from fires.utils.loaders import load_data
+from fires.utils.loaders import scrunch_dspec
 from fires.utils.params import base_param_name, is_measured_key
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
@@ -195,6 +196,12 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	ylim = get_plot_param(plot_config, 'general', 'ylim', None)
 	inset = get_plot_param(plot_config, 'general', 'inset', False)
 	show_spectrum = get_plot_param(plot_config, 'general', 'show_spectrum', True)
+	t_scrunch = get_plot_param(plot_config, 'general', 't_scrunch', 1)
+	f_scrunch = get_plot_param(plot_config, 'general', 'f_scrunch', 1)
+	if t_scrunch is None:
+		t_scrunch = get_plot_param(plot_config, 'general', 'tscrunch', 1)
+	if f_scrunch is None:
+		f_scrunch = get_plot_param(plot_config, 'general', 'fscrunch', 1)
 
 	show_onpulse = get_plot_param(plot_config, 'windows', 'show_onpulse', False)
 	show_offpulse = get_plot_param(plot_config, 'windows', 'show_offpulse', False)
@@ -209,8 +216,15 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 		display_text = build_plot_text_string(text, dspec_params.gdict)
 
 
+	plot_dspec = frb_data.dynamic_spectrum
+	if mode in ("all", "lv", "lvpa", "iquv", "stokes", "qu"):
+		plot_dspec, freq_mhz, time_ms, dspec_params = scrunch_dspec(
+			plot_dspec, freq_mhz, time_ms, dspec_params,
+			t_scrunch=t_scrunch, f_scrunch=f_scrunch,
+		)
+
 	ts_data, corr_dspec, noise_spec, noise_stokes = process_dspec(
-		frb_data.dynamic_spectrum, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True
+		plot_dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True
 	)
 
 	iquvt = ts_data.iquvt
@@ -218,24 +232,41 @@ def basic_plots(fname, frb_data, mode, out_dir, plot_config=None, buffer_frac=No
 	if mode == "all":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
-				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text, inset=inset, show_spectrum=show_spectrum)
-		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text,
+				inset=inset, show_spectrum=show_spectrum, t_scrunch=t_scrunch, f_scrunch=f_scrunch, noise_spec=noise_spec)
+		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension,
+		            dspec_params=dspec_params, plot_config=plot_config, display_text=display_text,
+		            t_scrunch=t_scrunch, f_scrunch=f_scrunch, noise_spec=noise_spec)
 		plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 		plot_dpa(fname, out_dir, noise_stokes, ts_data, time_ms, 5, save, figsize, show_plots, extension)
 		estimate_rm(frb_data.dynamic_spectrum, freq_mhz, time_ms, noise_spec, 1.0e3, 1.0, out_dir, save, show_plots)
 		plot_pa_li_scatter(fname,out_dir,ts_data,time_ms,noise_stokes,save,figsize,show_plots,extension)
 		plot_pads(corr_dspec, freq_mhz, time_ms, save, fname, out_dir, figsize, show_plots, extension,
 		          plot_config=plot_config, display_text=display_text)
-	elif mode == "iquv":
-		plot_stokes(fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize, show_plots, extension)
+	elif mode in ("iquv", "stokes"):
+		plot_stokes(
+			fname, out_dir, corr_dspec, iquvt, freq_mhz, time_ms, save, figsize,
+			show_plots, extension, dspec_params=dspec_params, plot_config=plot_config,
+			display_text=display_text, t_scrunch=t_scrunch, f_scrunch=f_scrunch,
+			noise_spec=noise_spec,
+		)
+	elif mode == "qu":
+		plot_qu(
+			corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir,
+			ts_data, figsize, tau, show_plots, extension, legend, buffer_frac,
+			show_onpulse, show_offpulse, segments=segments, display_text=display_text,
+			show_spectrum=show_spectrum, t_scrunch=t_scrunch, f_scrunch=f_scrunch,
+		)
 	elif mode == "lv":
 		plot_lv(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir,
 				ts_data, figsize, tau, show_plots, extension,
-				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text, show_spectrum=show_spectrum)
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text,
+				inset=inset, show_spectrum=show_spectrum, t_scrunch=t_scrunch, f_scrunch=f_scrunch, noise_spec=noise_spec)
 	elif mode == "lvpa":
 		plot_ilv_pa_ds(corr_dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, out_dir, 
 				ts_data, figsize, tau, show_plots, extension, 
-				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text, inset=inset, show_spectrum=show_spectrum)
+				legend, buffer_frac, show_onpulse, show_offpulse, segments=segments, display_text=display_text,
+				inset=inset, show_spectrum=show_spectrum, t_scrunch=t_scrunch, f_scrunch=f_scrunch, noise_spec=noise_spec)
 	elif mode == "pa":
 			plot_pa_profile(fname, out_dir, ts_data, time_ms, save, figsize, show_plots, extension, xlim, ylim)
 	elif mode == "dpa":
@@ -3653,6 +3684,18 @@ lv = PlotMode(
 	requires_multiple_frb=False
 )
 
+stokes = PlotMode(
+	name="stokes",
+	plot_func=basic_plots,
+	requires_multiple_frb=False
+)
+
+qu = PlotMode(
+	name="qu",
+	plot_func=basic_plots,
+	requires_multiple_frb=False
+)
+
 pads = PlotMode(
 	name="pads",
 	plot_func=basic_plots,
@@ -3665,6 +3708,8 @@ plot_modes = {
 	"iquv"  : iquv,
 	"lv"    : lv,
 	"lvpa"  : lvpa,
+	"stokes": stokes,
+	"qu"    : qu,
 	"dpa"   : dpa,
 	"RM"    : RM,
 	"pa"    : pa,
