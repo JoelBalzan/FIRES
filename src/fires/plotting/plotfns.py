@@ -15,6 +15,7 @@
 import logging
 import os
 
+import matplotlib.colors as mpl_colors
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
@@ -30,92 +31,202 @@ from fires.utils.utils import normalise_freq_window, normalise_phase_window
 logger = logging.getLogger(__name__)
 #	----------------------------------------------------------------------------------------------------------
 
-def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize, show_plots, extension):
+def _dynamic_spectrum_norm(dspec, plot_config, fixed_limits=True,
+							noise_spec=None, stokes_index=0):
 	"""
-	Plot Stokes IQUV profiles and dynamic spectra.
-	Inputs:
-		- fname, outdir: Directory to save the plot
-		- dspec: Dynamic spectrum array
-		- iquvt: IQUV time series array
-		- fmhzarr: Frequency array in MHz
-		- tmsarr: Time array in ms
-		- xlim: X-axis limits for the plot
-		- fsize: Figure size
+	Build a dynamic-spectrum Matplotlib normalization from plotparams.
+
+	Supported scales are:
+	- linear: fixed or percentile limits
+	- asinh: preserves faint structure while retaining strong components
+	- log: logarithmic positive-valued scaling
 	"""
-	chan_width_mhz = np.abs(fmhzarr[0] - fmhzarr[1])  # Calculate channel width in MHz
-	
+	general = plot_config.get('general', {}) if plot_config else {}
+	scale = str(general.get('dspec_scale', 'linear')).lower()
+	lower_pct = general.get('dspec_lower_percentile', 1)
+	upper_pct = general.get('dspec_upper_percentile', 99)
+
+	finite = np.asarray(dspec)[np.isfinite(dspec)]
+
+	config_vmin = general.get('dspec_vmin', None) if fixed_limits else None
+	config_vmax = general.get('dspec_vmax', None) if fixed_limits else None
+
+	vmin = 0.0
+	if config_vmin is not None:
+		vmin = float(config_vmin)
+	vmax = np.nanpercentile(finite, upper_pct) if finite.size else 1.0
+	if config_vmax is not None:
+		vmax = float(config_vmax)
+
+	if vmax <= vmin:
+		vmax = vmin + 1.0
+
+	if scale == 'asinh':
+		sigma_off = None
+		if noise_spec is not None:
+			noise_spec = np.asarray(noise_spec)
+			if noise_spec.ndim == 2 and stokes_index < noise_spec.shape[0]:
+				per_channel = noise_spec[stokes_index]
+				per_channel = per_channel[np.isfinite(per_channel)]
+				if per_channel.size:
+					sigma_off = float(np.nanmedian(per_channel))
+		if sigma_off is not None and np.isfinite(sigma_off):
+			vmin = max(vmin, 0.7 * sigma_off)
+
+		span = vmax - vmin
+		linear_width = general.get('dspec_linear_width', None)
+		if linear_width is None:
+			linear_width = span / 100.0
+		linear_width = max(float(linear_width), span * 1e-6)
+
+		norm = mpl_colors.AsinhNorm(
+		    vmin=vmin,
+		    vmax=vmax,
+		    linear_width=linear_width,
+		)
+
+		return norm
+
+	if scale == 'log':
+		positive = finite[finite > 0]
+		log_vmin = max(float(vmin), float(np.nanmin(positive)) if positive.size else np.finfo(float).eps)
+		return mpl_colors.LogNorm(vmin=log_vmin, vmax=vmax)
+	return mpl_colors.Normalize(vmin=vmin, vmax=vmax)
+
+
+def plot_stokes(fname, outdir, dspec, iquvt, fmhzarr, tmsarr, save, figsize,
+				show_plots, extension, dspec_params=None, plot_config=None,
+				display_text=None, t_scrunch=1, f_scrunch=1, noise_spec=None):
+	"""Plot I, Q, U, and V dynamic spectra in a 2x2 grid."""
 	if figsize is None:
-		figsize = pub_grid_figsize(4, ncol=get_pub_col())
-	Lts = np.sqrt(np.asarray(iquvt[1])**2 + np.asarray(iquvt[2])**2)
+		figsize = pub_grid_figsize(2, ncol=get_pub_col())
 
-	# On-pulse mask from I
-	on_mask, _, _ = on_off_pulse_masks_from_profile(iquvt[0], intrinsic_width_bins=1, frac=0.95, buffer_frac=None)
-	I_int = np.nansum(np.where(on_mask, iquvt[0], 0.0))
-	L_int = np.nansum(np.where(on_mask, Lts, 0.0))
-	Lfrac = (L_int / I_int) if I_int > 0 else np.nan
+	fig, axs = plt.subplots(2, 2, sharex=True, sharey=True, figsize=figsize,
+							gridspec_kw={"hspace": 0.08, "wspace": 0.08})
+	labels = ("I", "Q", "U", "V")
+	hide_y_axes = bool(get_plot_param(plot_config, 'general', 'hide_y_axes', False))
 
-	fig = plt.figure(figsize=(figsize[0], figsize[1]))
-	ax = fig.add_axes([0.08, 0.70, 0.90, 0.28])
-	ax.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
+	for index, (ax, label) in enumerate(zip(axs.ravel(), labels)):
+		if dspec[index].size:
+			cmap = "plasma" if index == 0 else "seismic"
+			norm = _dynamic_spectrum_norm(
+				dspec[index], plot_config, noise_spec=noise_spec,
+				stokes_index=index,
+			)
+			ax.imshow(dspec[index], aspect='auto', interpolation='none', origin='lower',
+					  cmap=cmap, norm=norm,
+					  extent=[tmsarr[0], tmsarr[-1], fmhzarr[0], fmhzarr[-1]])
+		ax.text(0.97, 0.92, label, transform=ax.transAxes, ha='right', va='top',
+				fontsize=10, fontweight='bold')
+		ax.tick_params(axis='both', direction='in')
+		ax.grid(False)
+		draw_plot_text(ax, display_text, 'general', plot_config)
+		ax.set_xlim(tmsarr[0], tmsarr[-1])
+		ax.set_ylim(fmhzarr[0], fmhzarr[-1])
+		ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4, prune='both'))
+		ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
 
-	ax.axhline(c='c', ls='--', lw=0.25)
-	ax.plot(tmsarr, iquvt[0] / np.nanmax(iquvt[0]), 'k-', lw=0.5, label='I')
-	ax.plot(tmsarr, iquvt[1] / np.nanmax(iquvt[0]), 'r-', lw=0.5, label='Q')
-	ax.plot(tmsarr, iquvt[2] / np.nanmax(iquvt[0]), 'm-', lw=0.5, label='U')
-	ax.plot(tmsarr, iquvt[3] / np.nanmax(iquvt[0]), 'b-', lw=0.5, label='V')
-	# Also plot L
-	ax.plot(tmsarr, Lts / np.nanmax(iquvt[0]), color='C2', lw=0.7, label='L')
-	ax.set_ylim(ymax=1.1)
-	ax.set_xlim([np.amin(tmsarr), np.amax(tmsarr)])
-	ax.legend(loc='upper right', ncol=2)
-	ax.set_ylabel(r'Normalised flux density')
-	ax.set_xticklabels([])
-	ax.set_title(f'Integrated L/I (95% boxcar) = {Lfrac:.3f}', fontsize=9)
-	ax.yaxis.set_label_coords(-0.05, 0.5)
-		
-	ax0 = fig.add_axes([0.08, 0.54, 0.90, 0.16])
-	ax0.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax0.imshow(dspec[0], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[0])), vmax=np.nanmax(np.abs(dspec[0])), \
-		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
-	ax0.text(0.95, 0.1, 'I', fontsize=10, fontweight='bold', transform=ax0.transAxes)
-	ax0.set_xticklabels([])
-	ax0.set_ylabel(r'$\nu$ (GHz)')
-	ax0.yaxis.set_label_coords(-0.05, 0.5)
-	
-	ax1 = fig.add_axes([0.08, 0.38, 0.90, 0.16])
-	ax1.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax1.imshow(dspec[1], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[1])), vmax=np.nanmax(np.abs(dspec[1])), \
-		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
-	ax1.text(0.95, 0.1, 'Q', fontsize=10, fontweight='bold', transform=ax1.transAxes)
-	ax1.set_xticklabels([])
-	ax1.set_ylabel(r'$\nu$ (GHz)')
-	ax1.yaxis.set_label_coords(-0.05, 0.5)
-	
-	ax2 = fig.add_axes([0.08, 0.22, 0.90, 0.16])
-	ax2.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax2.imshow(dspec[2], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[2])), vmax=np.nanmax(np.abs(dspec[2])), \
-		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
-	ax2.text(0.95, 0.1, 'U', fontsize=10, fontweight='bold', transform=ax2.transAxes)
-	ax2.set_xticklabels([])
-	ax2.set_ylabel(r'$\nu$ (GHz)')
-	ax2.yaxis.set_label_coords(-0.05, 0.5)
-	
-	ax3 = fig.add_axes([0.08, 0.06, 0.90, 0.16])
-	ax3.tick_params(axis="both", direction="in", bottom=True, right=True, top=True, left=True)
-	ax3.imshow(dspec[3], aspect='auto', cmap='seismic', interpolation="none", vmin=-np.nanmax(np.abs(dspec[3])), vmax=np.nanmax(np.abs(dspec[3])), \
-		extent=([tmsarr[0], tmsarr[-1], fmhzarr[0] / 1.0e3, fmhzarr[1] / 1.0e3]))
-	ax3.text(0.95, 0.1, 'V', fontsize=10, fontweight='bold', transform=ax3.transAxes)
-	ax3.set_xlabel(r'Time (ms)')
-	ax3.set_ylabel(r'$\nu$ (GHz)')
-	ax3.yaxis.set_label_coords(-0.05, 0.5)
-	
+	for ax in axs[1, :]:
+		ax.set_xlabel("Time [ms]")
+	for ax in axs[:, 0]:
+		ax.set_ylabel("Freq. [MHz]")
+	if hide_y_axes:
+		for ax in axs.ravel():
+			ax.tick_params(axis='y', labelcolor='white')
+			ax.yaxis.label.set_color('white')
+
+	fig.tight_layout()
 	if show_plots:
 		plt.show()
-
-	if save==True:
-		out_path = os.path.join(outdir, fname + "_iquv." + extension)
+	if save:
+		out_path = os.path.join(outdir, fname + "_stokes." + extension)
 		savefig(out_path, dpi=600, bbox_inches='tight', fig=fig)
-		logging.info("Saved figure to %s \n" % (out_path))
+		logging.info("Saved figure to %s \n" % out_path)
+
+
+def plot_qu(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir,
+			tsdata, figsize, tau, show_plots, extension, legend, buffer_frac,
+			show_onpulse, show_offpulse, segments=None, display_text=None,
+			show_spectrum=True, t_scrunch=1, f_scrunch=1):
+	"""Plot Stokes Q above U using the LV/LVPA dynamic-spectrum layout."""
+	if figsize is None:
+		figsize = pub_grid_figsize(2, ncol=get_pub_col())
+
+	fig, axs = plt.subplots(
+		nrows=2, ncols=1, sharex=True,
+		height_ratios=[1, 1], figsize=figsize,
+		gridspec_kw={"hspace": 0.0},
+	)
+	fig.set_constrained_layout(False)
+	fig.subplots_adjust(hspace=0.0, right=0.92, top=0.98, bottom=0.08)
+	hide_y_axes = bool(get_plot_param(plot_config, 'general', 'hide_y_axes', False))
+
+	qu_values = np.concatenate((np.ravel(dspec[1]), np.ravel(dspec[2])))
+	qu_values = qu_values[np.isfinite(qu_values)]
+	vmax = float(np.nanmax(np.abs(qu_values))) if qu_values.size else 1.0
+	vmin = -vmax
+	for ax, stokes_index, label in zip(axs, (1, 2), ("Q", "U")):
+		#vmin = np.nanpercentile(dspec[stokes_index], 1)
+		#vmax = np.nanpercentile(dspec[stokes_index], 99.9)
+		if not np.isfinite(vmin) or not np.isfinite(vmax):
+			vmin, vmax = None, None
+		im = ax.imshow(dspec[stokes_index], aspect='auto', interpolation='none', origin='lower',
+					   cmap="seismic", vmin=vmin, vmax=vmax,
+					   extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
+		ax.set_xlim(time_ms[0], time_ms[-1])
+		ax.set_ylabel("Freq. [MHz]")
+		ax.text(0.95, 0.92, label, transform=ax.transAxes, ha='right', va='top',
+				fontsize=14, fontweight='bold', color='k')
+		ax.tick_params(axis='both', direction='in')
+		ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+		ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5, prune='both'))
+		ax.tick_params(axis='x', labelbottom=stokes_index == 2)
+		draw_plot_text(ax, display_text, 'general', plot_config)
+
+	if fname == "FRB_250607_htr":
+		for index, colour in (
+			(321, '#ffb000'),
+			(482, '#ffb000'),
+			(491, '#785ef0'),
+			(880, '#785ef0'),
+		):
+			index = min(max(int(round(index / t_scrunch)), 0), time_ms.size - 1)
+			for ax in axs:
+				ax.axvline(
+					time_ms[index],
+					color=colour,
+					linestyle='--',
+					linewidth=0.8,
+					alpha=0.9,
+					zorder=5,
+				)
+
+	ax_dspec = axs[1]
+	ax_dspec.set_xlabel("Time [ms]")
+	if hide_y_axes:
+		for ax in axs:
+			ax.tick_params(axis='y', labelcolor='white')
+			ax.yaxis.label.set_color('white')
+	if legend:
+		axs[0].legend(loc='upper right')
+
+	bottom_pos = axs[1].get_position()
+	top_pos = axs[0].get_position()
+	cbar_ax = fig.add_axes([
+		bottom_pos.x1 + 0.015,
+		bottom_pos.y0,
+		0.018,
+		top_pos.y1 - bottom_pos.y0,
+	])
+	cbar = fig.colorbar(im, cax=cbar_ax)
+	cbar.set_label(r"Polarised Intensity [arb.]")
+
+	if show_plots:
+		plt.show()
+	if save:
+		out_path = os.path.join(outdir, fname + f"_t_{tau[0]}" + "_QU." + extension)
+		savefig(out_path, dpi=600, bbox_inches='tight', fig=fig)
+		logging.info("Saved figure to %s \n" % out_path)
 
 
 #	----------------------------------------------------------------------------------------------------------
@@ -207,7 +318,8 @@ def plot_dpa(fname, outdir, noise_stokes, frbdat, tmsarr, ntp, save, figsize, sh
 #	----------------------------------------------------------------------------------------------------------
 
 def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
-			legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None, show_spectrum=True):
+			legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None,
+			show_spectrum=True, inset=False, t_scrunch=1, f_scrunch=1, noise_spec=None):
 	"""
 	Plot I, L, V and dynamic spectrum (no PA panel).
 	"""
@@ -289,22 +401,46 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 	axs[0].set_yticklabels([])
 
 	if fname=="FRB_190611_htr":
-		axs[0].axvspan(time_ms[56], time_ms[68], color='#ffb000', alpha=0.15, zorder=0)
-		axs[0].axvspan(time_ms[127], time_ms[147], color='#785ef0', alpha=0.15, zorder=0)
-		axs[0].text(1.1*time_ms[56], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
-		axs[0].text(0.3*time_ms[147], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+		for bounds, colour in (((56, 68), '#ffb000'), ((127, 147), '#785ef0')):
+			left_idx = min(max(int(round(bounds[0] / t_scrunch)), 0), time_ms.size - 1)
+			right_idx = min(max(int(round(bounds[1] / t_scrunch)), 0), time_ms.size - 1)
+			if left_idx < right_idx:
+				axs[0].axvspan(time_ms[left_idx], time_ms[right_idx], color=colour, alpha=0.15, zorder=0)
+		label_y = 0.82 * np.nanmax(I) if np.any(np.isfinite(I)) else 0
+		axs[0].text(time_ms[min(int(round(56 / t_scrunch)), time_ms.size - 1)],
+					label_y, r'$C_1$', fontsize=10, fontweight='bold',
+					color='black', ha='left', va='bottom', zorder=10)
+		axs[0].text(time_ms[min(int(round(127 / t_scrunch)), time_ms.size - 1)],
+					label_y, r'$C_2$', fontsize=10, fontweight='bold',
+					color='black', ha='left', va='bottom', zorder=10)
 
 	if fname=="FRB_210407_htr":
-		axs[0].axvspan(time_ms[151], time_ms[378], color='#ffb000', alpha=0.15, zorder=0)
-		axs[0].axvspan(time_ms[381], time_ms[623], color='#785ef0', alpha=0.15, zorder=0)
-		axs[0].text(0.9*time_ms[151], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
-		axs[0].text(1.1*time_ms[381], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+		for bounds, colour in (((151, 378), '#ffb000'), ((381, 623), '#785ef0')):
+			left_idx = min(max(int(round(bounds[0] / t_scrunch)), 0), time_ms.size - 1)
+			right_idx = min(max(int(round(bounds[1] / t_scrunch)), 0), time_ms.size - 1)
+			if left_idx < right_idx:
+				axs[0].axvspan(time_ms[left_idx], time_ms[right_idx], color=colour, alpha=0.15, zorder=0)
+		label_y = 0.82 * np.nanmax(I) if np.any(np.isfinite(I)) else 0
+		axs[0].text(time_ms[min(int(round(151 / t_scrunch)), time_ms.size - 1)],
+					label_y, r'$C_1$', fontsize=10, fontweight='bold',
+					color='black', ha='left', va='bottom', zorder=10)
+		axs[0].text(time_ms[min(int(round(381 / t_scrunch)), time_ms.size - 1)],
+					label_y, r'$C_2$', fontsize=10, fontweight='bold',
+					color='black', ha='left', va='bottom', zorder=10)
 
 	if fname=="FRB_250607_htr":
-		axs[0].axvspan(time_ms[321], time_ms[482], color='#ffb000', alpha=0.15, zorder=0)
-		axs[0].axvspan(time_ms[491], time_ms[880], color='#785ef0', alpha=0.15, zorder=0)
-		axs[0].text(0.9*time_ms[321], 0.8*np.max(I), r'$C_1$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
-		axs[0].text(0.2*time_ms[880], 0.8*np.max(I), r'$C_2$', fontsize=10, fontweight='bold', color='black', ha='left', va='bottom', transform=axs[0].transData)
+		for bounds, colour in (((321, 482), '#ffb000'), ((491, 880), '#785ef0')):
+			left_idx = min(max(int(round(bounds[0] / t_scrunch)), 0), time_ms.size - 1)
+			right_idx = min(max(int(round(bounds[1] / t_scrunch)), 0), time_ms.size - 1)
+			if left_idx < right_idx:
+				axs[0].axvspan(time_ms[left_idx], time_ms[right_idx], color=colour, alpha=0.15, zorder=0)
+		label_y = 0.82 * np.nanmax(I) if np.any(np.isfinite(I)) else 0
+		axs[0].text(time_ms[min(int(round(321 / t_scrunch)), time_ms.size - 1)],
+					label_y, r'$C_1$', fontsize=10, fontweight='bold',
+					color='black', ha='left', va='bottom', zorder=10)
+		axs[0].text(time_ms[min(int(round(491 / t_scrunch)), time_ms.size - 1)]-0.15,
+					label_y, r'$C_2$', fontsize=10, fontweight='bold',
+					color='black', ha='left', va='bottom', zorder=10)
 
 		
 
@@ -324,11 +460,38 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 				transform=axs[0].get_xaxis_transform(), zorder=0, label='Off-pulse'
 			)
 
+	if inset:
+		gdict = dspec_params.gdict
+		init_width = gdict["width"][0] / dspec_params.time_res_ms
+		_, _, (left, right) = on_off_pulse_masks_from_profile(I, init_width, frac=0.95, buffer_frac=buffer_frac)
+		peak_idx = int(np.nanargmax(I)) if np.any(np.isfinite(I)) else None
+		if peak_idx is not None and left <= peak_idx and peak_idx > left:
+			pa_rad = tsdata.phits
+			pa_deg = np.rad2deg(pa_rad)
+			pa_err_deg = np.rad2deg(tsdata.ephits)
+			phits = wrap_pa_deg(pa_deg)
+			t_slice = slice(left, peak_idx + 1)
+			inset_ax = axs[0].inset_axes([0.57, 0.15, 0.39, 0.33])
+			inset_ax.scatter(time_ms[t_slice], phits[t_slice], c='black', s=7, zorder=3)
+			inset_ax.errorbar(
+				time_ms[t_slice], phits[t_slice], yerr=pa_err_deg[t_slice],
+				fmt='none', ecolor='black', elinewidth=0.5, capsize=1, zorder=2,
+			)
+			inset_ax.set_xlim(time_ms[left], time_ms[peak_idx])
+			finite_pa = phits[t_slice][np.isfinite(phits[t_slice])]
+			if finite_pa.size > 1:
+				ypad = max(3.0, 0.1 * (np.nanmax(finite_pa) - np.nanmin(finite_pa)))
+				inset_ax.set_ylim(np.nanmin(finite_pa) - ypad, np.nanmax(finite_pa) + ypad)
+			else:
+				inset_ax.set_ylim(-90, 90)
+			inset_ax.tick_params(axis='both', labelsize=9, direction='in', length=3)
+			inset_ax.grid(True, which='major', axis='both', alpha=0.25, linewidth=0.5)
+			axs[0].axvspan(time_ms[left], time_ms[peak_idx], color='gray', alpha=0.12, zorder=1)
+
 	# Dynamic spectrum (axis 1)
-	vmin = np.nanpercentile(dspec[0], 1)
-	vmax = np.nanpercentile(dspec[0], 99)
-	axs[1].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-		vmin=vmin, vmax=vmax,
+	dspec_norm = _dynamic_spectrum_norm(dspec[0], plot_config, noise_spec=noise_spec)
+	axs[1].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='magma',
+		norm=dspec_norm,
 		extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 	axs[1].set_xlabel("Time [ms]")
 	axs[1].set_ylabel("Freq. [MHz]")
@@ -369,57 +532,31 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 			logger.warning("Cannot plot FWHM spectrum: spectrum is all non-finite.")
 
 	# C_1 dynamic-spectrum inset with time/frequency scrunching (FRB 250607)
-	if fname == "FRB_250607_htr":
+	if inset and fname == "FRB_250607_htr":
 		c1_left, c1_right = 270, 482
+		c1_left = min(max(int(round(c1_left / t_scrunch)), 0), dspec.shape[2] - 1)
+		c1_right = min(max(int(round(c1_right / t_scrunch)), 0), dspec.shape[2] - 1)
 		t_slice = slice(c1_left, c1_right + 1)
 		c1_dspec = dspec[0][:, t_slice]
 		c1_time = time_ms[t_slice]
+		freq_inset = freq_mhz
 	
-		# Scrunching controls
-		t_scrunch = 4   # Time scrunch factor
-		f_scrunch = 16   # Frequency scrunch factor
-	
-		# --- Time scrunch ---
-		if t_scrunch > 1:
-			n_t = (c1_dspec.shape[1] // t_scrunch) * t_scrunch
-			c1_dspec = c1_dspec[:, :n_t]
-			c1_time = c1_time[:n_t]
-	
-			c1_dspec = c1_dspec.reshape(
-				c1_dspec.shape[0], -1, t_scrunch
-			).mean(axis=2)
-			c1_time = c1_time.reshape(-1, t_scrunch).mean(axis=1)
-	
-		# --- Frequency scrunch ---
-		if f_scrunch > 1:
-			n_f = (c1_dspec.shape[0] // f_scrunch) * f_scrunch
-			c1_dspec = c1_dspec[:n_f, :]
-	
-			c1_dspec = c1_dspec.reshape(
-				-1, f_scrunch, c1_dspec.shape[1]
-			).mean(axis=1)
-	
-			freq_inset = freq_mhz[:n_f].reshape(-1, f_scrunch).mean(axis=1)
-		else:
-			freq_inset = freq_mhz
-	
-		vmin_c = np.nanpercentile(c1_dspec, 1)
-		vmax_c = np.nanpercentile(c1_dspec, 99)
+		c1_norm = _dynamic_spectrum_norm(c1_dspec, plot_config, fixed_limits=False,
+										 noise_spec=noise_spec)
 	
 		inset_ax = axs[1].inset_axes([0.05, 0.55, 0.20, 0.40])
 
 		inset_ax.imshow(
-		    c1_dspec,
-		    aspect='auto',
-		    interpolation='none',
-		    origin='lower',
-		    cmap='plasma',
-		    vmin=vmin_c,
-		    vmax=vmax_c,
-		    extent=[
-		        c1_time[0], c1_time[-1],
-		        freq_inset[0], freq_inset[-1]
-		    ]
+			c1_dspec,
+			aspect='auto',
+			interpolation='none',
+			origin='lower',
+			cmap='plasma',
+			norm=c1_norm,
+			extent=[
+				c1_time[0], c1_time[-1],
+				freq_inset[0], freq_inset[-1]
+			]
 		)
 
 		
@@ -428,11 +565,11 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 		inset_ax.set_ylabel('')
 
 		inset_ax.tick_params(
-		    axis='both',
-		    labelsize=6,
-		    colors='white',
-		    labelcolor='black',
-		    direction='in'
+			axis='both',
+			labelsize=6,
+			colors='white',
+			labelcolor='black',
+			direction='in'
 		)
 
 		inset_ax.xaxis.set_major_locator(ticker.MaxNLocator(3, prune='both'))
@@ -454,7 +591,8 @@ def plot_lv(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 
 
 def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, outdir, tsdata, figsize, tau, show_plots, extension, 
-					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None, inset=False, show_spectrum=True):
+					legend, buffer_frac, show_onpulse, show_offpulse, segments=None, display_text=None,
+					inset=False, show_spectrum=True, t_scrunch=1, f_scrunch=1, noise_spec=None):
 	"""
 		Plot I, L, V, dynamic spectrum and polarisation angle.
 		Inputs:
@@ -719,10 +857,9 @@ def plot_ilv_pa_ds(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fn
 	#vmin = mn - 3*std
 	#vmax = mn + 7*std
 
-	vmin = np.nanpercentile(dspec[0], 1)
-	vmax = np.nanpercentile(dspec[0], 99)
+	dspec_norm = _dynamic_spectrum_norm(dspec[0], plot_config, noise_spec=noise_spec)
 	axs[2].imshow(dspec[0], aspect='auto', interpolation='none', origin='lower', cmap='plasma',
-		vmin=vmin, vmax=vmax, 
+		norm=dspec_norm,
   		extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 	axs[2].set_xlabel("Time [ms]")
 	axs[2].set_ylabel("Freq. [MHz]")

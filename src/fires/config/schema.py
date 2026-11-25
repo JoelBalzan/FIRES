@@ -30,6 +30,7 @@ class SimulationGrid:
 class Scattering:
     index: float
     screen: Optional[str] = "thin"  
+    drm_dt: float = 0.0  # RM gradient with scattering delay (rad m^-2 per ms)
 
 ### RM ###
 @dataclass
@@ -50,6 +51,7 @@ class ChainStep:
     index: Optional[float] = None
     tau_ms: Optional[float] = None
     RM: Optional[float] = None
+    drm_dt: Optional[float] = 0.0
 
 @dataclass
 class Chain:
@@ -321,6 +323,7 @@ def _parse_chain(prop_raw: Dict[str, Any]) -> Optional[Chain]:
                 screen=str(stp.get("screen", "thin")),
                 index=float(stp.get("index", -4.0)),
                 tau_ms=float(_require(stp, "tau_ms", where)),
+                drm_dt=float(stp.get("drm_dt", 0.0)),
             ))
         elif stype == "rm":
             steps.append(ChainStep(
@@ -363,7 +366,8 @@ def parse_fires_config(raw: Dict[str, Any]) -> FiresConfig:
     scint_raw = _require(prop_raw, "scintillation", "propagation")
     propagation = Propagation(
         scattering=Scattering(index=float(_require(sc_raw, "index", "propagation.scattering")),
-                            screen=str(sc_raw.get("screen", "thin"))),
+                            screen=str(sc_raw.get("screen", "thin")),
+                            drm_dt=float(sc_raw.get("drm_dt", 0.0))),
         RM=RM(
             RM=float(_require(rm_raw, "RM", "propagation.rm")),
             order=str(_require(rm_raw, "order", "propagation.rm")),

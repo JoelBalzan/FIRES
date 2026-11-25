@@ -46,15 +46,15 @@ Defines the time-frequency grid on which the dynamic spectrum is computed.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `f_start_MHz` | float | Start of the frequency band (MHz). |
-| `f_end_MHz` | float | End of the frequency band (MHz). |
-| `df_MHz` | float | Frequency channel width (MHz). Determines `n_freq = floor((f_end - f_start) / df) + 1`. |
+| `f_start_MHz` | float | Lower edge of the frequency band (MHz). |
+| `f_end_MHz` | float | Upper edge of the frequency band (MHz). |
+| `df_MHz` | float | Frequency channel width (MHz). The band holds `n_freq = (f_end - f_start) / df` channels (must be a whole number), centred on `f_start + (i + 1/2) df`; e.g. CRAFT 751.5–1087.5 MHz at 1 MHz gives 336 channels centred on 752 … 1087 MHz. |
 | `t_start_ms` | float | Start of the time window relative to grid reference (ms). |
 | `t_end_ms` | float | End of the time window (ms). |
 | `dt_ms` | float | Time bin width (ms). Determines `n_time = floor((t_end - t_start) / dt) + 1`. |
 | `reference_freq_MHz` | float | Reference frequency (MHz) for spectral-index scaling and the scattering law. |
 
-**Where it flows:** These values are extracted in `_master_to_internal()` (genfrb.py:81-88) into `sim_params`, then used to construct `freq_mhz` and `time_ms` arrays via `np.arange()`. They also populate `dspecParams`. The arrays are the fundamental axes of the `(4, n_freq, n_time)` dynamic spectrum.
+**Where it flows:** These values are extracted in `_master_to_internal()` (genfrb.py:81-88) into `sim_params`, then used to construct `freq_mhz` (channel centres, `channel_centres()` in genfrb.py) and `time_ms` (sample times, `np.arange()`). They also populate `dspecParams`. The arrays are the fundamental axes of the `(4, n_freq, n_time)` dynamic spectrum.
 
 **Choosing grid parameters:**
 - `df_MHz` should be small enough to resolve spectral features but large enough to keep memory manageable. The scattering kernel convolution operates per frequency channel, so finer `df` increases runtime.
@@ -71,6 +71,7 @@ Controls the temporal scattering (pulse broadening) model.
 |-----|------|---------|-------------|
 | `index` | float | `-4.85` | Scattering law exponent: `tau(nu) = tau(nu_ref) * (nu / nu_ref)^index`. Typical ISM values are -4 (Kolmogorov) to -4.4 (NE2001). Some FRB fits yield -3.22. |
 | `screen` | string | `"thin"` | Scattering screen geometry: `"thin"`, `"thick"`, or `"uniform"`. Affects the shape of the broadening kernel. See Williamson (1972) MNRAS 157, 55. |
+| `drm_dt` | float | `0.0` | RM gradient with scattering delay (rad m$^{-2}$ per ms). Radiation arriving with delay $t_d$ acquires an extra Faraday rotation ${\rm RM}(t_d) = $ `drm_dt` $\times t_d$, modelling a magnetised screen whose RM varies across the scattered image. Implemented by convolving $Q+iU$ with $h(t_d)\,e^{2i\,\mathrm{drm\_dt}\,t_d\lambda^2}$ (absolute $\lambda^2$, so the PA at $\lambda=0$ is unchanged), while $I$ and $V$ use $h(t_d)$. Also accepted on `scatter` steps of `[propagation.chain]`. |
 
 **Where it flows:** Stored in `prop_dict["scattering_index"]` and `prop_dict["scattering_screen"]`. Used in `scatter_dspec()` (dspec.py) which convolves each frequency channel with an exponential kernel `h(t) = (1/tau) * exp(-t/tau)`. The per-channel tau is computed as:
 
