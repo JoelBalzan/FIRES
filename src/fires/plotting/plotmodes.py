@@ -12,13 +12,16 @@
 # Date: 2025-05-20
 # -----------------------------------------------------------------------------
 
-import ast
 #	--------------------------	Import modules	---------------------------
+import ast
 import logging
 import os
+import re
 import warnings
 from types import SimpleNamespace
 
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
@@ -36,8 +39,8 @@ from fires.plotting.plot_helper import (build_plot_text_string, colour_map,
 from fires.plotting.plotfns import (plot_dpa, plot_ilv_pa_ds, plot_lv,
                                     plot_pa_li_scatter, plot_pa_profile,
                                     plot_pads, plot_qu, plot_stokes)
-from fires.utils.loaders import load_data
-from fires.utils.loaders import scrunch_dspec
+from fires.utils.loaders import (load_data, load_multiple_data_grouped,
+                                 parse_override_key, scrunch_dspec)
 from fires.utils.params import base_param_name, is_measured_key
 from fires.utils.utils import normalise_freq_window, normalise_phase_window
 
@@ -48,6 +51,40 @@ for _name in ("fontTools", "fontTools.subset"):
 	_lg.propagate = False
 
 #	--------------------------	Set plot parameters	---------------------------
+# [styling] key in plotparams.toml -> matplotlib rcParams key
+_STYLING_RC_KEYS = {
+	'pdf_fonttype': 'pdf.fonttype',
+	'ps_fonttype': 'ps.fonttype',
+	'savefig_dpi': 'savefig.dpi',
+	'figure_dpi': 'figure.dpi',
+	'font_size': 'font.size',
+	'axes_labelsize': 'axes.labelsize',
+	'axes_titlesize': 'axes.titlesize',
+	'legend_fontsize': 'legend.fontsize',
+	'xtick_labelsize': 'xtick.labelsize',
+	'ytick_labelsize': 'ytick.labelsize',
+	'font_family': 'font.family',
+	'font_serif': 'font.serif',
+	'mathtext_fontset': 'mathtext.fontset',
+	'color_cycle': 'axes.prop_cycle',
+	'line_width': 'lines.linewidth',
+	'marker_size': 'lines.markersize',
+	'axes_linewidth': 'axes.linewidth',
+	'xtick_major_width': 'xtick.major.width',
+	'ytick_major_width': 'ytick.major.width',
+	'xtick_direction': 'xtick.direction',
+	'ytick_direction': 'ytick.direction',
+	'xtick_top': 'xtick.top',
+	'ytick_right': 'ytick.right',
+	'xtick_minor_visible': 'xtick.minor.visible',
+	'ytick_minor_visible': 'ytick.minor.visible',
+	'axes_axisbelow': 'axes.axisbelow',
+	'constrained_layout': 'figure.constrained_layout.use',
+	'legend_frameon': 'legend.frameon',
+	'legend_handlelength': 'legend.handlelength',
+}
+
+
 def configure_matplotlib_from_config(plot_config=None, use_latex=None):
 	"""
 	Configure global Matplotlib style from plot configuration.
@@ -79,73 +116,12 @@ def configure_matplotlib_from_config(plot_config=None, use_latex=None):
 	# Start from publication defaults, then apply overrides from config.
 	set_pub_style(use_latex=latex_enabled)
 
-	# Build rcParams dict from config
-	rc = {}
-	
-	# Map config keys to matplotlib rcParams
-	if 'pdf_fonttype' in styling:
-		rc['pdf.fonttype'] = styling['pdf_fonttype']
-	if 'ps_fonttype' in styling:
-		rc['ps.fonttype'] = styling['ps_fonttype']
-	if 'savefig_dpi' in styling:
-		rc['savefig.dpi'] = styling['savefig_dpi']
-	if 'figure_dpi' in styling:
-		rc['figure.dpi'] = styling['figure_dpi']
-	if 'font_size' in styling:
-		rc['font.size'] = styling['font_size']
-	if 'axes_labelsize' in styling:
-		rc['axes.labelsize'] = styling['axes_labelsize']
-	if 'axes_titlesize' in styling:
-		rc['axes.titlesize'] = styling['axes_titlesize']
-	if 'legend_fontsize' in styling:
-		rc['legend.fontsize'] = styling['legend_fontsize']
-	if 'xtick_labelsize' in styling:
-		rc['xtick.labelsize'] = styling['xtick_labelsize']
-	if 'ytick_labelsize' in styling:
-		rc['ytick.labelsize'] = styling['ytick_labelsize']
-	if 'font_family' in styling:
-		rc['font.family'] = styling['font_family']
-	if 'font_serif' in styling:
-		rc['font.serif'] = styling['font_serif']
-	if 'mathtext_fontset' in styling:
-		rc['mathtext.fontset'] = styling['mathtext_fontset']
-	if 'color_cycle' in styling:
-		rc['axes.prop_cycle'] = plt.cycler(color=styling['color_cycle'])
-	if 'line_width' in styling:
-		rc['lines.linewidth'] = styling['line_width']
-	if 'marker_size' in styling:
-		rc['lines.markersize'] = styling['marker_size']
-	if 'axes_linewidth' in styling:
-		rc['axes.linewidth'] = styling['axes_linewidth']
-	if 'xtick_major_width' in styling:
-		rc['xtick.major.width'] = styling['xtick_major_width']
-	if 'ytick_major_width' in styling:
-		rc['ytick.major.width'] = styling['ytick_major_width']
-	if 'xtick_direction' in styling:
-		rc['xtick.direction'] = styling['xtick_direction']
-	if 'ytick_direction' in styling:
-		rc['ytick.direction'] = styling['ytick_direction']
-	if 'xtick_top' in styling:
-		rc['xtick.top'] = styling['xtick_top']
-	if 'ytick_right' in styling:
-		rc['ytick.right'] = styling['ytick_right']
-	if 'xtick_minor_visible' in styling:
-		rc['xtick.minor.visible'] = styling['xtick_minor_visible']
-	if 'ytick_minor_visible' in styling:
-		rc['ytick.minor.visible'] = styling['ytick_minor_visible']
-	if 'axes_axisbelow' in styling:
-		rc['axes.axisbelow'] = styling['axes_axisbelow']
-	if 'constrained_layout' in styling:
-		rc['figure.constrained_layout.use'] = styling['constrained_layout']
-	if 'legend_frameon' in styling:
-		rc['legend.frameon'] = styling['legend_frameon']
-	if 'legend_handlelength' in styling:
-		rc['legend.handlelength'] = styling['legend_handlelength']
+	# Apply [styling] overrides on top of the publication defaults
+	for key, rc_key in _STYLING_RC_KEYS.items():
+		if key in styling:
+			value = styling[key]
+			plt.rcParams[rc_key] = plt.cycler(color=value) if key == 'color_cycle' else value
 
-	# Apply all rcParams overrides
-	for k, v in rc.items():
-		plt.rcParams[k] = v
-	
 	# Handle LaTeX preamble
 	if latex_enabled:
 		try:
@@ -513,26 +489,28 @@ def _median_percentiles(yvals, x, ndigits=3, atol=1e-12, rtol=1e-9, p_low=16, p_
 	return med_vals, percentile_errs
 
 
+def _segment_values(seg_list, quantity, phase_window, freq_window):
+	"""Finite values of a measured quantity across the realisations (segment dicts) at one sweep step."""
+	vals = []
+	for seg in seg_list:
+		val = _extract_value_from_segments(seg, quantity, phase_window, freq_window)
+		if np.isfinite(val):
+			vals.append(val)
+	return vals
+
+
 def _x_percentiles_measured(frb_dict, x_measured: str, p_low=16, p_high=84,
 							phase_window='total', freq_window='all'):
 	"""
 	Compute per-parameter-step percentiles of a measured x quantity for the SAME
 	(freq_window, phase_window) used on the x-axis, returning (x_med, x_lo, x_hi).
 	"""
-	xvals_sweep = np.array(frb_dict["xvals"])
 	measures = frb_dict.get("measures", {})
 	x_med = []
 	x_lo = []
 	x_hi = []
-	for xv in xvals_sweep:
-		seg_list = measures.get(xv, [])
-		vals = []
-		for seg in seg_list:
-			if not isinstance(seg, dict):
-				continue
-			val = _extract_value_from_segments(seg, x_measured, phase_window, freq_window)
-			if np.isfinite(val):
-				vals.append(val)
+	for xv in np.array(frb_dict["xvals"]):
+		vals = _segment_values(measures.get(xv, []), x_measured, phase_window, freq_window)
 		if len(vals) == 0:
 			x_med.append(np.nan); x_lo.append(np.nan); x_hi.append(np.nan)
 		else:
@@ -586,22 +564,23 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 		Dictionary with normalised/weighted values for each key in xvals, and optionally
 		a boolean indicating if weighting was applied.
 	"""
+	def result(vals, applied):
+		return (vals, applied) if return_status else vals
+
+	def unweighted():
+		return {var: yvals.get(var, []) for var in xvals}
+
 	normalised_vals = {}
 	applied = False
-	
+
 	if weight_by is None:
-		for var in xvals:
-			normalised_vals[var] = yvals.get(var, [])
-		return (normalised_vals, applied) if return_status else normalised_vals
-	
+		return result(unweighted(), False)
+
 	if isinstance(weight_params, dict) and any(isinstance(v, dict) for v in weight_params.values()):
-		weighting_param_exists = any(weight_by in weight_params.get(var, {}) for var in xvals)
-		if not weighting_param_exists:
+		if not any(weight_by in weight_params.get(var, {}) for var in xvals):
 			logging.warning(f"Weighting parameter '{weight_by}' not found in weight dictionaries. Returning unweighted values.")
-			for var in xvals:
-				normalised_vals[var] = yvals.get(var, [])
-			return (normalised_vals, applied) if return_status else normalised_vals
-			
+			return result(unweighted(), False)
+
 		for var in xvals:
 			y_key = _find_matching_key(var, yvals.keys())
 			w_key = _find_matching_key(var, weight_params.keys())
@@ -638,14 +617,12 @@ def _weight_dict(xvals, yvals, weight_params, weight_by=None, return_status=Fals
 					normalised_vals[var] = list(y_values) if y_values else []
 		else:
 			logging.warning(f"Weighting parameter '{weight_by}' not found in weight_params. Returning unweighted values.")
-			for var in xvals:
-				normalised_vals[var] = yvals.get(var, [])
+			normalised_vals = unweighted()
 	else:
-		logging.warning(f"Unsupported weight_params format. Returning unweighted values.")
-		for var in xvals:
-			normalised_vals[var] = yvals.get(var, [])
+		logging.warning("Unsupported weight_params format. Returning unweighted values.")
+		normalised_vals = unweighted()
 
-	return (normalised_vals, applied) if return_status else normalised_vals
+	return result(normalised_vals, applied)
 
 
 def _apply_axis_limits(ax, xlim=None, ylim=None):
@@ -866,23 +843,11 @@ def _yvals_from_measures_dict(xvals, measures, plot_type: str, phase_window: str
 	Build yvals dict {xv: [values...]} from a measures dict produced by compute_segments.
 	Does not mutate inputs.
 	"""
+	quantity = {'pa_var': 'Vpsi', 'l_frac': 'Lfrac'}.get(plot_type, plot_type)
 	yvals = {}
-	
-	if plot_type == 'pa_var':
-		quantity = 'Vpsi'
-	elif plot_type == 'l_frac':
-		quantity = 'Lfrac'
-	else:
-		quantity = plot_type
-	
 	for xv in xvals:
-		vals = []
-		for seg in measures.get(xv, []):
-			val = _extract_value_from_segments(seg, quantity, phase_window, freq_window)
-			if np.isfinite(val):  
-				vals.append(val)
+		vals = _segment_values(measures.get(xv, []), quantity, phase_window, freq_window)
 		yvals[xv] = vals
-		
 		if not vals:
 			logging.debug(f"No valid {quantity} measurements for xval={xv}, phase={phase_window}, freq={freq_window}")
 	
@@ -950,7 +915,7 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, colour='black
 		bounds = ([0, -np.inf, -np.inf, np.min(x_fit)], [np.inf, np.inf, np.inf, np.max(x_fit)])
 		popt, _ = curve_fit(_broken_power_law, x_fit, y_fit, p0=p0, bounds=bounds)
 		y_model = _broken_power_law(x_fit, *popt)
-		return y_model, (f"Broken power\n"
+		return y_model, ("Broken power\n"
 				  		 r"$(n_1={:.2f},\ n_2={:.2f},\ x_b={:.2f})$".format(popt[1], popt[2], popt[3]))
 
 	fit_handlers = {
@@ -985,6 +950,14 @@ def _fit_and_plot(ax, x, y, fit_type, fit_degree=None, label=None, colour='black
 		logging.error(f"Fit failed: {e}")
 
 
+# Axis symbol and unit for each measured quantity that can go on the x-axis
+_MEASURED_X_LABELS = {
+	'Vpsi': (r"\mathbb{V}(\psi)", r"\mathrm{deg}^2"),
+	'Lfrac': (r"\Pi_{L}", ""),
+	'Vfrac': (r"\Pi_{V}", ""),
+}
+
+
 def _weight_x_get_xname(
 		frb_dict,
 		weight_x_by=None,
@@ -998,51 +971,14 @@ def _weight_x_get_xname(
 	forcing ('total','all'). Falls back to ('total','all') if not provided.
 	"""
 	if x_measured is not None:
-		xvals_sweep = np.array(frb_dict["xvals"])
 		measures = frb_dict.get("measures", {})
-		
-		# Use provided windows or defaults
-		phase_key = normalise_phase_window(
-			phase_window if phase_window is not None else 'total',
-			target='segments'
-		)
-		freq_key = normalise_freq_window(
-			freq_window if freq_window is not None else 'all',
-			target='segments'
-		)
-		# Map back to dspec form when extracting
-		phase_key_dspec = normalise_phase_window(phase_key, target='dspec')
-		freq_key_dspec = normalise_freq_window(freq_key, target='dspec')
-
-		measured_x = []
-		for xv in xvals_sweep:
-			seg_list = measures.get(xv, [])
-			if not seg_list:
-				measured_x.append(np.nan)
-				continue
-			vals = []
-			for seg in seg_list:
-				if not isinstance(seg, dict):
-					continue
-				val = _extract_value_from_segments(seg, x_measured, phase_key_dspec, freq_key_dspec)
-				if np.isfinite(val):
-					vals.append(val)
-			measured_x.append(np.nanmedian(vals) if vals else np.nan)
-		
-		x = np.array(measured_x, dtype=float)
-		
-		if x_measured == 'Vpsi':
-			xname = r"\mathbb{V}(\psi)"
-			x_unit = r"\mathrm{deg}^2"
-		elif x_measured == 'Lfrac':
-			xname = r"\Pi_{L}"
-			x_unit = ""
-		elif x_measured == 'Vfrac':
-			xname = r"\Pi_{V}"
-			x_unit = ""
-		else:
+		phase_window = phase_window if phase_window is not None else 'total'
+		freq_window = freq_window if freq_window is not None else 'all'
+		x = np.array([_median_or_nan(_segment_values(measures.get(xv, []), x_measured, phase_window, freq_window))
+					  for xv in np.array(frb_dict["xvals"])], dtype=float)
+		if x_measured not in _MEASURED_X_LABELS:
 			raise ValueError(f"Unknown x_measured: {x_measured}")
-		
+		xname, x_unit = _MEASURED_X_LABELS[x_measured]
 		return x, xname, x_unit
 	
 	# Original behavior: use input parameter sweep
@@ -1164,36 +1100,20 @@ def _parse_fit_arg(fit_item):
 	"""
 	Parse a fit argument string like 'poly,2' or 'poly' into (fit_type, fit_degree).
 	"""
-	if isinstance(fit_item, (list, tuple)):
-		fit_type = fit_item[0]
-		fit_degree = None
-		if len(fit_item) > 1 and fit_item[1] is not None and str(fit_item[1]).strip() != "":
-			try:
-				fit_degree = int(fit_item[1])
-			except Exception:
-				fit_degree = None
-		if fit_type == "poly" and fit_degree is None:
-			logging.warning("'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
-		return fit_type, fit_degree
-	elif isinstance(fit_item, str):
-		if ',' in fit_item:
-			parts = fit_item.split(',', 1)
-			fit_type = parts[0]
-			fit_degree = None
-			if len(parts) > 1 and parts[1] is not None and parts[1].strip() != "":
-				try:
-					fit_degree = int(parts[1])
-				except Exception:
-					fit_degree = None
-			if fit_type == "poly" and fit_degree is None:
-				logging.warning("'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
-			return fit_type, fit_degree
-		else:
-			if fit_item == "poly":
-				logging.warning("'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
-			return fit_item, None
-	else:
+	if isinstance(fit_item, str):
+		fit_item = fit_item.split(',', 1)
+	if not isinstance(fit_item, (list, tuple)):
 		return None, None
+	fit_type = fit_item[0]
+	fit_degree = None
+	if len(fit_item) > 1 and fit_item[1] is not None and str(fit_item[1]).strip() != "":
+		try:
+			fit_degree = int(fit_item[1])
+		except Exception:
+			fit_degree = None
+	if fit_type == "poly" and fit_degree is None:
+		logging.warning("'poly' fit requires a degree (e.g., 'poly,2'). Skipping fit for this run.")
+	return fit_type, fit_degree
 
 
 def _print_med_snrs(subdict):
@@ -1267,7 +1187,7 @@ def _extract_expected_curves(exp_vars, V_params, xvals, param_key='exp_var_PA', 
 			e1, e2 = v, None
 
 		exp1.append(np.nan if e1 is None else float(e1))
-		exp2.append(np.nan if e2 is None else (float(e2) if e2 is not None else np.nan))
+		exp2.append(np.nan if e2 is None else float(e2))
 
 		# Optional weighting by variance parameter (e.g., 'meas_var_PA')
 		if weight_y_by is not None:
@@ -1297,13 +1217,8 @@ def _plot_expected(x, frb_dict, ax, V_params, xvals, param_key='exp_var_PA', wei
 	exp1, exp2 = _extract_expected_curves(
 		frb_dict["exp_vars"], V_params, xvals, param_key=param_key, weight_y_by=weight_y_by
 	)
-	# Only plot if there are finite expected values
-	has_exp1 = np.any(np.isfinite(exp1))
-	has_exp2 = exp2 is not None and np.any(np.isfinite(exp2))
-
-	#if has_exp1:
-	#	ax.plot(x, exp1, 'k--', linewidth=2.0, label='Expected')
-	if has_exp2:
+	# Only the second ("basic") expected series is drawn
+	if exp2 is not None and np.any(np.isfinite(exp2)):
 		ax.plot(x, exp2, 'k:', linewidth=2.0, label='Expected')
 	else:
 		logging.info(f"No valid expected values found for '{param_key}' to plot.")
@@ -1317,17 +1232,7 @@ def _parse_override_dict(override_str) -> dict:
 	if not override_str:
 		return od
 	if ('=' in override_str) or ('+' in override_str):
-		for tok in override_str.split('+'):
-			if not tok or '=' not in tok:
-				continue
-			k, v = tok.split('=', 1)
-			k = k.strip().replace('.', '_')
-			try:
-				od[k] = float(v)
-			except Exception:
-				continue
-		return od
-	import re
+		return parse_override_key(override_str)
 	pattern = r'(sd_?)?([A-Za-z][A-Za-z0-9_]*?)(-?(?:\d+(?:\.\d*)?|\.\d+))'
 	for m in re.finditer(pattern, override_str):
 		sd_prefix, key, value = m.groups()
@@ -1466,8 +1371,6 @@ def _select_nearest(sorted_vals, desired_vals):
 
 def _equal_line_colours(vals, mode, base, cmap_nm):
 	"""One colour per line: sampled from a colormap ('cmap') or darker-to-lighter shades of base."""
-	import matplotlib.cm as cm
-	import matplotlib.colors as mcolors
 	n = len(vals)
 	if n == 0:
 		return []
@@ -2029,7 +1932,6 @@ def _plot_single_run_multi_window(
 		idx = window_pairs.index((freq_win, phase_win))
 		if n_combos <= len(colours):
 			return list(colours.values())[idx % len(colours)]
-		import matplotlib.cm as cm
 		return cm.get_cmap('tab20', n_combos)(idx)
 
 	def window_label(freq_win, phase_win):
@@ -2266,7 +2168,6 @@ def _sweep_mode(dspec_params):
 
 def _colour_shades(base_colour, n_shades):
 	"""n_shades hex colours from darker to lighter around base_colour."""
-	import matplotlib.colors as mcolors
 
 	if n_shades == 1:
 		return [base_colour]
@@ -2308,9 +2209,6 @@ def _equal_lines_style(equal_lines_cfg):
 
 def _constant_param_lines_from_dir(ax, data_dir, phase_window, freq_window):
 	"""Draw V(psi)-vs-L/I lines of constant parameter from the grouped sweep pickles in data_dir."""
-	import re
-
-	from fires.utils.loaders import load_multiple_data_grouped
 	param_dict = load_multiple_data_grouped(data_dir)
 	param_data = {}
 	for key, subdict in param_dict.items() if isinstance(param_dict, dict) else [(None, param_dict)]:
@@ -2700,6 +2598,34 @@ def plot_lfrac(frb_dict, fname, out_dir, phase_window, freq_window, gauss_file=N
 				   obs_data, obs_params, compare_windows, buffer_frac, plot_config)
 
 
+def _integrated_lfrac_with_error(Its, Lts, on_mask, off_mask):
+	"""On-pulse integrated L/I and its error from the off-pulse noise (10% if that can't be estimated)."""
+	integrated_I = np.nansum(np.where(on_mask, Its, np.nan))
+	integrated_L = np.nansum(np.where(on_mask, Lts, np.nan))
+	if not np.isfinite(integrated_I) or integrated_I <= 0:
+		return np.nan, np.nan
+	val = integrated_L / integrated_I
+
+	I_off = Its[off_mask]
+	L_off = Lts[off_mask]
+	nI = int(np.sum(np.isfinite(I_off)))
+	nL = int(np.sum(np.isfinite(L_off)))
+	if nI >= 1 and nL >= 1:
+		# ddof=1 only with at least 2 valid samples
+		with np.errstate(invalid='ignore'):
+			noise_I = np.nanstd(I_off, ddof=1 if nI > 1 else 0)
+			noise_L = np.nanstd(L_off, ddof=1 if nL > 1 else 0)
+		n_on = int(np.sum(on_mask))
+		if n_on > 0 and np.isfinite(noise_I) and np.isfinite(noise_L):
+			sigma_I_int = noise_I * np.sqrt(n_on)
+			sigma_L_int = noise_L * np.sqrt(n_on)
+			return val, val * np.sqrt(
+				(sigma_L_int / max(integrated_L, 1e-12))**2 +
+				(sigma_I_int / max(integrated_I, 1e-12))**2
+			)
+	return val, 0.1 * val
+
+
 def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_file, phase_window, freq_window, buffer_frac, plot_mode, x_measured=None):
 	"""
 	Load and process observational FRB data to extract measurements for overlay plotting.
@@ -2746,39 +2672,22 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		dspec = np.concatenate([dspec, zeros], axis=0)
 
 	# Process full-band once (used for metadata and some fallbacks)
-	ts_data_full, corr_dspec, noisespec_full, noise_stokes_full = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
+	ts_data_full, corr_dspec, noisespec_full, _ = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 
 	# Compute per-window measures once
 	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
 
-	try:
-		lfrac_win = _extract_value_from_segments(segments, 'Lfrac', phase_window, freq_window)
-	except Exception:
-		lfrac_win = np.nan
-	try:
-		vfrac_win = _extract_value_from_segments(segments, 'Vfrac', phase_window, freq_window)
-	except Exception:
-		vfrac_win = np.nan
-	try:
-		vpsi_win = _extract_value_from_segments(segments, 'Vpsi', phase_window, freq_window)
-	except Exception:
-		vpsi_win = np.nan
-
-	# Log measured values for requested window
+	measured = {q: _extract_value_from_segments(segments, q, phase_window, freq_window) for q in ('Lfrac', 'Vfrac', 'Vpsi')}
 	logging.info(
 		f"Observational window [{normalise_freq_window(freq_window, 'dspec')}, "
 		f"{normalise_phase_window(phase_window, 'dspec')}]: "
-		f"L/I={lfrac_win:.4g}, V/I={vfrac_win:.4g}, V(psi)={vpsi_win:.4g} deg^2"
+		f"L/I={measured['Lfrac']:.4g}, V/I={measured['Vfrac']:.4g}, V(psi)={measured['Vpsi']:.4g} deg^2"
 	)
-	
-	# X-axis value
-	x_value = None
-	x_err = None
 
-	if x_measured == 'Vpsi':
-		x_value = _extract_value_from_segments(segments, 'Vpsi', phase_window, freq_window)
-	elif x_measured == 'Lfrac':
-		x_value = _extract_value_from_segments(segments, 'Lfrac', phase_window, freq_window)
+	# X-axis value: a measured quantity, or else the full-band PA standard deviation
+	x_err = None
+	if x_measured in ('Vpsi', 'Lfrac'):
+		x_value = measured[x_measured]
 	else:
 		phits = ts_data_full.phits
 		ephits = ts_data_full.ephits
@@ -2786,27 +2695,19 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		valid_phits = phits[valid_mask]
 		valid_ephits = ephits[valid_mask]
 		pa_var_deg2 = pa_variance_deg2(valid_phits) if valid_phits.size > 0 else np.nan
-		pa_std_deg = np.sqrt(pa_var_deg2) if np.isfinite(pa_var_deg2) else np.nan
-		pa_var_err = pa_variance_deg2(valid_ephits) if valid_ephits.size > 0 else 0.0
-		x_value = pa_std_deg
-		x_err = pa_var_err
+		x_value = np.sqrt(pa_var_deg2) if np.isfinite(pa_var_deg2) else np.nan
+		x_err = pa_variance_deg2(valid_ephits) if valid_ephits.size > 0 else 0.0
 
 	# Y-axis value from segments
-	if plot_mode.name == 'pa_var':
-		y_value = _extract_value_from_segments(segments, 'Vpsi', phase_window, freq_window)
-		y_err = None
-	elif plot_mode.name == 'l_frac':
-		y_value = _extract_value_from_segments(segments, 'Lfrac', phase_window, freq_window)
-		y_err = None
-	else:
+	y_quantity = {'pa_var': 'Vpsi', 'l_frac': 'Lfrac'}.get(plot_mode.name)
+	if y_quantity is None:
 		raise ValueError(f"Observational overlay not supported for plot mode '{plot_mode.name}'")
+	y_value = measured[y_quantity]
 
 	# Error estimates in the requested dspec window
 	freq_slc = _get_freq_window_indices(freq_window, freq_mhz)
-	dspec_win = dspec[:, freq_slc, :]
 	freq_win = freq_mhz[freq_slc] if isinstance(freq_slc, slice) else freq_mhz
-
-	ts_data_win, corr_dspec_win, noisespec_win, noise_stokes_win = process_dspec(dspec_win, freq_win, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
+	ts_data_win, _, _, _ = process_dspec(dspec[:, freq_slc, :], freq_win, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 
 	I_profile = ts_data_win.iquvt[0]
 	L_profile = ts_data_win.Lts
@@ -2814,7 +2715,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	peak_index = int(np.nanargmax(I_profile)) if I_profile.size > 0 else 0
 	phase_slc = _get_phase_window_indices(phase_window, peak_index)
 
-	on_mask, off_mask, (left, right) = on_off_pulse_masks_from_profile(
+	on_mask, off_mask, _ = on_off_pulse_masks_from_profile(
 		I_profile, gdict["width"][0]/dspec_params.time_res_ms, frac=0.95, buffer_frac=buffer_frac
 	)
 
@@ -2828,64 +2729,19 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 			tmp[start:stop] = True
 		on_mask_windowed &= tmp
 
-	# Errors
-	if plot_mode.name == 'pa_var':
-		phits = ts_data_win.phits[phase_slc]
+	def pa_var_error():
 		ephits = ts_data_win.ephits[phase_slc]
 		valid_e = np.isfinite(ephits)
-		y_err = pa_variance_deg2(ephits[valid_e]) if np.any(valid_e) else 0.0
+		return pa_variance_deg2(ephits[valid_e]) if np.any(valid_e) else 0.0
 
-	def _li_with_error(Its, Lts, on_mask_local):
-		I_masked = np.where(on_mask_local, Its, np.nan)
-		L_masked = np.where(on_mask_local, Lts, np.nan)
-		integrated_I = np.nansum(I_masked)
-		integrated_L = np.nansum(L_masked)
-		if not np.isfinite(integrated_I) or integrated_I <= 0:
-			return np.nan, np.nan
-		val = integrated_L / integrated_I
+	def lfrac_error():
+		return _integrated_lfrac_with_error(I_profile, L_profile, on_mask_windowed, off_mask)[1]
 
-		I_off = Its[off_mask]
-		L_off = Lts[off_mask]
-		# Count valid (non-NaN) samples
-		nI = int(np.sum(np.isfinite(I_off)))
-		nL = int(np.sum(np.isfinite(L_off)))
-
-		if nI >= 1 and nL >= 1:
-			# Use ddof=1 only if at least 2 valid samples
-			ddof_I = 1 if nI > 1 else 0
-			ddof_L = 1 if nL > 1 else 0
-			with np.errstate(invalid='ignore'):
-				noise_I = np.nanstd(I_off, ddof=ddof_I)
-				noise_L = np.nanstd(L_off, ddof=ddof_L)
-
-			n_on = int(np.sum(on_mask_local))
-			if n_on > 0 and np.isfinite(noise_I) and np.isfinite(noise_L):
-				sigma_I_int = noise_I * np.sqrt(n_on)
-				sigma_L_int = noise_L * np.sqrt(n_on)
-				err = val * np.sqrt(
-					(sigma_L_int / max(integrated_L, 1e-12))**2 +
-					(sigma_I_int / max(integrated_I, 1e-12))**2
-				)
-			else:
-				err = 0.1 * val
-		else:
-			err = 0.1 * val
-
-		return val, err
-
-	if plot_mode.name == 'l_frac':
-		_, li_err = _li_with_error(I_profile, L_profile, on_mask_windowed)
-		y_err = li_err
-
+	y_err = pa_var_error() if plot_mode.name == 'pa_var' else lfrac_error()
 	if x_measured == 'Lfrac':
-		_, x_err_est = _li_with_error(I_profile, L_profile, on_mask_windowed)
-		x_err = x_err_est
-
+		x_err = lfrac_error()
 	if x_measured == 'Vpsi':
-		phits = ts_data_win.phits[phase_slc]
-		ephits = ts_data_win.ephits[phase_slc]
-		valid_e = np.isfinite(ephits)
-		x_err = pa_variance_deg2(ephits[valid_e]) if np.any(valid_e) else 0.0
+		x_err = pa_var_error()
 
 	label = gdict.get('label', os.path.splitext(os.path.basename(obs_data_path))[0])
 
@@ -2904,7 +2760,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 	}
 
 	if (x_value is not None and np.isfinite(x_value)) and (y_value is not None and np.isfinite(y_value)):
-		logging.info(f"Processed observational data")
+		logging.info("Processed observational data")
 	else:
 		logging.warning("Failed to extract valid measurements from observational data")
 
@@ -2987,90 +2843,14 @@ def _plot_observational_overlay(ax, obs_result, weight_x_by=None, weight_y_by=No
 
 
 
-# Define PlotMode instances for each plot type
-pa_var = PlotMode(
-	name="pa_var",
-	plot_func=plot_pa_var,
-	requires_multiple_frb=True  
-)
-
-l_frac = PlotMode(
-	name="l_frac",
-	plot_func=plot_lfrac,
-	requires_multiple_frb=True  
-)
-
-iquv = PlotMode(
-	name="iquv",
-	plot_func=basic_plots,
-	requires_multiple_frb=False  
-)
-
-lvpa = PlotMode(
-	name="lvpa",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-dpa = PlotMode(
-	name="dpa",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-RM = PlotMode(
-	name="RM",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-pa = PlotMode(
-	name="pa",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-pali = PlotMode(
-	name="pali",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-lv = PlotMode(
-	name="lv",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-stokes = PlotMode(
-	name="stokes",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-qu = PlotMode(
-	name="qu",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
-
-pads = PlotMode(
-	name="pads",
-	plot_func=basic_plots,
-	requires_multiple_frb=False
-)
+# Plot modes. pa_var and l_frac need a parameter sweep (many FRBs); the rest plot one FRB
+# through basic_plots. Order matters only for listing.
+pa_var = PlotMode(name="pa_var", plot_func=plot_pa_var, requires_multiple_frb=True)
+l_frac = PlotMode(name="l_frac", plot_func=plot_lfrac, requires_multiple_frb=True)
 
 plot_modes = {
 	"pa_var": pa_var,
 	"l_frac": l_frac,
-	"iquv"  : iquv,
-	"lv"    : lv,
-	"lvpa"  : lvpa,
-	"stokes": stokes,
-	"qu"    : qu,
-	"dpa"   : dpa,
-	"RM"    : RM,
-	"pa"    : pa,
-	"pali"  : pali,
-	"pads"  : pads
+	**{name: PlotMode(name=name, plot_func=basic_plots, requires_multiple_frb=False)
+	   for name in ("iquv", "lv", "lvpa", "stokes", "qu", "dpa", "RM", "pa", "pali", "pads")},
 }
