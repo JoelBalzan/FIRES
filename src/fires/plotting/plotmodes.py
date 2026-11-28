@@ -2434,13 +2434,10 @@ def _read_analytic_config(plot_config):
 	)
 
 
-# Per-quantity settings for the analytic plots (y symbol, single-run series label,
-# expected-curve key, and whether a publication figsize is the default).
+# Per-quantity settings for the analytic plots (y symbol, single-run series label, expected-curve key)
 _ANALYTIC_PLOTS = {
-	'pa_var': dict(yname=r"\mathbb{V}(\psi)", series_label=r'$\mathbb{V}(\psi)$',
-				   expected_key='exp_var_PA', pub_figsize_default=True),
-	'l_frac': dict(yname=r"\Pi_L", series_label='L/I',
-				   expected_key=None, pub_figsize_default=False),
+	'pa_var': dict(yname=r"\mathbb{V}(\psi)", series_label=r'$\mathbb{V}(\psi)$', expected_key='exp_var_PA'),
+	'l_frac': dict(yname=r"\Pi_L", series_label='L/I', expected_key=None),
 }
 
 
@@ -2450,9 +2447,7 @@ def _plot_analytic(plot_type, frb_dict, fname, out_dir, phase_window, freq_windo
 	spec = _ANALYTIC_PLOTS[plot_type]
 	cfg = _read_analytic_config(plot_config)
 	yname = spec['yname']
-	figsize = cfg.figsize
-	if figsize is None and spec['pub_figsize_default']:
-		figsize = pub_figsize(ncol=get_pub_col())
+	figsize = cfg.figsize if cfg.figsize is not None else pub_figsize(ncol=get_pub_col())
 
 	def finish_axes(ax):
 		_apply_axis_limits(ax, cfg.xlim, cfg.ylim)
