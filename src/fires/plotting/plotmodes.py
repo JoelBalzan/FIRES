@@ -2114,24 +2114,9 @@ def _plot_single_job_common(
 	plot_x, plot_med = _draw_series(ax, x, med_vals, lower, upper, x_lo, x_hi, pct, draw_style, nbins,
 									series_colour, series_label, colour_by_sweep)
 
-	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict) and draw_style != 'binned':
-		# respect config override if provided
-		_plot_expected_cfg = get_plot_param(plot_config, 'analytical', 'plot_expected', True)
-		if _plot_expected_cfg:
-			exp_weight = weight_y_by if applied else None
-			_plot_expected(plot_x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
-
-	if fit is not None and draw_style not in ('binned', 'scatter'):
-		logging.info(f"Applying fit: {fit}")
-		fit_type, fit_degree = _parse_fit_arg(fit)
-		_fit_and_plot(ax, plot_x, plot_med, fit_type, fit_degree, label=None)
-		if not embed:
-			_legend_if_any(ax, loc=legend_loc)
-
+	# Expected curve and fit use the unsorted, unbinned x so each value stays paired with its sweep step
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict):
-		# second expected plotting (older call) — respect config as well
-		_plot_expected_cfg = get_plot_param(plot_config, 'analytical', 'plot_expected', True)
-		if _plot_expected_cfg:
+		if get_plot_param(plot_config, 'analytical', 'plot_expected', True):
 			exp_weight = weight_y_by if applied else None
 			_plot_expected(x, frb_dict, ax, V_params, xvals, param_key=expected_param_key, weight_y_by=exp_weight)
 
