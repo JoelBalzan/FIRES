@@ -3371,7 +3371,7 @@ def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_
 		Dictionary with measurement results and metadata
 	"""
 
-	if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith('.npy')):
+	if os.path.isdir(obs_data_path) or (os.path.isfile(obs_data_path) and obs_data_path.endswith(('.npy', '.npz'))):
 		dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data_path, obs_params_path, gauss_file, sim_file)
 		gdict = dspec_params.gdict
 	else:

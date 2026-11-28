@@ -1,4 +1,7 @@
 """
+Shared file: identical copies live in FIRES (fires/utils/stokes_npz.py) and FRBop
+(frbop/utils/stokes_npz.py). Change both together; tests/test_stokes_npz.py checks the format.
+
 Single-file Stokes dynamic spectrum archive shared by FIRES and FRBop.
 
 One ``.npz`` holds the (4, nchan, nsamp) cube, its axes and metadata. It is a superset of the
