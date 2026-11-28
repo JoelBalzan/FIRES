@@ -940,17 +940,9 @@ def psn_dspec(
 	mg_width_low    = gdict['mg_width_low']
 	mg_width_high   = gdict['mg_width_high']
 
-	sd_A               = sd_dict['sd_A']
-	sd_spec_idx        = sd_dict['sd_spec_idx']
 	sd_tau             = sd_dict['sd_tau']
 	sd_PA              = sd_dict['sd_PA']
-	sd_dm              = sd_dict['sd_DM']
 	sd_rm              = sd_dict['sd_RM']
-	sd_lfrac           = sd_dict['sd_lfrac']
-	sd_vfrac           = sd_dict['sd_vfrac']
-	sd_dPA             = sd_dict['sd_dPA']
-	sd_band_centre_mhz = sd_dict['sd_band_centre_mhz']
-	sd_band_width_mhz  = sd_dict['sd_band_width_mhz']
 	amp_sampling        = gdict.get('amp_sampling', {'dist': 'normal'})
 	pa_swing            = gdict.get('pa_swing', {'enable': False})
 	
@@ -1192,21 +1184,10 @@ def psn_dspec(
 		exp_V_PA_deg2 = None
 		exp_V_PA_deg2_basic = None
 
-	exp_vars = {
-		'exp_var_t0'             : None,
-		'exp_var_A'       		 : None,
-		'exp_var_width'       : None,
-		'exp_var_spec_idx'       : None,
-		'exp_var_tau'         : None,
-		'exp_var_PA'             : [exp_V_PA_deg2, exp_V_PA_deg2_basic],
-		'exp_var_DM'             : None,
-		'exp_var_RM'             : None,
-		'exp_var_lfrac'          : None,
-		'exp_var_vfrac'          : None,
-		'exp_var_dPA'            : None,
-		'exp_var_band_centre_mhz': None,
-		'exp_var_band_width_mhz' : None
-	}
+	# Only the PA variance has an analytic expectation; the other entries are placeholders.
+	exp_vars = {f'exp_var_{k}': None for k in ('t0', 'A', 'width', 'spec_idx', 'tau', 'PA', 'DM', 'RM',
+	                                          'lfrac', 'vfrac', 'dPA', 'band_centre_mhz', 'band_width_mhz')}
+	exp_vars['exp_var_PA'] = [exp_V_PA_deg2, exp_V_PA_deg2_basic]
 
 	segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params, buffer_frac, skip_rm=True, remove_pa_trend=True)
 	return dspec, snr, V_params, exp_vars, segments
@@ -1246,7 +1227,6 @@ def fold_dspec(
 	all_snrs = []
 	last_V_params = {}
 	last_exp_vars = {}
-	print(target_snr)
 
 	for i in tqdm(range(nfold), desc="Folding", unit="fold", leave=False):
 		current_seed = (base_seed * nfold + i) if base_seed is not None else None

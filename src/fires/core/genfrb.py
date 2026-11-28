@@ -17,8 +17,8 @@ from fires.core.basicfns import (add_noise, compute_segments,
                                   correct_baseline, process_dspec,
                                   scale_dspec_to_target_snr, snr_onpulse)
 from fires.utils.config import load_params
-from fires.utils.io import (build_override_parts, build_single_output_path,
-                             write_frb_dict, write_single_frb)
+from fires.utils.io import (build_override_parts, build_sweep_output_path,
+                             write_frb_dict, write_single_frb, write_stokes_cube)
 from fires.utils.loaders import load_data, load_multiple_data_grouped, scrunch_dspec
 from fires.utils.params import (COL_MAP, GDICT_KEYS, ComponentParams,
                                  StdDevParams, SweepSpec,
@@ -59,9 +59,18 @@ def channel_centres(f_start, f_end, df):
     return f_start + df * (np.arange(n_chan) + 0.5)
 
 
-def _write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id):
-    from fires.utils.io import write_stokes_cube
-    return write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id)
+def _simulate(emission_model, dspec_params, plot_multiple_frb, fold_params=None, **kwargs):
+    """Run the configured emission model; returns (dspec, snr, V_params, exp_vars, segments)."""
+    if emission_model == "fold":
+        return fold_dspec(dspec_params=dspec_params, fold_params=fold_params, **kwargs)
+    model = efield_dspec if emission_model == "efield" else psn_dspec
+    return model(dspec_params=dspec_params, plot_multiple_frb=plot_multiple_frb, **kwargs)
+
+
+def _load_obs(obs_data, obs_params, gauss_file, sim_file, scint_file, t_scrunch, f_scrunch):
+    """Load observed Stokes data and scrunch it; returns (dspec, freq_mhz, time_ms, dspec_params)."""
+    dspec, freq_mhz, time_ms, dspec_params = load_data(obs_data, obs_params, gauss_file, sim_file, scint_file)
+    return scrunch_dspec(dspec, freq_mhz, time_ms, dspec_params, t_scrunch=t_scrunch, f_scrunch=f_scrunch)
 
 
 def _normalise_master_amp_sampling(amp_cfg):
@@ -246,38 +255,11 @@ def _process_task(task, xname, plot_mode, dspec_params, target_snr=None, baselin
     base_seed = dspec_params.seed
     current_seed = (base_seed + realisation) if base_seed is not None else None
     local_params = dspec_params._replace(seed=current_seed)
-    requires_multiple_frb = plot_mode.requires_multiple_frb
-    if emission_model == "fold":
-        _, snr, V_params, exp_vars, measures = fold_dspec(
-            dspec_params=local_params,
-            variation_parameter=var,
-            xname=xname,
-            plot_multiple_frb=requires_multiple_frb,
-            target_snr=target_snr,
-            baseline_correct=baseline_correct,
-            diagnostics=True,
-            fold_params=fold_params,
-        )
-    elif emission_model == "efield":
-        _, snr, V_params, exp_vars, measures = efield_dspec(
-            dspec_params=local_params,
-            variation_parameter=var,
-            xname=xname,
-            plot_multiple_frb=requires_multiple_frb,
-            target_snr=target_snr,
-            baseline_correct=baseline_correct,
-            diagnostics=True,
-        )
-    else:
-        _, snr, V_params, exp_vars, measures = psn_dspec(
-            dspec_params=local_params,
-            variation_parameter=var,
-            xname=xname,
-            plot_multiple_frb=requires_multiple_frb,
-            target_snr=target_snr,
-            baseline_correct=baseline_correct,
-            diagnostics=True,
-        )
+    _, snr, V_params, exp_vars, measures = _simulate(
+        emission_model, local_params, plot_mode.requires_multiple_frb, fold_params=fold_params,
+        variation_parameter=var, xname=xname, target_snr=target_snr,
+        baseline_correct=baseline_correct, diagnostics=True,
+    )
     return var, measures, V_params, snr, exp_vars
 
 
@@ -286,17 +268,12 @@ def _process_obs_task(task, plot_mode, target_snr=None, baseline_correct=None,
                       sim_file=None, scint_file=None, t_scrunch=1, f_scrunch=1):
     var, _ = task
     requires_multiple_frb = plot_mode.requires_multiple_frb
-    dspec, freq_mhz, time_ms, dspec_params_local = load_data(
-        obs_data, obs_params, gauss_file, sim_file, scint_file
-    )
-    dspec, freq_mhz, time_ms, dspec_params_local = scrunch_dspec(
-        dspec, freq_mhz, time_ms, dspec_params_local,
-        t_scrunch=t_scrunch, f_scrunch=f_scrunch,
+    dspec, freq_mhz, time_ms, dspec_params_local = _load_obs(
+        obs_data, obs_params, gauss_file, sim_file, scint_file, t_scrunch, f_scrunch
     )
     scatter_idx = dspec_params_local.sc_idx
     ref_freq = dspec_params_local.ref_freq_mhz
     sefd = dspec_params_local.sefd
-    f_res = dspec_params_local.freq_res_mhz
     t_res = dspec_params_local.time_res_ms
     buffer_frac = dspec_params_local.buffer_frac
     dspec = scatter_loaded_dspec(dspec, freq_mhz, time_ms, var, scatter_idx, ref_freq)
@@ -314,10 +291,7 @@ def _process_obs_task(task, plot_mode, target_snr=None, baseline_correct=None,
                               requires_multiple_frb, buffer_frac=buffer_frac, n_pol=2)
     segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params_local,
                                 buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
-    measures = segments
-    V_params = {}
-    exp_vars = {}
-    return var, measures, V_params, snr, exp_vars
+    return var, segments, {}, snr, {}
 
 
 def _setup_sweep(sweep_spec, logstep, sweep_mode, plot_mode):
@@ -420,7 +394,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
     scatter_idx = float(prop_params['scattering_index'])
     freq_mhz = channel_centres(f_start, f_end, f_res)  # f_start, f_end are the band edges
     time_ms  = np.arange(t_start, t_end + t_res, t_res, dtype=float)
-    n_comp = len(comp_list)
     gdict = {}
     for key in GDICT_KEYS:
         gdict[key] = np.array([getattr(c, key) for c in comp_list], dtype=float)
@@ -471,12 +444,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
     plot_multiple_frb = plot_mode.requires_multiple_frb
     if not plot_multiple_frb:
         if obs_data is not None:
-            dspec, freq_mhz, time_ms, dspec_params = load_data(
-                obs_data, obs_params, gauss_file, sim_file, scint_file
-            )
-            dspec, freq_mhz, time_ms, dspec_params = scrunch_dspec(
-                dspec, freq_mhz, time_ms, dspec_params,
-                t_scrunch=tscrunch, f_scrunch=fscrunch,
+            dspec, freq_mhz, time_ms, dspec_params = _load_obs(
+                obs_data, obs_params, gauss_file, sim_file, scint_file, tscrunch, fscrunch
             )
             I_time = np.nansum(dspec[0], axis=0)
             snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
@@ -491,26 +460,13 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
             segments = compute_segments(dspec, freq_mhz, time_ms, dspec_params,
                                         buffer_frac=buffer_frac, skip_rm=True, remove_pa_trend=True)
         else:
-            if emission_model == "fold":
-                dspec, snr, _, _, segments = fold_dspec(
-                    xname=None, target_snr=target_snr, dspec_params=dspec_params,
-                    baseline_correct=baseline_correct, diagnostics=True,
-                    fold_params=fold_params,
-                )
-            elif emission_model == "efield":
-                dspec, snr, _, _, segments = efield_dspec(
-                    xname=None, plot_multiple_frb=False,
-                    target_snr=target_snr, dspec_params=dspec_params,
-                    baseline_correct=baseline_correct, diagnostics=True,
-                )
-            else:
-                dspec, snr, _, _, segments = psn_dspec(
-                    xname=None, plot_multiple_frb=False,
-                    target_snr=target_snr, dspec_params=dspec_params,
-                    baseline_correct=baseline_correct, diagnostics=True,
-                )
+            dspec, snr, _, _, segments = _simulate(
+                emission_model, dspec_params, False, fold_params=fold_params,
+                xname=None, target_snr=target_snr,
+                baseline_correct=baseline_correct, diagnostics=True,
+            )
         if save_dspec:
-            _write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id)
+            write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id)
         _, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac,
                                                      skip_rm=True, remove_pa_trend=True)
         frb_data = simulated_frb(frb_id, corrdspec, dspec_params, snr)
@@ -537,12 +493,8 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                 with open(obs_data, 'rb') as f:
                     frb_dict = pkl.load(f)
                 return frb_dict
-            dspec, freq_mhz, time_ms, dspec_params = load_data(
-                obs_data, obs_params, gauss_file, sim_file, scint_file
-            )
-            dspec, freq_mhz, time_ms, dspec_params = scrunch_dspec(
-                dspec, freq_mhz, time_ms, dspec_params,
-                t_scrunch=tscrunch, f_scrunch=fscrunch,
+            dspec, freq_mhz, time_ms, dspec_params = _load_obs(
+                obs_data, obs_params, gauss_file, sim_file, scint_file, tscrunch, fscrunch
             )
             I_time = np.nansum(dspec[0], axis=0)
             original_snr, (left, right) = snr_onpulse(dspec_params, I_time, frac=0.95, buffer_frac=buffer_frac)
@@ -560,7 +512,7 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
             )
             measures, V_params, snrs, exp_vars = _run_sweep_parallel(
                 xvals, nseed, n_cpus, partial_func,
-                desc=f"Processing tau sweep on observed data"
+                desc="Processing tau sweep on observed data"
             )
         else:
             xvals, xname = _setup_sweep(sweep_spec, logstep, sweep_mode, plot_mode)
@@ -587,7 +539,6 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
         }
         if write:
             sweep_idx = _array_id if _array_count > 1 else 0
-            from fires.utils.io import build_sweep_output_path
             fpath = build_sweep_output_path(
                 out_dir, frb_id, mode, xvals, nseed, plot_mode, xname,
                 sweep_idx, mean_override_parts, sd_override_parts
