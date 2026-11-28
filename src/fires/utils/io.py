@@ -86,20 +86,11 @@ def build_override_parts(param_overrides, gdict, sd_dict):
     if not param_overrides:
         return mean_override_parts, sd_override_parts
     for key, value in param_overrides.items():
-        if key.startswith("sd_"):
-            base_key = key[3:].replace("_", "")
-            append_to = sd_override_parts
+        is_sd = key.startswith("sd_")
+        name = f"sd{key[3:].replace('_', '')}" if is_sd else key
+        if isinstance(value, (float, np.floating)):
+            value_str = f"{int(value)}" if value.is_integer() else f"{value:.2f}"
         else:
-            base_key = key
-            append_to = mean_override_parts
-        if isinstance(value, (int, np.integer)):
-            append_to.append(f"sd{base_key}{value}" if append_to is sd_override_parts else f"{base_key}{value}")
-        elif isinstance(value, (float, np.floating)):
-            if value.is_integer():
-                append_to.append(f"sd{base_key}{int(value)}" if append_to is sd_override_parts else f"{base_key}{int(value)}")
-            else:
-                append_to.append(f"sd{base_key}{value:.2f}" if append_to is sd_override_parts else f"{base_key}{value:.2f}")
-        else:
-            prefix = "sd" if append_to is sd_override_parts else ""
-            append_to.append(f"{prefix}{base_key}{value}")
+            value_str = f"{value}"
+        (sd_override_parts if is_sd else mean_override_parts).append(f"{name}{value_str}")
     return mean_override_parts, sd_override_parts

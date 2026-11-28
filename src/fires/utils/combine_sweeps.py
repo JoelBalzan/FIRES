@@ -16,8 +16,11 @@ import argparse
 import glob
 import logging
 import pickle
+import re
 from pathlib import Path
 from typing import List
+
+from fires.utils.loaders import load_multiple_data_grouped, merge_sweep_results
 
 
 LOG = logging.getLogger("combine_sweeps")
@@ -35,7 +38,6 @@ def derive_name_from_files(file_list_names: List[str]) -> str | None:
 
     Returns None if no useful tokens are found.
     """
-    import re
     starts = []
     ends = []
     mode_suffix = None
@@ -81,186 +83,91 @@ def derive_name_from_files(file_list_names: List[str]) -> str | None:
     return name
 
 
+def _files_for_group_key(group_key: str, all_files: List[Path]) -> List[Path]:
+    """Match grouped-loader keys to source files using token membership.
+
+    Group keys are often formatted like `N100+mg_width_high5+mg_width_low1`,
+    which do not appear as contiguous substrings in filenames.
+    """
+    tokens = [t for t in group_key.split("+") if t] if group_key else []
+    return [path for path in all_files if all(tok in path.name for tok in tokens)] if tokens else []
+
+
+def _canonical_prefix(name: str) -> str:
+    """Strip common trailing fragment tokens: _partNN, _fragNN, _chunkNN, _NN."""
+    return re.sub(r'([_-](?:part|frag|chunk)\d+|[_-]\d+)(?:\.pkl)?$', '', name)
+
+
+def _single_output_path(out_path: Path, source_names: List[str], fallback_name: str) -> Path:
+    """Output file for a single merged series: a derived name inside out_path if it is a directory, else out_path."""
+    if out_path.exists() and out_path.is_dir() or not out_path.suffix:
+        out_path.mkdir(parents=True, exist_ok=True)
+        return out_path / (derive_name_from_files(source_names) or fallback_name)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    return out_path
+
+
+def _dump(obj, fname: Path) -> Path:
+    with fname.open('wb') as fh:
+        pickle.dump(obj, fh)
+    return fname
+
+
+def _load_fragments(file_list: List[Path]):
+    """Unpickle fragment files in name order, skipping any that fail to load."""
+    for f in sorted(file_list):
+        with f.open('rb') as fh:
+            try:
+                yield pickle.load(fh)
+            except Exception:
+                continue
+
 
 def combine_pickle(files: List[Path], out: Path):
     """Combine pickle fragments.
 
-    If files represent multiple grouped sweep fragments (e.g., suffixes like
-    `_partNN` or trailing indices), the function will merge fragments per
-    group and write one merged .pkl per group. If only a single logical group
-    is present, it will write to `out` as a file.
+    Files in one directory named like sweep outputs (`..._mode_psn_...pkl`) are grouped by
+    override parameters with loaders.load_multiple_data_grouped. Otherwise fragments are
+    grouped by name with `_partNN`-style suffixes removed. One logical group is written to
+    `out` (a file, or a derived name inside a directory); several groups go one file each
+    into the directory `out`. Returns the written paths.
     """
-    import re
+    out_path = Path(out)
 
-    def files_for_group_key(group_key: str, all_files: List[Path]) -> List[Path]:
-        """Match grouped-loader keys to source files using token membership.
-
-        Group keys are often formatted like `N100+mg_width_high5+mg_width_low1`,
-        which do not appear as contiguous substrings in filenames.
-        """
-        if not group_key:
-            return []
-        tokens = [t for t in group_key.split("+") if t]
-        if not tokens:
-            return []
-        matched = []
-        for path in all_files:
-            name = path.name
-            if all(tok in name for tok in tokens):
-                matched.append(path)
-        return matched
-
-    # Prefer loader implementation when available and files match expected pattern
-    try:
-        from fires.utils.loaders import load_multiple_data_grouped
-    except Exception:
-        load_multiple_data_grouped = None
-
-    # If all files are in the same directory and look like the sweep pickle pattern
     same_dir = len({p.parent for p in files}) == 1
     pattern_ok = all(re.search(r'_mode_psn_.*\.pkl$', p.name) for p in files)
-    if load_multiple_data_grouped and same_dir and pattern_ok:
+    if same_dir and pattern_ok:
         try:
-            common_dir = str(files[0].parent)
-            merged = load_multiple_data_grouped(common_dir)
-            out_path = Path(out)
-            # single-series -> write single file
+            merged = load_multiple_data_grouped(str(files[0].parent))
             if isinstance(merged, dict) and 'xvals' in merged:
-                # single series -> derive sensible default filename when out is dir/default
-                # use module-level `derive_name_from_files` helper
-
-                if out_path.exists() and out_path.is_dir() or not out_path.suffix:
-                    out_path.mkdir(parents=True, exist_ok=True)
-                    derived = derive_name_from_files([p.name for p in files])
-                    fname = out_path / (derived or "combined.pkl")
-                else:
-                    out_path.parent.mkdir(parents=True, exist_ok=True)
-                    fname = out_path
-                with fname.open('wb') as fh:
-                    pickle.dump(merged, fh)
-                return [fname]
-            # multiple groups -> ensure out is a dir and write per-group
+                return [_dump(merged, _single_output_path(out_path, [p.name for p in files], "combined.pkl"))]
             out_path.mkdir(parents=True, exist_ok=True)
             written = []
             for key, val in merged.items():
                 token = key.replace('=', '') if key else 'baseline'
-                group_paths = files_for_group_key(token, files)
+                group_paths = _files_for_group_key(token, files)
                 derived = derive_name_from_files([p.name for p in group_paths]) if group_paths else None
-                fname = out_path / (derived or f"{token}.pkl")
-                with fname.open('wb') as fh:
-                    pickle.dump(val, fh)
-                written.append(fname)
+                written.append(_dump(val, out_path / (derived or f"{token}.pkl")))
             return written
         except Exception as e:
             LOG.warning("load_multiple_data_grouped failed, falling back: %s", e)
 
-    def canonical_prefix(name: str) -> str:
-        # strip common trailing fragment tokens: _partNN, _fragNN, _chunkNN, _NN
-        return re.sub(r'([_-](?:part|frag|chunk)\d+|[_-]\d+)(?:\.pkl)?$', '', name)
-
-    # Map prefix -> list of files
     groups = {}
     for p in files:
-        pref = canonical_prefix(p.name)
-        groups.setdefault(pref, []).append(p)
+        groups.setdefault(_canonical_prefix(p.name), []).append(p)
 
-    # If single group and out is a file path, merge into single file
-    single_group = len(groups) == 1
-
-    def merge_group(file_list: List[Path]) -> dict:
-        # Merge dicts following the structure used by loaders.load_multiple_data_grouped
-        all_xvals = []
-        all_measures = {}
-        all_V_params = {}
-        all_exp_vars = {}
-        all_snrs = {}
-        seen_xvals = set()
-        xname = None
-        plot_mode = None
-        dspec_params = None
-
-        for f in sorted(file_list):
-            with f.open('rb') as fh:
-                try:
-                    obj = pickle.load(fh)
-                except Exception:
-                    continue
-            if not isinstance(obj, dict):
-                continue
-            if xname is None:
-                xname = obj.get('xname')
-                plot_mode = obj.get('plot_mode')
-                dspec_params = obj.get('dspec_params')
-
-            xvals = obj.get('xvals', [])
-            measures = obj.get('measures', {})
-            V_params = obj.get('V_params', {})
-            exp_vars = obj.get('exp_vars', {})
-            snrs = obj.get('snrs', {})
-
-            for v in xvals:
-                if v not in seen_xvals:
-                    seen_xvals.add(v)
-                    all_xvals.append(v)
-                if v not in all_measures:
-                    all_measures[v] = []
-                    all_snrs[v] = []
-                    all_V_params[v] = {key: [] for key in V_params.get(v, {}).keys()}
-                    all_exp_vars[v] = {key: [] for key in exp_vars.get(v, {}).keys()}
-                all_measures[v].extend(measures.get(v, []))
-                all_snrs[v].extend(snrs.get(v, []))
-                for key, arr in V_params.get(v, {}).items():
-                    all_V_params[v].setdefault(key, [])
-                    all_V_params[v][key].extend(arr)
-                for key, arr in exp_vars.get(v, {}).items():
-                    all_exp_vars[v].setdefault(key, [])
-                    all_exp_vars[v][key].extend(arr)
-
-        all_xvals = sorted(all_xvals)
-        return {
-            'xname': xname,
-            'xvals': all_xvals,
-            'measures': all_measures,
-            'V_params': all_V_params,
-            'exp_vars': all_exp_vars,
-            'dspec_params': dspec_params,
-            'plot_mode': plot_mode,
-            'snrs': all_snrs,
-        }
-
-    out_path = Path(out)
-    # If multiple groups, require out be a directory (existing or to-create)
-    if not single_group and (out_path.exists() and out_path.is_file()):
+    if len(groups) > 1 and out_path.exists() and out_path.is_file():
         LOG.error("multiple groups detected but --out is a file; provide an output directory")
         raise SystemExit(4)
 
-    if single_group:
+    if len(groups) == 1:
         pref, flist = next(iter(groups.items()))
-        merged = merge_group(flist)
-        # derive default name from file list if out_path is dir/default
-        # use module-level `derive_name_from_files` helper for deriving default names
+        merged = merge_sweep_results(_load_fragments(flist))
+        return [_dump(merged, _single_output_path(out_path, [p.name for p in flist], f"{pref}.pkl"))]
 
-        if out_path.exists() and out_path.is_dir() or not out_path.suffix:
-            out_path.mkdir(parents=True, exist_ok=True)
-            derived = derive_name_from_files([p.name for p in flist])
-            fname = out_path / (derived or f"{pref}.pkl")
-        else:
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            fname = out_path
-        with fname.open('wb') as fh:
-            pickle.dump(merged, fh)
-        return [fname]
-
-    # multiple groups -> create out dir if needed and write one file per group
     out_path.mkdir(parents=True, exist_ok=True)
-    written = []
-    for pref, flist in groups.items():
-        merged = merge_group(flist)
-        out_file = out_path / f"{pref}.pkl"
-        with out_file.open('wb') as fh:
-            pickle.dump(merged, fh)
-        written.append(out_file)
-    return written
+    return [_dump(merge_sweep_results(_load_fragments(flist)), out_path / f"{pref}.pkl")
+            for pref, flist in groups.items()]
 
 
 def delete_files(files: List[Path]):
