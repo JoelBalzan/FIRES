@@ -1981,6 +1981,72 @@ def _bin_xy(x, y, nbins=15, strategy='equal-count'):
 	return np.asarray(xb), np.asarray(ymed), np.asarray(ylo), np.asarray(yhi)
 
 
+def _percentile_cfg(plot_config, x_measured):
+	"""Settings from [analytical.percentiles]: percentile range, y band, and optional x band."""
+	cfg = get_plot_param(plot_config, 'analytical', 'percentiles', {}) or {}
+	enabled = bool(cfg.get('enabled', True))
+	y_cfg = cfg.get('y', {}) or {}
+	x_cfg = cfg.get('x', {}) or {}
+	return SimpleNamespace(
+		p_low=float(cfg.get('p_low', 16)),
+		p_high=float(cfg.get('p_high', 84)),
+		y_shade=bool(y_cfg.get('shade', True)) and enabled,
+		y_alpha=float(y_cfg.get('alpha', 0.2)),
+		x_enabled=bool(x_cfg.get('enabled', False)) and enabled and (x_measured is not None),
+		x_style=str(x_cfg.get('style', 'bars')).lower(),
+		x_alpha=float(x_cfg.get('alpha', 0.12)),
+	)
+
+
+def _median_band(yvals, xvals, pct):
+	"""Median per x and the lower/upper percentile arrays."""
+	med_vals, percentile_errs = _median_percentiles(yvals, xvals, p_low=pct.p_low, p_high=pct.p_high)
+	lower = np.array([lo for (lo, hi) in percentile_errs])
+	upper = np.array([hi for (lo, hi) in percentile_errs])
+	return med_vals, lower, upper
+
+
+def _draw_series(ax, x, med, lo, hi, x_lo, x_hi, pct, draw_style, nbins, colour, label, colour_by_sweep):
+	"""
+	Draw one median curve with its percentile band(s) in the requested draw_style
+	('line-param', 'line-x' sorted by x, 'scatter' with error bars, or 'binned').
+
+	Returns the (x, median) arrays as drawn, i.e. after sorting or binning.
+	"""
+	med = np.asarray(med, dtype=float)
+	if draw_style == 'line-x':
+		order = np.argsort(x)
+		x, med, lo, hi = x[order], med[order], lo[order], hi[order]
+		if x_lo is not None and x_hi is not None:
+			x_lo, x_hi = x_lo[order], x_hi[order]
+	elif draw_style == 'binned':
+		x, med, lo, hi = _bin_xy(x, med, nbins=nbins, strategy='equal-count')
+		x_lo = x_hi = None  # x percentiles cannot be carried through the binning
+
+	if draw_style == 'scatter':
+		yerr = np.vstack([(med - lo), (hi - med)])
+		xerr = None
+		if pct.x_enabled and x_lo is not None and x_hi is not None:
+			xerr = np.vstack([np.maximum(x - x_lo, 0), np.maximum(x_hi - x, 0)])
+		ax.errorbar(x, med, yerr=yerr, xerr=xerr, fmt='none', ecolor='gray' if colour_by_sweep else colour,
+					alpha=0.6, elinewidth=1.2, capsize=2, zorder=1)
+		if colour_by_sweep:
+			ax.scatter(x, med, c=np.arange(len(x)), cmap='viridis', s=25, alpha=0.8, label=label, zorder=2)
+		else:
+			ax.scatter(x, med, color=colour, s=25, alpha=0.8, label=label, zorder=2)
+	else:
+		ax.plot(x, med, color=colour, label=label, linewidth=2)
+		if pct.y_shade:
+			ax.fill_between(x, lo, hi, color=colour, alpha=pct.y_alpha)
+		if pct.x_enabled and pct.x_style == 'shade':
+			m = np.isfinite(med) & np.isfinite(x)
+			m &= np.isfinite(x_lo) & np.isfinite(x_hi)
+			if np.any(m):
+				order = np.argsort(med[m])  # sort by y for fill_betweenx
+				ax.fill_betweenx(med[m][order], x_lo[m][order], x_hi[m][order], color=colour, alpha=pct.x_alpha)
+	return x, med
+
+
 def _plot_single_run_multi_window(
 	frb_dict,
 	ax,
@@ -2050,57 +2116,35 @@ def _plot_single_run_multi_window(
 	varying_freq = len(set(freq_windows)) > 1
 	varying_phase = len(set(phase_windows)) > 1
 	
-	if varying_freq and not varying_phase:
-		def get_colour(freq_win, phase_win):
-			freq_label = normalise_freq_window(freq_win, target='dspec')
-			phase_label = normalise_phase_window(phase_win, target='dspec')
-			key = f"{freq_label}, {phase_label}"
-			return colour_map.get(key, colours['blue'])
-	
-	elif varying_phase and not varying_freq:
-		phase_colours = {
-			'leading': colours['orange'],
-			'trailing': colours['green'],
-			'total': colours['purple']
-		}
-		def get_colour(freq_win, phase_win):
-			phase_label = normalise_phase_window(phase_win, target='dspec')
+	phase_colours = {'leading': colours['orange'], 'trailing': colours['green'], 'total': colours['purple']}
+
+	def get_colour(freq_win, phase_win):
+		phase_label = normalise_phase_window(phase_win, target='dspec')
+		if varying_phase and not varying_freq:
 			return phase_colours.get(phase_label, colours['blue'])
-	
-	elif varying_freq and varying_phase:
-		# Both varying: use combination from colour_map or cycle through colours
-		def get_colour(freq_win, phase_win):
-			freq_label = normalise_freq_window(freq_win, target='dspec')
-			phase_label = normalise_phase_window(phase_win, target='dspec')
-			key = f"{freq_label}, {phase_label}"
-			if key in colour_map:
-				return colour_map[key]
-			# Fallback: cycle through base colours
-			idx = window_pairs.index((freq_win, phase_win))
-			if n_combos <= len(colours):
-				return list(colours.values())[idx % len(colours)]
-			import matplotlib.cm as cm
-			cmap = cm.get_cmap('tab20', n_combos)
-			return cmap(idx)
-	
-	else:
-		def get_colour(freq_win, phase_win):
-			freq_label = normalise_freq_window(freq_win, target='dspec')
-			phase_label = normalise_phase_window(phase_win, target='dspec')
-			key = f"{freq_label}, {phase_label}"
-			return colour_map.get(key, colours['purple']) 
-	
-	pct_cfg = get_plot_param(plot_config, 'analytical', 'percentiles', {}) or {}
-	pct_enabled = bool(pct_cfg.get('enabled', True))
-	p_low = float(pct_cfg.get('p_low', 16))
-	p_high = float(pct_cfg.get('p_high', 84))
-	y_cfg = pct_cfg.get('y', {}) or {}
-	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
-	y_alpha = float(y_cfg.get('alpha', 0.2))
-	x_cfg = pct_cfg.get('x', {}) or {}
-	x_pct_enabled = bool(x_cfg.get('enabled', False)) and pct_enabled and (x_measured is not None)
-	x_style = str(x_cfg.get('style', 'bars')).lower()
-	x_alpha = float(x_cfg.get('alpha', 0.12))
+		key = f"{normalise_freq_window(freq_win, target='dspec')}, {phase_label}"
+		if key in colour_map:
+			return colour_map[key]
+		if not (varying_freq and varying_phase):
+			return colours['blue'] if varying_freq else colours['purple']
+		# Both varying and not in colour_map: cycle through the base colours
+		idx = window_pairs.index((freq_win, phase_win))
+		if n_combos <= len(colours):
+			return list(colours.values())[idx % len(colours)]
+		import matplotlib.cm as cm
+		return cm.get_cmap('tab20', n_combos)(idx)
+
+	def window_label(freq_win, phase_win):
+		"""'Freq, Phase' with only the parts that vary between the compared windows."""
+		freq_label = normalise_freq_window(freq_win, target='dspec').capitalize()
+		phase_label = normalise_phase_window(phase_win, target='dspec').capitalize()
+		if varying_freq and not varying_phase:
+			return freq_label
+		if varying_phase and not varying_freq:
+			return phase_label
+		return f"{freq_label}, {phase_label}"
+
+	pct = _percentile_cfg(plot_config, x_measured)
 
 	x_last = None
 	xname = None
@@ -2115,10 +2159,8 @@ def _plot_single_run_multi_window(
 			return_status=True
 		)
 		
-		med_vals, percentile_errs = _median_percentiles(y_weighted, xvals, p_low=p_low, p_high=p_high)
-		lower = np.array([lo for (lo, hi) in percentile_errs])
-		upper = np.array([hi for (lo, hi) in percentile_errs])
-		
+		med_vals, lower, upper = _median_band(y_weighted, xvals, pct)
+
 		if x_last is None:
 			x, xname, x_unit = _weight_x_get_xname(
 				frb_dict,
@@ -2131,89 +2173,17 @@ def _plot_single_run_multi_window(
 		else:
 			x = x_last
 
-		# Initialize plot arrays
-		plot_x = x
-		plot_med = np.asarray(med_vals, dtype=float)
-		plot_lo = lower
-		plot_hi = upper
-
 		x_lo = x_hi = None
-		if x_pct_enabled:
-			x_med_arr, x_lo_arr, x_hi_arr = _x_percentiles_measured(
-				frb_dict, x_measured, p_low=p_low, p_high=p_high,
+		if pct.x_enabled:
+			_, x_lo, x_hi = _x_percentiles_measured(
+				frb_dict, x_measured, p_low=pct.p_low, p_high=pct.p_high,
 				phase_window=phase_win, freq_window=freq_win
 			)
-			x_lo = x_lo_arr
-			x_hi = x_hi_arr
-		
-		# Apply draw_style transformations
-		if draw_style == 'line-x':
-			order = np.argsort(plot_x)
-			plot_x   = plot_x[order]
-			plot_med = plot_med[order]
-			plot_lo  = plot_lo[order]
-			plot_hi  = plot_hi[order]
-			if x_lo is not None and x_hi is not None:
-				x_lo = x_lo[order]
-				x_hi = x_hi[order]
-				
-		elif draw_style == 'binned':
-			bx, by, blo, bhi = _bin_xy(plot_x, plot_med, nbins=nbins, strategy='equal-count')
-			plot_x, plot_med, plot_lo, plot_hi = bx, by, blo, bhi
-			# After binning we cannot derive x-error bars from original percentiles safely -> drop xerr
-			x_lo = None
-			x_hi = None
-			
-		# labels/colours as before
-		freq_label = normalise_freq_window(freq_win, target='dspec').capitalize()
-		phase_label = normalise_phase_window(phase_win, target='dspec').capitalize()
-		if varying_freq and varying_phase:
-			series_label = f"{freq_label}, {phase_label}"
-		elif varying_freq:
-			series_label = freq_label
-		elif varying_phase:
-			series_label = phase_label
-		else:
-			series_label = f"{freq_label}, {phase_label}"
+
 		colour = get_colour(freq_win, phase_win)
+		plot_x, plot_med = _draw_series(ax, x, med_vals, lower, upper, x_lo, x_hi, pct, draw_style, nbins,
+										colour, window_label(freq_win, phase_win), colour_by_sweep)
 
-		if draw_style == 'scatter':
-			yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
-			xerr = None
-			if x_pct_enabled and x_lo is not None and x_hi is not None:
-				# Ensure non-negative magnitudes for errorbar
-				dx_low  = np.maximum(plot_x - x_lo, 0)
-				dx_high = np.maximum(x_hi - plot_x, 0)
-				xerr = np.vstack([dx_low, dx_high])
-			if colour_by_sweep:
-				cvals = np.arange(len(plot_x))
-				ax.errorbar(
-					plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
-					ecolor='gray', alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
-				)
-				ax.scatter(plot_x, plot_med, c=cvals, cmap='viridis', s=25, alpha=0.8, label=series_label, zorder=2)
-			else:
-				ax.errorbar(
-					plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
-					ecolor=colour, alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
-				)
-				ax.scatter(plot_x, plot_med, color=colour, s=25, alpha=0.8, label=series_label, zorder=2)
-		else:
-			ax.plot(plot_x, plot_med, color=colour, label=series_label, linewidth=2)
-			# Y-shaded band (16–84 by default)
-			if y_shade:
-				ax.fill_between(plot_x, plot_lo, plot_hi, color=colour, alpha=y_alpha)
-			# Optional X-shaded band when using measured x
-			if x_pct_enabled and x_style == 'shade':
-				m = np.isfinite(plot_med) & np.isfinite(plot_x)
-				m &= np.isfinite(x_lo) & np.isfinite(x_hi)
-				if np.any(m):
-					# sort by y for fill_betweenx stability
-					order = np.argsort(plot_med[m])
-					ax.fill_betweenx(plot_med[m][order], x_lo[m][order], x_hi[m][order],
-						color=colour, alpha=x_alpha)
-
-		
 		if fit is not None and draw_style != 'binned' and draw_style != 'scatter':
 			fit_type, fit_degree = _parse_fit_arg(fit)
 			_fit_and_plot(ax, plot_x, plot_med, fit_type, fit_degree, label=None, colour=colour)
@@ -2260,20 +2230,8 @@ def _plot_single_run_multi_window(
 					)
 					
 					colour = get_colour(freq_win, phase_win)
-					
-					freq_label = freq_canonical.capitalize()
-					phase_label = phase_canonical.capitalize()
-					if varying_freq and varying_phase:
-						obs_label = f"{obs_result['label']} ({freq_label}, {phase_label})"
-					elif varying_freq:
-						obs_label = f"{obs_result['label']} ({freq_label})"
-					elif varying_phase:
-						obs_label = f"{obs_result['label']} ({phase_label})"
-					else:
-						obs_label = obs_result['label']
-					
-					obs_result['label'] = obs_label
-					
+					if varying_freq or varying_phase:
+						obs_result['label'] = f"{obs_result['label']} ({window_label(freq_win, phase_win)})"
 					obs_colour = colour if obs_cfg.get('use_series_colour', False) else obs_cfg.get('colour', colour)
 					_plot_observational_overlay(ax, obs_result, weight_x_by=weight_x_by, weight_y_by=weight_y_by,
 												colour=obs_colour, **_overlay_style(obs_cfg))
@@ -2330,20 +2288,9 @@ def _plot_single_job_common(
 		weight_source = V_params
 	else:
 		weight_source = dspec_params
-	pct_cfg = get_plot_param(plot_config, 'analytical', 'percentiles', {}) or {}
-	pct_enabled = bool(pct_cfg.get('enabled', True))
-	p_low = float(pct_cfg.get('p_low', 16))
-	p_high = float(pct_cfg.get('p_high', 84))
-	y_cfg = pct_cfg.get('y', {}) or {}
-	y_shade = bool(y_cfg.get('shade', True)) and pct_enabled
-	y_alpha = float(y_cfg.get('alpha', 0.2))
-	x_cfg = pct_cfg.get('x', {}) or {}
-	x_pct_enabled = bool(x_cfg.get('enabled', False)) and pct_enabled and (x_measured is not None)
-	x_style = str(x_cfg.get('style', 'bars')).lower()
-	x_alpha = float(x_cfg.get('alpha', 0.12))
-
+	pct = _percentile_cfg(plot_config, x_measured)
 	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
-	med_vals, percentile_errs = _median_percentiles(y, xvals, p_low=p_low, p_high=p_high)
+	med_vals, lower, upper = _median_band(y, xvals, pct)
 
 	x, xname, x_unit = _weight_x_get_xname(
 		frb_dict,
@@ -2352,81 +2299,25 @@ def _plot_single_job_common(
 		phase_window=phase_window,
 		freq_window=freq_window
 	)
-	lower = np.array([lower for (lower, upper) in percentile_errs])
-	upper = np.array([upper for (lower, upper) in percentile_errs])
 
 	# Optional x-percentiles (only when using x_measured)
 	x_lo = x_hi = None
-	if x_pct_enabled:
-		x_med_raw, x_lo_arr, x_hi_arr = _x_percentiles_measured(
-			frb_dict, x_measured, p_low=p_low, p_high=p_high,
+	if pct.x_enabled:
+		_, x_lo, x_hi = _x_percentiles_measured(
+			frb_dict, x_measured, p_low=pct.p_low, p_high=pct.p_high,
 			phase_window=phase_window if phase_window else 'total',
 			freq_window=freq_window if freq_window else 'all'
 		)
-		x_lo = x_lo_arr
-		x_hi = x_hi_arr
 
-	created_fig = None
+	fig = None
 	if ax is None:
-		created_fig, ax = plt.subplots(figsize=figsize)
+		fig, ax = plt.subplots(figsize=figsize)
 		ax.grid(True, linestyle='--', alpha=0.6)
-		fig = created_fig
-	else:
-		fig = None
-		if not embed:
-			ax.grid(True, linestyle='--', alpha=0.6)
+	elif not embed:
+		ax.grid(True, linestyle='--', alpha=0.6)
 
-	plot_x = x
-	plot_med = np.asarray(med_vals, dtype=float)
-	plot_lo  = lower
-	plot_hi  = upper
-
-	if draw_style == 'line-x':
-		order = np.argsort(plot_x)
-		plot_x   = plot_x[order]
-		plot_med = plot_med[order]
-		plot_lo  = plot_lo[order]
-		plot_hi  = plot_hi[order]
-		if x_lo is not None and x_hi is not None:
-			x_lo = x_lo[order]
-			x_hi = x_hi[order]
-	elif draw_style == 'binned':
-		bx, by, blo, bhi = _bin_xy(plot_x, plot_med, nbins=nbins, strategy='equal-count')
-		plot_x, plot_med, plot_lo, plot_hi = bx, by, blo, bhi
-		# After binning we cannot derive x-error bars from original percentiles safely -> drop xerr
-		x_lo = None; x_hi = None
-
-	if draw_style == 'scatter':
-		yerr = np.vstack([(plot_med - plot_lo), (plot_hi - plot_med)])
-		xerr = None
-		if x_pct_enabled and x_lo is not None and x_hi is not None:
-			dx_low  = np.maximum(plot_x - x_lo, 0)
-			dx_high = np.maximum(x_hi - plot_x, 0)
-			xerr = np.vstack([dx_low, dx_high])
-		if colour_by_sweep:
-			cvals = np.arange(len(plot_x))
-			ax.errorbar(
-				plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
-				ecolor='gray', alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
-			)
-			ax.scatter(plot_x, plot_med, c=cvals, cmap='viridis', s=25, alpha=0.8, label=series_label, zorder=2)
-		else:
-			ax.errorbar(
-				plot_x, plot_med, yerr=yerr, xerr=xerr, fmt='none',
-				ecolor=series_colour, alpha=0.6, elinewidth=1.2, capsize=2, zorder=1
-			)
-			ax.scatter(plot_x, plot_med, color=series_colour, s=25, alpha=0.8, label=series_label, zorder=2)
-	else:
-		ax.plot(plot_x, plot_med, color=series_colour, label=series_label, linewidth=2)
-		if y_shade:
-			ax.fill_between(plot_x, plot_lo, plot_hi, color=series_colour, alpha=y_alpha)
-		if x_pct_enabled and x_style == 'shade':
-			m = np.isfinite(plot_med) & np.isfinite(plot_x)
-			m &= np.isfinite(x_lo) & np.isfinite(x_hi)
-			if np.any(m):
-				order = np.argsort(plot_med[m])
-				ax.fill_betweenx(plot_med[m][order], x_lo[m][order], x_hi[m][order],
-					color=series_colour, alpha=x_alpha)
+	plot_x, plot_med = _draw_series(ax, x, med_vals, lower, upper, x_lo, x_hi, pct, draw_style, nbins,
+									series_colour, series_label, colour_by_sweep)
 
 	if plot_expected and (expected_param_key is not None) and ("exp_vars" in frb_dict) and draw_style != 'binned':
 		# respect config override if provided
