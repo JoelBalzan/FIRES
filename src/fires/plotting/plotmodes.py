@@ -2345,8 +2345,9 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	if legend:
 		_legend_if_any(ax, loc=get_plot_param(plot_config, 'general', 'legend_loc', 'best'))
 
-	_draw_text_items(ax, param_text, _gdict_of(next(iter(frb_dict.values()))), 'analytical', plot_config)
-	_draw_text_items(ax, text, _gdict_of(frb_dict), 'general', plot_config)
+	first_run_gdict = _gdict_of(next(iter(frb_dict.values())))
+	_draw_text_items(ax, param_text, first_run_gdict, 'analytical', plot_config)
+	_draw_text_items(ax, text, first_run_gdict, 'general', plot_config)
 
 	if weight_y_by is not None and weight_applied_all:
 		final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by)
