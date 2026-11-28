@@ -17,6 +17,7 @@ import ast
 import logging
 import os
 import warnings
+from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -384,6 +385,35 @@ def _get_obs_cfg(plot_config):
 		'use_series_colour': cfg.get('use_series_colour', False),
 		'label_prefix'    : cfg.get('label_prefix', "")
 	}
+
+
+_OVERLAY_STYLE_KEYS = ('marker', 'size', 'edgecolor', 'linewidth', 'alpha', 'error_style',
+					   'span_alpha', 'bar_alpha', 'bar_capsize', 'label_prefix')
+
+
+def _overlay_style(obs_cfg):
+	"""Keyword arguments for _plot_observational_overlay taken from an observational config."""
+	return {k: obs_cfg[k] for k in _OVERLAY_STYLE_KEYS if k in obs_cfg}
+
+
+def _gdict_of(frb_dict):
+	"""The run's gdict: from its dspec_params if present, else a top-level 'gdict' entry."""
+	dsp = frb_dict.get("dspec_params")
+	if dsp is not None and hasattr(dsp, "gdict"):
+		return dsp.gdict
+	return frb_dict.get("gdict")
+
+
+def _draw_text_items(ax, items, gdict, kind, plot_config):
+	"""Draw the parameter text for ``items`` ('general' text or 'analytical' param_text)."""
+	if items:
+		draw_plot_text(ax, build_plot_text_string(items, gdict), kind, plot_config)
+
+
+def _window_colour(freq_window, phase_window, default=colours['purple']):
+	"""Series colour for a (freq, phase) window from colour_map."""
+	key = f"{normalise_freq_window(freq_window, target='dspec')}, {normalise_phase_window(phase_window, target='dspec')}"
+	return colour_map.get(key, default)
 
 
 def _legend_if_any(ax, loc='best'):
@@ -2244,51 +2274,21 @@ def _plot_single_run_multi_window(
 					
 					obs_result['label'] = obs_label
 					
-					use_series_colour = obs_cfg.get('use_series_colour', False)
-					obs_colour = colour if use_series_colour else obs_cfg.get('colour', colour)
-					_plot_observational_overlay(
-						ax, obs_result,
-						weight_x_by=weight_x_by,
-						weight_y_by=weight_y_by,
-						colour=obs_colour,
-						marker=obs_cfg.get('marker', '*'),
-						size=obs_cfg.get('size', 200),
-						edgecolor=obs_cfg.get('edgecolor', 'black'),
-						linewidth=obs_cfg.get('linewidth', 1.0),
-						alpha=obs_cfg.get('alpha', 1.0),
-						error_style=obs_cfg.get('error_style', 'spans'),
-						span_alpha=obs_cfg.get('span_alpha', 0.1),
-						bar_alpha=obs_cfg.get('bar_alpha', 0.7),
-						bar_capsize=obs_cfg.get('bar_capsize', 5),
-						label_prefix=obs_cfg.get('label_prefix', "")
-					)
+					obs_colour = colour if obs_cfg.get('use_series_colour', False) else obs_cfg.get('colour', colour)
+					_plot_observational_overlay(ax, obs_result, weight_x_by=weight_x_by, weight_y_by=weight_y_by,
+												colour=obs_colour, **_overlay_style(obs_cfg))
 		except Exception as e:
 			logging.error(f"Failed to overlay observational data: {e}")
-	
+
 	# Set axis labels and scales
-	base_yname = r"\mathbb{V}(\psi)" if plot_type == 'pa_var' else r"\Pi_L"
+	base_yname = _ANALYTIC_PLOTS[plot_type]['yname']
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if weight_y_by else (base_yname, "")
 	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x=x_last, x_unit=x_unit, y_unit=y_unit)
 
-	if param_text:
-		gdict = None
-		if "dspec_params" in frb_dict and hasattr(frb_dict["dspec_params"], "gdict"):
-			gdict = frb_dict["dspec_params"].gdict
-		elif "gdict" in frb_dict:
-			gdict = frb_dict["gdict"]
-		display_text = build_plot_text_string(param_text, gdict)
-		draw_plot_text(ax, display_text, 'analytical', plot_config)
+	gdict = _gdict_of(frb_dict)
+	_draw_text_items(ax, param_text, gdict, 'analytical', plot_config)
+	_draw_text_items(ax, text, gdict, 'general', plot_config)
 
-	if text:
-		gdict = None
-		dsp = frb_dict.get("dspec_params")
-		if dsp is not None and hasattr(dsp, "gdict"):
-			gdict = dsp.gdict
-		elif "gdict" in frb_dict:
-			gdict = frb_dict["gdict"]
-		display_text = build_plot_text_string(text, gdict)
-		draw_plot_text(ax, display_text, 'general', plot_config)
-	
 	if legend:
 		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
 		_legend_if_any(ax, loc=legend_loc)
@@ -2550,14 +2550,7 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	for idx, (override_key, run_data) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {override_key}:")
 		od = _parse_override_dict(override_key)
-		gdict = None
-		if "dspec_params" in run_data and hasattr(run_data["dspec_params"], "gdict"):
-			gdict = run_data["dspec_params"].gdict
-		elif "gdict" in run_data:
-			gdict = run_data["gdict"]
-		series_label = _format_legend_label(od, legend_params, gdict)
-		
-		
+		series_label = _format_legend_label(od, legend_params, _gdict_of(run_data))
 		colour = colour_shades[idx]
 
 		run_fit = None
@@ -2641,25 +2634,8 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
 		_legend_if_any(ax, loc=legend_loc)
 
-	if param_text:
-		first_run = next(iter(frb_dict.values()))
-		gdict = None
-		if "dspec_params" in first_run and hasattr(first_run["dspec_params"], "gdict"):
-			gdict = first_run["dspec_params"].gdict
-		elif "gdict" in first_run:
-			gdict = first_run["gdict"]
-		display_text = build_plot_text_string(param_text, gdict)
-		draw_plot_text(ax, display_text, 'analytical', plot_config)
-
-	if text:
-		gdict = None
-		dsp = frb_dict.get("dspec_params")
-		if dsp is not None and hasattr(dsp, "gdict"):
-			gdict = dsp.gdict
-		elif "gdict" in frb_dict:
-			gdict = frb_dict["gdict"]
-		display_text = build_plot_text_string(text, gdict)
-		draw_plot_text(ax, display_text, 'general', plot_config)
+	_draw_text_items(ax, param_text, _gdict_of(next(iter(frb_dict.values()))), 'analytical', plot_config)
+	_draw_text_items(ax, text, _gdict_of(frb_dict), 'general', plot_config)
 
 	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
 	
@@ -2811,134 +2787,82 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 				)
 
 
-def plot_pa_var(
-	frb_dict, 
-	fname, 
-	out_dir, 
-	phase_window, 
-	freq_window, 
-	gauss_file=None,
-	sim_file=None,
-	obs_data=None,
-	obs_params=None,
-	compare_windows=None,
-	buffer_frac=1,
-	plot_config=None,
-	**kwargs
-	):
-	"""
-	Plot the variance of the polarisation angle (PA) as a function of scattering parameters.
-	
-	This function creates a plot showing how the polarisation angle variance (R_ψ) changes
-	with scattering timescale or PA variance parameters. It supports both single-run and 
-	multi-run plotting for parameter comparison studies.
-	
-	Parameters:
-	-----------
-	frb_dict : dict
-		Dictionary containing FRB simulation results. For single runs, contains keys like
-		'xvals', 'yvals', 'V_params', 'dspec_params'. For multi-run comparisons, contains
-		nested dictionaries with run names as keys.
-	save : bool
-		Whether to save the plot to disk.
-	fname : str
-		Base filename for the saved plot (without extension).
-	out_dir : str
-		Output directory path for saving the plot.
-	figsize : tuple or None
-		Figure size as (width, height) in inches. If None, defaults to (10, 9).
-	show_plots : bool
-		Whether to display the plot interactively.
-	scale : str
-		Axis scaling type. Options: 'linear', 'logx', 'logy', 'log'.
-	phase_window : str
-		Phase window for analysis. Options: 'total', 'leading', 'trailing'.
-	freq_window : str
-		Frequency window for analysis. Options: 'full-band', 'lowest-quarter', 
-		'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter'.
-	fit : str, list, or None
-		Fitting function(s) to overlay. Can be single fit type (applied to all runs)
-		or list of fit types (one per run). Options include 'linear', 'power', 
-		'poly,N' (polynomial of degree N), 'exp', 'log', etc.
-	extension : str
-		File extension for saved plots (e.g., 'pdf', 'png').
-	compare_windows : dict or None
-		If provided, enables multi-window comparison from a SINGLE run.
-		Format: {'freq': ['1q', '4q', 'all'], 'phase': ['first', 'last', 'total']}
-		Plots all combinations of freq x phase windows on same axes.
-		Overrides phase_window/freq_window parameters.
-		equal_value_lines : int or str
-		If int, number of equal-value lines to plot for reference.
-		If str, path to directory containing parameter data for custom lines.
-	draw_style : str
-		Style of data representation. Options: 'line-param', 'line-x', 'scatter', 'binned'.
-		- 'line-param': Line plot ordered by simulation parameter (default).
-		- 'line-x': Line plot ordered by x-values.
-		- 'scatter': Scatter plot of individual points.
-		- 'binned': Binned averages with error bands.
-	nbins : int
-		Number of bins to use if draw_style is 'binned'.
-	colour_by_sweep : bool
-		If True and draw_style is 'scatter', colours points by sweep order.
-		
-	Notes:
-	------
-	- For multi-run plots, each run is plotted with different colours and includes
-	  median values with 16th-84th percentile error bands
-	- X-axis shows τ/W (scattering time normalised by pulse width) 
-	- Y-axis shows R_ψ, the variance ratio of polarisation angles
-	- Automatic colour mapping is applied for predefined run types
-	"""
+def _read_analytic_config(plot_config):
+	"""Collect the [analytical] and [general] settings used by the pa_var / l_frac plots."""
+	def analytical(key, default=None):
+		return get_plot_param(plot_config, 'analytical', key, default)
 
-	# Extract analytical config
-	scale = get_plot_param(plot_config, 'analytical', 'plot_scale', 'linear')
-	draw_style = get_plot_param(plot_config, 'analytical', 'draw_style', 'line-param')
-	fit = get_plot_param(plot_config, 'analytical', 'fit_functions', None)
-	weight_x_by = get_plot_param(plot_config, 'analytical', 'weight_x_by', None)
-	weight_y_by = get_plot_param(plot_config, 'analytical', 'weight_y_by', None)
-	x_measured = get_plot_param(plot_config, 'analytical', 'x_measured', None)
-	equal_value_lines = get_plot_param(plot_config, 'analytical', 'equal_value_lines', None)
+	def general(key, default=None):
+		return get_plot_param(plot_config, 'general', key, default)
+
+	equal_value_lines = analytical('equal_value_lines')
 	if equal_value_lines is not None:
 		try:
 			equal_value_lines = int(equal_value_lines)
 		except (ValueError, TypeError):
-			# allow list passthrough
-			pass
-	equal_lines_cfg = get_plot_param(plot_config, 'analytical', 'equal_lines', None)
+			pass  # allow list passthrough
+	equal_lines_cfg = analytical('equal_lines')
 	if isinstance(equal_lines_cfg, dict):
 		if not equal_lines_cfg.get('enabled', True):
 			equal_lines_cfg = None
-		else:
-			if 'n_lines' in equal_lines_cfg:
-				nv = equal_lines_cfg['n_lines']
-				if isinstance(nv, (list, tuple)):
-					equal_value_lines = [float(v) for v in nv]
-				else:
-					equal_value_lines = int(nv)
-	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
-	param_text = get_plot_param(plot_config, 'analytical', 'param_text', [])
-	text = get_plot_param(plot_config, 'general', 'text', None)
-	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
-	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
-	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
-	ylim_cfg = get_plot_param(plot_config, 'analytical', 'ylim', None)
-	xshade_cfg = get_plot_param(plot_config, 'analytical', 'xshade', None)
-	xshade_colour = get_plot_param(plot_config, 'analytical', 'xshade_colour', 'lightgray')
-	xshade_alpha = float(get_plot_param(plot_config, 'analytical', 'xshade_alpha', 0.25))
-	xshade_zorder = int(get_plot_param(plot_config, 'analytical', 'xshade_zorder', 0))
+		elif 'n_lines' in equal_lines_cfg:
+			nv = equal_lines_cfg['n_lines']
+			equal_value_lines = [float(v) for v in nv] if isinstance(nv, (list, tuple)) else int(nv)
 
-	# Extract general config
-	figsize = get_plot_param(plot_config, 'general', 'figsize', None)
-	show = get_plot_param(plot_config, 'general', 'show_plots', True)
-	save = get_plot_param(plot_config, 'general', 'save_plots', False)
-	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
-	legend = get_plot_param(plot_config, 'general', 'legend', True)
-	legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
-	
+	return SimpleNamespace(
+		scale=analytical('plot_scale', 'linear'),
+		draw_style=analytical('draw_style', 'line-param'),
+		fit=analytical('fit_functions'),
+		weight_x_by=analytical('weight_x_by'),
+		weight_y_by=analytical('weight_y_by'),
+		x_measured=analytical('x_measured'),
+		equal_value_lines=equal_value_lines,
+		equal_lines_cfg=equal_lines_cfg,
+		legend_params=analytical('legend_params', []),
+		param_text=analytical('param_text', []),
+		text=general('text'),
+		nbins=analytical('nbins', 15),
+		colour_by_sweep=analytical('colour_by_sweep', False),
+		xlim=analytical('xlim'),
+		ylim=analytical('ylim'),
+		xshade=analytical('xshade'),
+		xshade_colour=analytical('xshade_colour', 'lightgray'),
+		xshade_alpha=float(analytical('xshade_alpha', 0.25)),
+		xshade_zorder=int(analytical('xshade_zorder', 0)),
+		figsize=general('figsize'),
+		show=general('show_plots', True),
+		save=general('save_plots', False),
+		extension=general('extension', 'pdf'),
+		legend=general('legend', True),
+		legend_loc=general('legend_loc', 'best'),
+	)
 
-	yname = r"\mathbb{V}(\psi)"
-	if figsize is None:
+
+# Per-quantity settings for the analytic plots (y symbol, single-run series label,
+# expected-curve key, and whether a publication figsize is the default).
+_ANALYTIC_PLOTS = {
+	'pa_var': dict(yname=r"\mathbb{V}(\psi)", series_label=r'$\mathbb{V}(\psi)$',
+				   expected_key='exp_var_PA', pub_figsize_default=True),
+	'l_frac': dict(yname=r"\Pi_L", series_label='L/I',
+				   expected_key=None, pub_figsize_default=False),
+}
+
+
+def _plot_analytic(plot_type, frb_dict, fname, out_dir, phase_window, freq_window, gauss_file, sim_file,
+				   obs_data, obs_params, compare_windows, buffer_frac, plot_config):
+	"""Shared body of plot_pa_var and plot_lfrac."""
+	spec = _ANALYTIC_PLOTS[plot_type]
+	cfg = _read_analytic_config(plot_config)
+	yname = spec['yname']
+	figsize = cfg.figsize
+	if figsize is None and spec['pub_figsize_default']:
 		figsize = pub_figsize(ncol=get_pub_col())
+
+	def finish_axes(ax):
+		_apply_axis_limits(ax, cfg.xlim, cfg.ylim)
+
+	def shade_x(ax):
+		_apply_xshade_regions(ax, cfg.xshade, colour=cfg.xshade_colour, alpha=cfg.xshade_alpha, zorder=cfg.xshade_zorder)
 
 	if compare_windows is not None:
 		if _is_multi_run_dict(frb_dict):
@@ -2947,362 +2871,63 @@ def plot_pa_var(
 			fig, ax = plt.subplots(figsize=figsize)
 			fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 			_plot_single_run_multi_window(
-				frb_dict=frb_dict,
-				ax=ax,
-				plot_type='pa_var',
-				window_pairs=compare_windows,
-				weight_y_by=weight_y_by,
-				weight_x_by=weight_x_by,
-				fit=fit,
-				scale=scale,
-				legend=legend,
-				obs_data=obs_data,
-				obs_params=obs_params,
-				buffer_frac=buffer_frac,
-				draw_style=draw_style,
-				nbins=nbins,
-				colour_by_sweep=colour_by_sweep,
-				plot_config=plot_config,
-				param_text=param_text,
-				text=text
+				frb_dict=frb_dict, ax=ax, plot_type=plot_type, window_pairs=compare_windows,
+				weight_y_by=cfg.weight_y_by, weight_x_by=cfg.weight_x_by, fit=cfg.fit, scale=cfg.scale,
+				legend=cfg.legend, obs_data=obs_data, obs_params=obs_params, buffer_frac=buffer_frac,
+				draw_style=cfg.draw_style, nbins=cfg.nbins, colour_by_sweep=cfg.colour_by_sweep,
+				plot_config=plot_config, param_text=cfg.param_text, text=cfg.text
 			)
-			# Save/show
-			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
-			_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
-			if show:
+			finish_axes(ax)
+			shade_x(ax)
+			if cfg.show:
 				plt.show()
-			if save:
-				name = f"{fname}_{scale}_pa_var_window_comparison.{extension}"
-				name = os.path.join(out_dir, name)
+			if cfg.save:
+				name = os.path.join(out_dir, f"{fname}_{cfg.scale}_{plot_type}_window_comparison.{cfg.extension}")
 				savefig(name, dpi=600, fig=fig)
 				logging.info(f"Saved figure to {name}\n")
 			return
 
-	# Multi-run
 	if _is_multi_run_dict(frb_dict):
 		fig, ax = plt.subplots(figsize=figsize)
 		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 		_plot_multirun(
-			frb_dict, ax, fit=fit, scale=scale, yname=yname,
-			weight_y_by=weight_y_by, weight_x_by=weight_x_by, x_measured=x_measured,
-			legend=legend, equal_value_lines=equal_value_lines, equal_lines_cfg=equal_lines_cfg,
-			plot_type='pa_var', phase_window=phase_window, freq_window=freq_window,
-			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
-			legend_params=legend_params, param_text=param_text, text=text, plot_config=plot_config
+			frb_dict, ax, fit=cfg.fit, scale=cfg.scale, yname=yname,
+			weight_y_by=cfg.weight_y_by, weight_x_by=cfg.weight_x_by, x_measured=cfg.x_measured,
+			legend=cfg.legend, equal_value_lines=cfg.equal_value_lines, equal_lines_cfg=cfg.equal_lines_cfg,
+			plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
+			draw_style=cfg.draw_style, nbins=cfg.nbins, colour_by_sweep=cfg.colour_by_sweep,
+			legend_params=cfg.legend_params, param_text=cfg.param_text, text=cfg.text, plot_config=plot_config
 		)
-		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
+		finish_axes(ax)
 	else:
-		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'pa_var', phase_window, freq_window)
-
-		freq_label = normalise_freq_window(freq_window, target='dspec')
-		phase_label = normalise_phase_window(phase_window, target='dspec')
-		key = f"{freq_label}, {phase_label}"
-		series_colour = colour_map.get(key, colours['purple']) 
-
+		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], plot_type, phase_window, freq_window)
 		fig, ax = _plot_single_job_common(
 			frb_dict=frb_dict,
 			yname_base=yname,
-			weight_y_by=weight_y_by,
-			weight_x_by=weight_x_by,
-			x_measured=x_measured,
+			weight_y_by=cfg.weight_y_by,
+			weight_x_by=cfg.weight_x_by,
+			x_measured=cfg.x_measured,
 			figsize=figsize,
-			fit=fit,
-			scale=scale,
-			series_label=r'$\mathbb{V}(\psi)$',
-			series_colour=series_colour,
-			expected_param_key='exp_var_PA',
+			fit=cfg.fit,
+			scale=cfg.scale,
+			series_label=spec['series_label'],
+			series_colour=_window_colour(freq_window, phase_window),
+			expected_param_key=spec['expected_key'],
 			yvals_override=yvals,
-			draw_style=draw_style,
-			nbins=nbins,
-			colour_by_sweep=colour_by_sweep,
-			legend_loc=legend_loc,
+			draw_style=cfg.draw_style,
+			nbins=cfg.nbins,
+			colour_by_sweep=cfg.colour_by_sweep,
+			legend_loc=cfg.legend_loc,
 			plot_config=plot_config,
 			phase_window=phase_window,
 			freq_window=freq_window
 		)
-		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
+		finish_axes(ax)
+		gdict = _gdict_of(frb_dict)
+		_draw_text_items(ax, cfg.param_text, gdict, 'analytical', plot_config)
+		_draw_text_items(ax, cfg.text, gdict, 'general', plot_config)
 
-		if param_text:
-			gdict = None
-			dsp = frb_dict.get("dspec_params")
-			if dsp is not None and hasattr(dsp, "gdict"):
-				gdict = dsp.gdict
-			elif "gdict" in frb_dict:
-				gdict = frb_dict["gdict"]
-			display_text = build_plot_text_string(param_text, gdict)
-			draw_plot_text(ax, display_text, 'analytical', plot_config)
-
-		if text:
-			gdict = None
-			dsp = frb_dict.get("dspec_params")
-			if dsp is not None and hasattr(dsp, "gdict"):
-				gdict = dsp.gdict
-			elif "gdict" in frb_dict:
-				gdict = frb_dict["gdict"]
-			display_text = build_plot_text_string(text, gdict)
-			draw_plot_text(ax, display_text, 'general', plot_config)
-
-	_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
-		
-	# Overlay observational data if provided
-	if obs_data is not None:
-		obs_cfg = _get_obs_cfg(plot_config)
-		if obs_cfg:
-			try:
-				obs_result = _process_observational_data(
-					obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window,
-					buffer_frac=buffer_frac, plot_mode=pa_var, x_measured=x_measured
-				)
-				_plot_observational_overlay(
-					ax, obs_result,
-					weight_x_by=weight_x_by,
-					weight_y_by=weight_y_by,
-					colour=obs_cfg.get('colour', 'red'),
-					marker=obs_cfg.get('marker', '*'),
-					size=obs_cfg.get('size', 200),
-					edgecolor=obs_cfg.get('edgecolor', 'black'),
-					linewidth=obs_cfg.get('linewidth', 1.0),
-					alpha=obs_cfg.get('alpha', 1.0),
-					error_style=obs_cfg.get('error_style', 'spans'),
-					span_alpha=obs_cfg.get('span_alpha', 0.1),
-					bar_alpha=obs_cfg.get('bar_alpha', 0.7),
-					bar_capsize=obs_cfg.get('bar_capsize', 5),
-					label_prefix=obs_cfg.get('label_prefix', "")
-				)
-				if legend:
-					_legend_if_any(ax, loc=legend_loc)
-			except Exception as e:
-				logging.error(f"Failed to overlay observational data: {e}")
-	
-	if show:
-		plt.show()
-	if save:
-		name = _make_plot_fname("pa_var", scale, fname, freq_window, phase_window)
-		name = os.path.join(out_dir, name + f".{extension}")
-		savefig(name, dpi=600, bbox_inches='tight', fig=fig)
-		logging.info(f"Saved figure to {name}  \n")
-
-
-def plot_lfrac(
-	frb_dict, 
-	fname, 
-	out_dir, 
-	phase_window, 
-	freq_window, 
-	gauss_file=None,
-	sim_file=None,
-	obs_data=None,
-	obs_params=None,
-	compare_windows=None,
-	buffer_frac=1,
-	plot_config=None,
-	**kwargs
-	):
-	"""
-	Plot the linear polarisation fraction (L/I) as a function of scattering parameters.
-	
-	This function visualises how the degree of linear polarisation changes with varying
-	scattering conditions or other simulation parameters. It computes the integrated
-	linear polarisation fraction over specified frequency and phase windows.
-	
-	Parameters:
-	-----------
-	frb_dict : dict
-		Dictionary containing FRB simulation results. For single runs, contains keys like
-		'xvals', 'yvals', 'V_params', 'dspec_params'. For multi-run comparisons, contains
-		nested dictionaries with run names as keys.
-	save : bool
-		Whether to save the plot to disk.
-	fname : str
-		Base filename for the saved plot (without extension).
-	out_dir : str
-		Output directory path for saving the plot.
-	figsize : tuple or None
-		Figure size as (width, height) in inches. If None, defaults to (10, 9).
-	show_plots : bool
-		Whether to display the plot interactively.
-	scale : str
-		Axis scaling type. Options: 'linear', 'logx', 'logy', 'log'.
-	phase_window : str
-		Phase window for integration. Options: 'total', 'leading', 'trailing'.
-		Determines which part of the pulse profile to include in L/I calculation.
-	freq_window : str
-		Frequency window for integration. Options: 'full-band', 'lowest-quarter', 
-		'lower-mid-quarter', 'upper-mid-quarter', 'highest-quarter'.
-	fit : str, list, or None
-		Fitting function(s) to overlay. Can be single fit type (applied to all runs)
-		or list of fit types (one per run). Options include 'linear', 'power', 
-		'poly,N' (polynomial of degree N), 'exp', 'log', etc.
-	extension : str
-		File extension for saved plots (e.g., 'pdf', 'png').
-	compare_windows : dict or None
-		If provided, enables multi-window comparison from a SINGLE run.
-		Format: {'freq': ['1q', '4q', 'all'], 'phase': ['first', 'last', 'total']}
-		Plots all combinations of freq x phase windows on same axes.
-		Overrides phase_window/freq_window parameters.
-	equal_value_lines : int or str
-		If int, number of equal-value lines to plot for reference.
-		If str, path to directory containing parameter data for custom lines.
-	draw_style : str
-		Style of data representation. Options: 'line-param', 'line-x', 'scatter', 'binned'.
-		- 'line-param': Line plot ordered by simulation parameter (default).
-		- 'line-x': Line plot ordered by x-values.
-		- 'scatter': Scatter plot of individual points.
-		- 'binned': Binned averages with error bands.
-	nbins : int
-		Number of bins to use if draw_style is 'binned'.
-	colour_by_sweep : bool
-		If True and draw_style is 'scatter', colours points by sweep order.
-	"""
-
-	# Extract analytical config
-	scale = get_plot_param(plot_config, 'analytical', 'plot_scale', 'linear')
-	draw_style = get_plot_param(plot_config, 'analytical', 'draw_style', 'line-param')
-	fit = get_plot_param(plot_config, 'analytical', 'fit_functions', None)
-	weight_x_by = get_plot_param(plot_config, 'analytical', 'weight_x_by', None)
-	weight_y_by = get_plot_param(plot_config, 'analytical', 'weight_y_by', None)
-	x_measured = get_plot_param(plot_config, 'analytical', 'x_measured', None)
-	equal_value_lines = get_plot_param(plot_config, 'analytical', 'equal_value_lines', None)
-	if equal_value_lines is not None:
-		try:
-			equal_value_lines = int(equal_value_lines)
-		except (ValueError, TypeError):
-			# allow list passthrough
-			pass
-	equal_lines_cfg = get_plot_param(plot_config, 'analytical', 'equal_lines', None)
-	if isinstance(equal_lines_cfg, dict):
-		if not equal_lines_cfg.get('enabled', True):
-			equal_lines_cfg = None
-		else:
-			if 'n_lines' in equal_lines_cfg:
-				nv = equal_lines_cfg['n_lines']
-				if isinstance(nv, (list, tuple)):
-					equal_value_lines = [float(v) for v in nv]
-				else:
-					equal_value_lines = int(nv)
-	legend_params = get_plot_param(plot_config, 'analytical', 'legend_params', [])
-	param_text = get_plot_param(plot_config, 'analytical', 'param_text', [])
-	text = get_plot_param(plot_config, 'general', 'text', None)
-	nbins = get_plot_param(plot_config, 'analytical', 'nbins', 15)
-	colour_by_sweep = get_plot_param(plot_config, 'analytical', 'colour_by_sweep', False)
-	xlim_cfg = get_plot_param(plot_config, 'analytical', 'xlim', None)
-	ylim_cfg = get_plot_param(plot_config, 'analytical', 'ylim', None)
-	xshade_cfg = get_plot_param(plot_config, 'analytical', 'xshade', None)
-	xshade_colour = get_plot_param(plot_config, 'analytical', 'xshade_colour', 'lightgray')
-	xshade_alpha = float(get_plot_param(plot_config, 'analytical', 'xshade_alpha', 0.25))
-	xshade_zorder = int(get_plot_param(plot_config, 'analytical', 'xshade_zorder', 0))
-	
-	# Extract general config
-	figsize = get_plot_param(plot_config, 'general', 'figsize', None)
-	show = get_plot_param(plot_config, 'general', 'show_plots', True)
-	save = get_plot_param(plot_config, 'general', 'save_plots', False)
-	extension = get_plot_param(plot_config, 'general', 'extension', 'pdf')
-	legend = get_plot_param(plot_config, 'general', 'legend', True)
-	legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
-
-	yname = r"\Pi_L"
-
-	if compare_windows is not None:
-		if _is_multi_run_dict(frb_dict):
-			logging.warning("compare_windows only works with single-run data; ignoring.")
-		else:
-			fig, ax = plt.subplots(figsize=figsize)
-			fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-			_plot_single_run_multi_window(
-				frb_dict=frb_dict,
-				ax=ax,
-				plot_type='l_frac',
-				window_pairs=compare_windows,
-				weight_y_by=weight_y_by,
-				weight_x_by=weight_x_by,
-				fit=fit,
-				scale=scale,
-				legend=legend,
-				obs_data=obs_data,
-				obs_params=obs_params,
-				buffer_frac=buffer_frac,
-				draw_style=draw_style,
-				nbins=nbins,
-				colour_by_sweep=colour_by_sweep,
-				plot_config=plot_config,
-				param_text=param_text,
-				text=text
-			)
-			_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
-			_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
-			if show:
-				plt.show()
-			if save:
-				name = f"{fname}_{scale}_l_frac_window_comparison.{extension}"
-				name = os.path.join(out_dir, name)
-				savefig(name, dpi=600, fig=fig)
-				logging.info(f"Saved figure to {name}\n")
-			return
-
-	if _is_multi_run_dict(frb_dict):
-		fig, ax = plt.subplots(figsize=figsize)
-		fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
-		_plot_multirun(
-			frb_dict, ax, fit=fit, scale=scale, yname=yname,
-			weight_y_by=weight_y_by, weight_x_by=weight_x_by, x_measured=x_measured,
-			legend=legend, equal_value_lines=equal_value_lines, equal_lines_cfg=equal_lines_cfg,
-			plot_type='l_frac', phase_window=phase_window, freq_window=freq_window,
-			draw_style=draw_style, nbins=nbins, colour_by_sweep=colour_by_sweep,
-			legend_params=legend_params, param_text=param_text, text=text, plot_config=plot_config
-		)
-		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
-	else:
-		yvals = _yvals_from_measures_dict(frb_dict["xvals"], frb_dict["measures"], 'l_frac', phase_window, freq_window)
-
-		freq_label = normalise_freq_window(freq_window, target='dspec')
-		phase_label = normalise_phase_window(phase_window, target='dspec')
-		key = f"{freq_label}, {phase_label}"
-		series_colour = colour_map.get(key, colours['purple']) 
-		
-		fig, ax = _plot_single_job_common(
-			frb_dict=frb_dict,
-			yname_base=r"\Pi_L",
-			weight_y_by=weight_y_by,
-			weight_x_by=weight_x_by,
-			x_measured=x_measured,
-			figsize=figsize,
-			fit=fit,
-			scale=scale,
-			series_label='L/I',
-			series_colour=series_colour,
-			expected_param_key=None,
-			yvals_override=yvals,
-			draw_style=draw_style,
-			nbins=nbins,
-			colour_by_sweep=colour_by_sweep,
-			legend_loc=legend_loc,
-			plot_config=plot_config,
-			phase_window=phase_window,
-			freq_window=freq_window
-		)
-		_apply_axis_limits(ax, xlim_cfg, ylim_cfg)
-
-		if param_text:
-			gdict = None
-			dsp = frb_dict.get("dspec_params")
-			if dsp is not None and hasattr(dsp, "gdict"):
-				gdict = dsp.gdict
-			elif "gdict" in frb_dict:
-				gdict = frb_dict["gdict"]
-			display_text = build_plot_text_string(param_text, gdict)
-			draw_plot_text(ax, display_text, 'analytical', plot_config)
-
-		if text:
-			gdict = None
-			dsp = frb_dict.get("dspec_params")
-			if dsp is not None and hasattr(dsp, "gdict"):
-				gdict = dsp.gdict
-			elif "gdict" in frb_dict:
-				gdict = frb_dict["gdict"]
-			display_text = build_plot_text_string(text, gdict)
-			draw_plot_text(ax, display_text, 'general', plot_config)
-
-	_apply_xshade_regions(ax, xshade_cfg, colour=xshade_colour, alpha=xshade_alpha, zorder=xshade_zorder)
+	shade_x(ax)
 
 	if obs_data is not None:
 		obs_cfg = _get_obs_cfg(plot_config)
@@ -3310,36 +2935,52 @@ def plot_lfrac(
 			try:
 				obs_result = _process_observational_data(
 					obs_data, obs_params, gauss_file, sim_file, phase_window, freq_window,
-					buffer_frac=buffer_frac, plot_mode=l_frac, x_measured=x_measured
+					buffer_frac=buffer_frac, plot_mode=plot_modes[plot_type], x_measured=cfg.x_measured
 				)
-				_plot_observational_overlay(
-					ax, obs_result,
-					weight_x_by=weight_x_by,
-					weight_y_by=weight_y_by,
-					colour=obs_cfg.get('colour', 'red'),
-					marker=obs_cfg.get('marker', '*'),
-					size=obs_cfg.get('size', 200),
-					edgecolor=obs_cfg.get('edgecolor', 'black'),
-					linewidth=obs_cfg.get('linewidth', 1.0),
-					alpha=obs_cfg.get('alpha', 1.0),
-					error_style=obs_cfg.get('error_style', 'spans'),
-					span_alpha=obs_cfg.get('span_alpha', 0.1),
-					bar_alpha=obs_cfg.get('bar_alpha', 0.7),
-					bar_capsize=obs_cfg.get('bar_capsize', 5),
-					label_prefix=obs_cfg.get('label_prefix', "")
-				)
-				if legend:
-					_legend_if_any(ax, loc=legend_loc)
+				_plot_observational_overlay(ax, obs_result, weight_x_by=cfg.weight_x_by, weight_y_by=cfg.weight_y_by,
+											colour=obs_cfg['colour'], **_overlay_style(obs_cfg))
+				if cfg.legend:
+					_legend_if_any(ax, loc=cfg.legend_loc)
 			except Exception as e:
 				logging.error(f"Failed to overlay observational data: {e}")
-	
-	if show:
+
+	if cfg.show:
 		plt.show()
-	if save:
-		name = _make_plot_fname("l_frac", scale, fname, freq_window, phase_window)
-		name = os.path.join(out_dir, name + f".{extension}")
+	if cfg.save:
+		name = _make_plot_fname(plot_type, cfg.scale, fname, freq_window, phase_window)
+		name = os.path.join(out_dir, name + f".{cfg.extension}")
 		savefig(name, dpi=600, bbox_inches='tight', fig=fig)
 		logging.info(f"Saved figure to {name}  \n")
+
+
+def plot_pa_var(frb_dict, fname, out_dir, phase_window, freq_window, gauss_file=None, sim_file=None,
+				obs_data=None, obs_params=None, compare_windows=None, buffer_frac=1, plot_config=None, **kwargs):
+	"""
+	Plot the PA variance V(psi) against the swept parameter (or a measured quantity).
+
+	frb_dict is a single-run dict ('xvals', 'measures', 'V_params', 'dspec_params', ...) or a
+	dict of such runs keyed by override label. All styling comes from plot_config: the
+	[analytical] section (plot_scale, draw_style 'line-param'|'line-x'|'scatter'|'binned',
+	fit_functions, weight_x_by/weight_y_by, x_measured, equal_lines, nbins, colour_by_sweep,
+	xlim/ylim, xshade, ...) and [general] (figsize, show_plots, save_plots, extension, legend).
+
+	compare_windows, a list of (freq_window, phase_window) pairs, overlays several windows
+	of a single run on one axes instead of using phase_window/freq_window. obs_data adds an
+	observed FRB as a marker with error spans or bars.
+	"""
+	_plot_analytic('pa_var', frb_dict, fname, out_dir, phase_window, freq_window, gauss_file, sim_file,
+				   obs_data, obs_params, compare_windows, buffer_frac, plot_config)
+
+
+def plot_lfrac(frb_dict, fname, out_dir, phase_window, freq_window, gauss_file=None, sim_file=None,
+			   obs_data=None, obs_params=None, compare_windows=None, buffer_frac=1, plot_config=None, **kwargs):
+	"""
+	Plot the integrated linear polarisation fraction L/I against the swept parameter.
+
+	Takes the same inputs and plot_config settings as plot_pa_var.
+	"""
+	_plot_analytic('l_frac', frb_dict, fname, out_dir, phase_window, freq_window, gauss_file, sim_file,
+				   obs_data, obs_params, compare_windows, buffer_frac, plot_config)
 
 
 def _process_observational_data(obs_data_path, obs_params_path, gauss_file, sim_file, phase_window, freq_window, buffer_frac, plot_mode, x_measured=None):
