@@ -161,17 +161,36 @@ def plot_qu(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 	fig.subplots_adjust(hspace=0.0, right=0.92, top=0.98, bottom=0.08)
 	hide_y_axes = bool(get_plot_param(plot_config, 'general', 'hide_y_axes', False))
 
-	qu_values = np.concatenate((np.ravel(dspec[1]), np.ravel(dspec[2])))
-	qu_values = qu_values[np.isfinite(qu_values)]
-	vmax = float(np.nanmax(np.abs(qu_values))) if qu_values.size else 1.0
-	vmin = -vmax
-	for ax, stokes_index, label in zip(axs, (1, 2), ("Q", "U")):
-		#vmin = np.nanpercentile(dspec[stokes_index], 1)
-		#vmax = np.nanpercentile(dspec[stokes_index], 99.9)
+	# By default show Q/L and U/L, which removes scintillation and intensity structure so that
+	# changes in PA (sign or ratio of Q and U) are visible. Pixels with L below snr_min times the
+	# per-channel noise are masked. Set [qu] normalise = false in the plot config for raw Q and U.
+	normalise = bool(get_plot_param(plot_config, 'qu', 'normalise', True))
+	cmap = plt.get_cmap("seismic").copy()
+	cmap.set_bad(color="0.85")
+	if normalise:
+		Qd, Ud = np.asarray(dspec[1], float), np.asarray(dspec[2], float)
+		L = np.hypot(Qd, Ud)
+		def _mad(x):
+			return 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x, axis=1, keepdims=True)), axis=1)
+		sig = np.sqrt(0.5 * (_mad(Qd) ** 2 + _mad(Ud) ** 2))
+		snr_min = float(get_plot_param(plot_config, 'qu', 'snr_min', 3.0))
+		bad = ~(L > snr_min * sig[:, None])
+		with np.errstate(invalid='ignore', divide='ignore'):
+			planes = {1: np.where(bad, np.nan, Qd / L), 2: np.where(bad, np.nan, Ud / L)}
+		vmin, vmax = -1.0, 1.0
+		labels = (r"$Q/L$", r"$U/L$")
+	else:
+		planes = {1: dspec[1], 2: dspec[2]}
+		qu_values = np.concatenate((np.ravel(dspec[1]), np.ravel(dspec[2])))
+		qu_values = qu_values[np.isfinite(qu_values)]
+		vmax = float(np.nanmax(np.abs(qu_values))) if qu_values.size else 1.0
+		vmin = -vmax
+		labels = ("Q", "U")
+	for ax, stokes_index, label in zip(axs, (1, 2), labels):
 		if not np.isfinite(vmin) or not np.isfinite(vmax):
 			vmin, vmax = None, None
-		im = ax.imshow(dspec[stokes_index], aspect='auto', interpolation='none', origin='lower',
-					   cmap="seismic", vmin=vmin, vmax=vmax,
+		im = ax.imshow(planes[stokes_index], aspect='auto', interpolation='none', origin='lower',
+					   cmap=cmap, vmin=vmin, vmax=vmax,
 					   extent=[time_ms[0], time_ms[-1], freq_mhz[0], freq_mhz[-1]])
 		ax.set_xlim(time_ms[0], time_ms[-1])
 		ax.set_ylabel("Freq. [MHz]")
@@ -219,7 +238,7 @@ def plot_qu(dspec, dspec_params, plot_config, freq_mhz, time_ms, save, fname, ou
 		top_pos.y1 - bottom_pos.y0,
 	])
 	cbar = fig.colorbar(im, cax=cbar_ax)
-	cbar.set_label(r"Polarised Intensity [arb.]")
+	cbar.set_label("Normalised Stokes parameter" if normalise else r"Polarised Intensity [arb.]")
 
 	if show_plots:
 		plt.show()
