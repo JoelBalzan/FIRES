@@ -4,10 +4,17 @@ import pickle as pkl
 
 import numpy as np
 
-from fires.utils.utils import simulated_frb
+from fires.utils.stokes_npz import write_stokes_npz
 
 
-def write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id):
+def write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id, params=None, **meta):
+    """
+    Save a (4, nfreq, ntime) Stokes cube to ``{out_dir}/{frb_id}_dspec/``.
+
+    Writes the shared single-file archive ``{frb_id}_stokes.npz`` (see fires.utils.stokes_npz) and,
+    for older readers, ``out_I/Q/U/V.npy``, ``dspec.npy``, ``freq.npy`` and ``time.npy``.
+    Frequency is stored high to low. ``params`` and ``meta`` go into the archive only.
+    """
     if dspec is None:
         return None
     if dspec.ndim != 3 or dspec.shape[0] != 4:
@@ -27,6 +34,9 @@ def write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id):
         np.save(os.path.join(dspec_dir, "freq.npy"), freq_mhz)
     if time_ms is not None:
         np.save(os.path.join(dspec_dir, "time.npy"), time_ms)
+    if freq_mhz is not None and time_ms is not None:
+        write_stokes_npz(os.path.join(dspec_dir, f"{frb_id}_stokes.npz"), dspec, freq_mhz, time_ms,
+                         params=params, label=frb_id, **meta)
     logging.info("Saved Stokes dspec cube to %s", dspec_dir)
     return dspec_dir
 

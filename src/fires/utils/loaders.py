@@ -6,6 +6,7 @@
 import logging
 import os
 import pickle as pkl
+import glob
 import re
 from collections import defaultdict
 
@@ -13,6 +14,7 @@ import numpy as np
 
 from fires.utils.config import load_params
 from fires.utils.params import COL_MAP
+from fires.utils.stokes_npz import read_stokes_npz
 from fires.utils.utils import dspecParams
 
 # Mean-only column map for loading observed data
@@ -70,219 +72,158 @@ def get_parameters(filepath):
 	return gdict
 
 
-def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, scint_file=None):
-	"""
-	Load real FRB data from individual Stokes I, Q, U, V files and parameter file.
-	
-	Expected file structure:
-	- Individual Stokes files: out_I.npy, out_Q.npy, out_U.npy, out_V.npy
-	  OR: {label}_htr_dsI.npy, {label}_htr_dsQ.npy, etc.
-	- Frequency array: {label}_htr_freq.npy or zoom_x_0.npy
-	- Time array: {label}_htr_time.npy or zoom_y_0.npy
-	- Parameters: parameters.txt
-	
-	Parameters:
-	-----------
-	obs_data_path : str
-		Path to directory containing Stokes files, or path to a single Stokes file
-	obs_params_path : str or None
-		Path to parameters.txt file. If None, will search in obs_data_path directory
-		
-	Returns:
-	--------
-	tuple
-		(dspec, freq_mhz, time_ms, gdict) where dspec has shape [4, nfreq, ntime]
-	"""
-	# Determine base directory and pattern
+_STOKES = ('I', 'Q', 'U', 'V')
+_HTR_SUFFIX = re.compile(r'_htr_ds[IQUV]\.npy$')
+
+
+def _first_existing(paths):
+	"""Return the first path in ``paths`` that exists, or None."""
+	return next((p for p in paths if os.path.exists(p)), None)
+
+
+def _resolve_obs_location(obs_data_path):
+	"""Return (data_dir, base_pattern) for a data directory or a single Stokes file path."""
 	if os.path.isdir(obs_data_path):
-		data_dir = obs_data_path
-		base_pattern = ""
-		# Try to infer base pattern from directory contents
-		import glob
-		htr_files = glob.glob(os.path.join(data_dir, "*_htr_dsI.npy"))
-		if htr_files:
-			basename = os.path.basename(htr_files[0])
-			base_pattern = basename.replace("_htr_dsI.npy", "")
+		htr_files = glob.glob(os.path.join(obs_data_path, "*_htr_dsI.npy"))
+		base = os.path.basename(htr_files[0]).replace("_htr_dsI.npy", "") if htr_files else ""
+		return obs_data_path, base
+	basename = os.path.basename(obs_data_path)
+	if basename.endswith("_stokes.npz"):
+		return os.path.dirname(obs_data_path), basename[: -len("_stokes.npz")]
+	m = _HTR_SUFFIX.search(basename)
+	return os.path.dirname(obs_data_path), basename[: m.start()] if m else ""
+
+
+def _stokes_candidates(data_dir, base, stokes):
+	"""File names tried, in order, for one Stokes parameter."""
+	names = [f"{base}_htr_ds{stokes}.npy"] if base else []
+	names += [f"out_{stokes}.npy", f"out_{stokes}_noflagged.npy"]
+	if base:
+		names += [f"{base}_{stokes}.npy", f"{base}_ds{stokes}.npy"]
+	names += [f"{stokes}.npy", f"stokes_{stokes}.npy"]
+	return [os.path.join(data_dir, n) for n in names]
+
+
+def _axis_candidates(data_dir, base, kind):
+	"""File names tried, in order, for the frequency ('freq') or time ('time') axis."""
+	zoom, generic = {"freq": ("zoom_x_0.npy", ["freq.npy", "frequency.npy", "freqs.npy"]),
+					 "time": ("zoom_y_0.npy", ["time.npy", "times.npy"])}[kind]
+	paths = [os.path.join(data_dir, f"{base}_htr_{kind}.npy")] if base else []
+	paths += [os.path.join(data_dir, n) for n in [zoom] + generic]
+	paths += glob.glob(os.path.join(data_dir, f"*_{kind}.npy"))
+	paths += glob.glob(os.path.join(data_dir, f"*_htr_{kind}.npy"))
+	return paths
+
+
+def _load_stokes_npy(data_dir, base):
+	"""Stack per-Stokes .npy files into [4, nfreq, ntime]; missing Q/U/V become zeros."""
+	arrays = []
+	for stokes in _STOKES:
+		path = _first_existing(_stokes_candidates(data_dir, base, stokes))
+		if path is not None:
+			logging.info(f"Found Stokes {stokes}: {os.path.basename(path)}")
+			arrays.append(np.load(path))
+			continue
+		logging.warning(f"Stokes {stokes} file not found in {data_dir}")
+		if stokes == 'I':
+			raise FileNotFoundError(
+				f"Stokes I file required but not found in {data_dir}\n"
+				f"Tried patterns: out_I.npy, {base}_htr_dsI.npy, etc."
+			)
+		arrays.append(np.zeros_like(arrays[0]))
+	return np.array(arrays)
+
+
+def _load_axis(data_dir, base, kind, n):
+	"""Load the freq/time axis file, or fall back to bin indices if missing or the wrong length."""
+	label = {"freq": ("frequency", "MHz", "channels", "freq"), "time": ("time", "ms", "samples", "time")}[kind]
+	path = _first_existing(_axis_candidates(data_dir, base, kind))
+	axis = None
+	if path is not None:
+		axis = np.load(path)
+		logging.info(f"Loaded {label[0]} array from {os.path.basename(path)}: {len(axis)} {label[2]}")
 	else:
-		data_dir = os.path.dirname(obs_data_path)
-		# Extract base name pattern from filename
-		basename = os.path.basename(obs_data_path)
-		
-		# Handle various naming patterns
-		if '_htr_dsI.npy' in basename:
-			base_pattern = basename.replace('_htr_dsI.npy', '')
-		elif '_htr_dsQ.npy' in basename:
-			base_pattern = basename.replace('_htr_dsQ.npy', '')
-		elif '_htr_dsU.npy' in basename:
-			base_pattern = basename.replace('_htr_dsU.npy', '')
-		elif '_htr_dsV.npy' in basename:
-			base_pattern = basename.replace('_htr_dsV.npy', '')
-		elif 'out_I.npy' in basename or 'out_Q.npy' in basename:
-			base_pattern = ""
-		else:
-			base_pattern = ""
-	
-	logging.info(f"Loading real FRB data from {data_dir}")
-	if base_pattern:
-		logging.info(f"Using base pattern: {base_pattern}")
-	
-	# Find Stokes files - try multiple naming conventions
-	stokes_files = {}
-	for stokes in ['I', 'Q', 'U', 'V']:
-		candidates = []
-		
-		# Pattern 1: {label}_htr_dsI.npy (e.g., 191001_htr_dsI.npy)
-		if base_pattern:
-			candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_ds{stokes}.npy"))
-		
-		# Pattern 2: out_I.npy
-		candidates.append(os.path.join(data_dir, f"out_{stokes}.npy"))
-		
-		# Pattern 3: out_I_noflagged.npy
-		candidates.append(os.path.join(data_dir, f"out_{stokes}_noflagged.npy"))
-		
-		# Pattern 4: Generic patterns
-		if base_pattern:
-			candidates.extend([
-				os.path.join(data_dir, f"{base_pattern}_{stokes}.npy"),
-				os.path.join(data_dir, f"{base_pattern}_ds{stokes}.npy"),
-			])
-		
-		candidates.extend([
-			os.path.join(data_dir, f"{stokes}.npy"),
-			os.path.join(data_dir, f"stokes_{stokes}.npy"),
-		])
-		
-		found = False
-		for candidate in candidates:
-			if os.path.exists(candidate):
-				stokes_files[stokes] = candidate
-				found = True
-				logging.info(f"Found Stokes {stokes}: {os.path.basename(candidate)}")
-				break
-		
-		if not found:
-			logging.warning(f"Stokes {stokes} file not found in {data_dir}")
-			stokes_files[stokes] = None
-	
-	# Load Stokes data
-	stokes_arrays = []
-	for stokes in ['I', 'Q', 'U', 'V']:
-		if stokes_files[stokes] is not None:
-			arr = np.load(stokes_files[stokes])
-			stokes_arrays.append(arr)
-		else:
-			# Create zeros if file doesn't exist
-			if len(stokes_arrays) > 0:
-				stokes_arrays.append(np.zeros_like(stokes_arrays[0]))
-			else:
-				# Can't proceed without at least Stokes I
-				if stokes == 'I':
-					raise FileNotFoundError(
-						f"Stokes I file required but not found in {data_dir}\n"
-						f"Tried patterns: out_I.npy, {base_pattern}_htr_dsI.npy, etc."
-					)
-	
-	# Stack into [4, nfreq, ntime] array
-	dspec = np.array(stokes_arrays)
-	logging.info(f"Loaded dynamic spectrum with shape: {dspec.shape} [Stokes, freq, time]")
-	
-	# Load frequency array
-	freq_mhz = None
-	freq_candidates = []
-	
-	# Pattern 1: {label}_htr_freq.npy
-	if base_pattern:
-		freq_candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_freq.npy"))
-	
-	# Pattern 2: zoom_x_0.npy (frequency axis)
-	freq_candidates.append(os.path.join(data_dir, "zoom_x_0.npy"))
-	
-	# Generic patterns
-	freq_candidates.extend([
-		os.path.join(data_dir, "freq.npy"),
-		os.path.join(data_dir, "frequency.npy"),
-		os.path.join(data_dir, "freqs.npy"),
-	])
-	
-	# Try with glob for wildcards
-	import glob
-	freq_candidates.extend(glob.glob(os.path.join(data_dir, "*_freq.npy")))
-	freq_candidates.extend(glob.glob(os.path.join(data_dir, "*_htr_freq.npy")))
-	
-	for candidate in freq_candidates:
-		if os.path.exists(candidate):
-			freq_mhz = np.load(candidate)
-			logging.info(f"Loaded frequency array from {os.path.basename(candidate)}: {len(freq_mhz)} channels")
-			break
-	
-	if freq_mhz is None:
-		logging.warning("No frequency array found, creating default MHz array")
-		freq_mhz = np.arange(dspec.shape[1], dtype=float)
-	
-	# Ensure freq_mhz matches dspec dimensions
-	if len(freq_mhz) != dspec.shape[1]:
+		logging.warning(f"No {label[0]} array found, creating default {label[1]} array")
+	if axis is not None and len(axis) != n:
 		logging.warning(
-			f"Frequency array length ({len(freq_mhz)}) doesn't match dspec freq axis ({dspec.shape[1]}). "
+			f"{label[0].capitalize()} array length ({len(axis)}) doesn't match dspec {label[3]} axis ({n}). "
 			"Creating default array."
 		)
-		freq_mhz = np.arange(dspec.shape[1], dtype=float)
-	
-	# Ensure ascending frequency axis; if descending, reverse freq and dspec
+		axis = None
+	return np.arange(n, dtype=float) if axis is None else axis
+
+
+def _ensure_ascending_freq(dspec, freq_mhz):
+	"""Reverse the frequency axis (and data) if it is descending."""
 	try:
 		diffs = np.diff(freq_mhz.astype(float))
 		if np.nanmedian(diffs) < 0 and np.all(np.isfinite(diffs)):
 			logging.info("Frequency axis is descending; reversing frequency axis and data.")
-			freq_mhz = freq_mhz[::-1]
-			dspec = dspec[:, ::-1, :]
-		elif np.any(diffs == 0):
+			return dspec[:, ::-1, :], freq_mhz[::-1]
+		if np.any(diffs == 0):
 			logging.warning("Frequency array contains duplicate channels; leaving order unchanged.")
 		elif np.any(diffs < 0) and np.any(diffs > 0):
 			logging.warning("Frequency array is non-monotonic; not reversing. Consider sorting externally.")
 	except Exception as e:
 		logging.warning(f"Could not evaluate frequency ordering: {e}")
-	
-	# Load time array
-	time_ms = None
-	time_candidates = []
-	
-	# Pattern 1: {label}_htr_time.npy
+	return dspec, freq_mhz
+
+
+def _find_stokes_npz(obs_data_path, data_dir, base):
+	"""Path of a shared-format .npz to load, or None to use per-Stokes .npy files.
+
+	An explicit .npz path is always used. A directory is read from a single ``*_stokes.npz``
+	only when it has no per-Stokes I file, so existing .npy layouts load exactly as before.
+	"""
+	if os.path.isfile(obs_data_path) and obs_data_path.endswith(".npz"):
+		return obs_data_path
+	if os.path.isdir(obs_data_path) and _first_existing(_stokes_candidates(data_dir, base, 'I')) is None:
+		archives = glob.glob(os.path.join(data_dir, "*_stokes.npz"))
+		if len(archives) == 1:
+			return archives[0]
+	return None
+
+
+def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, scint_file=None):
+	"""
+	Load real FRB data and its parameter file.
+
+	Accepted inputs (``obs_data_path``):
+	- a shared-format archive ``{label}_stokes.npz`` (see fires.utils.stokes_npz), or a directory
+	  holding exactly one such archive and no per-Stokes files;
+	- a directory, or one Stokes file, with per-Stokes files ``out_I.npy`` ... or
+	  ``{label}_htr_dsI.npy`` ..., plus ``{label}_htr_freq.npy`` / ``zoom_x_0.npy`` / ``freq.npy``
+	  and ``{label}_htr_time.npy`` / ``zoom_y_0.npy`` / ``time.npy``.
+	Parameters come from ``obs_params_path`` or ``parameters.txt`` next to the data (optional).
+
+	Returns
+	-------
+	tuple
+		(dspec, freq_mhz, time_ms, dspec_params) with dspec shaped [4, nfreq, ntime] and
+		frequency ascending.
+	"""
+	data_dir, base_pattern = _resolve_obs_location(obs_data_path)
+	logging.info(f"Loading real FRB data from {data_dir}")
 	if base_pattern:
-		time_candidates.append(os.path.join(data_dir, f"{base_pattern}_htr_time.npy"))
-	
-	# Pattern 2: zoom_y_0.npy (time axis)
-	time_candidates.append(os.path.join(data_dir, "zoom_y_0.npy"))
-	
-	# Generic patterns
-	time_candidates.extend([
-		os.path.join(data_dir, "time.npy"),
-		os.path.join(data_dir, "times.npy"),
-	])
-	
-	# Try with glob
-	time_candidates.extend(glob.glob(os.path.join(data_dir, "*_time.npy")))
-	time_candidates.extend(glob.glob(os.path.join(data_dir, "*_htr_time.npy")))
-	
-	for candidate in time_candidates:
-		if os.path.exists(candidate):
-			time_ms = np.load(candidate)
-			logging.info(f"Loaded time array from {os.path.basename(candidate)}: {len(time_ms)} samples")
-			break
-	
-	if time_ms is None:
-		logging.warning("No time array found, creating default ms array")
-		time_ms = np.arange(dspec.shape[2], dtype=float)
-	
-	# Ensure time_ms matches dspec dimensions
-	if len(time_ms) != dspec.shape[2]:
-		logging.warning(
-			f"Time array length ({len(time_ms)}) doesn't match dspec time axis ({dspec.shape[2]}). "
-			"Creating default array."
-		)
-		time_ms = np.arange(dspec.shape[2], dtype=float)
+		logging.info(f"Using base pattern: {base_pattern}")
+
+	npz_label = None
+	npz_path = _find_stokes_npz(obs_data_path, data_dir, base_pattern)
+	if npz_path is not None:
+		dspec, freq_mhz, time_ms, npz_meta = read_stokes_npz(npz_path)
+		npz_label = npz_meta.get("label")
+		logging.info(f"Loaded Stokes archive {os.path.basename(npz_path)}")
+	else:
+		dspec = _load_stokes_npy(data_dir, base_pattern)
+	logging.info(f"Loaded dynamic spectrum with shape: {dspec.shape} [Stokes, freq, time]")
+	if npz_path is None:
+		freq_mhz = _load_axis(data_dir, base_pattern, "freq", dspec.shape[1])
+	dspec, freq_mhz = _ensure_ascending_freq(dspec, freq_mhz)
+	if npz_path is None:
+		time_ms = _load_axis(data_dir, base_pattern, "time", dspec.shape[2])
 	logging.info("Time resolution: %.6f ms" % (time_ms[1]-time_ms[0]))
 	logging.info("Frequency resolution: %.6f MHz" % np.median(np.diff(freq_mhz.astype(float))))
-	
+
 	gdict = {}
 	if obs_params_path is None:
 		obs_params_path = os.path.join(data_dir, "parameters.txt")
@@ -293,6 +234,8 @@ def load_data(obs_data_path, obs_params_path, gauss_file=None, sim_file=None, sc
 	else:
 		logging.info(f"Parameters file not found: {obs_params_path} (optional for real data)")
 		gdict = {}
+	if npz_label and gdict.get('label', 'FRB') == 'FRB':
+		gdict['label'] = str(npz_label)
 	# Derive a better label if missing or default
 	try:
 		current_label = gdict.get('label', 'FRB')

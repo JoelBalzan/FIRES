@@ -466,7 +466,9 @@ def generate_frb(data, frb_id, out_dir, mode, seed, nseed, write, sim_file, gaus
                 baseline_correct=baseline_correct, diagnostics=True,
             )
         if save_dspec:
-            write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id)
+            write_stokes_cube(dspec, freq_mhz, time_ms, out_dir, frb_id,
+                              params=master_raw_config, source="FIRES",
+                              ref_freq_mhz=dspec_params.ref_freq_mhz)
         _, corrdspec, _, noise_spec = process_dspec(dspec, freq_mhz, dspec_params, buffer_frac,
                                                      skip_rm=True, remove_pa_trend=True)
         frb_data = simulated_frb(frb_id, corrdspec, dspec_params, snr)
