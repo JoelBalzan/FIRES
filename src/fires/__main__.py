@@ -429,10 +429,11 @@ def main():
         if args.sim_data is None:
             print(f"Simulation completed. \n")
 
-        if args.plot != 'None' and (save_plots or show_plots):
+        if 'None' not in args.plot and (save_plots or show_plots):
             for plot_mode in args.plot:
                 try:
-                    plot_mode_obj = plot_modes.get(plot_mode)
+                    # 'all' is handled by basic_plots (the lvpa mode's function) with mode='all'
+                    plot_mode_obj = plot_modes['lvpa'] if plot_mode == 'all' else plot_modes.get(plot_mode)
                     if plot_mode_obj is None:
                         print(f"Error: Plot mode '{plot_mode}' is not defined in plotmodes.py. \n")
                         continue
