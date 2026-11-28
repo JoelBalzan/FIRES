@@ -1981,17 +1981,12 @@ def _plot_single_run_multi_window(
 			)
 
 		colour = get_colour(freq_win, phase_win)
-		plot_x, plot_med = _draw_series(ax, x, med_vals, lower, upper, x_lo, x_hi, pct, draw_style, nbins,
-										colour, window_label(freq_win, phase_win), colour_by_sweep)
+		_draw_series(ax, x, med_vals, lower, upper, x_lo, x_hi, pct, draw_style, nbins,
+					 colour, window_label(freq_win, phase_win), colour_by_sweep)
 
-		if fit is not None and draw_style != 'binned' and draw_style != 'scatter':
-			fit_type, fit_degree = _parse_fit_arg(fit)
-			_fit_and_plot(ax, plot_x, plot_med, fit_type, fit_degree, label=None, colour=colour)
-
-		
 		if fit is not None:
 			fit_type, fit_degree = _parse_fit_arg(fit)
-			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, color=colour)
+			_fit_and_plot(ax, x, med_vals, fit_type, fit_degree, label=None, colour=colour)
 
 	if "exp_vars" in frb_dict:
 		V_params = frb_dict.get("V_params", {})
@@ -2111,7 +2106,7 @@ def _plot_single_job_common(
 	elif not embed:
 		ax.grid(True, linestyle='--', alpha=0.6)
 
-	plot_x, plot_med = _draw_series(ax, x, med_vals, lower, upper, x_lo, x_hi, pct, draw_style, nbins,
+	plot_x, _ = _draw_series(ax, x, med_vals, lower, upper, x_lo, x_hi, pct, draw_style, nbins,
 									series_colour, series_label, colour_by_sweep)
 
 	# Expected curve and fit use the unsorted, unbinned x so each value stays paired with its sweep step
