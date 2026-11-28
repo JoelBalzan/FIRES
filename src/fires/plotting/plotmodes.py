@@ -1052,14 +1052,7 @@ def _weight_x_get_xname(
 	dspec_params = frb_dict.get("dspec_params", None)
 	V_params = frb_dict.get("V_params", None)
 
-	sweep_mode = None
-	if dspec_params is not None:
-		sweep_mode = getattr(dspec_params, "sweep_mode", None)
-		if sweep_mode is None and isinstance(dspec_params, dict):
-			sweep_mode = dspec_params.get("sweep_mode")
-		if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-			first = dspec_params[0]
-			sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
+	sweep_mode = _sweep_mode(dspec_params)
 
 	param_info_entry = param_map.get(xname_raw, (xname_raw, ""))
 	base_name = param_info_entry[0] if isinstance(param_info_entry, tuple) else param_info_entry
@@ -1371,77 +1364,235 @@ def _format_legend_label(od: dict, legend_params=None, gdict=None) -> str:
 	return ", ".join(parts)
 
 
+def _weight_source(run_data, weight_y_by):
+	"""Where y weights live: V_params for measured keys (meas_var_*), otherwise dspec_params."""
+	if isinstance(weight_y_by, str) and is_measured_key(weight_y_by):
+		return run_data.get("V_params", {})
+	return run_data.get("dspec_params", {})
+
+
+def _run_x_and_yvals(run_data, weight_x_by, weight_y_by, x_measured, plot_type, phase_window, freq_window):
+	"""For one run: the plotted x values, and the (weighted) y samples keyed by sweep value."""
+	x_vals, _, _ = _weight_x_get_xname(
+		run_data, weight_x_by=weight_x_by, x_measured=x_measured,
+		phase_window=phase_window, freq_window=freq_window
+	)
+	xvals = run_data["xvals"]
+	yvals = _yvals_from_measures_dict(xvals, run_data["measures"], plot_type, phase_window, freq_window)
+	if weight_y_by is not None:
+		yvals, _ = _weight_dict(xvals, yvals, _weight_source(run_data, weight_y_by), weight_by=weight_y_by, return_status=True)
+	return x_vals, yvals
+
+
+def _x_grid(ax, n):
+	"""At least 10 points spanning the current x-limits, log-spaced on a log axis."""
+	xlim = ax.get_xlim()
+	x_min, x_max = min(xlim), max(xlim)
+	n = int(max(10, n))
+	if ax.get_xscale() == 'log':
+		x_min = max(x_min, 1e-300)
+		x_max = max(x_max, x_min * (1 + 1e-6))
+		return np.geomspace(x_min, x_max, n)
+	return np.linspace(x_min, x_max, n)
+
+
+def _extend_piecewise(x, xs, ys, mode='linear'):
+	"""Piecewise-linear interpolation through (xs, ys), extrapolated linearly or flat beyond the ends."""
+	x = np.asarray(x, dtype=float)
+	y = np.interp(x, xs, ys)
+	if xs.size >= 2:
+		if mode == 'linear':
+			mL = (ys[1] - ys[0]) / (xs[1] - xs[0])
+			mR = (ys[-1] - ys[-2]) / (xs[-1] - xs[-2])
+			left_mask = (x < xs[0])
+			right_mask = (x > xs[-1])
+			y[left_mask] = ys[0] + mL * (x[left_mask] - xs[0])
+			y[right_mask] = ys[-1] + mR * (x[right_mask] - xs[-1])
+		else:
+			y[x < xs[0]] = ys[0]
+			y[x > xs[-1]] = ys[-1]
+	return y
+
+
+def _label_index(xa, ya, position, fallback):
+	"""Index along a drawn line at which to anchor its label ('start', 'end', 'max-y', 'mid')."""
+	if position == 'start':
+		return 0
+	if position == 'end':
+		return -1
+	if position == 'max-y':
+		return int(np.nanargmax(ya)) if ya.size > 0 else -1
+	if position == 'mid':
+		return int(len(xa) // 2) if xa.size > 0 else -1
+	return fallback
+
+
+def _first_float(v):
+	"""A scalar, or the first element of a sequence, as float."""
+	return float(v[0] if isinstance(v, (list, tuple, np.ndarray)) else v)
+
+
+def _median_or_nan(vals):
+	return np.nanmedian(vals) if vals else np.nan
+
+
+def _select_nearest(sorted_vals, desired_vals):
+	"""For each desired value pick the nearest available one, avoiding repeats where a neighbour is free."""
+	if not sorted_vals or not desired_vals:
+		return []
+	avail = np.asarray(sorted_vals, dtype=float)
+	out = []
+	used = set()
+	for dv in desired_vals:
+		idx = int(np.nanargmin(np.abs(avail - float(dv))))
+		chosen = float(avail[idx])
+		if chosen in used and avail.size > 1:
+			lo, hi = idx - 1, idx + 1
+			best = None
+			best_dist = np.inf
+			if lo >= 0 and float(avail[lo]) not in used:
+				best = float(avail[lo]); best_dist = abs(avail[lo] - dv)
+			if hi < avail.size and float(avail[hi]) not in used:
+				d = abs(avail[hi] - dv)
+				if d < best_dist:
+					best = float(avail[hi]); best_dist = d
+			if best is not None:
+				chosen = best
+		out.append(chosen)
+		used.add(chosen)
+	seen = set()
+	return [v for v in out if not (v in seen or seen.add(v))]
+
+
+def _equal_line_colours(vals, mode, base, cmap_nm):
+	"""One colour per line: sampled from a colormap ('cmap') or darker-to-lighter shades of base."""
+	import matplotlib.cm as cm
+	import matplotlib.colors as mcolors
+	n = len(vals)
+	if n == 0:
+		return []
+	if mode == 'cmap':
+		cmap = cm.get_cmap(cmap_nm)
+		vmin, vmax = min(vals), max(vals)
+		if vmax == vmin:
+			return [cmap(0.5)] * n
+		return [cmap((v - vmin) / (vmax - vmin)) for v in vals]
+	base_rgb = np.array(mcolors.to_rgb(base))
+	out = []
+	for f in np.linspace(0.55, 1.25, n):
+		col = base_rgb * f if f <= 1 else base_rgb + (1 - base_rgb) * (f - 1.0)
+		out.append(np.clip(col, 0, 1))
+	return out
+
+
+def _safe_exp(z):
+	return np.exp(np.clip(z, -700.0, 700.0))
+
+
+def _model_power(x, a, n):
+	return a * np.power(x, n)
+
+
+def _model_broken_power(x, a, n1, n2, x_break):
+	return np.where(x < x_break, a * x**n1, a * x_break**(n1-n2) * x**n2)
+
+
+def _equal_line_curve(xd, yd, fit, interpolate, interp_kind, extend_mode):
+	"""
+	Callable g(x) through the sorted points (xd, yd) of one equal-value line, plus a short
+	description. Uses the requested fit when it applies and succeeds, else interpolation
+	when asked, else a polyline extended linearly or flat past the ends.
+	"""
+	g = None
+	desc = None
+	if fit is not None:
+		try:
+			fit_type, fit_degree = _parse_fit_arg(fit)
+			if fit_type == 'linear' and xd.size >= 2:
+				p = np.polyfit(xd, yd, 1)
+				g = lambda x: np.polyval(p, x)
+				desc = 'linear'
+			elif fit_type == 'poly' and xd.size >= max(2, (fit_degree or 2) + 1):
+				deg = fit_degree if (fit_degree and fit_degree >= 1) else 2
+				deg = min(deg, max(1, xd.size - 1))
+				p = np.polyfit(xd, yd, deg)
+				g = lambda x, p=p: np.polyval(p, x)
+				desc = f'poly-{deg}'
+			elif fit_type == 'exp' and xd.size >= 2 and np.all(yd > 0):
+				p = np.polyfit(xd, np.log(yd), 1)
+				g = lambda x, p=p: _safe_exp(p[0] * x + p[1])
+				desc = 'exp'
+			elif fit_type in ('power', 'power_fixed_n') and xd.size >= 2 and np.all(yd > 0) and np.all(xd > 0):
+				if fit_degree is not None:
+					nf = float(fit_degree)
+					a_hat = np.exp(np.nanmean(np.log(yd) - nf * np.log(xd)))
+					g = lambda x, a=a_hat, nf=nf: _model_power(np.clip(x, 1e-300, None), a, nf)
+					desc = f'power-n{nf}'
+				else:
+					n_hat, ln_a_hat = np.polyfit(np.log(xd), np.log(yd), 1)
+					g = lambda x, a=np.exp(ln_a_hat), n=n_hat: _model_power(np.clip(x, 1e-300, None), a, n)
+					desc = 'power'
+			elif fit_type == 'log' and xd.size >= 2 and np.all(xd > 0):
+				p = np.polyfit(np.log10(xd), yd, 1)
+				g = lambda x, p=p: np.polyval(p, np.log10(np.clip(x, 1e-300, None)))
+				desc = 'log'
+			elif fit_type == 'broken-power' and xd.size >= 4 and np.all(xd > 0):
+				p0 = [np.nanmax(yd), 1.0, 0.0, np.median(xd)]
+				bounds = ([0, -np.inf, -np.inf, np.min(xd)], [np.inf, np.inf, np.inf, np.max(xd)])
+				popt, _ = curve_fit(_model_broken_power, xd, yd, p0=p0, bounds=bounds, maxfev=20000)
+				g = lambda x, p=popt: _model_broken_power(np.clip(x, 1e-300, None), *p)
+				desc = 'broken-power'
+		except Exception as e:
+			logging.debug(f"Equal-line fit callable failed: {e}")
+			g = None
+
+	if g is None and interpolate and len(xd) >= 2:
+		try:
+			from scipy.interpolate import interp1d
+			kind = interp_kind
+			if kind == 'cubic' and len(xd) < 4:
+				kind = 'quadratic'
+			if kind == 'quadratic' and len(xd) < 3:
+				kind = 'linear'
+			f = interp1d(xd, yd, kind=kind, bounds_error=False, fill_value='extrapolate', assume_sorted=True)
+			g = lambda x, f=f: f(x)
+			desc = f'interp-{kind}'
+		except Exception as e:
+			logging.debug(f"Equal-line interpolation failed: {e}")
+			g = None
+
+	if g is None:
+		g = lambda x, xs=xd, ys=yd: _extend_piecewise(x, xs, ys, extend_mode)
+		desc = f'polyline-{extend_mode}'
+	return g, desc
+
+
 def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight_y_by=None,
 							target_values=None, n_lines=5, linestyle='-', alpha=1,
 							show_labels=True, zorder=0, plot_type='pa_var', phase_window='total',
-							freq_window='full-band', x_measured=None, y_measured=None, 
+							freq_window='full-band', x_measured=None,
 							interpolate=False, interp_kind='quadratic', interp_points=100, fit=None, fit_points=200,
 							colour_mode='shades', base_colour='#005bff', cmap_name='viridis',
-							extend_outside=False, extend_mode='linear',
+							extend_mode='linear',
 							label_position='start', label_offset_pts=(0, 0), label_ha='left', label_va='top',
 							dynamic_update=True, max_draw_points=512):
 	"""
-	Plot background lines showing constant values of a swept parameter, and keep them
-	extended across the visible axes even after xlim/ylim changes.
+	Across a multi-run dict, join the points that share one value of the swept parameter
+	(e.g. all runs at N=10) and draw them as background lines labelled with that value.
 
-	When dynamic_update=True (default), we attach an axes callback so lines are
-	recomputed across the current x-limits on any change (zoom/pan/set_xlim).
+	Lines are drawn across the full visible x-range. With dynamic_update=True (default) an
+	axes callback recomputes them whenever the x-limits change (zoom/pan/set_xlim).
 	"""
-
-	# Collect all xvals across runs
 	all_xvals = set()
-	for run_key, run_data in frb_dict.items():
+	for run_data in frb_dict.values():
 		for xv in run_data["xvals"]:
 			if np.isfinite(xv):
 				all_xvals.add(float(xv))
 	if not all_xvals:
-		logging.warning(f"No valid xvals found. Cannot plot equal-value lines.")
+		logging.warning("No valid xvals found. Cannot plot equal-value lines.")
 		return
 
-	def _current_x_span():
-		xlim = ax.get_xlim()
-		x_min, x_max = (min(xlim), max(xlim))
-		x_is_log = (ax.get_xscale() == 'log')
-		if x_is_log:
-			eps = 1e-300
-			x_min = max(x_min, eps)
-			x_max = max(x_max, x_min * (1 + 1e-6))
-		return x_min, x_max, x_is_log
-
-	def _x_grid(n):
-		x_min, x_max, x_is_log = _current_x_span()
-		n = int(max(10, n))
-		return np.geomspace(x_min, x_max, n) if x_is_log else np.linspace(x_min, x_max, n)
-
-	# Select parameter values to draw
 	sorted_values = sorted(all_xvals)
-
-	def _select_nearest(sorted_vals, desired_vals):
-		if not sorted_vals or not desired_vals:
-			return []
-		avail = np.asarray(sorted_vals, dtype=float)
-		out = []
-		used = set()
-		for dv in desired_vals:
-			idx = int(np.nanargmin(np.abs(avail - float(dv))))
-			chosen = float(avail[idx])
-			if chosen in used and avail.size > 1:
-				lo, hi = idx - 1, idx + 1
-				best = None
-				best_dist = np.inf
-				if lo >= 0 and float(avail[lo]) not in used:
-					best = float(avail[lo]); best_dist = abs(avail[lo] - dv)
-				if hi < avail.size and float(avail[hi]) not in used:
-					d = abs(avail[hi] - dv)
-					if d < best_dist:
-						best = float(avail[hi]); best_dist = d
-				if best is not None:
-					chosen = best
-			out.append(chosen)
-			used.add(chosen)
-		seen = set()
-		return [v for v in out if not (v in seen or seen.add(v))]
-
 	if target_values is None:
 		if len(sorted_values) <= n_lines:
 			selected_values = sorted_values
@@ -1454,82 +1605,30 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 			logging.warning("No selectable values for equal-value lines from target_values; skipping.")
 			return
 
-	# Colours
-	def _generate_colours(vals, mode, base, cmap_nm):
-		import matplotlib.cm as cm
-		import matplotlib.colors as mcolors
-		n = len(vals)
-		if n == 0:
-			return []
-		if mode == 'cmap':
-			cmap = cm.get_cmap(cmap_nm)
-			vmin, vmax = min(vals), max(vals)
-			if vmax == vmin:
-				return [cmap(0.5)] * n
-			return [cmap((v - vmin) / (vmax - vmin)) for v in vals]
-		base_rgb = np.array(mcolors.to_rgb(base))
-		factors = np.linspace(0.55, 1.25, n)
-		out = []
-		for f in factors:
-			if f <= 1:
-				col = base_rgb * f
-			else:
-				blend = f - 1.0
-				col = base_rgb + (1 - base_rgb) * blend
-			col = np.clip(col, 0, 1)
-			out.append(col)
-		return out
-
-	colours_for_lines = _generate_colours(selected_values, colour_mode, base_colour, cmap_name)
+	colours_for_lines = _equal_line_colours(selected_values, colour_mode, base_colour, cmap_name)
 	logging.info(f"Plotting {len(selected_values)} equal-{target_param} lines with colour_mode='{colour_mode}'\n")
 
-	# Model helpers
-	def _safe_exp(z): return np.exp(np.clip(z, -700.0, 700.0))
-	def _model_power(x, a, n): return a * np.power(x, n)
-	def _model_power_fixed(x, a, n_fixed): return a * np.power(x, n_fixed)
-	def _model_exp(x, a, b): return a * _safe_exp(b * x)
-	def _model_broken_power(x, a, n1, n2, x_break): return np.where(x < x_break, a * x**n1, a * x_break**(n1-n2) * x**n2)
+	n_draw = min(max_draw_points, fit_points if fit else (interp_points if interpolate else max_draw_points))
+	label_pos = (label_position or 'start').lower()
 
-	# Maintain handles and updaters to avoid GC
+	# Keep handles and updaters alive (avoid GC)
 	if not hasattr(ax, '_equal_lines_dynamic'):
 		ax._equal_lines_dynamic = []
 
 	for (xval, line_colour) in zip(selected_values, colours_for_lines):
+		# Median of each run at this constant parameter value
 		x_points = []
 		y_points = []
-
-		# Aggregate medians across runs at this constant param value
-		for run_key, run_data in frb_dict.items():
+		for run_data in frb_dict.values():
 			xvals = run_data["xvals"]
-			measures = run_data["measures"]
-			V_params = run_data.get("V_params", {})
-			dspec_params = run_data.get("dspec_params", {})
-
 			xval_indices = np.where(np.isclose(xvals, xval, rtol=1e-6))[0]
 			if len(xval_indices) == 0:
 				continue
-
-			# x extraction (measured or weighted)
-			x_vals, _, _ = _weight_x_get_xname(
-				run_data,
-				weight_x_by=weight_x_by,
-				x_measured=x_measured,
-				phase_window=phase_window,
-				freq_window=freq_window
-			)
-
-			yvals_dict = _yvals_from_measures_dict(xvals, measures, plot_type, phase_window, freq_window)
-			if weight_y_by is not None:
-				weight_source = V_params if is_measured_key(weight_y_by) else dspec_params
-				yvals_weighted, _ = _weight_dict(xvals, yvals_dict, weight_source, weight_by=weight_y_by, return_status=True)
-			else:
-				yvals_weighted = yvals_dict
-
+			x_vals, yvals_weighted = _run_x_and_yvals(run_data, weight_x_by, weight_y_by, x_measured,
+													  plot_type, phase_window, freq_window)
 			for idx in xval_indices:
 				x_coord = x_vals[idx] if idx < len(x_vals) else np.nan
-				xv_key = xvals[idx]
-				y_vals = yvals_weighted.get(xv_key, [])
-				y_coord = np.nanmedian(y_vals) if y_vals else np.nan
+				y_coord = _median_or_nan(yvals_weighted.get(xvals[idx], []))
 				if np.isfinite(x_coord) and np.isfinite(y_coord):
 					x_points.append(x_coord)
 					y_points.append(y_coord)
@@ -1538,96 +1637,10 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 			continue
 
 		sorted_indices = np.argsort(x_points)
-		x_sorted = np.array(x_points)[sorted_indices]
-		y_sorted = np.array(y_points)[sorted_indices]
+		g, fit_desc = _equal_line_curve(np.array(x_points)[sorted_indices], np.array(y_points)[sorted_indices],
+										fit, interpolate, interp_kind, extend_mode)
 
-		# Build an evaluator g(x) for dynamic recompute
-		g = None
-		fit_desc = None
-		if fit is not None:
-			try:
-				fit_type, fit_degree = _parse_fit_arg(fit)
-				xd, yd = x_sorted, y_sorted
-				if fit_type == 'linear' and xd.size >= 2:
-					p = np.polyfit(xd, yd, 1)
-					g = lambda x: np.polyval(p, x)
-					fit_desc = 'linear'
-				elif fit_type == 'poly' and xd.size >= max(2, (fit_degree or 2) + 1):
-					deg = fit_degree if (fit_degree and fit_degree >= 1) else 2
-					deg = min(deg, max(1, xd.size - 1))
-					p = np.polyfit(xd, yd, deg)
-					g = lambda x, p=p: np.polyval(p, x)
-					fit_desc = f'poly-{deg}'
-				elif fit_type == 'exp' and xd.size >= 2 and np.all(yd > 0):
-					p = np.polyfit(xd, np.log(yd), 1)
-					g = lambda x, p=p: _safe_exp(p[0] * x + p[1])
-					fit_desc = 'exp'
-				elif fit_type in ('power', 'power_fixed_n') and xd.size >= 2 and np.all(yd > 0) and np.all(xd > 0):
-					if fit_degree is not None:
-						nf = float(fit_degree)
-						ln_a = np.nanmean(np.log(yd) - nf * np.log(xd))
-						a_hat = np.exp(ln_a)
-						g = lambda x, a=a_hat, nf=nf: _model_power_fixed(np.clip(x, 1e-300, None), a, nf)
-						fit_desc = f'power-n{nf}'
-					else:
-						p = np.polyfit(np.log(xd), np.log(yd), 1)
-						n_hat, ln_a_hat = p[0], p[1]
-						a_hat = np.exp(ln_a_hat)
-						g = lambda x, a=a_hat, n=n_hat: _model_power(np.clip(x, 1e-300, None), a, n)
-						fit_desc = 'power'
-				elif fit_type == 'log' and xd.size >= 2 and np.all(xd > 0):
-					p = np.polyfit(np.log10(xd), yd, 1)
-					g = lambda x, p=p: np.polyval(p, np.log10(np.clip(x, 1e-300, None)))
-					fit_desc = 'log'
-				elif fit_type == 'broken-power' and xd.size >= 4 and np.all(xd > 0):
-					from scipy.optimize import curve_fit as _cf
-					p0 = [np.nanmax(yd), 1.0, 0.0, np.median(xd)]
-					bounds = ([0, -np.inf, -np.inf, np.min(xd)], [np.inf, np.inf, np.inf, np.max(xd)])
-					popt, _ = _cf(_model_broken_power, xd, yd, p0=p0, bounds=bounds, maxfev=20000)
-					g = lambda x, p=popt: _model_broken_power(np.clip(x, 1e-300, None), *p)
-					fit_desc = 'broken-power'
-			except Exception as e:
-				logging.debug(f"Equal-line fit callable failed: {e}")
-				g = None
-
-		if g is None and interpolate and len(x_sorted) >= 2:
-			try:
-				from scipy.interpolate import interp1d
-				kind = interp_kind
-				if kind == 'cubic' and len(x_sorted) < 4:
-					kind = 'quadratic'
-				if kind == 'quadratic' and len(x_sorted) < 3:
-					kind = 'linear'
-				f = interp1d(x_sorted, y_sorted, kind=kind, bounds_error=False, fill_value='extrapolate', assume_sorted=True)
-				g = lambda x, f=f: f(x)
-				fit_desc = f'interp-{kind}'
-			except Exception as e:
-				logging.debug(f"Equal-line interpolation failed: {e}")
-				g = None
-
-		if g is None:
-			# Piecewise linear with linear/flat extrapolation
-			def _g_piecewise(x, xs=x_sorted, ys=y_sorted, mode=extend_mode):
-				x = np.asarray(x, dtype=float)
-				y = np.interp(x, xs, ys)
-				if xs.size >= 2:
-					if mode == 'linear':
-						mL = (ys[1] - ys[0]) / (xs[1] - xs[0])
-						mR = (ys[-1] - ys[-2]) / (xs[-1] - xs[-2])
-						left_mask = (x < xs[0])
-						right_mask = (x > xs[-1])
-						y[left_mask] = ys[0] + mL * (x[left_mask] - xs[0])
-						y[right_mask] = ys[-1] + mR * (x[right_mask] - xs[-1])
-					else:
-						# flat
-						y[x < xs[0]] = ys[0]
-						y[x > xs[-1]] = ys[-1]
-				return y
-			g = _g_piecewise
-			fit_desc = f'polyline-{extend_mode}'
-
-		# Create the line artist and optional text label
-		x_draw = _x_grid(min(max_draw_points, fit_points if fit else (interp_points if interpolate else max_draw_points)))
+		x_draw = _x_grid(ax, n_draw)
 		y_draw = np.asarray(g(x_draw), dtype=float)
 		line, = ax.plot(x_draw, y_draw, linestyle=linestyle, alpha=alpha, color=line_colour, linewidth=1.8, zorder=zorder)
 
@@ -1635,16 +1648,7 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 		if show_labels:
 			param_symbol, _ = param_info_or_dynamic(target_param)
 			val_str = f"{int(xval)}" if xval == int(xval) else f"{xval:.2g}"
-			lbl_pos = (label_position or 'start').lower()
-			def _label_index(xa, ya):
-				if lbl_pos == 'end':
-					return -1
-				if lbl_pos == 'max-y':
-					return int(np.nanargmax(ya))
-				if lbl_pos == 'mid':
-					return int(len(xa) // 2)
-				return 0
-			ix = _label_index(x_draw, y_draw)
+			ix = _label_index(x_draw, y_draw, label_pos, 0)
 			txt = text_with_offset(
 				ax, float(x_draw[ix]), float(y_draw[ix]),
 				rf"${param_symbol} = {val_str}$",
@@ -1655,36 +1659,21 @@ def _plot_equal_value_lines(ax, frb_dict, target_param, weight_x_by=None, weight
 				zorder=max(zorder + 1, 10)
 			)
 
-		# Dynamic updater – recompute curve on xlim change
 		def _update_equal_line(event_ax=None, _line=line, _text=txt, _g=g):
 			try:
-				x_new = _x_grid(min(max_draw_points, fit_points if fit else (interp_points if interpolate else max_draw_points)))
+				x_new = _x_grid(ax, n_draw)
 				y_new = np.asarray(_g(x_new), dtype=float)
 				_line.set_data(x_new, y_new)
 				if _text is not None and y_new.size > 0 and np.all(np.isfinite(y_new)):
-					lbl_pos_local = (label_position or 'start').lower()
-					if lbl_pos_local == 'end':
-						ii = -1
-					elif lbl_pos_local == 'max-y':
-						ii = int(np.nanargmax(y_new))
-					elif lbl_pos_local == 'mid':
-						ii = int(len(x_new) // 2)
-					else:
-						ii = 0
+					ii = _label_index(x_new, y_new, label_pos, 0)
 					_text.set_position((float(x_new[ii]), float(y_new[ii])))
-				# force a canvas draw later; do not trigger autoscale
 			except Exception as e:
 				logging.debug(f"Equal-line update failed: {e}")
 
-		# Register callback(s)
 		if dynamic_update:
 			cid = ax.callbacks.connect('xlim_changed', _update_equal_line)
-			# Also update once now to ensure it matches any post-plot autoscale
-			_update_equal_line()
-
-			# Keep references to prevent GC
+			_update_equal_line()  # match any autoscale done after plotting
 			ax._equal_lines_dynamic.append({'cid': cid, 'update': _update_equal_line, 'line': line, 'text': txt, 'desc': fit_desc})
-
 
 
 def plot_constant_param_lines(
@@ -1711,52 +1700,9 @@ def plot_constant_param_lines(
 	param_data: dict
 		{ param_value: {x_key: [...], y_key: [...]}, ... }
 	"""
+	label_pos = (label_position or 'end').lower()
 
-	def _current_x_span():
-		xlim = ax.get_xlim()
-		x_min, x_max = (min(xlim), max(xlim))
-		x_is_log = (ax.get_xscale() == 'log')
-		if x_is_log:
-			eps = 1e-300
-			x_min = max(x_min, eps)
-			x_max = max(x_max, x_min * (1 + 1e-6))
-		return x_min, x_max, x_is_log
-
-	def _x_grid(n):
-		x_min, x_max, x_is_log = _current_x_span()
-		n = int(max(10, n))
-		return np.geomspace(x_min, x_max, n) if x_is_log else np.linspace(x_min, x_max, n)
-
-	def _g_piecewise(x, xs, ys, mode='linear'):
-		x = np.asarray(x, dtype=float)
-		y = np.interp(x, xs, ys)
-		if xs.size >= 2:
-			if mode == 'linear':
-				mL = (ys[1] - ys[0]) / (xs[1] - xs[0])
-				mR = (ys[-1] - ys[-2]) / (xs[-1] - xs[-2])
-				left_mask = (x < xs[0])
-				right_mask = (x > xs[-1])
-				y[left_mask] = ys[0] + mL * (x[left_mask] - xs[0])
-				y[right_mask] = ys[-1] + mR * (x[right_mask] - xs[-1])
-			else:
-				# flat
-				y[x < xs[0]] = ys[0]
-				y[x > xs[-1]] = ys[-1]
-		return y
-
-	def _label_index(xa, ya, pos):
-		pl = (pos or 'end').lower()
-		if pl == 'start':
-			return 0
-		if pl == 'end':
-			return -1
-		if pl == 'max-y':
-			return int(np.nanargmax(ya)) if ya.size > 0 else -1
-		if pl == 'mid':
-			return int(len(xa) // 2) if xa.size > 0 else -1
-		return -1
-
-	# Keep handles and callbacks to avoid GC
+	# Keep handles and callbacks alive (avoid GC)
 	if not hasattr(ax, '_const_param_lines_dynamic'):
 		ax._const_param_lines_dynamic = []
 
@@ -1769,56 +1715,51 @@ def plot_constant_param_lines(
 		if np.sum(m) < 2:
 			continue
 
-		x_valid = x[m]
-		y_valid = y[m]
-		order = np.argsort(x_valid)
-		x_sorted = np.unique(x_valid[order])
-		# If x had duplicates, average corresponding y's at same x
-		if x_sorted.size != x_valid[order].size:
-			# consolidate by x using median
-			uniq_x, inv = np.unique(x_valid[order], return_inverse=True)
-			y_accum = [[] for _ in range(uniq_x.size)]
-			for xi, yi in zip(inv, y_valid[order]):
+		order = np.argsort(x[m])
+		x_ordered = x[m][order]
+		y_ordered = y[m][order]
+		x_sorted = np.unique(x_ordered)
+		if x_sorted.size != x_ordered.size:
+			# Duplicate x: take the median y at each x
+			inv = np.unique(x_ordered, return_inverse=True)[1]
+			y_accum = [[] for _ in range(x_sorted.size)]
+			for xi, yi in zip(inv, y_ordered):
 				y_accum[xi].append(yi)
 			y_sorted = np.array([np.nanmedian(v) if v else np.nan for v in y_accum], dtype=float)
-			x_sorted = uniq_x
 		else:
-			y_sorted = y_valid[order]
+			y_sorted = y_ordered
 
 		if x_sorted.size < 2:
 			continue
 
-		# Build evaluator for dynamic recompute
-		def _g(xq, xs=x_sorted, ys=y_sorted, mode=extend_mode):
-			return _g_piecewise(xq, xs, ys, mode=mode)
+		def _g(xq, xs=x_sorted, ys=y_sorted):
+			return _extend_piecewise(xq, xs, ys, mode=extend_mode)
 
-		# Initial draw across current span
-		x_draw = _x_grid(max_draw_points)
+		x_draw = _x_grid(ax, max_draw_points)
 		y_draw = np.asarray(_g(x_draw), dtype=float)
 		line, = ax.plot(x_draw, y_draw, color=color, alpha=alpha, linestyle=linestyle, linewidth=linewidth, label=None)
 
-		# Label
-		val_str = f"{int(param_val)}" if (isinstance(param_val, (int, float)) and float(param_val).is_integer()) else f"{param_val:.2g}" if isinstance(param_val, (int, float)) else str(param_val)
-		label_text = label_fmt.format(param=param_name, val=val_str)
-		ix = _label_index(x_draw, y_draw, label_position)
+		if isinstance(param_val, (int, float)):
+			val_str = f"{int(param_val)}" if float(param_val).is_integer() else f"{param_val:.2g}"
+		else:
+			val_str = str(param_val)
+		ix = _label_index(x_draw, y_draw, label_pos, -1)
 		txt = text_with_offset(
-			ax, float(x_draw[ix]), float(y_draw[ix]), label_text,
+			ax, float(x_draw[ix]), float(y_draw[ix]), label_fmt.format(param=param_name, val=val_str),
 			dx_pts=float(label_offset_pts[0]) if label_offset_pts else 0.0,
 			dy_pts=float(label_offset_pts[1]) if label_offset_pts else 0.0,
 			ha='left', va='bottom',
 			color=color, fontsize=15, alpha=min(alpha + 0.2, 1.0),
 			zorder=max(line.get_zorder() + 1, 10),
-			#bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='none')
 		)
 
-		# Updater on axis changes
 		def _update_const_line(event_ax=None, _line=line, _text=txt, _g=_g):
 			try:
-				x_new = _x_grid(max_draw_points)
+				x_new = _x_grid(ax, max_draw_points)
 				y_new = np.asarray(_g(x_new), dtype=float)
 				_line.set_data(x_new, y_new)
 				if _text is not None and y_new.size > 0 and np.all(np.isfinite(y_new)):
-					ii = _label_index(x_new, y_new, label_position)
+					ii = _label_index(x_new, y_new, label_pos, -1)
 					_text.set_position((float(x_new[ii]), float(y_new[ii])))
 			except Exception:
 				pass
@@ -1851,47 +1792,20 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 		return
 	for run_key, run_data in frb_dict.items():
 		try:
-			# x values
-			x_vals, _, _ = _weight_x_get_xname(
-				run_data,
-				weight_x_by=weight_x_by,
-				x_measured=x_measured,
-				phase_window=phase_window,
-				freq_window=freq_window
-			)
+			x_vals, yvals_weighted = _run_x_and_yvals(run_data, weight_x_by, weight_y_by, x_measured,
+													  plot_type, phase_window, freq_window)
 			x_vals = np.asarray(x_vals, dtype=float)
+			y_med = np.asarray([_median_or_nan(yvals_weighted.get(xv, [])) for xv in run_data["xvals"]], dtype=float)
 
-			# y values
-			xvals = run_data["xvals"]
-			measures = run_data["measures"]
-			V_params = run_data.get("V_params", {})
-			dspec_params = run_data.get("dspec_params", {})
-
-			yvals_dict = _yvals_from_measures_dict(xvals, measures, plot_type, phase_window, freq_window)
-			if weight_y_by is not None:
-				weight_source = V_params if is_measured_key(weight_y_by) else dspec_params
-				yvals_weighted, _ = _weight_dict(xvals, yvals_dict, weight_source, weight_by=weight_y_by, return_status=True)
-			else:
-				yvals_weighted = yvals_dict
-
-			# Align y with x via xvals keys (median per x)
-			y_med = []
-			for i, xv in enumerate(xvals):
-				y_i = yvals_weighted.get(xv, [])
-				y_med.append(np.nanmedian(y_i) if y_i else np.nan)
-			y_med = np.asarray(y_med, dtype=float)
-
-			# finite mask
 			m = np.isfinite(x_vals) & np.isfinite(y_med)
 			if not np.any(m):
 				continue
 			xf, yf = x_vals[m], y_med[m]
 
-			# choose anchor index
 			pos = (position or 'max-y').lower()
-			if pos == 'start' or pos == 'min-x':
+			if pos in ('start', 'min-x'):
 				idx = int(np.nanargmin(xf))
-			elif pos == 'end' or pos == 'max-x':
+			elif pos in ('end', 'max-x'):
 				idx = int(np.nanargmax(xf))
 			elif pos == 'min-y':
 				idx = int(np.nanargmin(yf))
@@ -1900,35 +1814,26 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 			else:  # 'max-y' (default)
 				idx = int(np.nanargmax(yf))
 
-			x_anchor, y_anchor = float(xf[idx]), float(yf[idx])
-
-			# Build label text from params_to_label for this run
+			# Label text from the run's gdict, else its V_params
+			gd = None
+			dsp = run_data.get("dspec_params")
+			if dsp is not None and hasattr(dsp, "gdict"):
+				gd = dsp.gdict
+			vp = run_data.get("V_params", {})
 			label_parts = []
 			for pname in params_to_label:
 				sym, _ = param_info_or_dynamic(pname)
-				# Look in run_data param stores
 				val = None
-				# Try dspec_params.gdict
-				gd = None
-				dsp = run_data.get("dspec_params")
-				if dsp is not None and hasattr(dsp, "gdict"):
-					gd = dsp.gdict
 				if gd and pname in gd and gd[pname]:
 					try:
-						v0 = gd[pname]
-						val = float(v0[0] if isinstance(v0, (list, tuple, np.ndarray)) else v0)
+						val = _first_float(gd[pname])
 					except Exception:
 						pass
-				# Try V_params
-				if val is None:
-					vp = run_data.get("V_params", {})
-					if pname in vp and vp[pname] is not None:
-						v0 = vp[pname]
-						try:
-							val = float(v0[0] if isinstance(v0, (list, tuple, np.ndarray)) else v0)
-						except Exception:
-							pass
-				# Fallback: unknown
+				if val is None and pname in vp and vp[pname] is not None:
+					try:
+						val = _first_float(vp[pname])
+					except Exception:
+						pass
 				if val is None:
 					continue
 				val_str = f"{int(val)}" if val == int(val) else f"{val:g}"
@@ -1936,9 +1841,8 @@ def _label_series(ax, frb_dict, params_to_label, weight_x_by=None, weight_y_by=N
 			if not label_parts:
 				continue
 
-			label_text = r"$" + r",\; ".join(label_parts) + r"$"
 			txt = text_with_offset(
-				ax, x_anchor, y_anchor, label_text,
+				ax, float(xf[idx]), float(yf[idx]), r"$" + r",\; ".join(label_parts) + r"$",
 				dx_pts=float(offset_pts[0]) if offset_pts else 0.0,
 				dy_pts=float(offset_pts[1]) if offset_pts else 0.0,
 				ha=ha, va=va, color='black', fontsize=fontsize, alpha=alpha, zorder=15
@@ -2099,15 +2003,9 @@ def _plot_single_run_multi_window(
 	
 	xvals = frb_dict["xvals"]
 	measures = frb_dict["measures"]
-	V_params = frb_dict.get("V_params", {})
-	dspec_params = frb_dict.get("dspec_params", {})
 	_print_med_snrs(frb_dict)
-	
-	if isinstance(weight_y_by, str) and is_measured_key(weight_y_by):
-		weight_source = V_params
-	else:
-		weight_source = dspec_params
-	
+	weight_source = _weight_source(frb_dict, weight_y_by)
+
 	n_combos = len(window_pairs)
 	
 	freq_windows = [pair[0] for pair in window_pairs]
@@ -2282,13 +2180,8 @@ def _plot_single_job_common(
 	xvals = frb_dict["xvals"]
 	yvals = yvals_override if yvals_override is not None else frb_dict["yvals"]
 	V_params = frb_dict.get("V_params", {})
-	dspec_params = frb_dict.get("dspec_params", {})
-
-	if isinstance(weight_y_by, str) and is_measured_key(weight_y_by):  
-		weight_source = V_params
-	else:
-		weight_source = dspec_params
-	pct = _percentile_cfg(plot_config, x_measured)
+	weight_source = _weight_source(frb_dict, weight_y_by)
+	pct =_percentile_cfg(plot_config, x_measured)
 	y, applied = _weight_dict(xvals, yvals, weight_source, weight_by=weight_y_by, return_status=True)
 	med_vals, lower, upper = _median_band(y, xvals, pct)
 
@@ -2358,98 +2251,161 @@ def _plot_single_job_common(
 	return fig, ax
 
 
+def _sweep_mode(dspec_params):
+	"""sweep_mode from a dspecParams, a dict, or the first entry of a list of either."""
+	if dspec_params is None:
+		return None
+	sweep_mode = getattr(dspec_params, "sweep_mode", None)
+	if sweep_mode is None and isinstance(dspec_params, dict):
+		sweep_mode = dspec_params.get("sweep_mode")
+	if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
+		first = dspec_params[0]
+		sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
+	return sweep_mode
+
+
+def _colour_shades(base_colour, n_shades):
+	"""n_shades hex colours from darker to lighter around base_colour."""
+	import matplotlib.colors as mcolors
+
+	if n_shades == 1:
+		return [base_colour]
+	if n_shades == 2:
+		factors = [0.7, 1.0]
+	elif n_shades == 3:
+		factors = [0.6, 1.0, 1.3]
+	else:
+		factors = [0.5 + 0.8 * (i / (n_shades - 1)) for i in range(n_shades)]
+
+	rgb = mcolors.hex2color(base_colour)
+	shades = []
+	for factor in factors:
+		if factor <= 1.0:
+			new_rgb = tuple(max(0, min(1, c * factor)) for c in rgb)
+		else:
+			new_rgb = tuple(max(0, min(1, c + (1 - c) * (factor - 1.0))) for c in rgb)
+		shades.append(mcolors.rgb2hex(new_rgb))
+	return shades
+
+
+def _equal_lines_style(equal_lines_cfg):
+	"""Styling keyword arguments for _plot_equal_value_lines from [analytical.equal_lines]."""
+	cfg = equal_lines_cfg or {}
+	return dict(
+		linestyle=cfg.get('linestyle', '--'),
+		alpha=float(cfg.get('alpha', 0.85)),
+		colour_mode=cfg.get('colour_mode', 'shades'),
+		base_colour=cfg.get('base_colour', '#005bff' if equal_lines_cfg else 'black'),
+		cmap_name=cfg.get('cmap_name', 'viridis'),
+		show_labels=bool(cfg.get('show_labels', True)),
+		extend_mode=cfg.get('extend_mode', 'linear'),
+		label_position=cfg.get('label_position', 'start'),
+		label_offset_pts=cfg.get('label_offset_pts', [0, 0]) or [0, 0],
+		label_ha=cfg.get('label_ha', 'left'),
+		label_va=cfg.get('label_va', 'top'),
+	)
+
+
+def _constant_param_lines_from_dir(ax, data_dir, phase_window, freq_window):
+	"""Draw V(psi)-vs-L/I lines of constant parameter from the grouped sweep pickles in data_dir."""
+	import re
+
+	from fires.utils.loaders import load_multiple_data_grouped
+	param_dict = load_multiple_data_grouped(data_dir)
+	param_data = {}
+	for key, subdict in param_dict.items() if isinstance(param_dict, dict) else [(None, param_dict)]:
+		param_val = None
+		param_name = None
+		try:
+			if key is not None:
+				m = re.search(r'([A-Za-z0-9_]+?)(?:_sd)?([0-9.]+)', key)
+				if m:
+					param_name = m.group(1)
+					param_val = float(m.group(2))
+			if param_val is None and 'dspec_params' in subdict and param_name is not None:
+				param_val = float(subdict['dspec_params'].gdict.get(param_name, [np.nan])[0])
+		except Exception:
+			param_val = None
+		if param_val is None or not np.isfinite(param_val):
+			continue
+		measures = subdict['measures']
+		vpsi_vals = []
+		lfrac_vals = []
+		for xv in subdict['xvals']:
+			segs = measures.get(xv, [])
+			vpsi_vals.append(np.nanmedian([_extract_value_from_segments(seg, 'Vpsi', phase_window, freq_window) for seg in segs]))
+			lfrac_vals.append(np.nanmedian([_extract_value_from_segments(seg, 'Lfrac', phase_window, freq_window) for seg in segs]))
+		param_data[param_val] = {'vpsi': vpsi_vals, 'lfrac': lfrac_vals}
+	param_symbol = param_map[param_name][0] if param_name in param_map else param_name
+	plot_constant_param_lines(ax, param_data, x_key='vpsi', y_key='lfrac', color='gray', alpha=0.5,
+							  param_name=rf"{param_symbol}")
+
+
+def _draw_series_labels(ax, frb_dict, plot_config, weight_x_by, weight_y_by, plot_type,
+						phase_window, freq_window, x_measured):
+	"""Per-run text labels from [analytical.series_labels], optionally de-overlapped with adjustText."""
+	cfg = get_plot_param(plot_config, 'analytical', 'series_labels', None) if plot_config else None
+	if not (isinstance(cfg, dict) and cfg.get('enabled', True)):
+		return
+	texts = []
+	try:
+		_label_series(
+			ax, frb_dict, params_to_label=cfg.get('params', None),
+			weight_x_by=weight_x_by, weight_y_by=weight_y_by,
+			plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
+			x_measured=x_measured, position=cfg.get('position', 'max-y'),
+			fontsize=int(cfg.get('fontsize', 16)), alpha=float(cfg.get('alpha', 0.95)),
+			offset_pts=cfg.get('offset_pts', [0, 0]) or [0, 0],
+			ha=cfg.get('ha', 'left'), va=cfg.get('va', 'bottom'), collect_texts=texts
+		)
+	except Exception as e:
+		logging.debug(f"series_labels failed: {e}")
+
+	if bool(cfg.get('avoid_overlap', False)) and texts:
+		try:
+			from adjustText import adjust_text
+			adjust_text(texts, ax=ax)
+		except ImportError:
+			logging.debug(
+				"series_labels: avoid_overlap=True but 'adjustText' is not installed; "
+				"run 'pip install adjustText' to enable automatic label adjustment."
+			)
+
+
 def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weight_x_by=None, x_measured=None,
 				   legend=True, equal_value_lines=None, equal_lines_cfg=None, plot_type='pa_var',
 				   phase_window='total', freq_window='full-band',
 				   draw_style='line-param', nbins=15, colour_by_sweep=False,
 				   legend_params=None, param_text=None, text=None, plot_config=None):
 	"""
-	Common plotting logic for plot_pa_var and plot_lfrac_var.
+	Draw every run of a multi-run dict on one axes (pa_var or l_frac), in shades of the
+	window colour, plus the expected curve, text, equal-value lines and series labels.
 	"""
 	if equal_value_lines is not None and x_measured is None:
 		logging.warning("--equal-value-lines requires --x-measured. Ignoring equal_value_lines.")
 		equal_value_lines = None
-	
+
 	base_yname = yname
 
-	curr_freq_label = normalise_freq_window(freq_window, target='dspec')
-	curr_phase_label = normalise_phase_window(phase_window, target='dspec')
-	base_label_for_all = f"{curr_freq_label}, {curr_phase_label}"
-
-	preferred_run = None
-	for run in frb_dict.keys():
-		if "full-band" in run and "total" in run:
-			preferred_run = run
-			break
-
-	weight_applied_all = True
-	first_run_key = next(iter(frb_dict))
-
-	exp_ref_run = preferred_run if preferred_run is not None else first_run_key
+	# Run used for the expected curve
+	exp_ref_run = next((run for run in frb_dict if "full-band" in run and "total" in run), next(iter(frb_dict)))
 	exp_ref_subdict = frb_dict[exp_ref_run]
 
+	weight_applied_all = True
 	x_last = None
 	xname = None
 	x_unit = None
 	swept_param = None
 
-	from collections import defaultdict
-	base_groups = defaultdict(list)
-	for freq_phase_key in frb_dict.keys():
-		base_groups[freq_phase_key].append(freq_phase_key)
-	
-	def get_colour_shades(base_colour, n_shades):
-		"""
-		Generate n_shades of a base colour, from darker to lighter.
-		Returns list of hex colours.
-		"""
-		import matplotlib.colors as mcolors
-		
-		if n_shades == 1:
-			return [base_colour]
-
-		rgb = mcolors.hex2color(base_colour)
-		shades = []
-		for i in range(n_shades):
-			if n_shades == 2:
-				factors = [0.7, 1.0]
-			elif n_shades == 3:
-				factors = [0.6, 1.0, 1.3]
-			else:
-				t = i / (n_shades - 1)
-				factors = [0.5 + 0.8 * t]
-			
-			factor = factors[i] if i < len(factors) else 0.5 + 0.8 * (i / (n_shades - 1))
-			
-			if factor <= 1.0:
-				new_rgb = tuple(max(0, min(1, c * factor)) for c in rgb)
-			else:
-				blend = factor - 1.0  
-				new_rgb = tuple(max(0, min(1, c + (1 - c) * blend)) for c in rgb)
-			shades.append(mcolors.rgb2hex(new_rgb))
-		
-		return shades
-
-	base_colour = colour_map.get(base_label_for_all, colours['purple'])
-	
-	n_runs = len(frb_dict)
-	if n_runs > 1:
-		colour_shades = get_colour_shades(base_colour, n_runs)
-	else:
-		colour_shades = [base_colour]
+	colour_shades = _colour_shades(_window_colour(freq_window, phase_window), len(frb_dict))
 
 	for idx, (override_key, run_data) in enumerate(frb_dict.items()):
 		logging.info(f"Processing {override_key}:")
-		od = _parse_override_dict(override_key)
-		series_label = _format_legend_label(od, legend_params, _gdict_of(run_data))
-		colour = colour_shades[idx]
+		series_label = _format_legend_label(_parse_override_dict(override_key), legend_params, _gdict_of(run_data))
 
 		run_fit = None
 		if fit is not None:
-			if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict):
-				run_fit = fit[idx]
-			else:
-				run_fit = fit
+			run_fit = fit[idx] if isinstance(fit, (list, tuple)) and len(fit) == len(frb_dict) else fit
 
 		if "measures" not in run_data:
 			raise KeyError(f"Run '{override_key}' missing 'measures'.")
@@ -2460,12 +2416,12 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 			yname_base=base_yname,
 			weight_y_by=weight_y_by,
 			weight_x_by=weight_x_by,
-			x_measured=x_measured, 
+			x_measured=x_measured,
 			figsize=None,
 			fit=run_fit,
 			scale=scale,
 			series_label=series_label,
-			series_colour=colour,
+			series_colour=colour_shades[idx],
 			expected_param_key=None,
 			ax=ax,
 			embed=True,
@@ -2489,20 +2445,8 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 		x_unit = meta['x_unit']
 
 		if swept_param is None:
-			dspec_params = run_data.get("dspec_params", None)
-			sweep_mode = None
-			if dspec_params is not None:
-				sweep_mode = getattr(dspec_params, "sweep_mode", None)
-				if sweep_mode is None and isinstance(dspec_params, dict):
-					sweep_mode = dspec_params.get("sweep_mode")
-				if sweep_mode is None and isinstance(dspec_params, (list, tuple)) and len(dspec_params) > 0:
-					first = dspec_params[0]
-					sweep_mode = getattr(first, "sweep_mode", None) if not isinstance(first, dict) else first.get("sweep_mode")
 			base_param = run_data.get("xname")
-			if sweep_mode == "sd":
-				swept_param = f"sd_{base_param}"
-			else:
-				swept_param = base_param
+			swept_param = f"sd_{base_param}" if _sweep_mode(run_data.get("dspec_params", None)) == "sd" else base_param
 
 	if weight_y_by is not None:
 		base = _base_of(weight_y_by)
@@ -2514,168 +2458,50 @@ def _plot_multirun(frb_dict, ax, fit, scale, yname=None, weight_y_by=None, weigh
 	else:
 		param_key = 'exp_var_PA'
 		logging.warning(f"Could not determine expected parameter key for yname='{base_yname}', using default '{param_key}'")
-	
+
 	weight_for_expected = weight_y_by if (weight_y_by is not None and weight_applied_all) else None
-	# only plot expected if config allows
 	if get_plot_param(plot_config, 'analytical', 'plot_expected', True):
 		_plot_expected(x_last, exp_ref_subdict, ax, exp_ref_subdict["V_params"], np.array(exp_ref_subdict["xvals"]),
 					   param_key=param_key, weight_y_by=weight_for_expected)
 
 	if legend:
-		legend_loc = get_plot_param(plot_config, 'general', 'legend_loc', 'best')
-		_legend_if_any(ax, loc=legend_loc)
+		_legend_if_any(ax, loc=get_plot_param(plot_config, 'general', 'legend_loc', 'best'))
 
 	_draw_text_items(ax, param_text, _gdict_of(next(iter(frb_dict.values()))), 'analytical', plot_config)
 	_draw_text_items(ax, text, _gdict_of(frb_dict), 'general', plot_config)
 
-	final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by) if (weight_y_by is not None and weight_applied_all) else (base_yname, param_map.get(base_yname, ""))
-	
-	# Don't pass x to _set_scale_and_labels - let matplotlib auto-scale based on plotted data
-	# Only set the axis labels and scale type
-	xlabel = rf"${xname}$" + (rf" $[{x_unit}]$" if x_unit else "")
-	ylabel = rf"${final_yname}$" + (rf" $[{y_unit}]$" if y_unit else "")
-	
-	ax.set_xlabel(xlabel)
-	ax.set_ylabel(ylabel)
-	
-	# Set scales
-	if scale == "logx" or scale == "log":
-		ax.set_xscale('log')
-	if scale == "logy" or scale == "log":
-		ax.set_yscale('log')
-		_apply_log_decade_ticks(ax, axis='y', base=10)
-	
+	if weight_y_by is not None and weight_applied_all:
+		final_yname, y_unit = _get_weighted_y_name(base_yname, weight_y_by)
+	else:
+		final_yname, y_unit = base_yname, param_map.get(base_yname, "")
+	# No x passed: leave the limits to matplotlib's autoscaling of the plotted data
+	_set_scale_and_labels(ax, scale, xname=xname, yname=final_yname, x_unit=x_unit, y_unit=y_unit)
 	ax.autoscale(enable=True, axis='both', tight=False)
 
 	if equal_value_lines is not None and x_measured is not None and swept_param is not None:
-		_xlim0, _ylim0 = ax.get_xlim(), ax.get_ylim()
-		y_measured = 'Vpsi' if plot_type == 'pa_var' else 'Lfrac'
-
-		# Style parameters (fallback to defaults if cfg missing)
-		if equal_lines_cfg:
-			linestyle    = equal_lines_cfg.get('linestyle', '--')
-			alpha        = float(equal_lines_cfg.get('alpha', 0.85))
-			colour_mode  = equal_lines_cfg.get('colour_mode', 'shades')
-			base_colour  = equal_lines_cfg.get('base_colour', '#005bff')
-			cmap_name    = equal_lines_cfg.get('cmap_name', 'viridis')
-			show_labels  = bool(equal_lines_cfg.get('show_labels', True))
-			extend_out   = bool(equal_lines_cfg.get('extend_outside', False))
-			extend_mode  = equal_lines_cfg.get('extend_mode', 'linear')
-			lbl_pos      = equal_lines_cfg.get('label_position', 'start')
-			lbl_off      = equal_lines_cfg.get('label_offset_pts', [0, 0]) or [0, 0]
-			lbl_ha       = equal_lines_cfg.get('label_ha', 'left')
-			lbl_va       = equal_lines_cfg.get('label_va', 'top')
-		else:
-			linestyle, alpha, colour_mode, base_colour, cmap_name, show_labels = '--', 0.85, 'shades', 'black', 'viridis', True
-			extend_out, extend_mode = False, 'linear'
-			lbl_pos, lbl_off, lbl_ha, lbl_va = 'start', [0, 0], 'left', 'top'
-
+		xlim0, ylim0 = ax.get_xlim(), ax.get_ylim()
+		line_kw = dict(weight_x_by=weight_x_by, weight_y_by=weight_y_by, x_measured=x_measured, zorder=0,
+					   plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
+					   **_equal_lines_style(equal_lines_cfg))
 		if isinstance(equal_value_lines, int):
 			logging.info(f"Using swept parameter '{swept_param}' for equal-value lines")
-			_plot_equal_value_lines(
-				ax, frb_dict, target_param=swept_param,
-				weight_x_by=weight_x_by, weight_y_by=weight_y_by,
-				x_measured=x_measured, y_measured=y_measured,
-				target_values=None, n_lines=equal_value_lines,
-				linestyle=linestyle, alpha=alpha, show_labels=show_labels, zorder=0,
-				plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
-				colour_mode=colour_mode, base_colour=base_colour, cmap_name=cmap_name,
-				extend_outside=extend_out, extend_mode=extend_mode,
-				label_position=lbl_pos, label_offset_pts=lbl_off, label_ha=lbl_ha, label_va=lbl_va
-			)
+			_plot_equal_value_lines(ax, frb_dict, target_param=swept_param, target_values=None,
+									n_lines=equal_value_lines, **line_kw)
 		elif isinstance(equal_value_lines, (list, tuple, np.ndarray)):
 			vals = [float(v) for v in equal_value_lines]
 			logging.info(f"Plotting equal-value lines at explicit values: {vals}")
-			_plot_equal_value_lines(
-				ax, frb_dict, target_param=swept_param,
-				weight_x_by=weight_x_by, weight_y_by=weight_y_by,
-				x_measured=x_measured, y_measured=y_measured,
-				target_values=vals, n_lines=len(vals),
-				linestyle=linestyle, alpha=alpha, show_labels=show_labels, zorder=0,
-				plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
-				colour_mode=colour_mode, base_colour=base_colour, cmap_name=cmap_name,
-				extend_outside=extend_out, extend_mode=extend_mode,
-				label_position=lbl_pos, label_offset_pts=lbl_off, label_ha=lbl_ha, label_va=lbl_va
-			)
+			_plot_equal_value_lines(ax, frb_dict, target_param=swept_param, target_values=vals,
+									n_lines=len(vals), **line_kw)
 		elif isinstance(equal_value_lines, str) and os.path.isdir(equal_value_lines):
-			from fires.utils.loaders import load_multiple_data_grouped
-			param_dict = load_multiple_data_grouped(equal_value_lines)
-			param_data = {}
-			import re
-			for key, subdict in param_dict.items() if isinstance(param_dict, dict) else [(None, param_dict)]:
-				param_val = None
-				param_name = None
-				try:
-					if key is not None:
-						m = re.search(r'([A-Za-z0-9_]+?)(?:_sd)?([0-9.]+)', key)
-						if m:
-							param_name = m.group(1)
-							param_val = float(m.group(2))
-					if param_val is None and 'dspec_params' in subdict and param_name is not None:
-						param_val = float(subdict['dspec_params'].gdict.get(param_name, [np.nan])[0])
-				except Exception:
-					param_val = None
-				if param_val is None or not np.isfinite(param_val):
-					continue
-				xvals = subdict['xvals']
-				measures = subdict['measures']
-				vpsi_vals = []
-				lfrac_vals = []
-				for xv in xvals:
-					segs = measures.get(xv, [])
-					vpsi = [_extract_value_from_segments(seg, 'Vpsi', phase_window, freq_window) for seg in segs]
-					lfrac = [_extract_value_from_segments(seg, 'Lfrac', phase_window, freq_window) for seg in segs]
-					vpsi_vals.append(np.nanmedian(vpsi))
-					lfrac_vals.append(np.nanmedian(lfrac))
-				param_data[param_val] = {'vpsi': vpsi_vals, 'lfrac': lfrac_vals}
-			if param_name in param_map:
-				param_symbol = param_map[param_name][0]
-			else:
-				param_symbol = param_name
-			plot_constant_param_lines(
-				ax, param_data, x_key='vpsi', y_key='lfrac',
-				color='gray', alpha=0.5, param_name=rf"{param_symbol}"
-			)
+			_constant_param_lines_from_dir(ax, equal_value_lines, phase_window, freq_window)
 		else:
 			logging.warning(f"equal_value_lines must be int, list, or directory path, got {type(equal_value_lines)}")
-	
-		ax.set_xlim(_xlim0)
-		ax.set_ylim(_ylim0)
-		
-	series_labels_cfg = get_plot_param(plot_config, 'analytical', 'series_labels', None) if plot_config else None
-	if isinstance(series_labels_cfg, dict) and series_labels_cfg.get('enabled', True):
-		params_to_label = series_labels_cfg.get('params', None)
-		position       = series_labels_cfg.get('position', 'max-y')
-		fs             = int(series_labels_cfg.get('fontsize', 16))
-		a              = float(series_labels_cfg.get('alpha', 0.95))
-		dxdy          = series_labels_cfg.get('offset_pts', [0, 0]) or [0, 0]
-		ha            = series_labels_cfg.get('ha', 'left')
-		va            = series_labels_cfg.get('va', 'bottom')
-		avoid_overlap = bool(series_labels_cfg.get('avoid_overlap', False))
-		_texts = []
-		try:
-			_label_series(
-				ax, frb_dict, params_to_label=params_to_label,
-				weight_x_by=weight_x_by, weight_y_by=weight_y_by,
-				plot_type=plot_type, phase_window=phase_window, freq_window=freq_window,
-				x_measured=x_measured, position=position, fontsize=fs, alpha=a,
-				offset_pts=dxdy, ha=ha, va=va, collect_texts=_texts
-			)
-		except Exception as e:
-			logging.debug(f"series_labels failed: {e}")
+		# Keep the data-driven limits; the lines span them rather than extend them
+		ax.set_xlim(xlim0)
+		ax.set_ylim(ylim0)
 
-		# Reduce collisions between series labels if requested
-		if avoid_overlap and _texts:
-			try:
-				from adjustText import adjust_text
-
-				# Let adjustText nudge labels to avoid overlaps
-				adjust_text(_texts, ax=ax)
-			except ImportError:
-				logging.debug(
-					"series_labels: avoid_overlap=True but 'adjustText' is not installed; "
-					"run 'pip install adjustText' to enable automatic label adjustment."
-				)
+	_draw_series_labels(ax, frb_dict, plot_config, weight_x_by, weight_y_by, plot_type,
+						phase_window, freq_window, x_measured)
 
 
 def _read_analytic_config(plot_config):
