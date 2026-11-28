@@ -716,6 +716,143 @@ def _sample_amplitude(mean_amp, sd_amp, amp_sampling, plot_multiple_frb=False):
 	raise ValueError(f"Unsupported amplitude distribution '{dist}'")
 
 
+MICROSHOT_PARAM_KEYS = (
+	't0_i', 'A_i', 'mg_width_i', 'spec_idx_i', 'tau_i', 'PA_i', 'DM_i', 'RM_i',
+	'lfrac_i', 'vfrac_i', 'dPA_i', 'band_centre_mhz_i', 'band_width_mhz_i',
+)
+
+# Target size (elements) of one (shots x time) work array in the vectorised synthesis.
+_SYNTH_CHUNK_ELEMENTS = 4_000_000
+
+
+def _draw_microshots(n_shots, t0, width, A, mg_width_low, mg_width_high, spec_idx, tau,
+					 PA, DM, RM, lfrac, vfrac, dPA, band_centre_mhz, band_width_mhz,
+					 sd_dict, amp_sampling, plot_multiple_frb):
+	"""
+	Draw the per-microshot parameters of one emission component.
+
+	Draws are made shot by shot in a fixed order so that a given seed always yields the same
+	population (the order matches every earlier FIRES release). Returns a dict of 1-D arrays
+	keyed by MICROSHOT_PARAM_KEYS.
+	"""
+	normal = np.random.normal
+	sd = {k: sd_dict[k] for k in ('sd_A', 'sd_spec_idx', 'sd_tau', 'sd_PA', 'sd_DM', 'sd_RM',
+								  'sd_lfrac', 'sd_vfrac', 'sd_dPA', 'sd_band_centre_mhz',
+								  'sd_band_width_mhz')}
+	sigma_t0 = width / GAUSSIAN_FWHM_FACTOR
+	w_lo, w_hi = mg_width_low / 100, mg_width_high / 100
+	rows = np.empty((n_shots, len(MICROSHOT_PARAM_KEYS)), dtype=float)
+	for i in range(n_shots):
+		t0_i = normal(t0, sigma_t0)
+		A_i = _sample_amplitude(A, sd['sd_A'], amp_sampling, plot_multiple_frb)
+		mg_width_i = width * np.random.uniform(w_lo, w_hi)
+		spec_idx_i = normal(spec_idx, sd['sd_spec_idx'])
+		tau_i = normal(tau, sd['sd_tau'])
+		PA_i = normal(PA, sd['sd_PA'])
+		DM_i = normal(DM, sd['sd_DM'])
+		RM_i = normal(RM, sd['sd_RM'])
+		lfrac_i, vfrac_i = _resolve_polarisation(normal(lfrac, sd['sd_lfrac']),
+												 normal(vfrac, sd['sd_vfrac']))
+		dPA_i = normal(dPA, sd['sd_dPA'])
+		band_centre_i = normal(band_centre_mhz, sd['sd_band_centre_mhz'])
+		band_width_i = normal(band_width_mhz, sd['sd_band_width_mhz'])
+		rows[i] = [np.squeeze(v) for v in (t0_i, A_i, mg_width_i, spec_idx_i, tau_i, PA_i, DM_i, RM_i,
+										   lfrac_i, vfrac_i, dPA_i, band_centre_i, band_width_i)]
+	return {key: rows[:, j] for j, key in enumerate(MICROSHOT_PARAM_KEYS)}
+
+
+def _shot_spectra(shots, freq_mhz, ref_freq_mhz, band_width_mhz):
+	"""(n_freq, n_shots) spectral amplitude of each shot: power law times optional Gaussian band."""
+	f = freq_mhz[:, None]
+	amp = shots['A_i'][None, :] * (f / ref_freq_mhz) ** shots['spec_idx_i'][None, :]
+	if band_width_mhz != 0.:
+		centre = np.where(shots['band_centre_mhz_i'] != 0., shots['band_centre_mhz_i'], np.median(freq_mhz))
+		bw_sigma = shots['band_width_mhz_i'] / GAUSSIAN_FWHM_FACTOR
+		has_band = bw_sigma > 0
+		if np.any(has_band):
+			with np.errstate(divide='ignore', invalid='ignore'):
+				band = gaussian_model(f, 1.0, centre[None, :], bw_sigma[None, :])
+			amp = np.where(has_band[None, :], amp * band, amp)
+	return amp
+
+
+def _synthesise_microshots(shots, freq_mhz, time_ms, time_res_ms, ref_freq_mhz, RM_mean,
+						   band_width_mhz, tau, sd_tau, sc_idx, sc_screen, sc_drm_dt):
+	"""
+	Sum the microshots of one component into a (4, n_freq, n_time) Stokes dynamic spectrum.
+
+	Each shot is separable in frequency and time apart from its Faraday angle, so the sum over
+	shots is computed as a few (n_freq x n_shots) @ (n_shots x n_time) matrix products. Shots
+	that are dispersed or individually scattered are not separable and use the per-shot path.
+	"""
+	tau_eff = np.maximum(shots['tau_i'] if sd_tau > 0 else np.full_like(shots['tau_i'], float(tau)), 0.0)
+	if np.any(shots['DM_i'] != 0) or (sd_tau > 0 and np.any(tau_eff > 0)):
+		return _synthesise_microshots_per_shot(shots, tau_eff, freq_mhz, time_ms, time_res_ms,
+											   ref_freq_mhz, RM_mean, band_width_mhz, sd_tau,
+											   sc_idx, sc_screen, sc_drm_dt)
+
+	nf, nt = freq_mhz.size, time_ms.size
+	out = np.zeros((4, nf, nt), dtype=float)
+	n_shots = shots['t0_i'].size
+	if n_shots == 0:
+		return out
+
+	amp = _shot_spectra(shots, freq_mhz, ref_freq_mhz, band_width_mhz)  # (nf, n)
+	# Faraday angle per (channel, shot): mean RM about ref_freq plus per-shot RM scatter (Burn law)
+	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz) ** 2
+	lambda_ref_sq = (speed_of_light_cgs * 1.0e-8 / float(ref_freq_mhz)) ** 2
+	phi = (RM_mean * (lambda_sq - lambda_ref_sq))[:, None] + lambda_sq[:, None] * (shots['RM_i'] - RM_mean)[None, :]
+	amp_c, amp_s = amp * np.cos(2 * phi), amp * np.sin(2 * phi)
+
+	chunk = max(1, _SYNTH_CHUNK_ELEMENTS // max(nt, 1))
+	for lo in range(0, n_shots, chunk):
+		sl = slice(lo, lo + chunk)
+		t_rel = time_ms[None, :] - shots['t0_i'][sl, None]
+		sigma = (shots['mg_width_i'][sl] / GAUSSIAN_FWHM_FACTOR)[:, None]
+		g = np.exp(-(t_rel ** 2) / (2 * sigma ** 2))                     # (n, nt) unit-peak profile
+		chi = np.deg2rad(shots['PA_i'][sl, None] + t_rel * shots['dPA_i'][sl, None])
+		lg = shots['lfrac_i'][sl, None] * g
+		lg_c, lg_s = lg * np.cos(2 * chi), lg * np.sin(2 * chi)
+		out[0] += amp[:, sl] @ g
+		out[1] += amp_c[:, sl] @ lg_c - amp_s[:, sl] @ lg_s
+		out[2] += amp_c[:, sl] @ lg_s + amp_s[:, sl] @ lg_c
+		out[3] += amp[:, sl] @ (shots['vfrac_i'][sl, None] * g)
+	return out
+
+
+def _synthesise_microshots_per_shot(shots, tau_eff, freq_mhz, time_ms, time_res_ms, ref_freq_mhz,
+									RM_mean, band_width_mhz, sd_tau, sc_idx, sc_screen, sc_drm_dt):
+	"""Per-shot synthesis for dispersed and/or individually scattered microshots."""
+	out = np.zeros((4, freq_mhz.size, time_ms.size), dtype=float)
+	amp_all = _shot_spectra(shots, freq_mhz, ref_freq_mhz, band_width_mhz)
+	lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz[:, None]) ** 2
+	for i in range(shots['t0_i'].size):
+		t0_i, DM_i = shots['t0_i'][i], shots['DM_i'][i]
+		base_gauss = gaussian_model(time_ms, 1.0, t0_i, shots['mg_width_i'][i] / GAUSSIAN_FWHM_FACTOR)
+		I_ft = amp_all[:, i, None] * base_gauss[None, :]
+		if DM_i != 0:
+			shifts = np.round(_calculate_dispersion_delay(DM_i, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
+			I_ft = _roll_rows(I_ft, shifts)
+
+		pol_angle_arr = shots['PA_i'][i] + (time_ms - t0_i) * shots['dPA_i'][i]
+		faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM_mean, freq_mhz[:, None], ref_freq_mhz)
+		rm_scatter = shots['RM_i'][i] - RM_mean
+		if rm_scatter != 0.0:
+			faraday_angles += rm_scatter * lambda_sq
+
+		lfrac_i = shots['lfrac_i'][i]
+		shot = np.stack([I_ft,
+						 I_ft * lfrac_i * np.cos(2 * faraday_angles),
+						 I_ft * lfrac_i * np.sin(2 * faraday_angles),
+						 I_ft * shots['vfrac_i'][i]], axis=0)
+		if tau_eff[i] > 0 and sd_tau > 0:
+			tau_cms = tau_eff[i] * (freq_mhz / ref_freq_mhz) ** sc_idx
+			shot = scatter_dspec(shot, time_res_ms, tau_cms, screen=sc_screen,
+								 drm_dt=sc_drm_dt, freq_mhz=freq_mhz)
+		out += shot
+	return out
+
+
 def psn_dspec(
 	dspec_params,
 	plot_multiple_frb,
@@ -803,8 +940,6 @@ def psn_dspec(
 	mg_width_low    = gdict['mg_width_low']
 	mg_width_high   = gdict['mg_width_high']
 
-	width_range = [[mg_width_low[i], mg_width_high[i]] for i in range(len(mg_width_low))]
-
 	sd_A               = sd_dict['sd_A']
 	sd_spec_idx        = sd_dict['sd_spec_idx']
 	sd_tau             = sd_dict['sd_tau']
@@ -823,109 +958,22 @@ def psn_dspec(
 	sc_screen = prop_dict['scattering_screen']
 	sc_drm_dt = float(prop_dict.get('scattering_drm_dt', 0.0) or 0.0)
 			
-	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)  # Initialise dynamic spectrum array
+	dspec = np.zeros((4, freq_mhz.shape[0], time_ms.shape[0]), dtype=float)
+	all_params = {key: [] for key in MICROSHOT_PARAM_KEYS}
 
-	all_params = {
-		't0_i'             : [],
-		'A_i'              : [],
-		'mg_width_i'       : [],
-		'spec_idx_i'       : [],
-		'tau_i'            : [],
-		'PA_i'             : [],
-		'DM_i'             : [],
-		'RM_i'             : [],
-		'lfrac_i'          : [],
-		'vfrac_i'          : [],
-		'dPA_i'            : [],
-		'band_centre_mhz_i': [],
-		'band_width_mhz_i' : []
-	}
-
-	num_main_gauss = len(t0)
 	comp_dsps = []
-	for g in range(num_main_gauss):
-		comp_dspec = np.zeros_like(dspec)
-		for _ in range(int(N[g])):
-			t0_i              = np.random.normal(t0[g], width[g] / GAUSSIAN_FWHM_FACTOR)
-			A_i = _sample_amplitude(A[g], sd_A, amp_sampling, plot_multiple_frb)
-			mg_width_i        = width[g] * np.random.uniform(width_range[g][0] / 100, width_range[g][1] / 100)
-			spec_idx_i        = np.random.normal(spec_idx[g], sd_spec_idx)
-			tau_i          	  = np.random.normal(tau[g], sd_tau)
-			tau_eff = max(tau_i if sd_tau > 0 else float(tau[g]), 0.0)  # clamp unphysical draws
-			if tau_eff > 0:
-				tau_cms = tau_eff * (freq_mhz / ref_freq_mhz) ** sc_idx
-			else:
-				tau_cms = None
-
-			PA_i              = np.random.normal(PA[g], sd_PA)
-			DM_i              = np.random.normal(DM[g], sd_dm)
-			RM_i              = np.random.normal(RM[g], sd_rm)
-			# lfrac, vfrac are desired L/I and V/I; allow per-micro variation
-			lfrac_raw = np.random.normal(lfrac[g], sd_lfrac)
-			vfrac_raw = np.random.normal(vfrac[g], sd_vfrac)
-			lfrac_i, vfrac_i = _resolve_polarisation(lfrac_raw, vfrac_raw)
-
-
-			dPA_i             = np.random.normal(dPA[g], sd_dPA)
-			band_centre_mhz_i = np.random.normal(band_centre_mhz[g], sd_band_centre_mhz)
-			band_width_mhz_i  = np.random.normal(band_width_mhz[g], sd_band_width_mhz)
-	
-			# Record parameters
-			all_params['t0_i'].append(t0_i)
-			all_params['A_i'].append(A_i)
-			all_params['mg_width_i'].append(mg_width_i)
-			all_params['spec_idx_i'].append(spec_idx_i)
-			all_params['tau_i'].append(tau_i)
-			all_params['PA_i'].append(PA_i)
-			all_params['DM_i'].append(DM_i)
-			all_params['RM_i'].append(RM_i)
-			all_params['lfrac_i'].append(lfrac_i)
-			all_params['vfrac_i'].append(vfrac_i)
-			all_params['dPA_i'].append(dPA_i)
-			all_params['band_centre_mhz_i'].append(band_centre_mhz_i)
-			all_params['band_width_mhz_i'].append(band_width_mhz_i)
-
-			# Vectorised micro-shot synthesis
-			norm_amp = A_i * (freq_mhz / ref_freq_mhz) ** spec_idx_i
-			if band_width_mhz[g] != 0.:
-				centre_freq = band_centre_mhz_i if band_centre_mhz_i != 0. else np.median(freq_mhz)
-				bw_sigma = band_width_mhz_i / GAUSSIAN_FWHM_FACTOR
-				if bw_sigma > 0:
-					spectral_profile = gaussian_model(freq_mhz, 1.0, centre_freq, bw_sigma)
-					norm_amp *= spectral_profile
-
-			base_gauss = gaussian_model(time_ms, 1.0, t0_i, mg_width_i / GAUSSIAN_FWHM_FACTOR)
-			I_ft = norm_amp[:, None] * base_gauss[None, :]
-
-			if DM_i != 0:
-				shifts = np.round(_calculate_dispersion_delay(DM_i, freq_mhz, ref_freq_mhz) / time_res_ms).astype(int)
-				I_ft = _roll_rows(I_ft, shifts)
-
-			pol_angle_arr = PA_i + (time_ms - t0_i) * dPA_i
-			# Mean RM applied with ref-freq offset (preserves PA at ref_freq)
-			faraday_angles = _apply_faraday_rotation(pol_angle_arr[None, :], RM[g], freq_mhz[:, None], ref_freq_mhz)
-			# Per-microshot RM scatter applied without ref-freq offset (Burn-law depolarisation)
-			rm_scatter = RM_i - RM[g]
-			if rm_scatter != 0.0:
-				lambda_sq = (speed_of_light_cgs * 1.0e-8 / freq_mhz[:, None]) ** 2
-				faraday_angles += rm_scatter * lambda_sq
-
-			Q_ft = I_ft * lfrac_i * np.cos(2 * faraday_angles)
-			U_ft = I_ft * lfrac_i * np.sin(2 * faraday_angles)
-			V_ft = I_ft * vfrac_i
-
-			if tau_eff > 0 and sd_tau > 0:
-				shot = np.stack([I_ft, Q_ft, U_ft, V_ft], axis=0)
-				shot = scatter_dspec(shot, time_res_ms, tau_cms, screen=sc_screen,
-									 drm_dt=sc_drm_dt, freq_mhz=freq_mhz)
-				I_ft, Q_ft, U_ft, V_ft = shot[0], shot[1], shot[2], shot[3]
-
-			comp_dspec[0] += I_ft
-			comp_dspec[1] += Q_ft
-			comp_dspec[2] += U_ft
-			comp_dspec[3] += V_ft
-
-		comp_dsps.append(comp_dspec)
+	for g in range(len(t0)):
+		shots = _draw_microshots(
+			int(N[g]), t0[g], width[g], A[g], mg_width_low[g], mg_width_high[g], spec_idx[g], tau[g],
+			PA[g], DM[g], RM[g], lfrac[g], vfrac[g], dPA[g], band_centre_mhz[g], band_width_mhz[g],
+			sd_dict, amp_sampling, plot_multiple_frb,
+		)
+		for key in MICROSHOT_PARAM_KEYS:
+			all_params[key].extend(shots[key].tolist())
+		comp_dsps.append(_synthesise_microshots(
+			shots, freq_mhz, time_ms, time_res_ms, ref_freq_mhz, RM[g], band_width_mhz[g],
+			tau[g], sd_tau, sc_idx, sc_screen, sc_drm_dt,
+		))
 
 	if isinstance(pa_swing, dict) and bool(pa_swing.get('enable', False)):
 		for g_b in range(len(comp_dsps)):
