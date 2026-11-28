@@ -23,14 +23,15 @@ _OPTIONAL_SCALARS = ("label", "source", "flux_unit", "dm", "rm_applied", "ref_fr
 
 
 def write_stokes_npz(path, stokes, freq_mhz, time_ms, *, pol_order="IQUV", chan_mask=None,
-                     params=None, compress=False, **meta):
+                     params=None, compress=False, dtype=np.float32, **meta):
     """
     Write a Stokes cube and its axes to ``path`` (``.npz`` is appended by NumPy if missing).
 
     ``meta`` takes the optional scalar keys (label, source, flux_unit, dm, rm_applied,
     ref_freq_mhz); ``params`` is any JSON-serialisable dict, stored as ``params_json``.
+    The cube is stored as ``dtype`` (float32 by default, ~7 significant digits); axes stay float64.
     """
-    stokes = np.asarray(stokes)
+    stokes = np.asarray(stokes, dtype=dtype)
     freq_mhz = np.asarray(freq_mhz, dtype=float)
     time_ms = np.asarray(time_ms, dtype=float)
     if stokes.ndim != 3 or stokes.shape[0] != len(pol_order):

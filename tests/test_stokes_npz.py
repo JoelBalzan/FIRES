@@ -25,7 +25,8 @@ def test_round_trip_without_pickle(tmp_path, cube):
     with np.load(path, allow_pickle=False) as f:
         assert str(f["format"]) == "stokes-dspec" and int(f["nchan"]) == 8
     out, f2, t2, meta = read_stokes_npz(path)
-    np.testing.assert_array_equal(out, dspec)
+    assert out.dtype == np.float32
+    np.testing.assert_allclose(out, dspec, rtol=1e-6)
     np.testing.assert_array_equal(f2, freq)
     np.testing.assert_array_equal(t2, time)
     assert meta["label"] == "FRB 1" and meta["dm"] == 12.5 and meta["params"] == {"a": 1.5, "b": [1, 2]}
@@ -50,7 +51,8 @@ def test_load_data_npz_matches_npy(tmp_path, cube):
     cube_dir = write_stokes_cube(dspec, freq, time, str(tmp_path), "SIM", source="test")
     from_npy = load_data(cube_dir, None, sim_file=SIM_FILE)
     from_npz = load_data(os.path.join(cube_dir, "SIM_stokes.npz"), None, sim_file=SIM_FILE)
-    for a, b in zip(from_npy[:3], from_npz[:3]):
+    np.testing.assert_allclose(from_npz[0], from_npy[0], rtol=1e-6)  # cube stored as float32
+    for a, b in zip(from_npy[1:3], from_npz[1:3]):
         np.testing.assert_array_equal(a, b)
     np.testing.assert_array_equal(from_npy[1], freq)   # loader returns ascending frequency
     np.testing.assert_array_equal(from_npy[0], dspec)
