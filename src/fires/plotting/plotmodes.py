@@ -2467,6 +2467,7 @@ def _plot_analytic(plot_type, frb_dict, fname, out_dir, phase_window, freq_windo
 			fig.subplots_adjust(left=0.18, right=0.98, bottom=0.16, top=0.98)
 			_plot_single_run_multi_window(
 				frb_dict=frb_dict, ax=ax, plot_type=plot_type, window_pairs=compare_windows,
+				gauss_file=gauss_file, sim_file=sim_file, x_measured=cfg.x_measured,
 				weight_y_by=cfg.weight_y_by, weight_x_by=cfg.weight_x_by, fit=cfg.fit, scale=cfg.scale,
 				legend=cfg.legend, obs_data=obs_data, obs_params=obs_params, buffer_frac=buffer_frac,
 				draw_style=cfg.draw_style, nbins=cfg.nbins, colour_by_sweep=cfg.colour_by_sweep,
